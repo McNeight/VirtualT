@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: $ */
+/* $Id: m100emu.h,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -32,6 +32,12 @@
 #define _M100EMU_H_
 
 #include "gen_defs.h"
+#include "roms.h"
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 extern char  op[16];
 extern int trace;
@@ -39,12 +45,14 @@ extern int fullspeed;
 extern int gExitApp;
 extern float cpu_speed;
 extern uchar memory[65536];
+extern RomDescription_t	 *gStdRomDesc;
+extern int   gModel;
+extern char gsOptRomFile[256];
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+	
 void cpu_delay(int cy);
 void resetcpu(void);
+void load_opt_rom(void);
 #ifdef __cplusplus
 }
 #endif

@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: $ */
+/* $Id: m100emu.c,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -46,29 +46,36 @@
 #include "display.h"
 #include "genwrap.h"
 #include "filewrap.h"
+#include "roms.h"
+#include "intelhex.h"
 
 int fullspeed=0;
 
-uchar cpu[14];
-uchar memory[65536];
-uchar sysROM[32768];
-uchar optROM[32768];
-char  op[26];
-unsigned long long int cycles=0;
-unsigned long long int instructs=0;
-unsigned long long int last_isr_cycle=0;
-int trace=0;
-int starttime;
-FILE *tracefile;
-DWORD  rst7cycles = 9830;
+uchar	cpu[14];
+uchar	memory[65536];
+uchar	sysROM[ROMSIZE];
+uchar	optROM[ROMSIZE];
+char	op[26];
+UINT64	cycles=0;
+UINT64	instructs=0;
+UINT64	last_isr_cycle=0;
+int		trace=0;
+int		starttime;
+FILE	*tracefile;
+DWORD	rst7cycles = 9830;
 DWORD	one_sec_cycle_count;
 DWORD	one_sec_time;
-unsigned long long int one_sec_cycles;
+UINT64	one_sec_cycles;
 DWORD   update_secs = 0;
-float  cpu_speed;
+float	cpu_speed;
 int		gExitApp = 0;
-
+char	gsOptRomFile[256];
 DWORD	last_one_sec_time;
+
+
+extern RomDescription_t		gM100_Desc;
+extern int					cROM;
+RomDescription_t	*gStdRomDesc;
 
 
 #ifdef _WIN32
@@ -105,7 +112,7 @@ void cpu_delay(int cy)
 		last_instruct+=cy*0.000000416666666667;
 		while(hirestimer()<last_instruct) {
 	#ifdef _WIN32
-			Sleep(1)
+			Sleep(1);
 	#else
 			struct timespec ts;
 
@@ -126,10 +133,10 @@ void bail(char *msg)
 
 	endtime=msclock();
 	puts(msg);
-	printf("I:%10lld C:%15lld %-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",instructs,cycles,op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
+	printf("%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
 	printf("Start: %d  End: %d\n",starttime,endtime);
 	printf("Time: %f\n",((double)(endtime-starttime))/1000);
-	printf("MHz: %f\n",((unsigned long long int)cycles/(((double)(endtime-starttime))/1000))/1000000);
+	printf("MHz: %f\n",((UINT64)cycles/(((double)(endtime-starttime))/1000))/1000000);
 	exit(1);
 }
 
@@ -148,7 +155,51 @@ void resetcpu(void)
 	PCL=0;
 	IM=0x08;
 	cpuMISC=0;
+	memcpy(memory,sysROM,ROMSIZE);
+	cROM = 0;
 
+}
+
+void load_opt_rom(void)
+{
+	int				len, c;
+	int				fd;
+	unsigned short	start_addr;
+	char			buf[65536];
+
+	// Clear the option ROM memory
+	memset(optROM,0,ROMSIZE);
+
+	// Check if an option ROM is loaded
+	if ((len = strlen(gsOptRomFile)) == 0)
+		return;
+
+	// Check type of option ROM
+	if (((gsOptRomFile[len-1] | 0x20) == 'x') &&
+		((gsOptRomFile[len-2] | 0x20) == 'e') &&
+		((gsOptRomFile[len-3] | 0x20) == 'h'))
+	{
+		// Load Intel HEX file
+		len = load_hex_file(gsOptRomFile, buf, &start_addr);
+
+		// Check for invalid HEX file
+		if ((len > 32768) || (start_addr != 0))
+			return;
+
+		// Copy data to optROM
+		for (c = 0; c < len; c++)
+			optROM[c] = buf[c];
+	}
+	else
+	{
+		// Open BIN file
+		fd=open(gsOptRomFile,O_RDONLY);
+		if(fd!=-1) 
+		{
+			read(fd, optROM, ROMSIZE);
+			close(fd);
+		}
+	}
 }
 
 void initcpu(void)
@@ -180,6 +231,8 @@ void initcpu(void)
 
 	memcpy(memory, sysROM, ROMSIZE);
 
+	gStdRomDesc = &gM100_Desc;
+
 	for (i = 0; i < RAMSIZE; i++)
 		memory[ROMSIZE + i] = 0;
 
@@ -192,19 +245,14 @@ void initcpu(void)
 		fclose(ram);
 	}
 
-	memset(optROM,0,ROMSIZE);
 
-	fd=open("optROM.bin",O_RDONLY);
-	if(fd!=-1) {
-		read(fd, optROM, ROMSIZE);
-		close(fd);
-		return;
-	}
+	// Load option ROM if any
+	load_opt_rom();
 }
 
 __inline void check_interrupts(void)
 {
-	static unsigned long long int	last_rst75=0;
+	static UINT64	last_rst75=0;
 	static DWORD    last_rst_ms = 0;
 
 	if((last_rst75+rst7cycles)<cycles) {
@@ -282,7 +330,6 @@ void emulate(void)
 	int	top=0;
 	char *p;
 	FILE *fd;
-	int		currtime;
 	int	nxtmaint=1;
 
 	starttime=msclock();
@@ -291,15 +338,12 @@ void emulate(void)
 		if(trace && tracefile != NULL)
 			fprintf(tracefile, "%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n"
 			,op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
-		check_interrupts();
 		nxtmaint--;
 		if(!nxtmaint) {
+			check_interrupts();
 			maint();
 			nxtmaint=128;
 		}
-
-		if (gExitApp)
-			break;
 	}
 
 	fd=fopen("RAM.bin", "wb+");
@@ -334,6 +378,8 @@ int main(int argc, char **argv)
 	signal(SIGQUIT,handle_sig);
 	signal(SIGINT,handle_sig);
 #endif
+	// Added by JV for prefs
+	initpref();
 	initcpu();
 	init_io();
 	initdisplay();
