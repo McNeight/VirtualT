@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.1 2004/08/31 15:17:57 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -28,18 +28,19 @@
  */
 
 
+
+#include <sys/types.h>
+#include <ctype.h>
+#include <stdio.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #include <FL/Fl.H>
 #include <FL/Fl_Help_Dialog.h>
 #include <FL/fl_ask.H> 
 #include <FL/Fl_File_Chooser.H>
 #include <FL/Fl_Hold_Browser.H>
-
-
-#include <sys/types.h>
-#include <stdio.h>
-#ifdef _WIN32
-#include <windows.h>
-#endif
 
 extern "C"
 {
