@@ -1,6 +1,6 @@
 /* do_instruct.h */
 
-/* $Id: do_instruct.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: do_instruct.h,v 1.2 2004/08/05 07:19:25 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -52,8 +52,11 @@
 							if(trace) \
 								strcat(p,"INX "rps); \
 							l++; \
-							if(!l) \
+							F &= ~XF_BIT; \
+							if(!l) { \
 								h++; \
+								F |= XF_BIT; \
+							} \
 							cpu_delay(6); \
 						}
 
@@ -121,8 +124,11 @@
 							if(trace) \
 								strcat(p,"DCX "rps); \
 							l--; \
-							if(l==0xff) \
+							F &= ~XF_BIT; \
+							if(l==0xff) { \
+								F |= XF_BIT; \
 								h--; \
+							} \
 							cpu_delay(6); \
 						}
 
@@ -381,8 +387,16 @@
 						if(!(INS&0x04)) {
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
-									/* case 0x08:	/* INVALID? */
-									bail("0x08 is invalid");
+									/* case 0x08:	/* DSUB */
+									INCPC;
+									if (trace)
+										sprintf(p, "DSUB");
+									i = HL > BC - (CF?1:0);
+									j = HL - BC - (CF?1:0);
+									L=j&0xFF;
+									H=(j >> 8) & 0xFF;
+									setflags(H | L,-2,-1,-2,-2,i);
+									cpu_delay(10);
 									/* return; */
 								}
 								else {
@@ -438,8 +452,16 @@
 						if(!(INS&0x04)) {
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
-									/* case 0x10:	/* INVALID? */
-									bail("0x10 is invalid");
+									/* case 0x10:	/* ASHR */
+									INCPC;
+									if (trace)
+										sprintf(p, "ASHR");
+									i = L & CF ;
+									j = HL >> 1;
+									L = j & 0xFF;
+									H = (j >> 8) & 0xFF;
+									setflags(0,-2,-2,-2,-2,i);
+									cpu_delay(7);
 									/* return; */
 								}
 								else {
@@ -493,8 +515,16 @@
 						if(!(INS&0x04)) {
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
-									/* case 0x18:	/* INVALID? */
-									bail("0x18 is invalid");
+									/* case 0x18:	/* RLDE */
+									INCPC;
+									if (trace)
+										sprintf(p, "RLDE");
+									i = D & 0x80 ? 1 : 0;
+									j = DE << 1;
+									E = j & 0xFF;
+									D = (j >> 8) & 0xFF;
+									setflags(0,-2,-2,-2,-2,i);
+									cpu_delay(10);
 									/* return; */
 								}
 								else {
@@ -606,14 +636,18 @@
 									if(trace)
 										strcat(p,"DAA");
 									i=j=0;
+									/* Check if lower nibble greater than 9 */
 									if(((A&0x0F) > 9)) {
-										i=6;
-										j=1;
+										i=6;	/* Add 6 to lower nibble */
+										j=1;    /* Aux carry to upper nibble */
 									}
+									/* Check for Aux Carry from last operation */
 									if(AC)
-										i=6;
+										i=6;	/* Add 6 to lower nibble */
+									/* Check if upper nibble will be greater than 9 */
+									/* after any carry's are added */
 									if((((A>>4)+j) > 9) || CF)
-										i|=0x60;
+										i|=0x60;/* Add 6 to upper nibble */
 									A+=i;
 									setflags(A,-1,-1,j,-1,i>>4?1:0);
 									cpu_delay(4);
@@ -626,8 +660,15 @@
 						if(!(INS&0x04)) {
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
-									/* case 0x28:	/* INVALID? */
-									bail("0x28 is invalid");
+									/* case 0x28:	/* LDEH */
+									INCPC;
+									if (trace)
+										sprintf(p, "LDEH %02x", INS);
+									j = HL + INS;
+									INCPC;
+									E = j & 0xFF;
+									D = (j >> 8) & 0xFF;
+									cpu_delay(10);
 									/* return; */
 								}
 								else {
@@ -755,8 +796,15 @@
 						if(!(INS&0x04)) {
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
-									/* case 0x38:	/* UNSUPPORTED */
-									bail("0x38 is invalid");
+									/* case 0x38:	/* LDES */
+									INCPC;
+									if (trace)
+										sprintf(p, "LDES %02x", INS);
+									j = SP + INS;
+									INCPC;
+									E = j & 0xFF;
+									D = (j >> 8) & 0xFF;
+									cpu_delay(10);
 									/* return; */
 								}
 								else {
@@ -1813,8 +1861,13 @@
 									RETURN(CF,"RC");
 								}
 								else {
-									/* case 0xD9:	/* INVALID? */
-									bail("0xD9 is invalid");
+									/* case 0xD9:	/* SHLX */
+									INCPC;
+									if (trace)
+										sprintf(p, "SHLX");
+									MEM(DE)=L;
+									MEM(DE+1)=H;
+									cpu_delay(10);
 									/* return; */
 								}
 							}
@@ -1841,8 +1894,8 @@
 									CALL(CF,"CC");
 								}
 								else {
-									/* case 0xDD:	/* INVALID? */
-									bail("0xDD is invalid");
+									/* case 0xDD:	/* JNX addr */
+									JUMP(!XF,"JNX");
 									/* return; */
 								}
 							}
@@ -1989,8 +2042,13 @@
 									CALL(PF,"CPE");
 								}
 								else {
-									/* case 0xED:	/* INVALID? */
-									bail("0xED is invalid");
+									/* case 0xED:	/* LHLX */
+									INCPC;
+									if (trace)
+										sprintf(p, "LHLX");
+									L=MEM(DE);
+									H=MEM(DE+1);
+									cpu_delay(10);
 									/* return; */
 								}
 							}
@@ -2114,8 +2172,8 @@
 									CALL(SF,"CM");
 								}
 								else {
-									/* case 0xFD:	/* INVALID? */
-									bail("0xFD is invalid");
+									/* case 0xFD:	/* JX addr */
+									JUMP(XF,"JX");
 									/* return; */
 								}
 							}
@@ -2132,6 +2190,10 @@
 									else
 										i=0;
 									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
+									if (trace == 1)
+										fprintf(tracefile, "CPI setflags args %02X, %02x, %02x, %02x, %02x %02x\n",
+											A-INS, -1, -1, j, -1, i) ;
+
 									setflags(A-INS,-1,-1,j,-1,i);
 									INCPC;
 									cpu_delay(7);
