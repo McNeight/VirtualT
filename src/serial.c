@@ -290,7 +290,7 @@ void initialize_dcb(void)
 
 void ErrorReporter(char* text)
 {
-	show_error(text);
+//	show_error(text);
 }
 
 /*
@@ -358,12 +358,15 @@ ReadProc:  Thread to read data from COM port
 */
 DWORD ReadProc(LPVOID lpv)
 {
-    HANDLE			hArray[2];
+    HANDLE			hArray[3];
+	OVERLAPPED		osStatus;
 
     DWORD			dwStoredFlags = 0xFFFFFFFF;     // local copy of event flags
-	DWORD			dwFlags = EV_BREAK | EV_CTS | EV_DSR | EV_ERR | EV_RING | EV_RLSD;
+	DWORD			dwFlags = EV_CTS | EV_DSR;
     DWORD 			dwRead;							// bytes actually read
     DWORD			dwRes;							// result from WaitForSingleObject
+	DWORD			dwOvRes;
+	DWORD			dwCommEvent;
 	COMSTAT			comStat;
 	DWORD			dwError;
     BOOL			fWaitingOnStat = FALSE;
@@ -375,11 +378,16 @@ DWORD ReadProc(LPVOID lpv)
 
     sp = (ser_params_t *) lpv;
 
+	osStatus.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	ResetEvent(sp->osRead.hEvent);
+	ResetEvent(sp->osWrite.hEvent);
+
     // Detect the following events:
     //   Read events (from ReadFile)
     //   Thread exit evetns (from our shutdown functions)
     hArray[0] = sp->osRead.hEvent;
     hArray[1] = sp->hThreadExitEvent;
+	hArray[2] = osStatus.hEvent;
 
     while ( !fThreadDone ) 
 	{
@@ -404,16 +412,33 @@ DWORD ReadProc(LPVOID lpv)
             }
         }
 
-        if (dwStoredFlags != dwFlags) {
+        if (dwStoredFlags != dwFlags) 
+		{
             dwStoredFlags = dwFlags;
             if (!SetCommMask(sp->hComm, dwStoredFlags))
                 ErrorReporter("SetCommMask");
         }
 
+		if (!fWaitingOnStat) {
+			if (!WaitCommEvent(sp->hComm, &dwCommEvent, &osStatus)) 
+			{
+				if (GetLastError() == ERROR_IO_PENDING)
+					fWaitingOnStat = TRUE;
+				else
+					// error in WaitCommEvent; abort
+					break;
+			}
+			else
+				// Check for a monitor window and report change
+				if (sp->pMonCallback != NULL)
+					sp->pMonCallback(SER_MON_COM_SIGNAL, 0);
+		}
+
+
         // wait for pending operations to complete
-        if ( fWaitingOnRead ) 
+        if ( fWaitingOnRead || fWaitingOnStat ) 
 		{
-            dwRes = WaitForMultipleObjects(2, hArray, FALSE, INFINITE);
+            dwRes = WaitForMultipleObjects(3, hArray, FALSE, INFINITE);
             switch(dwRes)
             {
                 // read completed
@@ -422,6 +447,7 @@ DWORD ReadProc(LPVOID lpv)
 					{
 						ClearCommError(sp->hComm, &dwError, &comStat);
                         ErrorReporter("GetOverlappedResult (in Reader)");
+						dwError = GetLastError();
 					}
                     else 
 					{      
@@ -443,6 +469,19 @@ DWORD ReadProc(LPVOID lpv)
                 case WAIT_OBJECT_0 + 1:
                     fThreadDone = TRUE;
                     break;
+
+				case WAIT_OBJECT_0 + 2:
+					if (!GetOverlappedResult(sp->hComm, &osStatus, &dwOvRes, FALSE))
+                        ErrorReporter("GetOverlappedResult Error (status read)");
+					else
+						// Check for a monitor window and report change
+						if (sp->pMonCallback != NULL)
+							sp->pMonCallback(SER_MON_COM_SIGNAL, 0);
+
+					// Set fWaitingOnStat flag to indicate that a new
+					// WaitCommEvent is to be issued.
+					fWaitingOnStat = FALSE;
+					break;
 
                 default:
                     ErrorReporter("WaitForMultipleObjects(Reader & Status handles)");
@@ -473,6 +512,9 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 
     hArray[0] = sp->hWriteEvent;
     hArray[1] = sp->hThreadExitEvent;
+
+    hwArray[0] = sp->osWrite.hEvent;
+	hwArray[1] = sp->hThreadExitEvent;
    
     while ( !fDone ) {
         dwRes = WaitForMultipleObjects(2, hArray, FALSE, INFINITE);
@@ -484,13 +526,10 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 
             // write request event
             case WAIT_OBJECT_0:
-                hwArray[0] = sp->osWrite.hEvent;
-				hwArray[1] = sp->hThreadExitEvent;
-    
 				// Read bytes from sp structure
-				WaitForSingleObject(sp->hWriteMutex, 2000);
+//				WaitForSingleObject(sp->hWriteMutex, 2000);
 
-				ReleaseMutex(sp->hWriteMutex);
+//				ReleaseMutex(sp->hWriteMutex);
 				// issue write
 				if (!WriteFile(sp->hComm, sp->tx_buf, 1, &dwWritten, &sp->osWrite)) 
 				{
@@ -588,7 +627,8 @@ int ser_set_baud(int baud)
 	if (sp.open_flag == 0)
 		return SER_NO_ERROR;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Update DCB settings
@@ -627,7 +667,8 @@ int ser_close_port(void)
 	if (sp.open_flag == 0)
 		return SER_PORT_NOT_OPEN;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) ||
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		// ===================
 		// Close the Host port
@@ -685,7 +726,8 @@ int ser_open_port(void)
 		ser_close_port();
 
 	// Check if using HOST port emulation
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) ||
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		// =============
 		// Open the port
@@ -767,12 +809,6 @@ int ser_open_port(void)
 		// Update flag indicating port open
 		sp.open_flag = TRUE;
 	}
-	else if (setup.com_mode == SETUP_COM_OTHER)
-	{
-		// ============================================
-		// Add code here to support other Host ports
-		// ============================================
-	}
 
 	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
@@ -842,7 +878,8 @@ int ser_set_parity(char parity)
 	if (sp.open_flag == 0)
 		return SER_NO_ERROR;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Update DCB settings
@@ -890,7 +927,8 @@ int ser_set_bit_size(int bit_size)
 	if (sp.open_flag == 0)
 		return SER_NO_ERROR;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Update DCB settings
@@ -938,7 +976,8 @@ int ser_set_stop_bits(int stop_bits)
 	if (sp.open_flag == 0)
 		return SER_NO_ERROR;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Update DCB settings
@@ -1001,7 +1040,8 @@ ser_set_flags:	Set the serial port's RTS and DTR flags
 */
 int ser_set_signals(unsigned char flags)
 {
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Update DTR flag
@@ -1055,7 +1095,8 @@ int ser_get_flags(unsigned char *flags)
 {
 	long modem_status;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		if (sp.open_flag == 0)
 		{
@@ -1124,7 +1165,8 @@ int ser_get_signals(unsigned char *flags)
 {
 	long modem_status;
 
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		if (sp.open_flag == 0)
 		{
@@ -1142,11 +1184,11 @@ int ser_get_signals(unsigned char *flags)
 			*flags = 0;
 
 			// Set CTS flag
-			if ((modem_status & MS_CTS_ON) == 1)
+			if (modem_status & MS_CTS_ON)
 				*flags |= SER_SIGNAL_CTS;
 
 			// Set DSR flag
-			if ((modem_status & MS_DSR_ON) == 1)
+			if (modem_status & MS_DSR_ON)
 				*flags |= SER_SIGNAL_DSR;
 
 			// Set RTS flag
@@ -1185,7 +1227,8 @@ int ser_read_byte(char* data)
 	}
 
 	// Check if COM emulation type is Host port
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			int new_rxOut;
@@ -1242,7 +1285,8 @@ int ser_write_byte(char data)
 		return SER_NO_ERROR;
 
 	// Check if COM port emulation configured for HOST port
-	if (setup.com_mode == SETUP_COM_HOST)
+	if ((setup.com_mode == SETUP_COM_HOST) || 
+		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
 			// Store data in structure
