@@ -303,9 +303,7 @@ void process_read_byte(ser_params_t *sp, char byte)
 {
 	int new_rxIn;
 
-#ifdef WIN32
 	WaitForSingleObject(sp->hReadMutex, 2000);
-#endif
 
 	// Add byte to read buffer
 	sp->rx_buf[sp->rxIn] = byte;
@@ -316,13 +314,7 @@ void process_read_byte(ser_params_t *sp, char byte)
 
 	sp->rxIn = new_rxIn;
 
-#ifdef WIN32
 	ReleaseMutex(sp->hReadMutex);
-#endif
-
-	// Check if there is a monitor window open and report the write
-//	if (sp->pMonCallback != NULL)
-//		sp->pMonCallback(SER_MON_COM_READ, (unsigned char) byte);
 
 	// Call callback to indicate receipt of data
 	if (sp->pCallback != NULL)
@@ -358,7 +350,7 @@ void stop_threads(void)
 	ResetEvent(sp.hThreadExitEvent);
 }
 
-    BOOL			fWaitingOnRead = FALSE;
+BOOL			fWaitingOnRead = FALSE;
 /*
 ===========================================================================
 ReadProc:  Thread to read data from COM port
@@ -376,7 +368,6 @@ DWORD ReadProc(LPVOID lpv)
 	DWORD			dwError;
     BOOL			fWaitingOnStat = FALSE;
     BOOL			fThreadDone = FALSE;
-//	char			read_ch;
 	char			buf[128];
 	unsigned int	c;
 	ser_params_t	*sp;
@@ -497,20 +488,9 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 				hwArray[1] = sp->hThreadExitEvent;
     
 				// Read bytes from sp structure
-//				c = 0;
-#ifdef WIN32
 				WaitForSingleObject(sp->hWriteMutex, 2000);
-#endif
-//				while (sp->txIn != sp->txOut)
-//				{
-//					buf[c++] = sp->tx_buf[sp->txOut++];
-//					if (sp->txOut >= sizeof(sp->tx_buf))
-//						sp->txOut = 0;
-//				}
 
-#ifdef WIN32
 				ReleaseMutex(sp->hWriteMutex);
-#endif
 				// issue write
 				if (!WriteFile(sp->hComm, sp->tx_buf, 1, &dwWritten, &sp->osWrite)) 
 				{
@@ -589,8 +569,8 @@ int start_threads(void)
     return SER_NO_ERROR;
 }
 
-
 #endif
+
 
 /*
 ===========================================================================
@@ -819,7 +799,7 @@ int ser_set_port(char* port)
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_PORT_CHANGE, SER_MON_COM_CHANGE_NAME);
 
-return SER_NO_ERROR;
+	return SER_NO_ERROR;
 }
 
 /*
@@ -935,7 +915,7 @@ int ser_set_bit_size(int bit_size)
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_PORT_CHANGE, SER_MON_COM_CHANGE_BITS);
 
-return SER_NO_ERROR;
+	return SER_NO_ERROR;
 }
 
 /*
@@ -1210,15 +1190,11 @@ int ser_read_byte(char* data)
 		#ifdef WIN32
 			int new_rxOut;
 
-#ifdef WIN32
 			WaitForSingleObject(sp.hReadMutex, 2000);
-#endif
 			// Check if any bytes in RX buffer
 			if (sp.rxIn == sp.rxOut)
 			{
-#ifdef WIN32
 				ReleaseMutex(sp.hReadMutex);
-#endif
 				// No data in buffer!
 				*data = 0;
 				// Check if there is a monitor window open and report the write
@@ -1234,9 +1210,7 @@ int ser_read_byte(char* data)
 				new_rxOut = 0;
 			sp.rxOut = new_rxOut;
 
-#ifdef WIN32
 			ReleaseMutex(sp.hReadMutex);
-#endif
 			sp.fIntPending = FALSE;
 
 		#else
@@ -1272,20 +1246,13 @@ int ser_write_byte(char data)
 	{
 		#ifdef WIN32
 			// Store data in structure
-#ifdef WIN32
 			WaitForSingleObject(sp.hWriteMutex, 2000);
-#endif
 			sp.tx_buf[0] = data;
-//			sp.tx_buf[sp.txIn++] = data;
-//			if (sp.txIn >= sizeof(sp.tx_buf))
-//				sp.txIn = 0;
 
 			// Update tx_empy flag indicating byte to write
 			sp.tx_empty = FALSE;
 
-#ifdef WIN32
 			ReleaseMutex(sp.hWriteMutex);
-#endif
 
 			// Trigger the thread to write the byte
 			SetEvent(sp.hWriteEvent);
