@@ -182,7 +182,10 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// Get COM options
 	// ===========================
 	strcpy(setup.com_cmd, setup_ctrl.com.pCmd->value());
-	strcpy(setup.com_port, setup_ctrl.com.pPort->text());
+	if (setup_ctrl.com.pPort->text() != NULL)
+		strcpy(setup.com_port, setup_ctrl.com.pPort->text());
+	else
+		strcpy(setup.com_port, "");
 	strcpy(setup.com_other, setup_ctrl.com.pOtherName->value());
 
 	if (setup_ctrl.com.pNone->value() == 1)
