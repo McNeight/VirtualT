@@ -106,7 +106,7 @@ int load_hex_file(char *filename, char *buffer, unsigned short *start_addr)
 	int minaddr=65536, maxaddr=0;
 	char	mem[65536];
 
-	fin = fopen(filename, "r");
+	fin = fopen(filename, "rb");
 	if (fin == NULL) {
 		return 0;
 	}
@@ -116,19 +116,23 @@ int load_hex_file(char *filename, char *buffer, unsigned short *start_addr)
 		while (!feof(fin))
 		{
 			line[i] = fgetc(fin);
+			// Check for CR/LF
 			if ((line[i] == 0x0d) || line[i] == 0x0a)
 			{
 				if (i != 0)
 					break;;
 			}
+			// Check for end of file marker
+			else if (line[i] == 0x1a)
+				break;
 			else if (line[i] != -1)
 				i++;
 		}
 		if (i == 0)
 			break;
 		line[i] = 0;
-		if (line[strlen(line)-1] == '\n') line[strlen(line)-1] = '\0';
-		if (line[strlen(line)-1] == '\r') line[strlen(line)-1] = '\0';
+		if (line[strlen(line)-1] == 0x0a) line[strlen(line)-1] = '\0';
+		if (line[strlen(line)-1] == 0x0d) line[strlen(line)-1] = '\0';
 		if (parse_hex_line(line, bytes, &addr, &n, &status)) {
 			if (status == 0) {  /* data */
 				for(i=0; i<=(n-1); i++) {
