@@ -6,8 +6,8 @@ FLTKCONFIG	?=	fltk-config
 CFLAGS	+=	`$(FLTKCONFIG) --cflags --use-images`
 LDFLAGS +=	`$(FLTKCONFIG) --ldstaticflags --use-images`
 
-m100emu: doins.o io.o genwrap.o display.o m100emu.o disassemble.o file.o memory.o m100rom.o intelhex.o GNUmakefile
-	gcc -o m100emu doins.o genwrap.o io.o display.o m100emu.o disassemble.o file.o memory.o m100rom.o intelhex.o $(LDFLAGS)
+m100emu: doins.o io.o genwrap.o display.o m100emu.o disassemble.o file.o memory.o m100rom.o intelhex.o setup.o serial.o periph.o GNUmakefile
+	gcc -o m100emu doins.o genwrap.o io.o display.o m100emu.o disassemble.o file.o memory.o m100rom.o intelhex.o setup.o serial.o periph.o $(LDFLAGS)
 
 m100emu.o: m100emu.c cpu.h doins.h display.h genwrap.h do_instruct.h GNUmakefile
 	gcc $(CFLAGS) -c m100emu.c -o m100emu.o
@@ -38,6 +38,15 @@ m100rom.o: m100rom.c roms.h GNUmakefile
 
 intelhex.o: intelhex.c intelhex.h GNUmakefile
 	gcc $(CFLAGS) -c intelhex.c -o intelhex.o  
+
+setup.o: setup.cpp setup.h m100emu.h io.h serial.h GNUmakefile
+	gcc $(CFLAGS) -c setup.cpp -o setup.o  
+
+serial.o: serial.c serial.h setup.h display.h m100emu.h GNUmakefile
+	gcc $(CFLAGS) -c serial.c -o serial.o  
+
+periph.o: periph.cpp periph.h serial.h setup.h display.h m100emu.h disassemble.h GNUmakefile
+	gcc $(CFLAGS) -c periph.cpp -o periph.o  
 
 clean:
 	rm *.o

@@ -132,6 +132,18 @@ SOURCE=.\m100rom.c
 
 SOURCE=.\memory.c
 # End Source File
+# Begin Source File
+
+SOURCE=.\periph.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\serial.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\setup.cpp
+# End Source File
 # End Group
 # Begin Group "Header Files"
 
@@ -182,7 +194,23 @@ SOURCE=.\memory.h
 # End Source File
 # Begin Source File
 
+SOURCE=.\periph.h
+# End Source File
+# Begin Source File
+
 SOURCE=.\roms.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\serial.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\setup.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\VirtualT.h
 # End Source File
 # Begin Source File
 
