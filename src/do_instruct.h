@@ -1,6 +1,6 @@
 /* do_instruct.h */
 
-/* $Id: $ */
+/* $Id: do_instruct.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -273,20 +273,45 @@
 							cpu_delay(12); \
 						}
 
-#define DOCALL			{ \
-							DECSP2; \
-							MEM(SP)=PCL; MEM(SP+1)=PCH; /* MEM16(SP)=PC; */ \
-							DECPC2; \
-							SETPCINS16; \
+#define CALL(cond,ins)	{ \
+							INCPC; \
+							if(trace) \
+								sprintf(p,ins" %04x",INS16); \
+							INCPC2; \
+							if(cond) { \
+								DECSP2; \
+								MEM(SP)=PCL; MEM(SP+1)=PCH; /* MEM16(SP)=PC; */ \
+								DECPC2; \
+								SETPCINS16; \
+								cpu_delay(9); \
+							} \
 							cpu_delay(9); \
 						}
 
-#define DORET			{ \
-							PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */ \
-							INCSP2; \
+#define	RETURN(cond,ins)	{ \
+							if(trace) \
+								strcat(p,ins); \
+							INCPC; \
+							if(cond) { \
+								PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */ \
+								INCSP2; \
+								cpu_delay(6); \
+							} \
 							cpu_delay(6); \
 						}
 
+#define JUMP(cond,ins)	{ \
+							INCPC; \
+							if(trace) \
+								sprintf(p,ins" %04x",INS16); \
+							if(cond) { \
+								SETPCINS16; \
+								cpu_delay(3); \
+							} \
+							else \
+								INCPC2; \
+							cpu_delay(7); \
+						}
 
 {
 	if(trace)
@@ -1605,26 +1630,11 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xC2:	/* JNZ addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JNZ %04x",INS16);
-									if(!ZF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(!ZF,"JNZ");
 								}
 								else {
 									/* case 0xC3:	/* JMP addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JMP %04x",INS16);
-									SETPCINS16;
-									cpu_delay(7);
-									/* return; */
+									JUMP(1,"JMP");
 								}
 							}
 						}
@@ -1632,15 +1642,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xC4:	/* CNZ addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CNZ %04x",INS16);
-									INCPC2;
-									if(!ZF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(!ZF,"CNZ");
 								}
 								else {
 									/* case 0xC5:	/* PUSH B */
@@ -1678,38 +1680,17 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xC8:	/* RZ */
-									if(trace)
-										strcat(p,"RZ");
-									INCPC;
-									if(ZF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(ZF,"RZ");
 								}
 								else {
 									/* case 0xC9:	/* RET */
-									if(trace)
-										strcat(p,"RET");
-									DORET;
-									cpu_delay(4);
-									/* return; */
+									RETURN(1,"RET");
 								}
 							}
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xCA:	/* JZ addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JZ %04x",INS16);
-									if(ZF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(ZF,"JZ");
 								}
 								else {
 									/* case 0xCB:	/* INVALID? */
@@ -1722,25 +1703,11 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xCC:	/* CZ addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CZ %04x",INS16);
-									INCPC2;
-									if(ZF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(ZF,"CZ");
 								}
 								else {
 									/* case 0xCD:	/* CALL addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CALL %04x",INS16);
-									INCPC2;
-									DOCALL;
-									cpu_delay(9);
-									/* return; */
+									CALL(1,"CALL");
 								}
 							}
 							else {
@@ -1777,14 +1744,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xD0:	/* RNC */
-									INCPC;
-									if(trace)
-										strcat(p,"RNC");
-									if(!CF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(!CF,"RNC");
 								}
 								else {
 									/* case 0xD1:	/* POP D */
@@ -1794,17 +1754,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xD2:	/* JNC addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JNC %04x",INS16);
-									if(!CF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(!CF,"JNC");
 								}
 								else {
 									/* case 0xD3:	/* OUT port */
@@ -1822,15 +1772,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xD4:	/* CNC addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CNC %04x",INS);
-									INCPC2;
-									if(!CF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(!CF,"CNC");
 								}
 								else {
 									/* case 0xD5:	/* PUSH D */
@@ -1868,14 +1810,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xD8:	/* RC */
-									if(trace)
-										strcat(p,"RC");
-									INCPC;
-									if(CF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(CF,"RC");
 								}
 								else {
 									/* case 0xD9:	/* INVALID? */
@@ -1886,16 +1821,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xDA:	/* JC addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JC %04x",INS16);
-									if(CF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
+									JUMP(CF,"JC");
 								}
 								else {
 									/* case 0xDB:	/* IN port */
@@ -1912,15 +1838,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xDC:	/* CC addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CC %04x",INS16);
-									INCPC2;
-									if(CF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(CF,"CC");
 								}
 								else {
 									/* case 0xDD:	/* INVALID? */
@@ -1964,11 +1882,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xE0:	/* RPO */
-									INCPC;
-									if(!PF) {
-										DORET;
-									}
-									cpu_delay(6);
+									RETURN(!PF,"RPO");
 								}
 								else {
 									/* case 0xE1:	/* POP H */
@@ -1978,16 +1892,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xE2:	/* JPO addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JPO %04x",INS16);
-									if(!PF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
+									JUMP(!PF,"JPO");
 								}
 								else {
 									/* case 0xE3:	/* XTHL */
@@ -2011,13 +1916,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xE4:	/* CPO addr */
-									INCPC;
-									INCPC2;
-									if(!PF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(!PF,"CPO");
 								}
 								else {
 									/* case 0xE5:	/* PUSH H */
@@ -2048,14 +1947,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xE8:	/* RPE */
-									INCPC;
-									if(trace)
-										strcat(p,"RPE");
-									if(PF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(PF,"RPE");
 								}
 								else {
 									/* case 0xE9:	/* PCHL */
@@ -2069,17 +1961,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xEA:	/* JPE addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JPE %04x",INS16);
-									if(PF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(PF,"JPE");
 								}
 								else {
 									/* case 0xEB:	/* XCHG */
@@ -2104,15 +1986,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xEC:	/* CPE addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CPE %04x",INS16);
-									INCPC2;
-									if(PF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(PF,"CPE");
 								}
 								else {
 									/* case 0xED:	/* INVALID? */
@@ -2146,14 +2020,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xF0:	/* RP */
-									INCPC;
-									if(trace)
-										strcat(p,"RP");
-									if(!SF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(!SF,"RP");
 								}
 								else {
 									/* case 0xF1:	/* POP PSW */
@@ -2163,17 +2030,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xF2:	/* JP addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JP %04x",INS16);
-									if(!SF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(!SF,"JP");
 								}
 								else {
 									/* case 0xF3:	/* DI */
@@ -2190,15 +2047,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xF4:	/* CP addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CP %04x",INS16);
-									INCPC2;
-									if(!SF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(!SF,"CP");
 								}
 								else {
 									/* case 0xF5:	/* PUSH PSW */
@@ -2229,14 +2078,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xF8:	/* RM */
-									INCPC;
-									if(trace)
-										strcat(p,"RM");
-									if(SF) {
-										DORET;
-									}
-									cpu_delay(6);
-									/* return; */
+									RETURN(SF,"RM");
 								}
 								else {
 									/* case 0xF9:	/* SPHL */
@@ -2252,17 +2094,7 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0xFA:	/* JM addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"JM %04x",INS16);
-									if(SF) {
-										SETPCINS16;
-										cpu_delay(3);
-									}
-									else
-										INCPC2;
-									cpu_delay(7);
-									/* return; */
+									JUMP(SF,"JM");
 								}
 								else {
 									/* case 0xFB:	/* EI */
@@ -2279,15 +2111,7 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0xFC:	/* CM addr */
-									INCPC;
-									if(trace)
-										sprintf(p,"CM %04x",INS16);
-									INCPC2;
-									if(SF) {
-										DOCALL;
-									}
-									cpu_delay(9);
-									/* return; */
+									CALL(SF,"CM");
 								}
 								else {
 									/* case 0xFD:	/* INVALID? */
