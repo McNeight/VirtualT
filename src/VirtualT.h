@@ -31,6 +31,6 @@
 #ifndef _VIRTUALT_H_
 #define _VIRTUALT_H_
 
-#define VERSION	"0.2"
+#define VERSION	"0.3"
 
 #endif
