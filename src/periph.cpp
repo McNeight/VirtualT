@@ -74,6 +74,9 @@ typedef struct periph_ctrl_struct
 		Fl_Box*				pWordSize;
 		Fl_Box*				pStopBits;
 		Fl_Box*				pParity;
+		Fl_Box*				pStartChar;
+		Fl_Box*				pStopChar;
+		Fl_Box*				pDeltaTime;
 		Fl_Box*				pDTR;
 		Fl_Box*				pRTS;
 		Fl_Box*				pDSR;
@@ -88,6 +91,9 @@ typedef struct periph_ctrl_struct
 		char				sStopBits[2];
 		char				sParity[2];
 		char				sComMdm[10];
+		char				sStartChar[40];
+		char				sStopChar[40];
+		char				sDeltaTime[40];
 		unsigned char		cSignal;
 	} com;
 	struct 
@@ -353,12 +359,17 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 			o = new Fl_Box(FL_NO_BOX, 20, 95+MENU_HEIGHT, 50, 15, "Baud Rate:");
 			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-			o = new Fl_Box(FL_NO_BOX, 20, 120+MENU_HEIGHT, 50, 15, "Word Size:");
+			o = new Fl_Box(FL_NO_BOX, 20, 120+MENU_HEIGHT, 50, 15, "Start Char:");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	
+			o = new Fl_Box(FL_NO_BOX, 180, 70+MENU_HEIGHT, 50, 15, "Word Size:");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			o = new Fl_Box(FL_NO_BOX, 180, 95+MENU_HEIGHT, 50, 15, "Parity:");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			o = new Fl_Box(FL_NO_BOX, 180, 120+MENU_HEIGHT, 50, 15, "End Char:");
 			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-			o = new Fl_Box(FL_NO_BOX, 200, 70+MENU_HEIGHT, 50, 15, "Stop Bits:");
-			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-			o = new Fl_Box(FL_NO_BOX, 200, 95+MENU_HEIGHT, 50, 15, "Parity:");
+			o = new Fl_Box(FL_NO_BOX, 320, 70+MENU_HEIGHT, 50, 15, "Stop Bits:");
 			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
 			o = new Fl_Box(FL_NO_BOX, 450, 45+MENU_HEIGHT, 50, 15, "RTS:");
@@ -382,17 +393,32 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 				95+MENU_HEIGHT, 50, 15, periph_ctrl.com.sBaud);
 			periph_ctrl.com.pBaud->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-			periph_ctrl.com.pWordSize = new Fl_Box(FL_NO_BOX, 100, 
-				120+MENU_HEIGHT, 50, 15, periph_ctrl.com.sWordSize);
+			periph_ctrl.com.pStartChar = new Fl_Box(FL_NO_BOX, 100, 
+				120+MENU_HEIGHT, 60, 15, periph_ctrl.com.sStartChar);
+			periph_ctrl.com.pStartChar->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			strcpy(periph_ctrl.com.sStartChar, "(Click)");
+
+			periph_ctrl.com.pWordSize = new Fl_Box(FL_NO_BOX, 260, 
+				70+MENU_HEIGHT, 50, 15, periph_ctrl.com.sWordSize);
 			periph_ctrl.com.pWordSize->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-			periph_ctrl.com.pStopBits = new Fl_Box(FL_NO_BOX, 280, 
+			periph_ctrl.com.pParity = new Fl_Box(FL_NO_BOX, 260, 
+				95+MENU_HEIGHT, 50, 15, periph_ctrl.com.sParity);
+			periph_ctrl.com.pParity->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+
+			periph_ctrl.com.pStopChar = new Fl_Box(FL_NO_BOX, 260, 
+				120+MENU_HEIGHT, 120, 15, periph_ctrl.com.sStopChar);
+			periph_ctrl.com.pStopChar->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			strcpy(periph_ctrl.com.sStopChar, "(Shift/Right Click)");
+
+			periph_ctrl.com.pStopBits = new Fl_Box(FL_NO_BOX, 380, 
 				70+MENU_HEIGHT, 50, 15, periph_ctrl.com.sStopBits);
 			periph_ctrl.com.pStopBits->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-			periph_ctrl.com.pParity = new Fl_Box(FL_NO_BOX, 280, 
-				95+MENU_HEIGHT, 50, 15, periph_ctrl.com.sParity);
-			periph_ctrl.com.pParity->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			periph_ctrl.com.pDeltaTime = new Fl_Box(FL_NO_BOX, 20, 
+				145+MENU_HEIGHT, 190, 15, periph_ctrl.com.sDeltaTime);
+			periph_ctrl.com.pDeltaTime->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			strcpy(periph_ctrl.com.sDeltaTime, "");
 
 			ser_get_signals(&periph_ctrl.com.cSignal);
 
@@ -541,26 +567,13 @@ T100_ComMon::T100_ComMon(int x, int y, int w, int h) :
 	m_Lines = 0;
 	m_Cols = 0;
 	m_pLastEntry = NULL;
-
+	m_pStartTime = NULL;
+	m_pStopTime = NULL;
 }
 
 T100_ComMon::~T100_ComMon()
 {
-	TcomLogBlock	*b = m_log;
-	TcomLogBlock	*n;
-
-	// Delete all TcomLogBlock entries
-	while (b != NULL)
-	{
-		// Save pointer to next TcomLogBlock
-		n = b->next;
-
-		// Delete this block
-		delete b;
-
-		// Point to next block
-		b = n;
-	}
+	delete m_log;
 }
 
 void T100_ComMon::Clear(void)
@@ -579,6 +592,14 @@ void T100_ComMon::Clear(void)
 	m_Lines = 0;
 	m_Cols = 0;
 	m_pLastEntry = NULL;
+	m_pStartTime = NULL;
+	m_pStopTime = NULL;
+	periph_ctrl.com.sDeltaTime[0] = 0;
+	periph_ctrl.com.pDeltaTime->label(periph_ctrl.com.sDeltaTime);
+	strcpy(periph_ctrl.com.sStartChar, "(Click)");
+	periph_ctrl.com.pStartChar->label(periph_ctrl.com.sStartChar);
+	strcpy(periph_ctrl.com.sStopChar, "(Shift/Right Click)");
+	periph_ctrl.com.pStopChar->label(periph_ctrl.com.sStopChar);
 	redraw();
 }
 
@@ -662,7 +683,7 @@ void T100_ComMon::AddByte(int rx_tx, char byte, char flags)
 			sprintf(string, "%02X", b->entries[b->used].byte);
 		else
 			sprintf(string, "%c", b->entries[b->used].byte);
-		fl_draw(string, xpos, ypos);
+		fl_draw(string, xpos, ypos-2);
 	}
 
 	if (line != m_LastLine)
@@ -854,12 +875,32 @@ void T100_ComMon::draw()
 				ypos = (int) (y() + (line+2) * m_Height);
 			}
 
+			if (&clb->entries[index] == m_pStartTime)
+			{
+				fl_color(FL_GREEN);
+				fl_rectf(xpos, ypos-(int) m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
+				fl_color(FL_BLACK);
+				m_StartTimeLine = line;
+				if ((clb->entries[index].flags & 0x80) == 0)
+					m_StartTimeLine++;
+				m_StartTimeCol = col;
+			}
+			else if (&clb->entries[index] == m_pStopTime)
+			{
+				fl_color(FL_RED);
+				fl_rectf(xpos, ypos-(int)m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
+				fl_color(FL_WHITE);
+				m_StopTimeLine = line;
+				if ((clb->entries[index].flags & 0x80) == 0)
+					m_StopTimeLine++;
+				m_StopTimeCol = col;
+			}
 			// Draw the text
 			if (gHexOn)
 				sprintf(string, "%02X", clb->entries[index].byte);
 			else
 				sprintf(string, "%c", clb->entries[index].byte);
-			fl_draw(string, xpos, ypos);
+			fl_draw(string, xpos, ypos-2);
 
 			// Save pointer to this cle for next comparison
 			cle = &clb->entries[index];
@@ -883,4 +924,310 @@ void T100_ComMon::draw()
 		if (index >= clb->used)
 			break;
 	}
+}
+
+// Handle mouse events, key events, focus events, etc.
+int T100_ComMon::handle(int event)
+{
+	int				c, xp, yp, shift;
+	int				line_click, col_click, cnt;
+	int				col, line, adder;
+	int				index, lineIndex;
+	int				xpos, ypos;
+	char			string[4];
+	TcomLogBlock	*clb;
+	comLogEntry_t	*cle, *prev_cle;
+	comLogEntry_t	*cle_sel;
+	double			delta;
+
+	switch (event)
+	{
+	case FL_FOCUS:
+		m_MyFocus = 1;
+		break;
+
+	case FL_UNFOCUS:
+		m_MyFocus = 0;
+		break;
+
+	case FL_PUSH:
+		// Get id of mouse button pressed
+		c = Fl::event_button();
+
+		// Check if it was the Left Mouse button
+		if ((c == FL_LEFT_MOUSE) || (c == FL_RIGHT_MOUSE))
+		{
+			// Get X,Y position of button press
+			xp = Fl::event_x();
+			yp = Fl::event_y();
+
+			// Check if Shift was depressed during the Mouse Button event
+			if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+				shift = 1;
+			else
+				shift = 0;
+
+
+			if (c == FL_RIGHT_MOUSE)
+				shift = 1;
+
+			// Determine line & col of mouse click
+			col_click = (int) ((xp - x()) / m_Width);
+			line_click = (int) ((yp - y()) / m_Height);
+
+			// Get LineStart index
+			lineIndex = (m_FirstLine + line_click) >> 1;
+
+			// Get comLogEntry of first item on this line
+			if (lineIndex < m_LineStartCount)
+			{
+				clb = m_LineStarts[lineIndex].clb;
+				index = m_LineStarts[lineIndex].index;
+			}
+			else
+				clb = NULL;
+
+			// Check if mouse was clicked below existing data
+			if (clb == NULL)
+				cle_sel = NULL;
+
+			cnt = 0;
+			col = 0;
+			cle = NULL;
+			cle_sel = NULL;
+			line = lineIndex << 1;
+			adder = gHexOn ? 3 : 1;
+
+			// Scan through comLogEntries to find this entry
+			while (clb != NULL)
+			{
+				if (index >= clb->used)
+					break;
+
+				if (col > col_click)
+					break;
+
+				// Calculate col/line where data should be drawn
+				if (cle != NULL)
+				{
+					// Check if last char was save type as this & advance if it was
+					if ((cle->flags & 0x80) == (clb->entries[index].flags & 0x80) ||
+						(cnt == 2))
+					{
+						// Add 1 or 3 bytes (2 hex plus space)
+						col += adder;
+						cnt = 0;
+						if (col + adder >= m_Cols)
+						{
+							col = 0;
+							line += 2;
+							break;
+						}
+					}
+				}
+
+				// Save pointer to this cle for next comparison
+				cle = &clb->entries[index];
+
+				// Check if we are on the correct column
+				if ((col_click >= col) && (col_click < col + adder))
+				{
+					// Check for correct line number
+					if (cle->flags & 0x80)
+					{
+						if (line == line_click)
+						{
+							cle_sel = &clb->entries[index];	
+							break;
+						}
+					}
+					else
+					{
+						if (line + 1 == line_click)
+						{
+							cle_sel = &clb->entries[index];
+							break;
+						}
+					}
+				}
+
+				cnt++;
+
+				// Get location of next byte
+				if (++index == clb->max)
+				{
+					// Get pointer to next clb
+					if (clb->next == NULL)
+						// No more data -- break loop
+						break;
+
+					clb = clb->next;
+					index = 0;
+				}
+			}
+
+			// Check for  existing start or stop character
+			prev_cle = NULL;
+			if (shift)
+			{
+				// Check if for pre-existing stop selection
+				if (m_pStopTime != NULL)
+				{
+					// Check if char is currently displayed
+					if ((m_StopTimeLine >= m_FirstLine) && 
+						(m_StopTimeLine < m_FirstLine + m_Lines))
+					{
+						xpos = (int) (x() + m_StopTimeCol * m_Width);
+						ypos = (int) (y() + m_StopTimeLine * m_Height);
+						prev_cle = m_pStopTime;
+						line = m_StopTimeLine;
+					}
+				}
+			}
+			else
+			{
+				// Check if for pre-existing stop selection
+				if (m_pStartTime != NULL)
+				{
+					// Check if char is currently displayed
+					if ((m_StartTimeLine >= m_FirstLine) && 
+						(m_StartTimeLine < m_FirstLine + m_Lines))
+					{
+						xpos = (int) (x() + m_StartTimeCol * m_Width);
+						ypos = (int) (y() + m_StartTimeLine * m_Height);
+						prev_cle = m_pStartTime;
+						line = m_StartTimeLine;
+					}
+				}
+			}
+
+			// "Unselect" previous start or stop char
+			window()->make_current();
+			// Select 12 point Courier font
+			fl_font(FL_COURIER_BOLD,gFontSize);
+			if (prev_cle != NULL)
+			{
+				// Draw background
+				fl_color(FL_WHITE);
+				fl_rectf(xpos, ypos+3, (int) (adder * m_Width), (int) m_Height-1);
+
+				if (line & 0x01)
+					fl_color(FL_BLUE);
+				else
+					fl_color(FL_RED);
+
+				// Draw the text
+				if (gHexOn)
+					sprintf(string, "%02X", prev_cle->byte);
+				else
+					sprintf(string, "%c", prev_cle->byte);
+				fl_draw(string, xpos, ypos+(int) m_Height-2);
+
+				// Restore line number of current selection
+				line = line_click;
+			}
+
+			// Check if cursor was clicked on valid data
+			if (cle_sel != NULL)
+			{
+				// Check if shift key was pressed during mouse click
+				if (shift)
+				{
+					m_pStopTime = cle_sel;
+					sprintf(periph_ctrl.com.sStopChar, "%c (%02xh)", cle_sel->byte, cle_sel->byte);
+					periph_ctrl.com.pStopChar->label(periph_ctrl.com.sStopChar);
+					m_pStopTime = cle_sel;
+					m_StopTimeLine = line_click;
+					m_StopTimeCol = col;
+					fl_color(FL_RED);
+				}
+				else
+				{
+					m_pStartTime = cle_sel;
+					sprintf(periph_ctrl.com.sStartChar, "%c (%02xh)", cle_sel->byte, cle_sel->byte);
+					periph_ctrl.com.pStartChar->label(periph_ctrl.com.sStartChar);
+					m_pStartTime = cle_sel;
+					m_StartTimeLine = line_click;
+					m_StartTimeCol = col;
+				}
+
+				if (m_pStartTime != NULL)
+				{
+					// Draw the Start selecton box
+					fl_color(FL_GREEN);
+					xpos = (int) (x() + m_StartTimeCol * m_Width);
+					ypos = (int) (y() + m_StartTimeLine * m_Height);
+					fl_rectf(xpos, ypos+3, (int) (adder * m_Width), (int) m_Height-1);
+					
+					// Draw the StartTime text
+					fl_color(FL_BLACK);
+					if (gHexOn)
+						sprintf(string, "%02X", m_pStartTime->byte);
+					else
+						sprintf(string, "%c", m_pStartTime->byte);
+					fl_draw(string, xpos, ypos + (int)m_Height-2);
+				}
+				
+				if (m_pStopTime != NULL)
+				{
+					// Draw the Start selecton box
+					if (m_pStartTime == m_pStopTime)
+						fl_color(FL_YELLOW);
+					else
+						fl_color(FL_RED);
+					xpos = (int) (x() + m_StopTimeCol * m_Width);
+					ypos = (int) (y() + m_StopTimeLine * m_Height);
+					fl_rectf(xpos, ypos+3, (int) (adder * m_Width), (int) m_Height-1);
+					
+					// Draw the StartTime text
+					if (m_pStartTime == m_pStopTime)
+						fl_color(FL_BLACK);
+					else
+						fl_color(FL_WHITE);
+					if (gHexOn)
+						sprintf(string, "%02X", m_pStopTime->byte);
+					else
+						sprintf(string, "%c", m_pStopTime->byte);
+					fl_draw(string, xpos, ypos + (int)m_Height-2);
+				}
+			}	
+			else
+			{
+				if (shift)
+				{
+					m_pStopTime = NULL;
+					strcpy(periph_ctrl.com.sStopChar, "No Data");
+					periph_ctrl.com.pStopChar->label(periph_ctrl.com.sStopChar);
+				}
+				else
+				{
+					m_pStartTime = NULL;
+					strcpy(periph_ctrl.com.sStartChar, "No Data");
+					periph_ctrl.com.pStartChar->label(periph_ctrl.com.sStartChar);
+				}
+			}
+
+			// Check if user has selected both the start & stop bytes
+			if ((m_pStopTime != NULL) && (m_pStartTime != NULL))
+			{
+				delta = (m_pStopTime->time - m_pStartTime->time) * 1000.0;
+				if ((delta > 1000.0) || (delta < -1000.0))
+					sprintf(periph_ctrl.com.sDeltaTime, "Time = %.3f s", delta/1000.0);
+				else
+					sprintf(periph_ctrl.com.sDeltaTime, "Time = %.1f ms", delta);
+			}
+			else
+				strcpy(periph_ctrl.com.sDeltaTime, "");
+
+			periph_ctrl.com.pDeltaTime->label(periph_ctrl.com.sDeltaTime);
+		}
+		break;
+
+	default:
+		Fl_Widget::handle(event);
+		break;
+
+	}
+
+	return 1;
 }

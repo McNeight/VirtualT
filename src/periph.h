@@ -49,7 +49,7 @@ class TcomLogBlock
 public:
 	TcomLogBlock()	{ next = NULL; entries = new comLogEntry_t[16384];
 						max = 16384; used = 0; };
-	~TcomLogBlock() { delete entries; };
+	~TcomLogBlock() { if (next != NULL) delete next; delete entries; };
 	
 	TcomLogBlock			*next;
 	struct	comLogEntry		*entries;
@@ -66,22 +66,20 @@ typedef struct lineStart
 class T100_ComMon : public Fl_Widget
 {
 public:
-	int m_MyFocus;
 	T100_ComMon(int x, int y, int w, int h);
 	~T100_ComMon();
 
 	void			AddByte(int rx_tx, char byte, char flags);
 	void			CalcLineStarts(void);
-	int				m_FirstLine;
 	void			Clear(void);
+	int				m_FirstLine;
 				
 protected:
 //	virtual int handle(int event);
 	void			draw();
+	virtual int		handle(int event);
 
-
-	class	TcomLogBlock*		m_log;
-
+	int				m_MyFocus;
 	int				m_Cols;
 	int				m_Lines;
 	double			m_Height;
@@ -89,8 +87,14 @@ protected:
 	int				m_LastLine;
 	int				m_LastCol;
 	int				m_LastCnt;
-	comLogEntry_t	*m_pLastEntry;
-
+	comLogEntry_t*	m_pLastEntry;
+	comLogEntry_t*	m_pStartTime;
+	comLogEntry_t*	m_pStopTime;
+	int				m_StartTimeCol;
+	int				m_StartTimeLine;
+	int				m_StopTimeCol;
+	int				m_StopTimeLine;
+	TcomLogBlock*	m_log;
 	int				m_LineStartCount;
 	lineStart_t		m_LineStarts[20000];
 	Fl_Scrollbar*	m_pScroll;
