@@ -44,6 +44,7 @@ extern uchar ioBA;
 extern	int	gModel;
 
 void init_io(void);
+void deinit_io(void);
 void out(uchar port, uchar val);
 void update_keys(void);
 int inport(uchar port);

@@ -29,10 +29,15 @@
 
 
 #include <time.h>
+#include <stdio.h>
+
 #include "cpu.h"
 #include "gen_defs.h"
 #include "io.h"
-#include <stdio.h>
+#include "serial.h"
+#include "display.h"
+#include "setup.h"
+#include "m100emu.h"
 
 uchar lcd[10][256];
 uchar lcdpointers[10]={0,0,0,0,0,0,0,0,0,0};
@@ -41,6 +46,9 @@ uchar lcd_fresh_ptr[10] = {1,1,1,1,1,1,1,1,1,1 };
 uchar ioBA;
 uchar ioB9;
 uchar ioE8;
+uchar ioBC;		/* Low byte of 14-bit timer */
+uchar ioBD;		/* High byte of 14-bit timer */
+
 
 uchar keyscan[9] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -128,16 +136,31 @@ void update_keys(void)
 
 	keyscan[8] = (unsigned char) (gSpecialKeys & 0xFF);
 }
+
 void init_io(void)
 {
 	int c;
 
+	// Initialize special keys variable
 	gSpecialKeys = 0xFFFFFFFF;
 
 	for (c = 0; c < 128; c++)
 		gKeyStates[c] = 0;
 
+	// Initialize keyscan variables
 	update_keys();
+
+	// Initialize serial I/O structures
+	ser_init();
+
+	// Setup callback for serial I/O
+	ser_set_callback(cb_int65);
+}
+
+void deinit_io(void)
+{
+	// Deinitialize the serial port
+	ser_deinit();
 }
 
 
@@ -146,6 +169,8 @@ int cROM = 0;
 void out(uchar port, uchar val)
 {
 	int		c;
+	unsigned char flags;
+	static int	clk_cnt = 20;
 
 	switch(port) {
 		case 0xA0:	/* Modem control port */
@@ -216,7 +241,6 @@ void out(uchar port, uchar val)
 			    5 - Data to beeper if bit 2 set.  Set if bit 2 low.
 			    6 - DTR (not) line for RS232
 			    7 - RTS (not) line for RS232 */
-			ioBA = A;
 			lcdbits = (lcdbits & 0x00FF) | ((A & 0x03) << 8);
 
 			/* Check if software "turned the simulator off" */
@@ -224,6 +248,24 @@ void out(uchar port, uchar val)
 			{
 				power_down();
 			}
+
+			// Update COM settings
+			if ((val & 0xC8) != (ioBA & 0xC8))
+			{
+				if ((val & 0x08) == 1)
+					c = 0;
+				else
+				{
+					flags = 0;
+					if ((val & 0x40) == 0)
+						flags |= SER_SIGNAL_DTR;
+					if ((val & 0x80) == 0)
+						flags |= SER_SIGNAL_RTS;
+				}
+				ser_set_signals(flags);
+			}
+
+			ioBA = A;
 			return;
 
 		case 0xB3:	/* 8155 PIO Port C */
@@ -232,10 +274,16 @@ void out(uchar port, uchar val)
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
 		case 0xBC:
+			ioBC = val;
 			return;
 
 		case 0xB5:	/* 8155 Timer register.  MSB of timer counter */
 		case 0xBD:
+			ioBD = val;
+			c = (((int) (ioBD & 0x3F) << 8) | (ioBC));
+			if (c != 0)
+				c = 153600 / c;
+			ser_set_baud(c);
 			return;
 
 		case 0xC0:	/* Bidirectional data bus for UART (6402) (C0H-CFH same) */
@@ -254,6 +302,7 @@ void out(uchar port, uchar val)
 		case 0xCD:
 		case 0xCE:
 		case 0xCF:
+			ser_write_byte(val);
 			return;
 
 		case 0xD0:	/* Status control register for UART, modem, and phone (6402)  */
@@ -280,6 +329,24 @@ void out(uchar port, uchar val)
 			    3 - Data length (00-5 bits, 10-6 bits, 01-7 bits, 11-8 
 				bits)
 			    4 - Data length (see bit 3) */
+
+			if ((ioBA & 0x08) == 0)
+			{
+				// Set stop bits
+				c = val & 0x01 ? 2 : 1;
+				ser_set_stop_bits(c);
+  
+				// Set Parity
+				if (val & 0x04) 
+					c = 'N';
+				else
+					c = val & 0x02 ? 'E' : 'O';
+				ser_set_parity((char) c);
+
+				// Set bit size
+				c = ((val & 0x18) >> 3) + 5;
+				ser_set_bit_size(c);
+			}
 			return;
 
 		case 0xE0:	/* Keyboard input and misc. device select (E0H-EFH same) */
@@ -331,6 +398,11 @@ void out(uchar port, uchar val)
 					clock_sr_index = 0;
 					break;
 				case 3:		/* Read clock chip */
+					if (--clk_cnt > 0)
+						break;
+
+					clk_cnt = 20;
+
 					clock_time = time(&clock_time);
 					if (clock_time == last_clock_time)
 						break;
@@ -434,6 +506,7 @@ int inport(uchar port)
 {
 	int c;
 	unsigned char ret;
+	unsigned char flags;
 
 	switch(port) {
 		case 0x82:  /* Optional IO thinger? */
@@ -477,7 +550,10 @@ int inport(uchar port)
 			    4 - CTS (not) line from RS232
 			    5 - DSR (not) line from RS232
 			    6-7 - Not avaiable on 8155 */
-			return(clock_serial_out);
+			if (setup.com_mode != SETUP_COM_NONE)
+				ser_get_flags(&flags);
+			flags &= SER_FLAG_CTS | SER_FLAG_DSR;
+			return(clock_serial_out | (flags>>8));
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
 		case 0xBC:
@@ -503,7 +579,8 @@ int inport(uchar port)
 		case 0xCD:
 		case 0xCE:
 		case 0xCF:
-			return(0);
+			ser_read_byte(&ret);
+			return ret;
 
 		case 0xD0:	/* Status control register for UART, modem, and phone (6402)  */
 		case 0xD1:
@@ -531,6 +608,21 @@ int inport(uchar port)
 			    5 - Ring line on modem connector
 			    6 - Not used
 			    7 - Low Power signal from power supply (LPS not) */
+
+			// Check if RS-232 is "Muxed in"
+			if ((ioBA & 0x08) == 0)
+			{
+				flags = 0;
+				if (setup.com_mode != SETUP_COM_NONE)
+				{
+					// Get flags from serial routines
+					ser_get_flags(&flags);
+					flags = (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR | 
+						SER_FLAG_PARITY_ERR)) | ((flags & SER_FLAG_TX_EMPTY) 
+						<<	4) | ((flags & SER_FLAG_RING) >> 1);
+				}
+				return flags | 0x80;
+			}
 			return(0x90);
 
 		case 0xE0:	/* Keyboard input and misc. device select (E0H-EFH same) */
