@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
+/* $Id: m100emu.c,v 1.2 2004/08/31 15:14:40 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -38,6 +38,7 @@
 
 #ifdef __unix__
 #include <signal.h>
+#include <unistd.h>
 #endif
 
 #include "io.h"
@@ -48,8 +49,9 @@
 #include "filewrap.h"
 #include "roms.h"
 #include "intelhex.h"
+#include "setup.h"
 
-int fullspeed=0;
+int		fullspeed=0;
 
 uchar	cpu[14];
 uchar	memory[65536];
@@ -58,7 +60,7 @@ uchar	optROM[ROMSIZE];
 char	op[26];
 UINT64	cycles=0;
 UINT64	instructs=0;
-UINT64	last_isr_cycle=0;
+static UINT64	last_isr_cycle=0;
 int		trace=0;
 int		starttime;
 FILE	*tracefile;
@@ -72,6 +74,10 @@ int		gExitApp = 0;
 char	gsOptRomFile[256];
 DWORD	last_one_sec_time;
 
+//Added J. VERNET
+
+char path[255];
+char file[255];
 
 extern RomDescription_t		gM100_Desc;
 extern int					cROM;
@@ -82,11 +88,11 @@ RomDescription_t	*gStdRomDesc;
 __inline double hirestimer(void)
 {
     static LARGE_INTEGER pcount, pcfreq;
-    static int initflag;
+    static int initflag = 0;
 
     if (!initflag)
-    {
-        QueryPerformanceFrequency(&pcfreq);
+	{
+	    QueryPerformanceFrequency(&pcfreq);
         initflag++;
     }
 
@@ -105,12 +111,15 @@ __inline double hirestimer(void)
 void cpu_delay(int cy)
 {
 	static double last_instruct=0;
+	double	hires;
 
-	if(last_instruct==0)
-		last_instruct=hirestimer();
 	if(!fullspeed) {
+		if(last_instruct==0)
+			last_instruct=hirestimer();
+
 		last_instruct+=cy*0.000000416666666667;
-		while(hirestimer()<last_instruct) {
+
+		while((hires = hirestimer())<last_instruct) {
 	#ifdef _WIN32
 			Sleep(1);
 	#else
@@ -122,8 +131,12 @@ void cpu_delay(int cy)
 	#endif
 		}
 	}
+	else
+		last_instruct = 0;
 	cycles+=cy;
 	instructs++;
+//	if (hires-last_instruct > 1)
+//		last_instruct = hires;
 }
 /* #define cpu_delay(x)	cycles+=x; instructs++ */
 
@@ -193,7 +206,9 @@ void load_opt_rom(void)
 	else
 	{
 		// Open BIN file
-		fd=open(gsOptRomFile,O_RDONLY);
+		strcpy(file,path);
+		strcat(file,gsOptRomFile);
+		fd=open(file,O_RDONLY);
 		if(fd!=-1) 
 		{
 			read(fd, optROM, ROMSIZE);
@@ -206,6 +221,7 @@ void initcpu(void)
 {
 	int	fd;
 	int	i;
+	
 	FILE	*ram;
 
 	A=0;
@@ -221,12 +237,28 @@ void initcpu(void)
 	PCL=0;
 	IM=0x08;
 	cpuMISC=0;
-
-	fd=open("ROM.bin",O_RDONLY | O_BINARY);
+	
+	
+	//J. Vernet : Added to have an absolute path to the ROM.bin
+	
+	
+	strcpy(file,path);
+	strcat(file,"ROM.bin");
+	
+	
+	fd=open(file,O_RDONLY | O_BINARY);
 	if(fd<0)
+	{
+		show_error("Could not open ROM.bin");
 		bail("Could not open ROM.bin");
+	}
+	
 	if(read(fd, sysROM, ROMSIZE)<ROMSIZE)
+	{
+		show_error("Error reading ROM.bin: bad Rom file");
 		bail("Error reading ROM.bin");
+	}
+	
 	close(fd);
 
 	memcpy(memory, sysROM, ROMSIZE);
@@ -236,7 +268,12 @@ void initcpu(void)
 	for (i = 0; i < RAMSIZE; i++)
 		memory[ROMSIZE + i] = 0;
 
-	ram=fopen("RAM.bin", "rb");
+    //J. Vernet : Added to have an absolute path to the RAM.bin
+	strcpy(file,path);
+	strcat(file,"RAM.bin");
+	
+	//ram=fopen("./RAM.bin", "rb");
+	ram=fopen(file, "rb");
 	i=1;
 	if(ram!=0)
 	{
@@ -247,8 +284,17 @@ void initcpu(void)
 
 
 	// Load option ROM if any
+
 	load_opt_rom();
 }
+
+void cb_int65(void)
+{
+	IM|=0x20;
+	if(trace && tracefile != NULL)
+		fprintf(tracefile,"RST 6.5 Issued\n");
+}
+
 
 __inline void check_interrupts(void)
 {
@@ -264,7 +310,21 @@ __inline void check_interrupts(void)
 
 	/* TRAP should be first */
 
-	if(RST75PEND && !INTDIS && !RST75MASK) {
+	if(RST65PEND && !INTDIS && !RST65MASK) {
+		if(trace && tracefile != NULL)
+			fprintf(tracefile,"RST 6.5 CALLed\n");
+		DECSP2;
+		MEM(SP)=PCL;
+		MEM(SP+1)=PCH;
+		/* MEM16(SP)=PC; */
+		PCL=52;
+		PCH=0;
+		/* PC=52; */
+		cpu_delay(10);	/* This may not be correct */
+		IM=IM&0xDF;
+		last_isr_cycle = cycles;
+	}
+	else if(RST75PEND && !INTDIS && !RST75MASK) {
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 CALLed\n");
 		DECSP2;
@@ -291,25 +351,33 @@ void maint(void)
 	static float  last_cpu_speed=-1;
 	static int    twice_flag = 0;
 	DWORD         new_rst7cycles;
+	static double last_hires = 0;
+	double		  hires;
 
-	time(&systime);
-	if (systime != (time_t) one_sec_time)
+	hires = hirestimer();
+	if (hires > last_hires + .05)
+//	if (systime != (time_t) one_sec_time)
 	{
+		last_hires = hires;
 		one_sec_cycle_count = (DWORD) (cycles - one_sec_cycles) / 100;
 		one_sec_cycles = cycles;
-		if (systime != (time_t) one_sec_time)
+//		if (systime != (time_t) one_sec_time)
 		{
 			/* Update cycle counts only if 2 consecutive seconds - deals with menus */
-			if (((time_t)one_sec_time+1 == systime) && ((time_t)last_one_sec_time+2 == systime))
+//			if (((time_t)one_sec_time+1 == systime) && ((time_t)last_one_sec_time+2 == systime))
 			{
-				new_rst7cycles = (DWORD) (0.39998 * one_sec_cycle_count);	  /* 0.39998 = 9830 / 24576 */
+				new_rst7cycles = (DWORD) (0.39998 * 20 * one_sec_cycle_count);	  /* 0.39998 = 9830 / 24576 */
 				if ((new_rst7cycles > (rst7cycles * 0.8)) || (twice_flag == 2))
 				{
 					rst7cycles = new_rst7cycles;
 					if (rst7cycles < 9830)
 						rst7cycles = 9830;
-					cpu_speed = (float) (.000097656 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
-					display_cpu_speed();
+					time(&systime);
+					if (systime != (time_t) one_sec_time)
+					{
+						cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
+						display_cpu_speed();
+					}
 					twice_flag = 0;
 				}
 				else
@@ -334,19 +402,20 @@ void emulate(void)
 
 	starttime=msclock();
 	while(!gExitApp) {
-#include "do_instruct.h"
+	#include "do_instruct.h"
 		if(trace && tracefile != NULL)
 			fprintf(tracefile, "%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n"
 			,op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
 		nxtmaint--;
 		if(!nxtmaint) {
-			check_interrupts();
 			maint();
+			check_interrupts();
 			nxtmaint=128;
+                        // 128;
 		}
 	}
 
-	fd=fopen("RAM.bin", "wb+");
+	fd=fopen("./RAM.bin", "wb+");
 	if(fd!=0)
 	{
 		fwrite(memory+ROMSIZE, 1, RAMSIZE, fd);
@@ -379,10 +448,23 @@ int main(int argc, char **argv)
 	signal(SIGINT,handle_sig);
 #endif
 	// Added by JV for prefs
-	initpref();
-	initcpu();
-	init_io();
-	initdisplay();
-	emulate();
+	initpref();					// load user Menu preferences
+	load_setup_preferences();	// Load user Peripheral setup preferences
+	
+	#ifdef __unix__
+	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
+	// Beware: if the name (currently m100emu) changes, it will not work
+	
+	strncpy(path,argv[0],strlen(argv[0])-7);
+	# else if
+	strcpy(path,"./");
+	#endif
+	
+	initcpu();				// Initialize the CPU
+	init_io();				// Initialize I/O structures
+	initdisplay();			// Initialize the Display
+	emulate();				// Main emulation loop
+	
+	// Cleanup
+	deinit_io();			// Deinitialize I/O
 }
-

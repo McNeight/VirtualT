@@ -48,11 +48,13 @@ extern uchar memory[65536];
 extern RomDescription_t	 *gStdRomDesc;
 extern int   gModel;
 extern char gsOptRomFile[256];
+__inline double hirestimer(void);
 
 	
 void cpu_delay(int cy);
 void resetcpu(void);
 void load_opt_rom(void);
+void cb_int65(void);
 #ifdef __cplusplus
 }
 #endif
