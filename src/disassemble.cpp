@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: $ */
+/* $Id: disassemble.cpp,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -41,7 +41,6 @@
 
 #include "m100emu.h"
 #include "disassemble.h"
-#include "m100rom.h"
 #include "io.h"
 
 Fl_Window *gpDis;
@@ -60,13 +59,13 @@ void close_cb(Fl_Widget* w, void*)
 // Table of OPCODE
 char * VTDis::m_StrTable[256] = {
 	"NOP",     "LXI B,",  "STAX B",  "INX B",   "INR B",   "DCR B",    "MVI B,",  "RLC",
-	"-",       "DAD B",   "LDAX B",  "DCX B",   "INR C",   "DCR C",    "MVI C,",  "RRC", 
-	"-",       "LXI D,",  "STAX D",  "INX D",   "INR D",   "DCR D",    "MVI D,",  "RAL", 
-	"-",       "DAD D",   "LDAX D",  "DCX D",   "INR E",   "DCR E",    "MVI E,",  "RAR",
+	"DSUB",    "DAD B",   "LDAX B",  "DCX B",   "INR C",   "DCR C",    "MVI C,",  "RRC", 
+	"ASHR",    "LXI D,",  "STAX D",  "INX D",   "INR D",   "DCR D",    "MVI D,",  "RAL", 
+	"RLDE",    "DAD D",   "LDAX D",  "DCX D",   "INR E",   "DCR E",    "MVI E,",  "RAR",
 	"RIM",     "LXI H,",  "SHLD ",   "INX H",   "INR H",   "DCR H",    "MVI H,",  "DAA",
-	"-",       "DAD H",   "LHLD ",   "DCX H",   "INR L",   "DCR L",    "MVI L,",  "CMA", 
+	"LDEH ",   "DAD H",   "LHLD ",   "DCX H",   "INR L",   "DCR L",    "MVI L,",  "CMA", 
 	"SIM",     "LXI SP,", "STA ",    "INX SP",  "INR M",   "DCR M",    "MVI M,",  "STC",
-	"-",       "DAD SP",  "LDA ",    "DCX SP",  "INR A",   "DCR A",    "MVI A,",  "CMC",
+	"LDES ",   "DAD SP",  "LDA ",    "DCX SP",  "INR A",   "DCR A",    "MVI A,",  "CMC",
 	"MOV B,B", "MOV B,C", "MOV B,D", "MOV B,E", "MOV B,H", "MOV B,L",  "MOV B,M", "MOV B,A",
 	"MOV C,B", "MOV C,C", "MOV C,D", "MOV C,E", "MOV C,H", "MOV C,L",  "MOV C,M", "MOV C,A",
 	"MOV D,B", "MOV D,C", "MOV D,D", "MOV D,E", "MOV D,H", "MOV D,L",  "MOV D,M", "MOV D,A",
@@ -86,11 +85,11 @@ char * VTDis::m_StrTable[256] = {
 	"RNZ",     "POP B",   "JNZ ",    "JMP ",    "CNZ ",    "PUSH B",   "ADI ",    "RST 0",
 	"RZ",      "RET",     "JZ ",     "-",       "CZ ",     "CALL ",    "ACI ",    "RST 1",
 	"RNC",     "POP D",   "JNC ",    "OUT ",    "CNC ",    "PUSH D",   "SUI ",    "RST 2",
-	"RC",      "-",       "JC ",     "IN ",     "CC ",     "-",        "SBI ",    "RST 3",
+	"RC",      "SHLX",    "JC ",     "IN ",     "CC ",     "JNX ",     "SBI ",    "RST 3",
 	"RPO",     "POP H",   "JPO ",    "XTHL",    "CPO ",    "PUSH H",   "ANI ",    "RST 4",
-	"RPE",     "PCHL",    "JPE ",    "XCHG",    "CPE ",    "-",        "XRI ",    "RST 5",
+	"RPE",     "PCHL",    "JPE ",    "XCHG",    "CPE ",    "LHLX",     "XRI ",    "RST 5",
 	"RP",      "POP PSW", "JP ",     "DI",      "CP ",     "PUSH PSW", "ORI ",    "RST 6",
-	"RM",      "SPHL",    "JM ",     "EI",      "CM ",     "-",        "CPI ",    "RST 7" 
+	"RM",      "SPHL",    "JM ",     "EI",      "CM ",     "JX ",      "CPI ",    "RST 7" 
 };
 
 // Table indicating length of each opcode
@@ -100,9 +99,9 @@ unsigned char VTDis::m_LenTable[256] = {
 	0,2,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0,
 	0,2,2,0,0,0,1,0,
-	0,0,2,0,0,0,1,0,
+	1,0,2,0,0,0,1,0,
 	0,2,2,0,0,0,1,0,
-	0,0,2,0,0,0,1,0,
+	1,0,2,0,0,0,1,0,
 	0,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0,
 	0,0,0,0,0,0,0,0,
@@ -122,11 +121,11 @@ unsigned char VTDis::m_LenTable[256] = {
 	0,0,2,2,2,0,1,0,
 	0,0,2,0,2,2,1,0,
 	0,0,2,1,2,0,1,0,
-	0,0,2,1,2,0,1,0,
+	0,0,2,1,2,2,1,0,
 	0,0,2,0,2,0,1,0,
 	0,0,2,0,2,0,1,0,
 	0,0,2,0,2,0,1,0,
-	0,0,2,0,2,0,1,0
+	0,0,2,0,2,2,1,0
 };
 
 
@@ -188,14 +187,17 @@ void disassembler_cb(Fl_Widget* w, void*) {
 		VTDis *pDisassembler = new VTDis();
 
 		// Assign the RomDescription table for the model being emulated
-		if (gModel == MODEL_M100)
-			pDisassembler->m_pRom = &gM100_Desc;
+		pDisassembler->m_pRom = gStdRomDesc;
 
 		// Give the disassembler the text editor to dump it's data into
 		pDisassembler->SetTextViewer(td);
 
 		// Give the disassembler something to disassemble
 		pDisassembler->CopyIntoMem(memory, 32788);
+
+		gpDis->resizable(m);
+		gpDis->resizable(td);
+
 		gpDis->end();
 		gpDis->show();
 
