@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: $ */
+/* $Id: display.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -37,6 +37,7 @@
 extern "C" {
 #endif
 extern int gDelayUpdateKeys;
+void initpref(void);
 void initdisplay(void);
 void drawbyte(int driver, int column, int value);
 void power_down();
