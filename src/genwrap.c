@@ -2,7 +2,7 @@
 
 /* General cross-platform development wrappers */
 
-/* $Id: genwrap.c,v 1.39 2004/08/04 03:45:50 rswindell Exp $ */
+/* $Id: genwrap.c,v 1.1 2004/08/05 07:19:02 deuce Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -94,6 +94,7 @@ char* DLLCALL lastchar(const char* str)
 	return((char*)str);
 }
 
+#ifndef WIN32
 /****************************************************************************/
 /* Return character value of C-escaped (\) character						*/
 /****************************************************************************/
@@ -161,6 +162,8 @@ char* DLLCALL unescape_cstr(char* str)
 	free(buf);
 	return(str);
 }
+
+#endif
 
 /****************************************************************************/
 /* Convert ASCIIZ string to upper case										*/

@@ -1,6 +1,6 @@
 /* doins.c */
 
-/* $Id: $ */
+/* $Id: doins.c,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,7 +54,11 @@ static char paritybits[256]={
 	0x04,0x00,0x00,0x04,0x00,0x04,0x04,0x00,0x00,0x04,0x04,0x00,0x04,0x00,0x00,0x04,
 };
 
+#if defined(WIN32)
+void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry)
+#else
 __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry)
+#endif
 {
 	if(sign>=0)
 		F=(F&0x7F)|(sign?0x80:0);
@@ -73,7 +77,7 @@ __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry
 		F=(F&0xFB)|(parity?0x04:0);
 	else if(parity==-1) {
 		/* Table Lookup */
-		F=(F&0xFB)|paritybits[regval];
+		F=(F&0xFB)|paritybits[regval & 0xFF];
 	}
 
 	if(carry>=0)

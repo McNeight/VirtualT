@@ -1,6 +1,6 @@
 /* io.h */
 
-/* $Id: $ */
+/* $Id: io.h,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -33,14 +33,16 @@
 
 #include "gen_defs.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern unsigned long gSpecialKeys;
 extern unsigned char gKeyStates[128];
 extern uchar ioBA;
 extern	int	gModel;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 void init_io(void);
 void out(uchar port, uchar val);
 void update_keys(void);

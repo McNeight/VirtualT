@@ -2,7 +2,7 @@
 
 /* General(ly useful) constant, macro, and type definitions */
 
-/* $Id: gen_defs.h,v 1.17 2004/07/28 10:13:10 rswindell Exp $ */
+/* $Id: gen_defs.h,v 1.1 2004/08/05 07:19:02 deuce Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -124,6 +124,13 @@ enum {
 #endif
 #ifndef DWORD
 #define DWORD	ulong
+#endif
+#ifndef UINT64
+#if defined(WIN32)
+#define UINT64  __int64
+#else
+#define UINT64  unsigned long long
+#endif
 #endif
 #ifndef BOOL
 #define BOOL	int
