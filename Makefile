@@ -6,7 +6,7 @@ CFLAGS	+=	-I/usr/local/include
 LDFLAGS +=	-L/usr/local/lib -L/usr/X11R6/lib
 LIBS	+=	-lfltk -lXext -lX11 -lm
 
-m100emu: doins.o genwrap.o io.o display.o m100emu.o file.o memory.o m100rom.o intelhex.o Makefile
+m100emu: doins.o genwrap.o io.o display.o m100emu.o file.o memory.o m100rom.o intelhex.o disassemble.o Makefile
 	gcc $(LDFLAGS) -o m100emu doins.o genwrap.o io.o display.o m100emu.o $(LIBS)
 
 m100emu.o: m100emu.c cpu.h doins.h display.h genwrap.h do_instruct.h Makefile
@@ -34,7 +34,10 @@ m100rom.o: m100rom.c roms.h Makefile
 	gcc $(CFLAGS) -c m100rom.c -o m100rom.o
 
 intelhex.o: intelhex.c intelhex.h Makefile
-	gcc $(CFLAGS) -c intelhex.c -o intelhex.o
+	gcc $(CFLAGS) -c intelhex.c -o intelhex.o  
+
+disassemble.o: disassemble.cpp m100emu.h disassemble.h io.h Makefile
+	gcc $(CFLAGS) -c disassemble.c -o disassemble.o
 
 
 clean:
