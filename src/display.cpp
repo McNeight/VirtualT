@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: display.cpp,v 1.2 2004/08/31 15:08:56 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -51,13 +51,16 @@
 #include "m100emu.h"
 #include "io.h"
 #include "file.h"
+#include "setup.h"
+#include "periph.h"
 
-Fl_Window *MainWin;
+Fl_Window *MainWin = NULL;
 T100_Disp *gpDisp;
 Fl_Box    *gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
 Fl_Menu_Bar	*Menu;
 Fl_Preferences virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
 char	gsMenuROM[40];
+char	gDelayedError[128] = {0};
 
 int		MultFact = 3;
 int		DisplayMode = 1;
@@ -117,6 +120,7 @@ void rspeed(Fl_Widget* w, void*)
 {
 	fullspeed=0;
         virtualt_prefs.set("fullspeed",0);
+
 }
 void fspeed(Fl_Widget* w, void*) 
 {
@@ -124,6 +128,7 @@ void fspeed(Fl_Widget* w, void*)
         virtualt_prefs.set("fullspeed",1);
 
 }
+
 void close_disp_cb(Fl_Widget* w, void*)
 {
 	if (gpDisp != NULL)
@@ -154,6 +159,27 @@ void resize_window()
 	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
 	Fl::check();
 	MainWin->redraw();
+}
+
+/* use this Function to display a pop up box */
+
+void show_error (const char *st)
+{
+	// Check if MainWin created yet.  If not, delay the error
+	if (MainWin == NULL)
+	{
+		strcpy(gDelayedError, st);
+		return;
+	}
+
+	fl_alert(st);
+	
+}
+
+void show_message (const char *st)
+{
+	fl_message(st);
+	
 }
 
 /*
@@ -237,6 +263,7 @@ void cb_UnloadOptRom (Fl_Widget* w, void*)
 
 void cb_help (Fl_Widget* w, void*)
 {
+/*
 #ifndef WIN32
     Fl_Help_Dialog *HelpWin;
 	
@@ -244,6 +271,8 @@ void cb_help (Fl_Widget* w, void*)
 	HelpWin->load("./help.htm");
 	HelpWin->show();
 #endif
+*/
+
 }
 
 void cb_about (Fl_Widget* w, void*)
@@ -271,7 +300,7 @@ void cb_about (Fl_Widget* w, void*)
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(15, 210, 340, 35, "Jerome Vernet");
+    { Fl_Box* o = new Fl_Box(15, 210, 340, 35, "Jerome Vernet (Mac OsX Port)");
       o->labelfont(8);
       o->labelsize(18);
     }
@@ -310,7 +339,7 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 }
 
 // Draw the black pixels on the LCD
-void drawpixel(int x, int y, int color)
+__inline void drawpixel(int x, int y, int color)
 {
 	if (color)
 		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,gRectsize,gRectsize);
@@ -426,7 +455,7 @@ void T100_Disp::draw()
 
 				// Erase line so it is grey, then fill in with black where needed
 				fl_color(FL_GRAY);
-				fl_rectf(x*MultFact + gXoffset,y*MultFact +
+				fl_rectf(x*MultFact + gXoffset,y*MultFact + 
 					gYoffset,gRectsize,8*MultFact);
 				fl_color(FL_BLACK);
 
@@ -474,8 +503,8 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		gpDisp->window()->make_current();
 
 		fl_color(FL_GRAY);
-		fl_rectf(x*MultFact + gXoffset,y*MultFact +
-			gYoffset,gRectsize,MultFact<<3);
+		fl_rectf(x*MultFact + gXoffset, y*MultFact + 
+			gYoffset, gRectsize,MultFact<<3);
 		fl_color(FL_BLACK);
 
 		// Draw each pixel of byte
@@ -526,7 +555,7 @@ Fl_Menu_Item menuitems[] = {
 		{ "Framed",  0, cb_framed, (void *) 1, FL_MENU_TOGGLE|FL_MENU_VALUE },
 		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
 		{ 0 },
-	{ "Peripheral Setup...",     0, 0, 0, FL_MENU_DIVIDER },
+	{ "Peripheral Setup...",     0, cb_PeripheralSetup, 0, FL_MENU_DIVIDER },
 	{ "Option ROM",              0, 0, 0, FL_SUBMENU },
 		{ gsMenuROM,             0, 0, 0, FL_MENU_DIVIDER },
 		{ "Load ROM...",         0, cb_LoadOptRom, 0, 0 },
@@ -540,7 +569,7 @@ Fl_Menu_Item menuitems[] = {
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, 0 },
-	{ "Peripheral Devices",    0, 0 },
+	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ "BASIC Debugger",        0, 0 },
@@ -691,8 +720,11 @@ void initdisplay(void)
 	MainWin->show();
 
 
-	Fl::wait();
+	//Fl::wait();
+        Fl::check();
 
+	if (strlen(gDelayedError) != 0)
+		fl_alert(gDelayedError);
 
 }
 
@@ -701,7 +733,7 @@ char	label[40];
 void display_cpu_speed(void)
 {
 
-	sprintf(label, "%4.1f Mhz", cpu_speed);
+	sprintf(label, "%4.1f Mhz", cpu_speed + .05);
 	Fl::check();
 	gpSpeed->label(label);
 }
@@ -722,8 +754,8 @@ void power_down()
 
 void process_windows_event()
 {
-	Fl::wait(0);
-
+	//Fl::wait(0);
+        Fl::check();
 	return;
 }
 
@@ -737,8 +769,9 @@ void T100_Disp::PowerDown()
 	else
 	    fl_rectf(x(),y(),w(),h());
 
-	Fl::wait(0);
-
+	//Fl::wait(0);
+        Fl::check();
+        
 	// Print power down message
 	char *msg = "System Powered Down";
 	char *msg2 = "Press any key to reset";
@@ -1231,6 +1264,7 @@ int T100_Disp::handle(int event)
 
 	return 1;
 }
+
 
 
 

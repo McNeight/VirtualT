@@ -43,6 +43,7 @@ void drawbyte(int driver, int column, int value);
 void power_down();
 void process_windows_event();
 void display_cpu_speed(void);
+void show_error(const char*);
 
 #ifdef __cplusplus
 

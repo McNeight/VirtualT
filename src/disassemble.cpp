@@ -42,6 +42,7 @@
 #include "m100emu.h"
 #include "disassemble.h"
 #include "io.h"
+#include "periph.h"
 
 Fl_Window *gpDis;
 
@@ -143,7 +144,7 @@ Fl_Menu_Item gDis_menuitems[] = {
 	{ "Disassembler",          0, 0 },
 	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, 0 },
-	{ "Peripheral Devices",    0, 0 },
+	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ "BASIC Debugger",        0, 0 },

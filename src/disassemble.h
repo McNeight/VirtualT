@@ -33,6 +33,7 @@
 
 #include "display.h"
 
+void disassembler_cb(Fl_Widget* w, void*);
 
 class VTDis 
 {
