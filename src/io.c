@@ -553,7 +553,7 @@ int inport(uchar port)
 			if (setup.com_mode != SETUP_COM_NONE)
 				ser_get_flags(&flags);
 			flags &= SER_FLAG_CTS | SER_FLAG_DSR;
-			return(clock_serial_out | (flags>>8));
+			return clock_serial_out | flags;
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
 		case 0xBC:
