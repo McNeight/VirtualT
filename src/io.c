@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: $ */
+/* $Id: io.c,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -141,9 +141,10 @@ void init_io(void)
 }
 
 
+int cROM = 0;
+
 void out(uchar port, uchar val)
 {
-	static cROM=0;
 	int		c;
 
 	switch(port) {
