@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: $ */
+/* $Id: display.cpp,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -37,6 +37,9 @@
 #include <FL/Fl_Help_Dialog.h>
 #include <FL/fl_ask.H> 
 #include <FL/Fl_File_Chooser.H>
+//Added by J. VERNET for pref files
+// see also cb_xxxxxx
+#include <FL/Fl_Preferences.h>
 
 
 
@@ -47,11 +50,14 @@
 #include "display.h"
 #include "m100emu.h"
 #include "io.h"
+#include "file.h"
 
 Fl_Window *MainWin;
 T100_Disp *gpDisp;
 Fl_Box    *gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
 Fl_Menu_Bar	*Menu;
+Fl_Preferences virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
+char	gsMenuROM[40];
 
 int		MultFact = 3;
 int		DisplayMode = 1;
@@ -110,10 +116,13 @@ void disassembler_cb(Fl_Widget* w, void*);
 void rspeed(Fl_Widget* w, void*) 
 {
 	fullspeed=0;
+        virtualt_prefs.set("fullspeed",0);
 }
 void fspeed(Fl_Widget* w, void*) 
 {
 	fullspeed=1;
+        virtualt_prefs.set("fullspeed",1);
+
 }
 void close_disp_cb(Fl_Widget* w, void*)
 {
@@ -155,32 +164,48 @@ Menu Item Callbacks
 void cb_1x(Fl_Widget* w, void*)
 {
 	MultFact = 1;
+        virtualt_prefs.set("MultFact",1);
 	resize_window();
 }
 void cb_2x(Fl_Widget* w, void*)
 {
 	MultFact = 2;
+        virtualt_prefs.set("MultFact",2);
 	resize_window();
 }
 void cb_3x(Fl_Widget* w, void*)
 {
 	MultFact = 3;
+        virtualt_prefs.set("MultFact",3);
 	resize_window();
 }
 void cb_4x(Fl_Widget* w, void*)
 {
 	MultFact = 4;
+        virtualt_prefs.set("MultFact",4);
 	resize_window();
 }
 void cb_framed(Fl_Widget* w, void*)
 {
 	DisplayMode  ^= 1;
+        virtualt_prefs.set("DisplayMode",DisplayMode);
 	resize_window();
 }
 void cb_solidchars (Fl_Widget* w, void*)
 {
 	SolidChars  ^= 1;
+        virtualt_prefs.set("SolidChars",SolidChars);
 	resize_window();
+}
+void cb_save_basic(Fl_Widget* w, void*)
+{
+	BasicSaveMode  ^= 1;
+    virtualt_prefs.set("BasicSaveMode",BasicSaveMode);
+}
+void cb_save_co(Fl_Widget* w, void*)
+{
+	COSaveMode  ^= 1;
+    virtualt_prefs.set("COSaveMode",COSaveMode);
 }
 
 void cb_reset (Fl_Widget* w, void*)
@@ -191,14 +216,34 @@ void cb_reset (Fl_Widget* w, void*)
 		resetcpu();
 }
 
+void cb_UnloadOptRom (Fl_Widget* w, void*)
+{
+	gsOptRomFile[0] = 0;
+
+	// Update user preferences
+    virtualt_prefs.set("OptRomFile",gsOptRomFile);
+
+	// Clear menu
+	strcpy(gsMenuROM, "No ROM loaded");
+
+	// Clear optROM memory
+	load_opt_rom();
+
+	// Reset the CPU
+	resetcpu();
+
+}
+
+
 void cb_help (Fl_Widget* w, void*)
 {
-//    Fl_Help_Dialog *HelpWin;
+#ifndef WIN32
+    Fl_Help_Dialog *HelpWin;
 	
-//	HelpWin = new Fl_Help_Dialog();
-//	HelpWin->load("./help.htm");
-//	HelpWin->show();
-
+	HelpWin = new Fl_Help_Dialog();
+	HelpWin->load("./help.htm");
+	HelpWin->show();
+#endif
 }
 
 void cb_about (Fl_Widget* w, void*)
@@ -250,39 +295,6 @@ void cb_about (Fl_Widget* w, void*)
     o->show();   
 }
 
-void cb_LoadRam (Fl_Widget* w, void*)
-{
-	Fl_File_Chooser *FileWin;
-	
-	FileWin = new Fl_File_Chooser(".","*.bin",1,"Load RAM file");
-	FileWin->preview(0);
-	FileWin->show();
-	
-}
-
-void cb_SaveRam (Fl_Widget* w, void*)
-{
-	Fl_File_Chooser *FileWin;
-	
-	FileWin = new Fl_File_Chooser(".","*.bin",1,"Save RAM file");
-	FileWin->preview(0);
-	// FileWin.value(0)="RAM.bin"
-	FileWin->show();
-	
-}
-
-
-
-void cb_LoadOptRom (Fl_Widget* w, void*)
-{
-	Fl_File_Chooser *FileWin;
-	
-	FileWin = new Fl_File_Chooser(".","*.bin",1,"Load Optional ROM file");
-	FileWin->preview(0);
-	FileWin->show();
-}
-
-
 T100_Disp::T100_Disp(int x, int y, int w, int h) :
   Fl_Widget(x, y, w, h)
 {
@@ -300,9 +312,7 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 // Draw the black pixels on the LCD
 void drawpixel(int x, int y, int color)
 {
- //     fl_color(color);
 	if (color)
-	
 		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,gRectsize,gRectsize);
 }
 
@@ -452,10 +462,6 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		if ((col&0x3f) > 49)
 			return;
 
-		// Check if drawing to unused portion of right-most drivers
-//		if (((driver == 4) || (driver == 9)) && ((col&0x3F) % 50 >= 40))
-//			return;
-
 		// Calculate X position of byte
 		x=(driver % 5) * 50 + (col&0x3F);
 
@@ -469,7 +475,7 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 
 		fl_color(FL_GRAY);
 		fl_rectf(x*MultFact + gXoffset,y*MultFact +
-gYoffset,gRectsize,8*MultFact);
+			gYoffset,gRectsize,MultFact<<3);
 		fl_color(FL_BLACK);
 
 		// Draw each pixel of byte
@@ -490,16 +496,20 @@ gYoffset,gRectsize,8*MultFact);
 
 Fl_Menu_Item menuitems[] = {
   { "&File", 0, 0, 0, FL_SUBMENU },
-	{ "Load file from HD",     0, 0, 0 },
-	{ "Save file to HD",       0, 0, 0, FL_MENU_DIVIDER },
+	{ "Load file from HD",     0, cb_LoadFromHost, 0 },
+	{ "Save file to HD",       0, cb_SaveToHost, 0, 0 },
+	{ "Save Options",	       0, 0,  0, FL_SUBMENU | FL_MENU_DIVIDER },
+		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
+		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
+		{ 0 },
 	{ "Load RAM...",      0, cb_LoadRam, 0 },
 	{ "Save RAM...",      0, cb_SaveRam, 0, FL_MENU_DIVIDER },
 	{ "E&xit",            FL_CTRL + 'q', close_disp_cb, 0 },
 	{ 0 },
 
-  { "&Emulation", 0, 0, 0, FL_SUBMENU },
-	{ "Reset",0, cb_reset, 0,FL_MENU_DIVIDER },
-	{ "Model",       0, 0, 0, FL_SUBMENU 	 } ,
+  { "&Emulation",         0, 0,        0, FL_SUBMENU },
+	{ "Reset",            0, cb_reset, 0, FL_MENU_DIVIDER },
+	{ "Model",            0, 0,        0, FL_SUBMENU 	 } ,
 		{ "M100",   0, 0, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
 		{ "M102",   0, 0, (void *) 2, FL_MENU_RADIO },
 		{ "T200",   0, 0, (void *) 3, FL_MENU_RADIO },
@@ -517,14 +527,17 @@ Fl_Menu_Item menuitems[] = {
 		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
 		{ 0 },
 	{ "Peripheral Setup...",     0, 0, 0, FL_MENU_DIVIDER },
-	{ "Load Optional ROM...",     0, cb_LoadOptRom },
+	{ "Option ROM",              0, 0, 0, FL_SUBMENU },
+		{ gsMenuROM,             0, 0, 0, FL_MENU_DIVIDER },
+		{ "Load ROM...",         0, cb_LoadOptRom, 0, 0 },
+		{ "Unload ROM",          0, cb_UnloadOptRom, 0, 0 },
+		{ 0 },
 	{ 0 },
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "CPU Registers",         0, 0 },
 	{ "Assembler",             0, 0 },
 	{ "Disassembler",          0, disassembler_cb },
-//	{ "Disassembler",          0, 0 },
 	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, 0 },
 	{ "Peripheral Devices",    0, 0 },
@@ -540,42 +553,139 @@ Fl_Menu_Item menuitems[] = {
   { 0 }
 };
 
+// read Pref File
+// J. VERNET
+
+void initpref(void)
+{
+	virtualt_prefs.get("fullspeed",fullspeed,0);
+	virtualt_prefs.get("MultFact",MultFact,3);
+	virtualt_prefs.get("DisplayMode",DisplayMode,1);
+	virtualt_prefs.get("SolidChars",SolidChars,0);
+	virtualt_prefs.get("BasicSaveMode",BasicSaveMode,0);
+	virtualt_prefs.get("COSaveMode",COSaveMode,0);
+	virtualt_prefs.get("OptRomFile",gsOptRomFile,"", 256);
+
+	if (strlen(gsOptRomFile) == 0)
+	{
+		strcpy(gsMenuROM, "No ROM loaded");
+	}
+	else
+	{
+		strcpy(gsMenuROM, fl_filename_name(gsOptRomFile));
+	}
+}
 // Create the main display window and all children (status, etc.)
 void initdisplay(void)
 {
+	int	mIndex;
+
 	MainWin = new Fl_Window(240*MultFact + 90*DisplayMode+2,64*MultFact +
-50*DisplayMode + MENU_HEIGHT + 22, "Virtual T");
+		50*DisplayMode + MENU_HEIGHT + 22, "Virtual T");
 	Menu = new Fl_Menu_Bar(0, 0, 240*MultFact + 90*DisplayMode+2,
-MENU_HEIGHT-2);
+		MENU_HEIGHT-2);
 	gpDisp = new T100_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
-64*MultFact + 50*DisplayMode+2);
+		64*MultFact + 50*DisplayMode+2);
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
+        
+        
+// Treat Values read in pref files
+// J. VERNET 
+// Be careful, if order or add to Emulation Menu, this code need to be changed.
+	// Update Speed menu item if not default value
+	if(fullspeed==1) 
+	{
+		mIndex = 0;
+		while (menuitems[mIndex].callback_ != rspeed)
+			mIndex++;
+		menuitems[mIndex+1].flags= FL_MENU_RADIO |FL_MENU_VALUE;
+		menuitems[mIndex].flags= FL_MENU_RADIO;
+	}
+
+	// Update Display Size from preference
+	mIndex = 0;
+	// Find first display size menu item
+	while (menuitems[mIndex].callback_ != cb_1x)
+		mIndex++;
+	mIndex--;
+
+    for(int i=1;i<5;i++)
+    {
+        if(i==MultFact) 
+            if(i==4) 
+                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE | FL_MENU_DIVIDER;
+            else menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE;  
+        else
+            if(i==4) 
+                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_DIVIDER;
+            else menuitems[i+mIndex].flags=FL_MENU_RADIO;  
+    }
+
+	// Update DisplayMode parameter 
+    if(DisplayMode==0)
+	{
+		mIndex = 0;
+		while (menuitems[mIndex].callback_ != cb_framed)
+			mIndex++;
+        menuitems[mIndex].flags=FL_MENU_TOGGLE;
+	}
+
+	// Update SolidChars menu item
+    if(SolidChars==1)
+	{
+		mIndex = 0;
+		while (menuitems[mIndex].callback_ != cb_solidchars)
+			mIndex++;
+        menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
+	}
+        
+	// Update BasicSaveMode parameter 
+    if(BasicSaveMode==1)
+	{
+		mIndex = 0;
+		while (menuitems[mIndex].callback_ != cb_save_basic)
+			mIndex++;
+        menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
+	}
+    
+	// Update COSaveMode parameter 
+    if(COSaveMode==1)
+	{
+		mIndex = 0;
+		while (menuitems[mIndex].callback_ != cb_save_co)
+			mIndex++;
+        menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
+	}
+
 	gpGraph = new Fl_Box(FL_DOWN_BOX,0, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, 60, 20,"GRAPH");
+		50*DisplayMode+2, 60, 20,"GRAPH");
 	gpGraph->labelsize(10);
 	gpGraph->deactivate();
 	gpCode = new Fl_Box(FL_DOWN_BOX,60, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, 60, 20,"CODE");
+		50*DisplayMode+2, 60, 20,"CODE");
 	gpCode->labelsize(10);
 	gpCode->deactivate();
 	gpCaps = new Fl_Box(FL_DOWN_BOX,120, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, 60, 20,"CAPS");
+		50*DisplayMode+2, 60, 20,"CAPS");
 	gpCaps->labelsize(10);
 	gpCaps->deactivate();
 	gpKey = new Fl_Box(FL_DOWN_BOX,180, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, 120, 20,"");
+		50*DisplayMode+2, 120, 20,"");
 	gpKey->labelsize(10);
 	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, 60, 20,"");
+		50*DisplayMode+2, 60, 20,"");
 	gpSpeed->labelsize(10);
 	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+64*MultFact +
-50*DisplayMode+2, MainWin->w()-360, 20,
+		50*DisplayMode+2, MainWin->w()-360, 20,
 		"F9:Label  F10:Print  F11:Paste  F12:Pause");
 	gpKeyInfo->labelsize(10);
 
 	gXoffset = 45*DisplayMode+1;
 	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
+	gRectsize = MultFact - (1 - SolidChars);
+	if (gRectsize == 0)
+		gRectsize = 1;
 
 	MainWin->end();
 	MainWin->show();
@@ -585,7 +695,8 @@ MENU_HEIGHT-2);
 
 
 }
-	char	label[40];
+
+char	label[40];
 
 void display_cpu_speed(void)
 {
@@ -859,14 +970,8 @@ int T100_Disp::handle(int event)
 			}
 			if (key == '`')
 			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-				{
-					gSpecialKeys |= MT_GRAPH;
-					gKeyStates['['] = 0;
-				}
-				else
-					gKeyStates['['] = 0;
-
+				gSpecialKeys |= MT_GRAPH;
+				gKeyStates['['] = 0;
 			}
 			if (key == '\\')
 			{
@@ -1126,6 +1231,7 @@ int T100_Disp::handle(int event)
 
 	return 1;
 }
+
 
 
 
