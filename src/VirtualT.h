@@ -1,6 +1,6 @@
 /* VirtualT.h */
 
-/* $Id: $ */
+/* $Id: VirtualT.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -31,6 +31,6 @@
 #ifndef _VIRTUALT_H_
 #define _VIRTUALT_H_
 
-#define VERSION	"0.1"
+#define VERSION	"0.2"
 
 #endif
