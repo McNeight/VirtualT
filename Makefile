@@ -4,8 +4,9 @@
 #CFLAGS	:=	-O2 -g
 CFLAGS	+=	-O6
 
-CFLAGS	+=	`fltk-config --cflags --use-images`
-LDFLAGS +=	`fltk-config --ldstaticflags --use-images`
+FLTKCONFIG	?=	fltk-config
+CFLAGS	+=	`$(FLTKCONFIG) --cflags --use-images`
+LDFLAGS +=	`$(FLTKCONFIG) --ldstaticflags --use-images`
 
 m100emu: doins.o io.o genwrap.o display.o m100emu.o disassemble.o Makefile
 	gcc -o m100emu doins.o genwrap.o io.o display.o m100emu.o disassemble.o $(LDFLAGS)
