@@ -55,9 +55,9 @@ static char paritybits[256]={
 };
 
 #if defined(WIN32)
-void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry)
+void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov, int ts)
 #else
-__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry)
+__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts)
 #endif
 {
 	if(sign>=0)
@@ -66,7 +66,7 @@ __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry
 		F=(F&0x7F)|(regval&0x80);
 
 	if(zero>=0)
-		F=(F&0xBF)|(sign?0x40:0);
+		F=(F&0xBF)|(zero?0x40:0);
 	else if(zero==-1)
 		F=(F&0xBF)|(regval?0:0x40);
 
@@ -82,6 +82,11 @@ __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry
 
 	if(carry>=0)
 		F=(F&0xFE)|(carry?1:0);
+
+	if (ov >= 0)
+		F=(F&~OV_BIT)|(ov?OV_BIT:0);
+	if (ts >= 0)
+		F=(F&~TS_BIT)|(ts?TS_BIT:0);
 }
 
 /* inline void do_instruct(void)

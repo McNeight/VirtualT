@@ -31,15 +31,18 @@
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
 #include <FL/Fl_Window.H>
-#include <FL/Fl_Tabs.h>
-#include <FL/Fl_Input.h>
-#include <FL/Fl_Button.h>
-#include <FL/Fl_Round_Button.h>
-#include <FL/Fl_Check_Button.h>
-#include <FL/Fl_Choice.h>
-#include <FL/Fl_Box.h>
-#include <FL/Fl_Return_Button.h>
-#include <FL/Fl_Preferences.h>
+#include <FL/Fl_Tabs.H>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Button.H>
+#include <FL/Fl_Round_Button.H>
+#include <FL/Fl_Check_Button.H>
+#include <FL/Fl_Choice.H>
+#include <FL/Fl_Box.H>
+#include <FL/Fl_Return_Button.H>
+#include <FL/Fl_Preferences.H>
+#include <FL/Fl_File_Chooser.H>
+#include <FL/Fl_Hold_Browser.H>
+#include <FL/Enumerations.H>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -48,9 +51,10 @@
 #include "io.h"
 #include "serial.h"
 #include "setup.h"
+#include "memory.h"
+#include "memedit.h"
 
 extern	Fl_Preferences virtualt_prefs;
-
 
 typedef struct setup_ctrl_struct	
 {
@@ -94,10 +98,27 @@ typedef struct setup_ctrl_struct
 } setup_ctrl_t;
 
 
+typedef struct memory_ctrl_struct	
+{
+	Fl_Round_Button*	pNone;
+	Fl_Round_Button*	pReMem;
+	Fl_Round_Button*	pRampac;
+	Fl_Round_Button*	pReMem_Rampac;
+	Fl_Input*			pReMemFile;
+	Fl_Input*			pRampacFile;
+	Fl_Button*			pReMemBrowse;
+	Fl_Button*			pRampacBrowse;
+	Fl_Box*				pReMemText;
+} memory_ctrl_t;
+
+
 Fl_Window	*gpsw;				// Peripheral Setup Window
+Fl_Window	*gmsw;				// Memory Setup Window
 
 setup_ctrl_t		setup_ctrl;	// Setup window controls
+memory_ctrl_t		mem_ctrl;	// Memory setup window
 peripheral_setup_t	setup;		// Setup options
+memory_setup_t		mem_setup;	// Memory setup options
 
 /*
 ============================================================================
@@ -251,6 +272,12 @@ void cb_setupwin (Fl_Widget* w, void*)
 {
 	gpsw->hide();
 	delete gpsw;
+}
+
+void cb_memorywin (Fl_Widget* w, void*)
+{
+	gmsw->hide();
+	delete gmsw;
 }
 
 /*
@@ -432,7 +459,7 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 
 		setup_ctrl.pTabs->value(setup_ctrl.com.g);
 		setup_ctrl.pTabs->end();
-	
+																															 
 	}
 
 	// OK button
@@ -444,5 +471,416 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
     }
 
 	gpsw->show();
+}
+
+/*
+============================================================================
+Routines to load and save setup structure to the user preferences
+============================================================================
+*/
+void save_memory_preferences(void)
+{
+	char	str[16];
+	char	pref[64];
+
+	get_model_string(str, gModel);
+
+	// Save COM emulation settings
+	strcpy(pref, str);
+	strcat(pref, "_MemMode");
+	virtualt_prefs.set(pref, mem_setup.mem_mode);
+
+	strcpy(pref, str);
+	strcat(pref, "_ReMemFile");
+	virtualt_prefs.set(pref, mem_setup.remem_file);
+
+
+	strcpy(pref, str);
+	strcat(pref, "_RampacFile");
+	virtualt_prefs.set(pref, mem_setup.rampac_file);
+}
+
+void load_memory_preferences(void)
+{
+	char	str[16];
+	char	pref[64];
+	char	path[256];
+
+	get_model_string(str, gModel);
+
+	// Load mem emulation mode base on Model
+	strcpy(pref, str);
+	strcat(pref, "_MemMode");
+	virtualt_prefs.get(pref, mem_setup.mem_mode,0);
+
+	// Load ReMem filename base on Model
+	strcpy(pref, str);
+	strcat(pref, "_ReMemFile");
+	get_emulation_path(path, gModel);
+	strcat(path, "remem.bin");
+	virtualt_prefs.get(pref,  mem_setup.remem_file, path, 256);
+	if (strlen(mem_setup.remem_file) == 0)
+		strcpy(mem_setup.remem_file, path);
+
+	// Load Rampac filename base on Model
+	strcpy(pref, str);
+	strcat(pref, "_RampacFile");
+	get_emulation_path(path, gModel);
+	strcat(path, "rampac.bin");
+	virtualt_prefs.get(pref, mem_setup.rampac_file, path, 256);
+	if (strlen(mem_setup.rampac_file) == 0)
+		strcpy(mem_setup.rampac_file, path);
+}
+
+/*
+============================================================================
+Callback routines for the Memory options window
+============================================================================
+*/
+void cb_memory_OK(Fl_Widget* w, void*)
+{
+	int		old_mode;
+
+	/* 
+	===================================================
+	First check if ReMem memory needs to be deallocated
+	===================================================
+	*/
+	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
+	{
+		// Check if we are turning ReMem emulation off
+		if ((mem_ctrl.pReMem->value() != 1) && (mem_ctrl.pReMem_Rampac->value() != 1))
+		{
+			save_remem_ram();		// Write ReMem memory to file
+			free_remem_mem();		// Deallocate ReMem memory
+		}
+	}
+
+	/* 
+	===================================================
+	Next check if Rampac memory needs to be deallocated
+	===================================================
+	*/
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
+	{
+		// Check if we are turning Host port emulation off
+		if (mem_ctrl.pRampac->value() != 1)
+		{
+			save_rampac_ram();		// Write Rampac memory to file
+			free_rampac_mem();		// Deallocate Rampac memory
+		}
+	}
+
+	// Save old mem_mode so we know when to load data from file
+	old_mode = mem_setup.mem_mode;
+
+	// ===========================
+	// Get memory options
+	// ===========================
+	if (mem_ctrl.pNone->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_BASE;
+	else if (mem_ctrl.pRampac->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_RAMPAC;
+	else if (mem_ctrl.pReMem->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_REMEM;
+	else if (mem_ctrl.pReMem_Rampac->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_REMEM_RAMPAC;
+
+	// Allocate ReMem and / or Rampac memory if not already
+	init_mem();
+
+	// If we are in ReMem or ReMem_Rampac mode, check if ReMem filename changed
+	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
+	{
+		// Check if we are changing ReMem filename
+		if (strcmp(mem_ctrl.pReMemFile->value(), mem_setup.remem_file) != 0)
+		{
+			// Save memory to old file
+			save_remem_ram();
+
+			// Copy new filename to preferences
+			strcpy(mem_setup.remem_file, mem_ctrl.pReMemFile->value());
+
+			// Load ReMem data from new file
+			load_remem_ram();
+		}
+		else if ((old_mode != SETUP_MEM_REMEM) && (old_mode != SETUP_MEM_REMEM_RAMPAC))
+		{
+			// Load ReMem data from file
+			load_remem_ram();
+		}
+	}
+
+	// If we are in Rampac or ReMem_Rampac mode, check if Rampac filename changed
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
+	{
+		// Check if we are changing Rampac filename
+		if (strcmp(mem_ctrl.pRampacFile->value(), mem_setup.rampac_file) != 0)
+		{
+			// Save memory to old file
+			save_rampac_ram();
+
+			// Copy new filename to preferences
+			strcpy(mem_setup.rampac_file, mem_ctrl.pRampacFile->value());
+
+			// Load Rampac data from new file
+			load_rampac_ram();
+		}
+		else if ((old_mode != SETUP_MEM_RAMPAC) && (old_mode != SETUP_MEM_REMEM_RAMPAC))
+		{
+			// Load Rampac data from file
+			load_rampac_ram();
+		}
+	}
+
+	// Copy new ReMem filename and Rampac filename to preferences
+	strcpy(mem_setup.remem_file, mem_ctrl.pReMemFile->value());
+	strcpy(mem_setup.rampac_file, mem_ctrl.pRampacFile->value());
+
+	// Save memory preferences to file
+	save_memory_preferences();
+
+	// Update Memory Editor
+	cb_MemoryEditorUpdate();
+
+	// Destroy the window
+	gmsw->hide();
+	delete gmsw;
+}
+
+void cb_remem_browse(Fl_Widget* w, void*)
+{
+	int					count;
+	Fl_File_Chooser		*fc;
+	const char			*filename;
+	const char			*filename_name;
+	int					len;
+	char				mstr[16];
+	char				mstr_upper[16];
+	char				path[256];
+	int					c;
+	
+	// Create chooser window to pick file
+	strcpy(path, mem_ctrl.pReMemFile->value());
+	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose ReMem File");
+	fc->preview(0);
+	fc->show();
+
+	// Show Chooser window
+	while (fc->visible())
+		Fl::wait();
+
+	count = fc->count();
+	if (count == 0)
+	{
+		delete fc;
+		return;
+	}
+
+	// Get Filename
+	filename = fc->value(1);
+	if (filename == 0)
+	{
+		delete fc;
+		return;
+	}
+	len = strlen(filename);
+
+	// Copy filename to edit field
+	filename_name = fl_filename_name(filename);
+
+	get_model_string(mstr, gModel);
+	strcpy(mstr_upper, mstr);
+	for (c = strlen(mstr_upper)-1; c >= 0; c--)
+		mstr_upper[c] = toupper(mstr_upper[c]);
+	if (strstr(filename, mstr) || strstr(filename, mstr_upper))
+	{
+		get_emulation_path(path, gModel);
+		strcat(path, filename_name);
+		mem_ctrl.pReMemFile->value(path);
+	}
+	else
+		mem_ctrl.pReMemFile->value(filename);
+
+	delete fc;
+}
+
+void cb_radio_base_memory (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+}
+
+void cb_radio_remem (Fl_Widget* w, void*)
+{
+	mem_ctrl.pReMemFile->activate();
+	mem_ctrl.pReMemBrowse->activate();
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemText->show();
+}
+
+void cb_radio_rampac (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->activate();
+	mem_ctrl.pRampacBrowse->activate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+}
+
+void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
+{
+	mem_ctrl.pReMemFile->activate();
+	mem_ctrl.pReMemBrowse->activate();
+	mem_ctrl.pRampacFile->activate();
+	mem_ctrl.pRampacBrowse->activate();
+	mem_ctrl.pReMemText->show();
+}
+
+void cb_memory_cancel (Fl_Widget* w, void*)
+{
+	gmsw->hide();
+	delete gpsw;
+}
+
+void cb_rampac_browse (Fl_Widget* w, void*)
+{
+	int					count;
+	Fl_File_Chooser		*fc;
+	const char			*filename;
+	const char			*filename_name;
+	int					len;
+	char				mstr[16];
+	char				mstr_upper[16];
+	char				path[256];
+	int					c;
+	
+	// Create chooser window to pick file
+	strcpy(path, mem_ctrl.pRampacFile->value());
+	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rampac File");
+	fc->preview(0);
+	fc->show();
+
+	// Show Chooser window
+	while (fc->visible())
+		Fl::wait();
+
+	count = fc->count();
+	if (count == 0)
+	{
+		delete fc;
+		return;
+	}
+
+	// Get Filename
+	filename = fc->value(1);
+	if (filename == 0)
+	{
+		delete fc;
+		return;
+	}
+	len = strlen(filename);
+
+	// Copy filename to edit field
+	filename_name = fl_filename_name(filename);
+
+	get_model_string(mstr, gModel);
+	strcpy(mstr_upper, mstr);
+	for (c = strlen(mstr_upper)-1; c >= 0; c--)
+		mstr_upper[c] = toupper(mstr_upper[c]);
+	if (strstr(filename, mstr) || strstr(filename, mstr_upper))
+	{
+		get_emulation_path(path, gModel);
+		strcat(path, filename_name);
+		mem_ctrl.pRampacFile->value(path);
+	}
+	else
+		mem_ctrl.pRampacFile->value(filename);
+
+	delete fc;
+}
+
+/*
+============================================================================
+Routine to create the PeripheralSetup Window and tabs
+============================================================================
+*/
+void cb_MemorySetup (Fl_Widget* w, void*)
+{
+	// Create Peripheral Setup window
+	gmsw = new Fl_Window(420, 260, "Memory Emulation Options");
+	gmsw->callback(cb_memorywin);
+
+	// Create items on the Tab
+	mem_ctrl.pNone = new Fl_Round_Button(20, 20, 180, 20, "Base Memory");
+	mem_ctrl.pNone->type(FL_RADIO_BUTTON);
+	mem_ctrl.pNone->callback(cb_radio_base_memory);
+	if (mem_setup.mem_mode == SETUP_MEM_BASE)
+		mem_ctrl.pNone->value(1);
+
+	mem_ctrl.pRampac = new Fl_Round_Button(20, 45, 180, 20, "RamPac  (256K RAM)");
+	mem_ctrl.pRampac->type(FL_RADIO_BUTTON);
+	mem_ctrl.pRampac->callback(cb_radio_rampac);
+	if (mem_setup.mem_mode == SETUP_MEM_RAMPAC)
+		mem_ctrl.pRampac->value(1);
+
+	mem_ctrl.pReMem = new Fl_Round_Button(20, 70, 220, 20, "ReMem   (2M RAM, 4M FLASH)");
+	mem_ctrl.pReMem->type(FL_RADIO_BUTTON);
+	mem_ctrl.pReMem->callback(cb_radio_remem);
+	if (mem_setup.mem_mode == SETUP_MEM_REMEM)
+		mem_ctrl.pReMem->value(1);
+
+	mem_ctrl.pReMem_Rampac = new Fl_Round_Button(20, 95, 180, 20, "ReMem + RamPac");
+	mem_ctrl.pReMem_Rampac->type(FL_RADIO_BUTTON);
+	mem_ctrl.pReMem_Rampac->callback(cb_radio_remem_and_rampac);
+	if (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC)
+		mem_ctrl.pReMem_Rampac->value(1);
+
+	// ===============================================
+	// Setup Rampac File Edit field and Browser button
+	// ===============================================
+	mem_ctrl.pRampacFile = new Fl_Input(105, 120, 210, 20, "RamPac File");
+	mem_ctrl.pRampacFile->value(mem_setup.rampac_file);
+
+	mem_ctrl.pRampacBrowse =	new Fl_Button(330, 115, 60, 30, "Browse");
+    mem_ctrl.pRampacBrowse->callback((Fl_Callback*)cb_rampac_browse);
+
+	if ((mem_setup.mem_mode != SETUP_MEM_RAMPAC) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
+	{
+		mem_ctrl.pRampacFile->deactivate();
+		mem_ctrl.pRampacBrowse->deactivate();
+	}
+
+	// ===============================================
+	// Setup ReMem File edit field and Browser button
+	// ===============================================
+	mem_ctrl.pReMemFile = new Fl_Input(105, 160, 210, 20, "ReMem  File");
+	mem_ctrl.pReMemFile->value(mem_setup.remem_file);
+    mem_ctrl.pReMemText = new Fl_Box(45, 180, 325, 20, "(Use Memory Editor to load FLASH)");
+    mem_ctrl.pReMemText->labelsize(12);
+
+	mem_ctrl.pReMemBrowse = new Fl_Button(330, 155, 60, 30, "Browse");
+    mem_ctrl.pReMemBrowse->callback((Fl_Callback*)cb_remem_browse);
+
+	if ((mem_setup.mem_mode != SETUP_MEM_REMEM) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
+	{
+		mem_ctrl.pReMemFile->deactivate();
+		mem_ctrl.pReMemBrowse->deactivate();
+		mem_ctrl.pReMemText->hide();
+	}
+
+	// OK button
+    { Fl_Button* o = new Fl_Button(160, 220, 60, 30, "Cancel");
+      o->callback((Fl_Callback*)cb_memory_cancel);
+    }
+    { Fl_Return_Button* o = new Fl_Return_Button(230, 220, 60, 30, "OK");
+      o->callback((Fl_Callback*)cb_memory_OK);
+    }
+
+	gmsw->show();
 }
 

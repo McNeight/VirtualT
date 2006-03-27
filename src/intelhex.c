@@ -210,7 +210,7 @@ void hexout(FILE *fhex, int byte, int memory_location, int end)
 		writing_in_progress = 1;
 		}
 
-	if ( (memory_location != (last_mem+1)) || (buffer_pos >= MAXHEXLINE) \
+	if ( (memory_location != (last_mem+1)) || (buffer_pos >= MAXHEXLINE)
 	 || ((end) && (buffer_pos > 0)) ) {
 		/* it's time to dump the buffer to a line in the file */
 		fprintf(fhex, ":%02X%04X00", buffer_pos, buffer_addr);

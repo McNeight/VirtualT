@@ -43,7 +43,7 @@
 							INCPC; \
 							if(trace) \
 								strcat(p,"STAX "rps); \
-							MEM(rp)=A; \
+							MEMSET(rp,A); \
 							cpu_delay(7); \
 						}
 
@@ -69,7 +69,7 @@
 								j=1; \
 							else \
 								j=0; \
-							setflags(r,-1,-1,j,-1,-2); \
+							setflags(r,-1,-1,j,-1,-2, (r==0x80) || (r==0), -2); \
 							cpu_delay(4); \
 						}
 
@@ -82,7 +82,7 @@
 								j=1; \
 							else \
 								j=0; \
-							setflags(r,-1,-1,j,-1,-2); \
+							setflags(r,-1,-1,j,-1,-2, (r==0xFF) || (r==0x7F), -2); \
 							cpu_delay(4); \
 						}
 
@@ -101,13 +101,16 @@
 								strcat(p,"DAD "rps); \
 							i=HL; \
 							i+=rp; \
+							j=(HL&0x8000)==(rp&0x8000); \
 							H=(i>>8); \
 							L=i; \
 							if(i>0xffff) \
 								i=1; \
 							else \
 								i=0; \
-							setflags(0,-2,-2,-2,-2,i); \
+							if (j) \
+								j = (HL&0x8000) != (rp&0x8000); \
+							setflags(0,-2,-2,-2,-2,i,j,-2 ); \
 							cpu_delay(10); \
 						}
 
@@ -140,19 +143,30 @@
 							cpu_delay(4); \
 						}
 
+#define MOVM(src,ss)	{ \
+							INCPC; \
+							if(trace) \
+								strcat(p,"MOV M,"ss); \
+							MEMSET(HL, src); \
+							cpu_delay(7); \
+						}
+
 #define ADD(r,rs)		{ \
 							INCPC; \
 							if(trace) \
 								strcat(p,"ADD "rs); \
 							i=A; \
 							i+=r; \
+							v=(A&0x80) == (r&0x80); \
 							j = (((A&0x0F)+(r&0x0F)) &0x10)>>4; \
 							A=i; \
 							if(i>0xFF) \
 								i=1; \
 							else \
 								i=0; \
-							setflags(A,-1,-1,j,-1,i); \
+							if (v)	\
+								v = (A&0x80) != (r&0x80); \
+							setflags(A,-1,-1,j,-1,i,v,-2); \
 							cpu_delay(4); \
 						}
 
@@ -163,13 +177,16 @@
 							i=A; \
 							i+=r; \
 							i+=(CF?1:0); \
+							v=(A&0x80) == (r&0x80); \
 							j = (((A&0x0F)+(r&0x0F)+(CF?1:0)) &0x10)>>4; \
 							A=i; \
 							if(i>0xFF) \
 								i=1; \
 							else \
 								i=0; \
-							setflags(A,-1,-1,j,-1,i); \
+							if (v) \
+								v = (A&0x80) != (r&0x80); \
+							setflags(A,-1,-1,j,-1,i,v,-2); \
 							cpu_delay(4); \
 						}
 
@@ -180,12 +197,15 @@
 							i=A; \
 							i-=r; \
 							j = (((A & 0x0F)-(r & 0x0F)) & 0x10) >> 4; \
+							v=(A&0x80) == (r&0x80); \
 							A=i; \
 							if(i>0xFF) \
 								i=1; \
 							else \
 								i=0; \
-							setflags(A,-1,-1,j,-1,i); \
+							if (v) \
+								v = (A&0x80) != (r&0x80); \
+							setflags(A,-1,-1,j,-1,i,v,-2); \
 							cpu_delay(4); \
 						}
 
@@ -197,12 +217,15 @@
 							i-=r; \
 							i-=(CF?1:0); \
 							j = (((A & 0x0F)-(r & 0x0F)-(CF?1:0)) & 0x10) >> 4; \
+							v=(A&0x80) == (r&0x80);	\
 							A=i; \
 							if (i>0xFF) \
 								i = 1; \
 							else \
 								i = 0; \
-							setflags(A,-1,-1,j,-1,i); \
+							if (v) \
+								v = (A&0x80) != (r&0x80); \
+							setflags(A,-1,-1,j,-1,i,v,-2); \
 							cpu_delay(4); \
 						}
 
@@ -211,7 +234,7 @@
 							if(trace) \
 								strcat(p,"ANA "rs); \
 							A&=r; \
-							setflags(A,-1,-1,1,-1,0); \
+							setflags(A,-1,-1,1,-1,0,-2,-2); \
 							cpu_delay(4); \
 						}
 
@@ -220,7 +243,7 @@
 							if(trace) \
 								strcat(p,"XRA "rs); \
 							A^=r; \
-							setflags(A,-1,-1,0,-1,0); \
+							setflags(A,-1,-1,0,-1,0,-2,-2); \
 							cpu_delay(4); \
 						}
 
@@ -229,7 +252,7 @@
 							if(trace) \
 								strcat(p,"ORA "rs); \
 							A|=r; \
-							setflags(A,-1,-1,0,-1,0); \
+							setflags(A,-1,-1,0,-1,0,-2,-2); \
 							cpu_delay(4); \
 						}
 
@@ -244,7 +267,11 @@
 							else \
 								i=0; \
 							j = (((A & 0x0F)-(r & 0x0F)) & 0x10) >> 4; \
-							setflags(A-r,-1,-1,j,-1,i); \
+							if ((A&0x80) == (r&0x80)) \
+								v = (A&0x80) != (r&0x80); \
+							else \
+								v = 0; \
+							setflags(A-r,-1,-1,j,-1,i,v,-2); \
 							cpu_delay(4); \
 						}
 
@@ -263,8 +290,8 @@
 							if(trace) \
 								strcat(p,"PUSH "rps); \
 							DECSP2; \
-							MEM(SP)=l; \
-							MEM(SP+1)=h; \
+							MEMSET(SP,l); \
+							MEMSET(SP+1,h); \
 							cpu_delay(12); \
 						}
 
@@ -273,7 +300,7 @@
 							if(trace) \
 								sprintf(p,"RST %d",num); \
 							DECSP2; \
-							MEM(SP)=PCL; MEM(SP+1)=PCH; \
+							MEMSET(SP,PCL); MEMSET(SP+1,PCH); \
 							PCH=0; \
 							PCL=8*num; \
 							cpu_delay(12); \
@@ -286,7 +313,7 @@
 							INCPC2; \
 							if(cond) { \
 								DECSP2; \
-								MEM(SP)=PCL; MEM(SP+1)=PCH; /* MEM16(SP)=PC; */ \
+								MEMSET(SP,PCL); MEMSET(SP+1,PCH); /* MEM16(SP)=PC; */ \
 								DECPC2; \
 								SETPCINS16; \
 								cpu_delay(9); \
@@ -376,7 +403,7 @@
 										strcat(p,"RLC");
 									i=A>>7;
 									A=(A<<1)|i;
-									setflags(A,-2,-2,-2,-2,i);
+									setflags(A,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -391,11 +418,14 @@
 									INCPC;
 									if (trace)
 										sprintf(p, "DSUB");
-									i = HL > BC - (CF?1:0);
-									j = HL - BC - (CF?1:0);
+									i = HL < BC;// - (CF?1:0);
+									j = HL - BC;// - (CF?1:0);
+									v = (HL&0x8000) == (BC&0x8000);
 									L=j&0xFF;
 									H=(j >> 8) & 0xFF;
-									setflags(H | L,-2,-1,-2,-2,i);
+									if (v)
+										v = (HL&0x8000) != (BC&0x8000);
+									setflags(H | L,-2,-1,-2,-2,i,v,-2);
 									cpu_delay(10);
 									/* return; */
 								}
@@ -439,7 +469,7 @@
 									i=A<<7&0x80;
 									A=(A>>1)|i;
 									i>>=7;
-									setflags(A,-2,-2,-2,-2,i);
+									setflags(A,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -459,8 +489,8 @@
 									i = L & CF ;
 									j = HL >> 1;
 									L = j & 0xFF;
-									H = (j >> 8) & 0xFF;
-									setflags(0,-2,-2,-2,-2,i);
+									H = (H & 0x80) | ((j >> 8) & 0xFF);
+									setflags(0,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(7);
 									/* return; */
 								}
@@ -504,7 +534,7 @@
 									i=A>>7;
 									A<<=1;
 									A|=(CF?1:0);
-									setflags(A,-2,-2,-2,-2,i);
+									setflags(A,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -521,9 +551,9 @@
 										sprintf(p, "RLDE");
 									i = D & 0x80 ? 1 : 0;
 									j = DE << 1;
-									E = j & 0xFF;
+									E = (j & 0xFF) | (CF ? 1 : 0);
 									D = (j >> 8) & 0xFF;
-									setflags(0,-2,-2,-2,-2,i);
+									setflags(0,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(10);
 									/* return; */
 								}
@@ -567,7 +597,7 @@
 									i=(A&0x01);
 									A>>=1;
 									A|=CF?0x80:0;
-									setflags(A,-2,-2,-2,-2,i);
+									setflags(A,-2,-2,-2,-2,i,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -601,8 +631,8 @@
 									INCPC;
 									if(trace)
 										sprintf(p,"SHLD %x",INS16);
-									MEM(INS16)=L;
-									MEM(INS16+1)=H;
+									MEMSET(INS16,L);
+									MEMSET(INS16+1,H);
 									/* MEM16(INS16)=HL; */
 									INCPC2;
 									cpu_delay(16);
@@ -649,7 +679,7 @@
 									if((((A>>4)+j) > 9) || CF)
 										i|=0x60;/* Add 6 to upper nibble */
 									A+=i;
-									setflags(A,-1,-1,j,-1,i>>4?1:0);
+									setflags(A,-1,-1,j,-1,i>>4?1:0,-2,-2);
 									cpu_delay(4);
 									/* return; */ /* Huh? */
 								}
@@ -750,7 +780,7 @@
 									INCPC;
 									if(trace)
 										sprintf(p,"STA %04x",INS16);
-									MEM(INS16)=A;
+									MEMSET(INS16,A);
 									INCPC2;
 									cpu_delay(13);
 									/* return; */
@@ -765,27 +795,47 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0x34:	/* INR M */
-									INR(M,"M");
-									cpu_delay(6);
+									INCPC;
+									if(trace)
+										strcat(p,"INR M");
+									MEMSET(HL,(uchar) (M+1));
+									if(M&0x0f==0) /* Low order nybble wrapped */
+										j=1;
+									else
+										j=0;
+									setflags(M,-1,-1,j,-1,-2, (M==0x80) || (M==0), -2);
+									cpu_delay(10);
 								}
 								else {
 									/* case 0x35:	/* DCR M */
-									DCR(M,"M");
-									cpu_delay(6);
+									INCPC;
+									if(trace)
+										strcat(p,"DCR M");
+									MEMSET(HL, (uchar)(M-1));
+									if(M&0x0f==0x0f) /* Low order nybble wrapped */
+										j=1;
+									else 
+										j=0;
+									setflags(M,-1,-1,j,-1,-2, (M==0xFF) || (M==0x7F), -2);
+									cpu_delay(10);
 								}
 							}
 							else {
 								if(!(INS&0x01)) {
 									/* case 0x36:	/* MVI M */
-									MVI(M,"M");
-									cpu_delay(3);
+									INCPC;
+									if(trace)
+										sprintf(p,"MVI M,%02x",INS); 
+									MEMSET((int)HL,INS);
+									INCPC;
+									cpu_delay(10);
 								}
 								else {
 									/* case 0x37:	/* STC */
 									INCPC;
 									if(trace)
 										strcat(p,"STC");
-									setflags(0,-2,-2,-2,-2,1);
+									setflags(0,-2,-2,-2,-2,1,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -850,7 +900,7 @@
 									INCPC;
 									if(trace)
 										strcat(p,"CMC");
-									setflags(A,-2,-2,-2,-2,CF?0:1);
+									setflags(A,-2,-2,-2,-2,CF?0:1,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -1158,25 +1208,21 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0x70:	/* MOV M,B */
-									MOV(M,B,"M","B");
-									cpu_delay(3);
+									MOVM(B,"B");
 								}
 								else {
 									/* case 0x71:	/* MOV M,C */
-									MOV(M,C,"M","C");
-									cpu_delay(3);
+									MOVM(C,"C");
 								}
 							}
 							else {
 								if(!(INS&0x01)) {
 									/* case 0x72:	/* MOV M,D */
-									MOV(M,D,"M","D");
-									cpu_delay(3);
+									MOVM(D,"D");
 								}
 								else {
 									/* case 0x73:	/* MOV M,E */
-									MOV(M,E,"M","E");
-									cpu_delay(3);
+									MOVM(E,"E");
 								}
 							}
 						}
@@ -1184,13 +1230,11 @@
 							if(!(INS&0x02)) {
 								if(!(INS&0x01)) {
 									/* case 0x74:	/* MOV M,H */
-									MOV(M,H,"M","H");
-									cpu_delay(3);
+									MOVM(H,"H");
 								}
 								else {
 									/* case 0x75:	/* MOV M,L */
-									MOV(M,L,"M","L");
-									cpu_delay(3);
+									MOVM(L,"L");
 								}
 							}
 							else {
@@ -1203,8 +1247,7 @@
 								}
 								else {
 									/* case 0x77:	/* MOV M,A */
-									MOV(M,A,"M","A");
-									cpu_delay(3);
+									MOVM(A,"A");
 								}
 							}
 						}
@@ -1706,12 +1749,15 @@
 									i=A;
 									i+=INS;
 									j = (((A&0x0F)+(INS&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
-									setflags(A,-1,-1,j,-1,i);
+									if (v)
+										v = (A&0x80) != (INS&0x80);
+									setflags(A,-1,-1,j,-1,i,v,-2);
 									cpu_delay(7);
 									INCPC;
 									/* return; */
@@ -1768,14 +1814,17 @@
 									i+=INS;
 									i+=(CF?1:0);
 									j = (((A&0x0F)+(INS&0x0F)+(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
-									INCPC;
-									setflags(A,-1,-1,j,-1,i);
+									if (v)
+										v = (A&0x80) != (INS&0x80);
+									setflags(A,-1,-1,j,-1,i,v,-2);
 									cpu_delay(7);
+									INCPC;
 									/* return; */
 								}
 								else {
@@ -1836,14 +1885,17 @@
 									i=A;
 									i-=INS;
 									j = (((A&0x0F)-(INS&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
-									INCPC;
-									setflags(A,-1,-1,j,-1,i);
+									if (v)
+										v = (A&0x80) != (INS&0x80);
+									setflags(A,-1,-1,j,-1,i,v,-2);
 									cpu_delay(7);
+									INCPC;
 									/* return; */
 								}
 								else {
@@ -1865,8 +1917,8 @@
 									INCPC;
 									if (trace)
 										sprintf(p, "SHLX");
-									MEM(DE)=L;
-									MEM(DE+1)=H;
+									MEMSET(DE, L);
+									MEMSET(DE+1, H);
 									cpu_delay(10);
 									/* return; */
 								}
@@ -1895,7 +1947,7 @@
 								}
 								else {
 									/* case 0xDD:	/* JNX addr */
-									JUMP(!XF,"JNX");
+									JUMP(!OV,"JND");
 									/* return; */
 								}
 							}
@@ -1909,12 +1961,15 @@
 									i-=INS;
 									i-=(CF?1:0);
 									j = (((A&0x0F)-(INS&0x0F)-(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
-									setflags(A,-1,-1,j,-1,i);
+									if (v)
+										v = (A&0x80) != (INS&0x80);
+									setflags(A,-1,-1,j,-1,i,v,-2);
 									INCPC;
 									cpu_delay(7);
 									/* return; */
@@ -1957,8 +2012,8 @@
 									L=MEM(SP);
 									H=MEM(SP+1);
 									/* HL=MEM16(SP); */
-									MEM(SP)=j;
-									MEM(SP+1)=i;
+									MEMSET(SP, (uchar) j);
+									MEMSET(SP+1, (uchar) i);
 									/* MEM16(SP)=i; */
 									cpu_delay(16);
 									/* return; */
@@ -1984,7 +2039,7 @@
 										sprintf(p,"ANI %02x",INS);
 									A=A&INS;
 									INCPC;
-									setflags(A,-1,-1,1,-1,0);
+									setflags(A,-1,-1,1,-1,0,-2,-2);
 									cpu_delay(7);
 									/* return; */
 								}
@@ -2060,7 +2115,7 @@
 										sprintf(p,"XRI %02x",INS);
 									A=A^INS;
 									INCPC;
-									setflags(A,-1,-1,0,-1,0);
+									setflags(A,-1,-1,0,-1,0,-2,-2);
 									cpu_delay(4);
 									/* return; */
 								}
@@ -2120,7 +2175,7 @@
 										sprintf(p,"ORI %02x",INS);
 									A=A|INS;
 									INCPC;
-									setflags(A,-1,-1,0,-1,0);
+									setflags(A,-1,-1,0,-1,0,-2,-2);
 									cpu_delay(7);
 									/* return; */
 								}
@@ -2173,7 +2228,7 @@
 								}
 								else {
 									/* case 0xFD:	/* JX addr */
-									JUMP(XF,"JX");
+									JUMP(OV,"JD");
 									/* return; */
 								}
 							}
@@ -2190,11 +2245,11 @@
 									else
 										i=0;
 									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
-									if (trace == 1)
-										fprintf(tracefile, "CPI setflags args %02X, %02x, %02x, %02x, %02x %02x\n",
-											A-INS, -1, -1, j, -1, i) ;
-
-									setflags(A-INS,-1,-1,j,-1,i);
+									if ((A&0x80) == (INS&0x80))
+										v = (A&0x80) != (INS&0x80);
+									else
+										v = 0;
+									setflags(A-INS,-1,-1,j,-1,i,v,-2);
 									INCPC;
 									cpu_delay(7);
 									/* return; */

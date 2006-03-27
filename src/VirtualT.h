@@ -31,6 +31,15 @@
 #ifndef _VIRTUALT_H_
 #define _VIRTUALT_H_
 
-#define VERSION	"0.3"
+#define VERSION	"0.5"
+
+enum {
+	 MODEL_M100
+	,MODEL_M102
+	,MODEL_T200
+	,MODEL_PC8201
+	,MODEL_PC8300
+};
+
 
 #endif

@@ -43,7 +43,7 @@ RSC=rc.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /GX /O2 /D "WIN32" /D "NDEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
-# ADD CPP /nologo /W3 /GX /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
+# ADD CPP /nologo /W3 /GX /Od /I "$(FLTKDIR)" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /c
 # ADD BASE MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "NDEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x409 /d "NDEBUG"
@@ -53,7 +53,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /machine:I386
-# ADD LINK32 fltk.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /machine:I386 /nodefaultlib:"libc" /libpath:"..\lib"
+# ADD LINK32 $(FLTKDIR)/lib/fltk.lib $(FLTKDIR)/lib/fltkimages.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /machine:I386 /nodefaultlib:"libc" /libpath:"..\lib"
 # SUBTRACT LINK32 /pdb:none /incremental:yes /nodefaultlib
 
 !ELSEIF  "$(CFG)" == "VirtualT - Win32 Debug"
@@ -70,7 +70,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "$(FLTKDIR)" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
@@ -80,7 +80,7 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 fltkd.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /debug /machine:I386 /nodefaultlib:"libcd" /pdbtype:sept /libpath:"..\lib"
+# ADD LINK32 $(FLTKDIR)/lib/fltkd.lib $(FLTKDIR)/lib/fltkimagesd.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /debug /machine:I386 /nodefaultlib:"libcd" /pdbtype:sept /libpath:"..\lib"
 # SUBTRACT LINK32 /pdb:none /incremental:no
 
 !ENDIF 
@@ -94,55 +94,75 @@ LINK32=link.exe
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 # Begin Source File
 
-SOURCE=.\disassemble.cpp
+SOURCE=.\src\disassemble.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=display.cpp
+SOURCE=.\src\display.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=doins.c
+SOURCE=.\src\doins.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\file.cpp
+SOURCE=.\src\file.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=genwrap.c
+SOURCE=.\src\genwrap.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\intelhex.c
+SOURCE=.\src\intelhex.c
 # End Source File
 # Begin Source File
 
-SOURCE=io.c
+SOURCE=.\src\io.c
 # End Source File
 # Begin Source File
 
-SOURCE=m100emu.c
+SOURCE=.\src\m100emu.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\m100rom.c
+SOURCE=.\src\m100rom.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\memory.c
+SOURCE=.\src\m200rom.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\periph.cpp
+SOURCE=.\src\memedit.cpp
 # End Source File
 # Begin Source File
 
-SOURCE=.\serial.c
+SOURCE=.\src\memory.c
 # End Source File
 # Begin Source File
 
-SOURCE=.\setup.cpp
+SOURCE=.\src\n8201rom.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\periph.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\romstrings.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\serial.c
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\setup.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\sound.c
 # End Source File
 # End Group
 # Begin Group "Header Files"
@@ -150,71 +170,83 @@ SOURCE=.\setup.cpp
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
 # Begin Source File
 
-SOURCE=cpu.h
+SOURCE=.\src\cpu.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\disassemble.h
+SOURCE=.\src\disassemble.h
 # End Source File
 # Begin Source File
 
-SOURCE=display.h
+SOURCE=.\src\display.h
 # End Source File
 # Begin Source File
 
-SOURCE=do_instruct.h
+SOURCE=.\src\do_instruct.h
 # End Source File
 # Begin Source File
 
-SOURCE=doins.h
+SOURCE=.\src\doins.h
 # End Source File
 # Begin Source File
 
-SOURCE=gen_defs.h
+SOURCE=.\src\gen_defs.h
 # End Source File
 # Begin Source File
 
-SOURCE=genwrap.h
+SOURCE=.\src\genwrap.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\intelhex.h
+SOURCE=.\src\intelhex.h
 # End Source File
 # Begin Source File
 
-SOURCE=io.h
+SOURCE=.\src\io.h
 # End Source File
 # Begin Source File
 
-SOURCE=m100emu.h
+SOURCE=.\src\m100emu.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\memory.h
+SOURCE=.\src\memedit.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\periph.h
+SOURCE=.\src\memory.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\roms.h
+SOURCE=.\src\periph.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\serial.h
+SOURCE=.\src\roms.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\setup.h
+SOURCE=.\src\romstrings.h
 # End Source File
 # Begin Source File
 
-SOURCE=.\VirtualT.h
+SOURCE=.\src\serial.h
 # End Source File
 # Begin Source File
 
-SOURCE=wrapdll.h
+SOURCE=.\src\setup.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\sound.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\VirtualT.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\wrapdll.h
 # End Source File
 # End Group
 # Begin Group "Resource Files"

@@ -39,10 +39,14 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "VirtualT.h"
 #include "m100emu.h"
 #include "disassemble.h"
 #include "io.h"
+#include "cpu.h"
 #include "periph.h"
+#include "memedit.h"
+#include "romstrings.h"
 
 Fl_Window *gpDis;
 
@@ -61,34 +65,49 @@ void close_cb(Fl_Widget* w, void*)
 char * VTDis::m_StrTable[256] = {
 	"NOP",     "LXI B,",  "STAX B",  "INX B",   "INR B",   "DCR B",    "MVI B,",  "RLC",
 	"DSUB",    "DAD B",   "LDAX B",  "DCX B",   "INR C",   "DCR C",    "MVI C,",  "RRC", 
+
 	"ASHR",    "LXI D,",  "STAX D",  "INX D",   "INR D",   "DCR D",    "MVI D,",  "RAL", 
 	"RLDE",    "DAD D",   "LDAX D",  "DCX D",   "INR E",   "DCR E",    "MVI E,",  "RAR",
+
 	"RIM",     "LXI H,",  "SHLD ",   "INX H",   "INR H",   "DCR H",    "MVI H,",  "DAA",
 	"LDEH ",   "DAD H",   "LHLD ",   "DCX H",   "INR L",   "DCR L",    "MVI L,",  "CMA", 
+
 	"SIM",     "LXI SP,", "STA ",    "INX SP",  "INR M",   "DCR M",    "MVI M,",  "STC",
 	"LDES ",   "DAD SP",  "LDA ",    "DCX SP",  "INR A",   "DCR A",    "MVI A,",  "CMC",
+
 	"MOV B,B", "MOV B,C", "MOV B,D", "MOV B,E", "MOV B,H", "MOV B,L",  "MOV B,M", "MOV B,A",
 	"MOV C,B", "MOV C,C", "MOV C,D", "MOV C,E", "MOV C,H", "MOV C,L",  "MOV C,M", "MOV C,A",
+
 	"MOV D,B", "MOV D,C", "MOV D,D", "MOV D,E", "MOV D,H", "MOV D,L",  "MOV D,M", "MOV D,A",
 	"MOV E,B", "MOV E,C", "MOV E,D", "MOV E,E", "MOV E,H", "MOV E,L",  "MOV E,M", "MOV E,A",
+
 	"MOV H,B", "MOV H,C", "MOV H,D", "MOV H,E", "MOV H,H", "MOV H,L",  "MOV H,M", "MOV H,A",
 	"MOV L,B", "MOV L,C", "MOV L,D", "MOV L,E", "MOV L,H", "MOV L,L",  "MOV L,M", "MOV L,A",
+
 	"MOV M,B", "MOV M,C", "MOV M,D", "MOV M,E", "MOV M,H", "MOV M,L",  "HLT",     "MOV M,A",
 	"MOV A,B", "MOV A,C", "MOV A,D", "MOV A,E", "MOV A,H", "MOV A,L",  "MOV A,M", "MOV A,A",
+
 	"ADD B",   "ADD C",   "ADD D",   "ADD E",   "ADD H",   "ADD L",    "ADD M",   "ADD A",
 	"ADC B",   "ADC C",   "ADC D",   "ADC E",   "ADC H",   "ADC L",    "ADC M",   "ADC A",
+
 	"SUB B",   "SUB C",   "SUB D",   "SUB E",   "SUB H",   "SUB L",    "SUB M",   "SUB A",
 	"SBB B",   "SBB C",   "SBB D",   "SBB E",   "SUB H",   "SBB L",    "SBB M",   "SBB A",
+
 	"ANA B",   "ANA C",   "ANA D",   "ANA E",   "ANA H",   "ANA L",    "ANA M",   "ANA A",
 	"XRA B",   "XRA C",   "XRA D",   "XRA E",   "XRA H",   "XRA L",    "XRA M",   "XRA A",
+
 	"ORA B",   "ORA C",   "ORA D",   "ORA E",   "ORA H",   "ORA L",    "ORA M",   "ORA A",
 	"CMP B",   "CMP C",   "CMP D",   "CMP E",   "CMP H",   "CMP L",    "CMP M",   "CMP A",
+
 	"RNZ",     "POP B",   "JNZ ",    "JMP ",    "CNZ ",    "PUSH B",   "ADI ",    "RST 0",
 	"RZ",      "RET",     "JZ ",     "-",       "CZ ",     "CALL ",    "ACI ",    "RST 1",
+
 	"RNC",     "POP D",   "JNC ",    "OUT ",    "CNC ",    "PUSH D",   "SUI ",    "RST 2",
 	"RC",      "SHLX",    "JC ",     "IN ",     "CC ",     "JNX ",     "SBI ",    "RST 3",
+
 	"RPO",     "POP H",   "JPO ",    "XTHL",    "CPO ",    "PUSH H",   "ANI ",    "RST 4",
 	"RPE",     "PCHL",    "JPE ",    "XCHG",    "CPE ",    "LHLX",     "XRI ",    "RST 5",
+
 	"RP",      "POP PSW", "JP ",     "DI",      "CP ",     "PUSH PSW", "ORI ",    "RST 6",
 	"RM",      "SPHL",    "JM ",     "EI",      "CM ",     "JX ",      "CPI ",    "RST 7" 
 };
@@ -143,7 +162,7 @@ Fl_Menu_Item gDis_menuitems[] = {
 	{ "Assembler",             0, 0 },
 	{ "Disassembler",          0, 0 },
 	{ "Debugger",              0, 0 },
-	{ "Memory Editor",         0, 0 },
+	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
@@ -194,7 +213,7 @@ void disassembler_cb(Fl_Widget* w, void*) {
 		pDisassembler->SetTextViewer(td);
 
 		// Give the disassembler something to disassemble
-		pDisassembler->CopyIntoMem(memory, 32788);
+		pDisassembler->CopyIntoMem(memory, ROMSIZE);
 
 		gpDis->resizable(m);
 		gpDis->resizable(td);
@@ -222,7 +241,7 @@ Disassembler Class Definition
 VTDis::VTDis()
 {
 	m_StartAddress = 0;
-	m_EndAddress = 32767;
+	m_EndAddress = ROMSIZE-1;
 }
 
 void VTDis::SetTextViewer(Fl_Text_Editor *pTextViewer)
@@ -237,7 +256,7 @@ void VTDis::Disassemble()
 	int		len;
 	int		table;
 	char	line[200];
-	char	arg[6];
+	char	arg[60];
 	int		addr;
 	int		rst7 = 0;
 	int		rst1 = 0;
@@ -256,7 +275,7 @@ void VTDis::Disassemble()
 			if (m_pRom->pFuns[x].addr == c)
 			{
 				strcpy(line, "\n; ======================================================\n; ");
-				strcat(line, m_pRom->pFuns[x].desc);
+				strcat(line, gDisStrings[m_pRom->pFuns[x].strnum].desc);
 				strcat(line, "\n; ======================================================\n");
 				// Add line to Edit Buffer
 				tb->append(line);
@@ -337,6 +356,73 @@ void VTDis::Disassemble()
 						}
 					}
 				}
+				// Modified strings are those that start with a 0x80 and ends
+				// when the next string is found (the next 0x80).  All the
+				// BASIC keywords are stored this way
+				else if (m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING2)
+				{
+					int next;
+					int last = c + m_pRom->pTables[x].size;
+					int str_active = 0;
+					for (next = c; next < last; next++)
+					{
+						if (m_memory[next] == 0)
+						{
+							sprintf(line, "%04XH  DB   00H\n", next);
+							tb->append(line);
+							line[0] = 0;
+							continue;
+						}
+						if ((m_memory[next] & 0x80) && (str_active))
+						{
+							sprintf(arg, "\",'%c' or 80H", m_memory[next] & 0x7F);
+							strcat(line, arg);
+							sprintf(arg, ", %02XH\n", m_memory[next+1]);
+							strcat(line, arg);
+//							if ((m_memory[next-1] & 0x80) == 0)
+//								strcat(line, "\"");
+//							strcat(line, "\n");
+							tb->append(line);
+							line[0]=0;
+							str_active = 0;
+							next++;
+							continue;
+						}
+						if (!str_active)
+						{
+							if (m_memory[next] & 0x80)
+							{
+								sprintf(line, "%04XH  DB   '%c' OR 80H", next, m_memory[next] & 0x7F);
+								sprintf(arg, ", %02XH\n", m_memory[next+1]);
+								strcat(line, arg);
+								tb->append(line);
+								line[0]=0;
+								str_active = 0;
+								next++;
+								continue;
+							}
+							else
+							{
+								sprintf(line, "%04XH  DB   \"%c", next, m_memory[next]);
+								str_active = 1;
+							}
+						}
+						else
+						{
+							sprintf(arg, "%c", m_memory[next]);
+							strcat(line, arg);
+						}
+
+						if (next + 1 == last)
+						{
+							if (m_memory[next-1] & 0x80 == 0)
+								strcat(line, "\"");
+							strcat(line, "\n\n");
+							tb->append(line);
+							line[0] = 0;
+						}
+					}
+				}
 				// A string is one that ends with NULL (0x00)
 				else if (m_pRom->pTables[x].type == TABLE_TYPE_STRING)
 				{
@@ -358,9 +444,18 @@ void VTDis::Disassemble()
 						}
 						else if (!str_active)
 						{
-							sprintf(line, "%04XH  DB   \"%c", next, m_memory[next]);
-							quote_active = 1;
-							str_active = 1;
+							if (m_memory[next] == 0)
+							{
+								sprintf(line, "%04XH  DB   00H\n", next);
+								tb->append(line);
+								line[0]=0;
+							}
+							else
+							{
+								sprintf(line, "%04XH  DB   \"%c", next, m_memory[next]);
+								quote_active = 1;
+								str_active = 1;
+							}
 						}
 						else
 						{
@@ -374,11 +469,21 @@ void VTDis::Disassemble()
 								sprintf(arg, ",%02XH", m_memory[next]);
 							}
 							else
-								sprintf(arg, "%c", m_memory[next]);
+							{
+								if (!quote_active)
+									sprintf(arg, ",\"%c", m_memory[next]);
+								else if (m_memory[next] == '"')
+									sprintf(arg, "\\%c", m_memory[next]);
+								else
+									sprintf(arg, "%c", m_memory[next]);
+								quote_active = 1;
+							}
 							strcat(line, arg);
 						}
 						if ((next+1 == last) && (m_memory[next] != 0))
 						{
+							if (quote_active)
+								strcat(line, "\"");
 							strcat(line, "\n");
 							tb->append(line);
 							line[0]=0;
@@ -633,7 +738,7 @@ void VTDis::Disassemble()
 					for (i = 0; i < len; i++)
 						strcat(line, " ");
 					strcat(line, "; ");
-					strcat(line, m_pRom->pVars[x].desc);
+					strcat(line, gDisStrings[m_pRom->pVars[x].strnum].desc);
 					break;
 				}
 
@@ -652,7 +757,7 @@ void VTDis::Disassemble()
 					for (i = 0; i < len; i++)
 						strcat(line, " ");
 					strcat(line, "; ");
-					strcat(line, m_pRom->pFuns[x].desc);
+					strcat(line, gDisStrings[m_pRom->pFuns[x].strnum].desc);
 					break;
 				}
 

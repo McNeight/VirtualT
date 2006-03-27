@@ -34,12 +34,12 @@
 #include <FL/Fl_Menu_Item.H>
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Box.H>
-#include <FL/Fl_Help_Dialog.h>
+#include <FL/Fl_Help_Dialog.H>
 #include <FL/fl_ask.H> 
 #include <FL/Fl_File_Chooser.H>
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
-#include <FL/Fl_Preferences.h>
+#include <FL/Fl_Preferences.H>
 
 
 
@@ -53,22 +53,33 @@
 #include "file.h"
 #include "setup.h"
 #include "periph.h"
+#include "memory.h"
+#include "memedit.h"
 
-Fl_Window *MainWin = NULL;
-T100_Disp *gpDisp;
-Fl_Box    *gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
-Fl_Menu_Bar	*Menu;
-Fl_Preferences virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
-char	gsMenuROM[40];
-char	gDelayedError[128] = {0};
+extern "C" {
+extern RomDescription_t		gM100_Desc;
+extern RomDescription_t		gM200_Desc;
+extern RomDescription_t		gN8201_Desc;
+extern RomDescription_t		*gStdRomDesc;
+}
 
-int		MultFact = 3;
-int		DisplayMode = 1;
-int		SolidChars = 0;
+Fl_Window		*MainWin = NULL;
+T100_Disp		*gpDisp;
+Fl_Box			*gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
+Fl_Menu_Bar		*Menu;
+Fl_Preferences	virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
+char			gsMenuROM[40];
+char			gDelayedError[128] = {0};
 
-int		gRectsize = 2;
-int		gXoffset;
-int		gYoffset;
+int				MultFact = 3;
+int				DisplayMode = 1;
+int				SolidChars = 0;
+int				DispHeight = 64;
+
+int				gRectsize = 2;
+int				gXoffset;
+int				gYoffset;
+void switch_model(int model);
 
 char *gSpKeyText[] = {
 	"SHIFT",
@@ -137,19 +148,32 @@ void close_disp_cb(Fl_Widget* w, void*)
 	}
 }
 
+/*
+=====================================================================
+resize_window:	This function resizes the main window and repositions
+				all of the status windows.  The new size of the 
+				window is determined by the following values:
+
+				gModel, MultFact, DisplayMode
+=====================================================================
+*/
 void resize_window()
 {
+	if (gModel == MODEL_T200)
+		DispHeight = 128;
+	else
+		DispHeight = 64;
 	MainWin->resize(MainWin->x(), MainWin->y(), 240*MultFact +
-		90*DisplayMode+2,64*MultFact + 50*DisplayMode + MENU_HEIGHT + 22);
+		90*DisplayMode+2,DispHeight*MultFact + 50*DisplayMode + MENU_HEIGHT + 22);
 	Menu->resize(0, 0, 240*MultFact + 90*DisplayMode+2, MENU_HEIGHT-2);
-	gpDisp->resize(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2, 64*MultFact
+	gpDisp->resize(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2, DispHeight*MultFact
 		+ 50*DisplayMode+2);
-	gpGraph->resize(0, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2, 60, 20);
-	gpCode->resize(60, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2, 60, 20);
-	gpCaps->resize(120, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2, 60, 20);
-	gpKey->resize(180, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2, 120, 20);
-	gpSpeed->resize(300, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2, 60, 20);
-	gpKeyInfo->resize(360, MENU_HEIGHT+64*MultFact + 50*DisplayMode+2,
+	gpGraph->resize(0, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
+	gpCode->resize(60, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
+	gpCaps->resize(120, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
+	gpKey->resize(180, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 120, 20);
+	gpSpeed->resize(300, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
+	gpKeyInfo->resize(360, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2,
 		MainWin->w()-360, 20);
 
 	gRectsize = MultFact - (1 - SolidChars);
@@ -244,10 +268,14 @@ void cb_reset (Fl_Widget* w, void*)
 
 void cb_UnloadOptRom (Fl_Widget* w, void*)
 {
+	char	option_name[32];
+
 	gsOptRomFile[0] = 0;
 
 	// Update user preferences
-    virtualt_prefs.set("OptRomFile",gsOptRomFile);
+	get_model_string(option_name, gModel);
+	strcat(option_name, "_OptRomFile");
+    virtualt_prefs.set(option_name, gsOptRomFile);
 
 	// Clear menu
 	strcpy(gsMenuROM, "No ROM loaded");
@@ -260,21 +288,58 @@ void cb_UnloadOptRom (Fl_Widget* w, void*)
 
 }
 
+void cb_M100(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_M100);
+}
+void cb_M102(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_M102);
+}
+void cb_M200(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_T200);
+}
+//void cb_M10(Fl_Widget* w, void*)
+//{
+	/* Switch to new model */
+//	switch_model(MODEL_M10);
+//}
+void cb_PC8201(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_PC8201);
+}
+void cb_PC8300(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_PC8300);
+}
 
+/*
+=======================================================
+cb_help:	This routine displays the Help Subsystem
+=======================================================
+*/
 void cb_help (Fl_Widget* w, void*)
 {
-/*
-#ifndef WIN32
+
     Fl_Help_Dialog *HelpWin;
 	
 	HelpWin = new Fl_Help_Dialog();
-	HelpWin->load("./help.htm");
+	HelpWin->load("help.htm");
 	HelpWin->show();
-#endif
-*/
 
 }
 
+/*
+==========================================================
+cb_about:	This callback routine displays the about box
+==========================================================
+*/
 void cb_about (Fl_Widget* w, void*)
 {
   
@@ -292,11 +357,11 @@ void cb_about (Fl_Widget* w, void*)
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(20, 170, 335, 35, "Stephen Hurd");
+    { Fl_Box* o = new Fl_Box(20, 170, 335, 35, "Ken Pettit");
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(15, 190, 340, 35, "Ken Pettit");
+    { Fl_Box* o = new Fl_Box(15, 190, 340, 35, "Stephen Hurd");
       o->labelfont(8);
       o->labelsize(18);
     }
@@ -324,6 +389,124 @@ void cb_about (Fl_Widget* w, void*)
     o->show();   
 }
 
+
+
+Fl_Menu_Item menuitems[] = {
+  { "&File", 0, 0, 0, FL_SUBMENU },
+	{ "Load file from HD",     0, cb_LoadFromHost, 0 },
+	{ "Save file to HD",       0, cb_SaveToHost, 0, 0 },
+	{ "Save Options",	       0, 0,  0, FL_SUBMENU | FL_MENU_DIVIDER },
+		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
+		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
+		{ 0 },
+	{ "Load RAM...",      0,             cb_LoadRam, 0 },
+	{ "Save RAM...",      0,             cb_SaveRam, 0, FL_MENU_DIVIDER },
+	{ "E&xit",            FL_CTRL + 'q', close_disp_cb, 0 },
+	{ 0 },
+
+  { "&Emulation",         0, 0,        0, FL_SUBMENU },
+	{ "Reset",            0, cb_reset, 0, FL_MENU_DIVIDER },
+	{ "Model",            0, 0,        0, FL_SUBMENU 	 } ,
+		{ "M100",   0, cb_M100,   (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
+		{ "M102",   0, cb_M102,   (void *) 2, FL_MENU_RADIO },
+		{ "T200",   0, cb_M200,   (void *) 3, FL_MENU_RADIO },
+		{ "PC-8201",  0, cb_PC8201, (void *) 4, FL_MENU_RADIO },
+//		{ "8300",   0, cb_PC8300, (void *) 5, FL_MENU_RADIO },
+		{ 0 },
+	{ "Speed", 0, 0, 0, FL_SUBMENU },
+		{ "2.4 MHz",     0, rspeed, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
+		{ "Max Speed",   0, fspeed, (void *) 1, FL_MENU_RADIO },
+		{ 0 },
+	{ "Display", 0, 0, 0, FL_SUBMENU | FL_MENU_DIVIDER},
+		{ "1x",  0, cb_1x, (void *) 1, FL_MENU_RADIO },
+		{ "2x",  0, cb_2x, (void *) 2, FL_MENU_RADIO },
+		{ "3x",  0, cb_3x, (void *) 3, FL_MENU_RADIO | FL_MENU_VALUE},
+		{ "4x",  0, cb_4x, (void *) 4, FL_MENU_RADIO | FL_MENU_DIVIDER},
+		{ "Framed",  0, cb_framed, (void *) 1, FL_MENU_TOGGLE|FL_MENU_VALUE },
+		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
+		{ 0 },
+	{ "Peripheral Setup...",     0, cb_PeripheralSetup, 0, 0 },
+	{ "Memory Options...",       0, cb_MemorySetup, 0, FL_MENU_DIVIDER },
+	{ "Option ROM",              0, 0, 0, FL_SUBMENU },
+		{ gsMenuROM,             0, 0, 0, FL_MENU_DIVIDER },
+		{ "Load ROM...",         0, cb_LoadOptRom, 0, 0 },
+		{ "Unload ROM",          0, cb_UnloadOptRom, 0, 0 },
+		{ 0 },
+	{ 0 },
+
+  { "&Tools", 0, 0, 0, FL_SUBMENU },
+	{ "CPU Registers",         0, 0 },
+	{ "Assembler",             0, 0 },
+	{ "Disassembler",          0, disassembler_cb },
+	{ "Debugger",              0, 0 },
+	{ "Memory Editor",         0, cb_MemoryEditor },
+	{ "Peripheral Devices",    0, cb_PeripheralDevices },
+	{ "Simulation Log Viewer", 0, 0 },
+	{ "Model T File Viewer",   0, 0 },
+	{ "BASIC Debugger",        0, 0 },
+	{ 0 },
+  { "&Help", 0, 0, 0, FL_SUBMENU },
+	{ "Help", 0, cb_help },
+	{ "About VirtualT", 0, cb_about },
+	{ 0 },
+
+  { 0 }
+};
+
+/*
+============================================================================
+switch_model:	This function is called by the menu callback routines that 
+				manage selection of the current model being emulated. It 
+				saves the RAM for the current model, changes the to new 
+				model, resizes the display, then reinitializes the system.
+============================================================================
+*/
+void switch_model(int model)
+{
+	/* Save RAM for current emulation */
+	save_ram();
+
+	/* Switch to new model */
+	gModel = model;
+    virtualt_prefs.set("Model",gModel);
+
+	init_pref();
+
+	/* Load Memory preferences */
+	load_memory_preferences();
+	init_mem();
+
+	/* Set pointer to ROM Description */
+	if (gModel == MODEL_T200)
+		gStdRomDesc = &gM200_Desc;
+	else if (gModel == MODEL_PC8201)
+		gStdRomDesc = &gN8201_Desc;
+	else
+		gStdRomDesc = &gM100_Desc;
+
+	/* Clear the LCD */
+	gpDisp->Clear();
+
+	delete MainWin;
+	init_display();
+
+	/* Resize the window in case of size difference */
+	resize_window();
+
+	/* Re-initialize the CPU */
+	init_cpu();
+
+	/* Update Memory Editor window if any */
+	cb_MemoryEditorUpdate();
+}
+
+
+
+/*
+=======================================================
+T100:Disp:	This is the class construcor
+=======================================================
+*/
 T100_Disp::T100_Disp(int x, int y, int w, int h) :
   Fl_Widget(x, y, w, h)
 {
@@ -338,26 +521,66 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 	  m_MyFocus = 0;
 }
 
+/*
+==========================================================
+Command:	This function processes commands sent to 
+			Model 100 LCD subsystem.
+==========================================================
+*/
+void T100_Disp::Command(int instruction, uchar data)
+{
+}
+
+/*
+=================================================================
+Clear:	This routine clears the "LCD"
+=================================================================
+*/
+void T100_Disp::Clear(void)
+{
+  int driver;
+
+  for (driver = 0; driver < 10; driver++)
+  {
+	  for (int c = 0; c < 256; c++)
+		  lcd[driver][c] = 0;
+  }
+}
+
+/*
+=================================================================
+drawpixel:	This routine is called by the system to draw a single
+			black pixel on the "LCD".
+=================================================================
+*/
 // Draw the black pixels on the LCD
 __inline void drawpixel(int x, int y, int color)
 {
+	// Check if the pixel color is black and draw if it is
 	if (color)
 		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,gRectsize,gRectsize);
 }
 
-
-// Redraw the whole LCD
-void T100_Disp::draw()
+/*
+=================================================================
+draw_static:	This routine draws the static portions of the LCD,
+				such as erasing the background, drawing function
+				key labls, etc.
+=================================================================
+*/
+void T100_Disp::draw_static()
 {
 	int c;
 	int width;
 	int x_pos, inc, start, y_pos;
 	int xl_start, xl_end, xr_start, xr_end;
+	int	num_labels;
 
 	// Draw gray "screen"
     fl_color(FL_GRAY);
     fl_rectf(x(),y(),w(),h());
 
+	/* Check if the user wants the display "framed" */
 	if (DisplayMode == 1)
 	{
 		// Color for outer border
@@ -367,33 +590,34 @@ void T100_Disp::draw()
 		fl_rectf(x(),y(),240*MultFact+92,5);
 
 		// Draw border along the bottom
-		fl_rectf(x(),y()+64*MultFact+45,240*MultFact+92,5);
+		fl_rectf(x(),y()+DispHeight*MultFact+45,240*MultFact+92,5);
 
 		// Draw border along the left
-		fl_rectf(x(),y()+5,5,64*MultFact+42);
+		fl_rectf(x(),y()+5,5,DispHeight*MultFact+42);
 
 		// Draw border along the right
-		fl_rectf(x()+240*MultFact+87,y()+5,5,64*MultFact+42);
+		fl_rectf(x()+240*MultFact+87,y()+5,5,DispHeight*MultFact+42);
 
 
 		// Color for inner border
 		fl_color(FL_BLACK);
-
+												    
 		// Draw border along the top
 		fl_rectf(x()+5,y()+5,240*MultFact+42,20);
 
 		// Draw border along the bottom
-		fl_rectf(x()+5,y()+64*MultFact+27,240*MultFact+82,20);
+		fl_rectf(x()+5,y()+DispHeight*MultFact+27,240*MultFact+82,20);
 
 		// Draw border along the left
-		fl_rectf(x()+5,y()+5,40,64*MultFact+32);
+		fl_rectf(x()+5,y()+5,40,DispHeight*MultFact+32);
 
 		// Draw border along the right
-		fl_rectf(x()+240*MultFact+47,y()+5,40,64*MultFact+32);
+		fl_rectf(x()+240*MultFact+47,y()+5,40,DispHeight*MultFact+32);
 
 
 		width = w() - 90;
-		inc = width/8;
+		num_labels = gModel == MODEL_PC8201 ? 5 : 8;
+		inc = width / num_labels;
 		start = 28 + width/16 + (4-MultFact)*2;
 		fl_color(FL_WHITE);
 		fl_font(FL_COURIER,12);
@@ -406,7 +630,7 @@ void T100_Disp::draw()
 		xr_end = 12 + 7*MultFact;
 
 		// Draw function key labels
-		for (c = 0; c < 8; c++)
+		for (c = 0; c < num_labels; c++)
 		{
 			// Draw text
 			x_pos = start + inc*c;
@@ -427,11 +651,23 @@ void T100_Disp::draw()
 			}
 		}
 	}
+}
 
+/*
+=================================================================
+draw:	This routine draws the entire LCD.  This is a member 
+		function of Fl_Window.
+=================================================================
+*/
+void T100_Disp::draw()
+{
 	int x=0;
 	int y=0;
 	int driver, col, row;
 	uchar value;
+
+	/* Draw static background stuff */
+	draw_static();
 
 	for (driver = 0; driver < 10; driver++)
 	{
@@ -521,79 +757,24 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 //		Fl::wait(0);
 //	}
 }
-
-
-Fl_Menu_Item menuitems[] = {
-  { "&File", 0, 0, 0, FL_SUBMENU },
-	{ "Load file from HD",     0, cb_LoadFromHost, 0 },
-	{ "Save file to HD",       0, cb_SaveToHost, 0, 0 },
-	{ "Save Options",	       0, 0,  0, FL_SUBMENU | FL_MENU_DIVIDER },
-		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
-		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
-		{ 0 },
-	{ "Load RAM...",      0, cb_LoadRam, 0 },
-	{ "Save RAM...",      0, cb_SaveRam, 0, FL_MENU_DIVIDER },
-	{ "E&xit",            FL_CTRL + 'q', close_disp_cb, 0 },
-	{ 0 },
-
-  { "&Emulation",         0, 0,        0, FL_SUBMENU },
-	{ "Reset",            0, cb_reset, 0, FL_MENU_DIVIDER },
-	{ "Model",            0, 0,        0, FL_SUBMENU 	 } ,
-		{ "M100",   0, 0, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
-		{ "M102",   0, 0, (void *) 2, FL_MENU_RADIO },
-		{ "T200",   0, 0, (void *) 3, FL_MENU_RADIO },
-		{ 0 },
-	{ "Speed", 0, 0, 0, FL_SUBMENU },
-		{ "2.4 MHz",     0, rspeed, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
-		{ "Max Speed",   0, fspeed, (void *) 1, FL_MENU_RADIO },
-		{ 0 },
-	{ "Display", 0, 0, 0, FL_SUBMENU | FL_MENU_DIVIDER},
-		{ "1x",  0, cb_1x, (void *) 1, FL_MENU_RADIO },
-		{ "2x",  0, cb_2x, (void *) 2, FL_MENU_RADIO },
-		{ "3x",  0, cb_3x, (void *) 3, FL_MENU_RADIO | FL_MENU_VALUE},
-		{ "4x",  0, cb_4x, (void *) 4, FL_MENU_RADIO | FL_MENU_DIVIDER},
-		{ "Framed",  0, cb_framed, (void *) 1, FL_MENU_TOGGLE|FL_MENU_VALUE },
-		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
-		{ 0 },
-	{ "Peripheral Setup...",     0, cb_PeripheralSetup, 0, FL_MENU_DIVIDER },
-	{ "Option ROM",              0, 0, 0, FL_SUBMENU },
-		{ gsMenuROM,             0, 0, 0, FL_MENU_DIVIDER },
-		{ "Load ROM...",         0, cb_LoadOptRom, 0, 0 },
-		{ "Unload ROM",          0, cb_UnloadOptRom, 0, 0 },
-		{ 0 },
-	{ 0 },
-
-  { "&Tools", 0, 0, 0, FL_SUBMENU },
-	{ "CPU Registers",         0, 0 },
-	{ "Assembler",             0, 0 },
-	{ "Disassembler",          0, disassembler_cb },
-	{ "Debugger",              0, 0 },
-	{ "Memory Editor",         0, 0 },
-	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
-	{ 0 },
-  { "&Help", 0, 0, 0, FL_SUBMENU },
-	{ "Help", 0, cb_help },
-	{ "About VirtualT", 0, cb_about },
-	{ 0 },
-
-  { 0 }
-};
-
 // read Pref File
 // J. VERNET
 
-void initpref(void)
+void init_pref(void)
 {
+	char	option_name[32];
+
 	virtualt_prefs.get("fullspeed",fullspeed,0);
 	virtualt_prefs.get("MultFact",MultFact,3);
 	virtualt_prefs.get("DisplayMode",DisplayMode,1);
 	virtualt_prefs.get("SolidChars",SolidChars,0);
 	virtualt_prefs.get("BasicSaveMode",BasicSaveMode,0);
 	virtualt_prefs.get("COSaveMode",COSaveMode,0);
-	virtualt_prefs.get("OptRomFile",gsOptRomFile,"", 256);
+	virtualt_prefs.get("Model",gModel, MODEL_M100);
+
+	get_model_string(option_name, gModel);
+	strcat(option_name, "_OptRomFile");
+	virtualt_prefs.get(option_name,gsOptRomFile,"", 256);
 
 	if (strlen(gsOptRomFile) == 0)
 	{
@@ -605,24 +786,34 @@ void initpref(void)
 	}
 }
 // Create the main display window and all children (status, etc.)
-void initdisplay(void)
+void init_display(void)
 {
 	int	mIndex;
+	int	i;
 
-	MainWin = new Fl_Window(240*MultFact + 90*DisplayMode+2,64*MultFact +
+	if (gModel == MODEL_T200)
+		DispHeight = 128;
+	else
+		DispHeight = 64;
+	MainWin = new Fl_Window(240*MultFact + 90*DisplayMode+2,DispHeight*MultFact +
 		50*DisplayMode + MENU_HEIGHT + 22, "Virtual T");
 	Menu = new Fl_Menu_Bar(0, 0, 240*MultFact + 90*DisplayMode+2,
 		MENU_HEIGHT-2);
-	gpDisp = new T100_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
-		64*MultFact + 50*DisplayMode+2);
+	if (gModel == MODEL_T200)
+		gpDisp = new T200_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
+			DispHeight*MultFact + 50*DisplayMode+2);
+	else
+		gpDisp = new T100_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
+			DispHeight*MultFact + 50*DisplayMode+2);
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
         
         
 // Treat Values read in pref files
 // J. VERNET 
-// Be careful, if order or add to Emulation Menu, this code need to be changed.
+	//==================================================
 	// Update Speed menu item if not default value
+	//==================================================
 	if(fullspeed==1) 
 	{
 		mIndex = 0;
@@ -632,14 +823,16 @@ void initdisplay(void)
 		menuitems[mIndex].flags= FL_MENU_RADIO;
 	}
 
+	//==================================================
 	// Update Display Size from preference
+	//==================================================
 	mIndex = 0;
 	// Find first display size menu item
 	while (menuitems[mIndex].callback_ != cb_1x)
 		mIndex++;
 	mIndex--;
 
-    for(int i=1;i<5;i++)
+    for(i=1;i<5;i++)
     {
         if(i==MultFact) 
             if(i==4) 
@@ -651,7 +844,29 @@ void initdisplay(void)
             else menuitems[i+mIndex].flags=FL_MENU_RADIO;  
     }
 
+	//==================================================
+	// Update Model selection
+	//==================================================
+	mIndex = 0;
+	// Find first display size menu item
+	while (menuitems[mIndex].callback_ != cb_M100)
+		mIndex++;
+
+    for(i=MODEL_M100;i<=MODEL_PC8201;i++)
+    {
+        if(i==gModel) 
+            if(i==MODEL_PC8300) 
+                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE | FL_MENU_DIVIDER;
+            else menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE;  
+        else
+            if(i==MODEL_PC8300) 
+                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_DIVIDER;
+            else menuitems[i+mIndex].flags=FL_MENU_RADIO;  
+    }
+
+	//==================================================
 	// Update DisplayMode parameter 
+	//==================================================
     if(DisplayMode==0)
 	{
 		mIndex = 0;
@@ -660,7 +875,11 @@ void initdisplay(void)
         menuitems[mIndex].flags=FL_MENU_TOGGLE;
 	}
 
-	// Update SolidChars menu item
+	/*
+	==================================================
+	Update SolidChars menu item
+	==================================================
+	*/
     if(SolidChars==1)
 	{
 		mIndex = 0;
@@ -669,7 +888,11 @@ void initdisplay(void)
         menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
 	}
         
-	// Update BasicSaveMode parameter 
+	/*
+	==================================================
+	Update BasicSaveMode parameter 
+	==================================================
+	*/
     if(BasicSaveMode==1)
 	{
 		mIndex = 0;
@@ -678,7 +901,11 @@ void initdisplay(void)
         menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
 	}
     
-	// Update COSaveMode parameter 
+	/*
+	==================================================
+	 Update COSaveMode parameter 
+	==================================================
+	*/
     if(COSaveMode==1)
 	{
 		mIndex = 0;
@@ -687,25 +914,30 @@ void initdisplay(void)
         menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
 	}
 
-	gpGraph = new Fl_Box(FL_DOWN_BOX,0, MENU_HEIGHT+64*MultFact +
+	/* 
+	========================================
+	Create Status boxes for various things
+	========================================
+	*/
+	gpGraph = new Fl_Box(FL_DOWN_BOX,0, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"GRAPH");
 	gpGraph->labelsize(10);
 	gpGraph->deactivate();
-	gpCode = new Fl_Box(FL_DOWN_BOX,60, MENU_HEIGHT+64*MultFact +
+	gpCode = new Fl_Box(FL_DOWN_BOX,60, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"CODE");
 	gpCode->labelsize(10);
 	gpCode->deactivate();
-	gpCaps = new Fl_Box(FL_DOWN_BOX,120, MENU_HEIGHT+64*MultFact +
+	gpCaps = new Fl_Box(FL_DOWN_BOX,120, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"CAPS");
 	gpCaps->labelsize(10);
 	gpCaps->deactivate();
-	gpKey = new Fl_Box(FL_DOWN_BOX,180, MENU_HEIGHT+64*MultFact +
+	gpKey = new Fl_Box(FL_DOWN_BOX,180, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 120, 20,"");
 	gpKey->labelsize(10);
-	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, MENU_HEIGHT+64*MultFact +
+	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"");
 	gpSpeed->labelsize(10);
-	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+64*MultFact +
+	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, MainWin->w()-360, 20,
 		"F9:Label  F10:Print  F11:Paste  F12:Pause");
 	gpKeyInfo->labelsize(10);
@@ -716,23 +948,27 @@ void initdisplay(void)
 	if (gRectsize == 0)
 		gRectsize = 1;
 
+	/* End the Window and show it */
 	MainWin->end();
 	MainWin->show();
 
 
-	//Fl::wait();
-        Fl::check();
+	/* Check for Fl_Window event */
+    Fl::check();
 
+	/* Check if an error occured prior to Window generation ... */
+	/* ...and display it now if any */
 	if (strlen(gDelayedError) != 0)
+	{
 		fl_alert(gDelayedError);
-
+		gDelayedError[0] = '\0';
+	}
 }
 
 char	label[40];
 
 void display_cpu_speed(void)
 {
-
 	sprintf(label, "%4.1f Mhz", cpu_speed + .05);
 	Fl::check();
 	gpSpeed->label(label);
@@ -778,6 +1014,12 @@ void T100_Disp::PowerDown()
 	int x;
 	int col;
 	int driver, column;
+	int addr;
+
+	addr = 0x7711;
+	if (gModel == MODEL_PC8201)
+		addr = 0x78B7;
+
 	for (driver = 0; driver < 10; driver++)
 		for (col = 0; col < 256; col++)
 			lcd[driver][col] = 0;
@@ -787,7 +1029,7 @@ void T100_Disp::PowerDown()
 	col = 20 - strlen(msg) / 2;
 	for (x = 0; x < (int) strlen(msg); x++)
 	{
-		int mem_index = 0x7711 + (msg[x] - ' ')*5;
+		int mem_index = addr + (msg[x] - ' ')*5;
 		column = col++ * 6;
 		for (int c = 0; c < 6; c++)
 		{
@@ -804,7 +1046,7 @@ void T100_Disp::PowerDown()
 	col = 20 - strlen(msg2) / 2;
 	for (x = 0; x < (int) strlen(msg2); x++)
 	{
-		int mem_index = 0x7711 + (msg2[x] - ' ')*5;
+		int mem_index = addr + (msg2[x] - ' ')*5;
 		column = col++ * 6;
 		for (int c = 0; c < 6; c++)
 		{
@@ -819,9 +1061,9 @@ void T100_Disp::PowerDown()
 }
 
 // Handle mouse events, key events, focus events, etc.
+char	keylabel[128];
 int T100_Disp::handle(int event)
 {
-	char	label[128];
 	char	keystr[10];
 	char	isSpecialKey = 1;
 	int		c;
@@ -976,49 +1218,179 @@ int T100_Disp::handle(int event)
 			gKeyStates[key] = 0;
 			if (key == 0x20)
 				gSpecialKeys |= MT_SPACE;
-			if (key == ']')
+
+			/*
+			=========================================
+			=========================================
+			*/
+			if (gModel != MODEL_PC8201)
 			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+				if (key == ']')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates[']'] = 0;
+						gKeyStates['0'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['['] = 0;
+					}
+				}
+				if (key == '[')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['['] = 0;
+						gKeyStates['9'] = 0;
+					}
+				}
+				if (key == '`')
 				{
 					gSpecialKeys |= MT_GRAPH;
-					gSpecialKeys &= ~MT_SHIFT;
-					gKeyStates[']'] = 0;
-					gKeyStates['0'] = 0;
-				}
-				else
-				{
-					gSpecialKeys |= MT_SHIFT;
 					gKeyStates['['] = 0;
+				}
+				if (key == '\\')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gKeyStates[';'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gKeyStates['-'] = 0;
+					}
 				}
 			}
-			if (key == '[')
+			else
 			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+				// Handle the '^' key (Shift 6)
+				if (key == '6')
 				{
-					gSpecialKeys |= MT_GRAPH;
-					gSpecialKeys &= ~MT_SHIFT;
-					gKeyStates['['] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['6'] = 0;
+						gKeyStates['@'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['@'] = 0;
+					}
+				}
+				// Handle the '"' key (shift ')
+				if (key == '\'')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['\''] = 0;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 0;
+					}
+				}
+				// Handle the '+' and '=' keys
+				if (key == '=')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates[';'] = 0;
+						gKeyStates['-'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['-'] = 0;
+						gKeyStates[';'] = 0;
+					}
+				}
+				// Handle the '(' key
+				if (key == '9')
+				{
+					gKeyStates['8'] = 0;
 					gKeyStates['9'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
 				}
-			}
-			if (key == '`')
-			{
-				gSpecialKeys |= MT_GRAPH;
-				gKeyStates['['] = 0;
-			}
-			if (key == '\\')
-			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+				// Handle the ')' key
+				if (key == '0')
 				{
-					gSpecialKeys |= MT_GRAPH;
-					gKeyStates[';'] = 0;
+					gKeyStates['9'] = 0;
+					gKeyStates['0'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
 				}
-				else
+				// Handle the '_' key
+				if (key == '-')
 				{
-					gSpecialKeys |= MT_GRAPH;
 					gKeyStates['-'] = 0;
+					gKeyStates['0'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '_' key
+				if (key == ';')
+				{
+					gKeyStates[';'] = 0;
+					gKeyStates[':'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '*' key
+				if (key == '8')
+				{
+					gKeyStates['8'] = 0;
+					gKeyStates[':'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '&' key
+				if (key == '7')
+				{
+					gKeyStates['7'] = 0;
+					gKeyStates['6'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '@' key
+				if (key == '2')
+				{
+					gKeyStates['2'] = 0;
+					gKeyStates['@'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
 				}
 			}
+
 			isSpecialKey = 0;
 			break;
 		}
@@ -1152,65 +1524,181 @@ int T100_Disp::handle(int event)
 			{
 				gSpecialKeys &= ~MT_SPACE;
 			}
-			if (key == ']')
+			if (gModel != MODEL_PC8201)
 			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+				if (key == ']')
 				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gSpecialKeys |= MT_SHIFT;
-					gKeyStates[']'] = 0;
-					gKeyStates['0'] = 1;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates[']'] = 0;
+						gKeyStates['0'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['['] = 1;
+						gKeyStates[key] = 0;
+					}
 				}
-				else
+				if (key == '[')
 				{
-					gSpecialKeys &= ~MT_SHIFT;
-					gKeyStates['['] = 1;
-					gKeyStates[key] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['['] = 0;
+						gKeyStates['9'] = 1;
+					}
+				}
+				if (key == '`')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['`'] = 0;
+						gKeyStates['['] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gKeyStates['`'] = 0;
+						gKeyStates['['] = 1;
+					}
+				}
+				if (key == '\\')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['\\'] = 0;
+						gKeyStates[';'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gKeyStates['-'] = 1;
+						gKeyStates['\\'] = 0;
+					}
 				}
 			}
-			if (key == '[')
+			else
 			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gSpecialKeys |= MT_SHIFT;
-					gKeyStates['['] = 0;
-					gKeyStates['9'] = 1;
-				}
-			}
-			if (key == '`')
-			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gSpecialKeys &= ~MT_SHIFT;
-					gKeyStates['`'] = 0;
-					gKeyStates['['] = 1;
-				}
-				else
-				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gKeyStates['`'] = 0;
-					gKeyStates['['] = 1;
-				}
-			}
-			if (key == '\\')
-			{
-				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gSpecialKeys &= ~MT_SHIFT;
-					gKeyStates['\\'] = 0;
-					gKeyStates[';'] = 1;
-				}
-				else
-				{
-					gSpecialKeys &= ~MT_GRAPH;
-					gKeyStates['-'] = 1;
-					gKeyStates['\\'] = 0;
-				}
-			}
+				// Deal with special keys for the PC-8201
 
+				// Handle the '^' key  (Shift 6)
+				if (key == '6')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['6'] = 0;
+						gKeyStates['@'] = 1;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['@'] = 0;
+					}
+				}
+				// Handle the '"' key  (Shift ')
+				if (key == '\'')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['\''] = 0;
+						gKeyStates['2'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 1;
+					}
+				}
+				// Handle the '+' and '=' keys
+				if (key == '=')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['='] = 0;
+						gKeyStates[';'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['-'] = 1;
+						gKeyStates['='] = 0;
+					}
+				}
+				// Handle the '(' key
+				if (key == '9')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['9'] = 0;
+						gKeyStates['8'] = 1;
+					}
+				}
+				// Handle the '(' key
+				if (key == '0')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['0'] = 0;
+						gKeyStates['9'] = 1;
+					}
+				}
+				// Handle the '_' key
+				if (key == '-')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['-'] = 0;
+						gKeyStates['0'] = 1;
+					}
+				}
+				// Handle the ':' key
+				if (key == ';')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates[';'] = 0;
+						gKeyStates[':'] = 1;
+					}
+				}
+				// Handle the '*' key
+				if (key == '8')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gKeyStates['8'] = 0;
+						gKeyStates[':'] = 1;
+					}
+				}
+				// Handle the '&' key
+				if (key == '7')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gKeyStates['7'] = 0;
+						gKeyStates['6'] = 1;
+					}
+				}
+				// Handle the '@' key
+				if (key == '2')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['@'] = 1;
+					}
+				}
+			}
 			isSpecialKey = 0;
 			break;
 		}
@@ -1222,7 +1710,7 @@ int T100_Disp::handle(int event)
 	if (event == FL_KEYUP || event == FL_KEYDOWN)
 	{
 		// Start with empty string
-		label[0] = 0;
+		keylabel[0] = 0;
 
 		// Add text for special keys
 		for (c = 0; c < 32; c++)
@@ -1231,9 +1719,9 @@ int T100_Disp::handle(int event)
 			{
 				if ((c == 2) || (c == 3) || (c==5))
 					continue;
-				if (label[0] != 0)
-					strcat(label, "+");
-				strcat(label, gSpKeyText[c]);
+				if (keylabel[0] != 0)
+					strcat(keylabel, "+");
+				strcat(keylabel, gSpKeyText[c]);
 			}
 		}
 
@@ -1242,15 +1730,15 @@ int T100_Disp::handle(int event)
 		{
 			if (gKeyStates[c])
 			{
-				if (label[0] != 0)
-					strcat(label, "+");
+				if (keylabel[0] != 0)
+					strcat(keylabel, "+");
 				sprintf(keystr, "'%c'", c);
 
 				// Space shows up better written instead of ' '
 				if (c == 0x20)
-					strcat(label, "SPACE");
+					strcat(keylabel, "SPACE");
 				else
-					strcat(label, keystr);
+					strcat(keylabel, keystr);
 			}
 		}
 
@@ -1259,13 +1747,400 @@ int T100_Disp::handle(int event)
 		Fl::check();
 
 		// Update the text
-		gpKey->label(label);
+		gpKey->label(keylabel);
 	}
 
 	return 1;
 }
 
+/*
+==========================================================
+t200_command:	This function processes commands sent to 
+				Model 200 LCD subsystem.
+==========================================================
+*/
+void t200_command(unsigned char ir, unsigned char data)
+{
+	gpDisp->Command(ir, data);
+}
+
+/*
+==========================================================
+t200_readport:	This function returns the I/O port data
+				for the port specified.
+==========================================================
+*/
+unsigned char t200_readport(unsigned char port)
+{
+	return ((T200_Disp*)gpDisp)->ReadPort(port);
+}
+
+/*
+=======================================================
+T200:Disp:	This is the class construcor
+=======================================================
+*/
+T200_Disp::T200_Disp(int x, int y, int w, int h) :
+  T100_Disp(x, y, w, h)
+{
+	  int c;
+
+	  /* Clear the display RAM */
+	  for (c = 0; c < 8192; c++)
+		  m_ram[c] = 0;
+
+	  m_MyFocus = 0;
+	  m_dstarth = 0;
+	  m_dstartl = 0;
+	  m_mcr = 0;
+	  m_hpitch = 0;
+	  m_hcnt = 0;
+	  m_curspos = 0;
+	  m_cursaddrh = 0;
+	  m_cursaddrl = 0;
+	  m_ramrd = 0;
+	  m_ramrd_dummy = 0;
+	  m_redraw_count = 0;
+}
+
+/*
+==========================================================
+Command:	This function processes commands sent to 
+			Model 200 LCD subsystem.
+==========================================================
+*/
+void T200_Disp::Command(int instruction, uchar data)
+{
+	int		cursaddr, dstart;
+	char	mask;
+	int		c;
+
+	/* Calculate cursaddr just in case */
+	cursaddr = (m_cursaddrh << 8) | m_cursaddrl;
+
+	switch (instruction)
+	{
+	case SET_MCR:
+		m_mcr = data;
+		break;
+
+	case SET_HPITCH:
+		m_hpitch = data;
+		break;
+
+	case SET_HCNT:
+		m_hcnt = data;
+		break;
+
+	case SET_TDIV:
+		m_tdiv = data;
+		break;
+
+	case SET_CURSPOS:
+		m_curspos = data;
+		break;
+
+	case SET_DSTARTL:
+		/* Save new value for m_dstartl */
+		m_dstartl = data;
+
+		break;
+
+	case SET_DSTARTH:
+		/* Save new value of m_dstarth */
+		m_dstarth = data;
 
 
+		/* Calculate location of new page start */
+		dstart = (m_dstarth << 8) | m_dstartl;
 
+		/* Test if changing to a totally new page */
+		c = abs(dstart - m_last_dstart);
+		if (c != 0x140)
+			c = dstart - m_last_dstart + 0x2000;
+		if (c != 0x140)
+			c = m_last_dstart - dstart + 0x2000;
+
+		m_last_dstart = dstart;
+
+		if (c != 0x140)
+		{
+			/* Clear all of memory to prevent screen "jump" */
+			for (c = 0; c < 0x2000; c++)
+				m_ram[c] = 0;
+		}
+		else
+		{
+			/* Clear RAM "above" display area */
+			dstart -= 640;
+			if (dstart < 0)
+				dstart += 8192;
+			for (c = 0; c < 640; c++)
+			{
+				m_ram[dstart++] = 0;
+				if (dstart >= 8192)
+					dstart = 0;
+			}
+		}
+
+		m_redraw_count = 40 * 8;
+//		printf("T200:IR=0x%04X  DATA=0x%02X\n", instruction, dstart);
+
+		break;
+
+	case SET_CURSADDRL:
+		/* Test for increment of m_dstarth */
+		if ((m_cursaddrl & 0x80) && !(data & 0x80))
+		{
+			m_cursaddrh++;
+
+			/* Test if address >= 8192 */
+			if (m_cursaddrh >= 0x20)
+				m_cursaddrh = 0;
+		}
+
+		/* Save new value of cursor address */
+		m_cursaddrl = data;
+		break;
+
+	case SET_CURSADDRH:
+		/* Save new value of m_cursaddrh */
+		m_cursaddrh = data;
+		break;
+
+	case RAM_WR:
+		/* Draw new data on the LCD */
+		SetByte(cursaddr, 0, data);
+
+		/* Increment cursor address */
+		if (++m_cursaddrl == 0)
+			m_cursaddrh++;
+
+		/* Test if address >= 8192 */
+		if (m_cursaddrh >= 0x20)
+			m_cursaddrh = 0;
+
+		if (m_redraw_count > 0)
+		{
+			if (--m_redraw_count == 0)
+				redraw_active();
+		}
+		break;
+
+	case RAM_RD:
+		/* Load m_ramrd register from the dummy register */
+		m_ramrd_addr = cursaddr;
+
+		break;
+
+	case RAM_BIT_CLR:		/* Clear the bit specified by data at cursaddr */
+		/* First calculate the AND mask */
+		mask = 0xFE << data;
+
+		/* Draw new data on the LCD */
+		SetByte(cursaddr, 0, m_ram[cursaddr] & mask);
+
+		/* Now increment the address */
+		if (++m_cursaddrl == 0)
+			m_cursaddrh++;
+		/* Test if address >= 8192 */
+
+		if (m_cursaddrh >= 0x20)
+			m_cursaddrh = 0;
+
+		break;
+
+	case RAM_BIT_SET:		/* Set the bit specified by data at cursaddr */
+		/* First calculate the OR mask */
+		mask = 0x01 << data;
+
+		/* Draw new data on the LCD */
+		SetByte(cursaddr, 0, m_ram[cursaddr] | mask);
+
+		/* Now increment the address */
+		if (++m_cursaddrl == 0)
+			m_cursaddrh++;
+
+		/* Test if address >= 8192 */
+		if (m_cursaddrh >= 0x20)
+			m_cursaddrh = 0;
+
+		break;
+
+	}
+}
+
+/*
+=================================================================
+draw:	This routine draws the entire LCD.  This is a member 
+		function of Fl_Window.
+=================================================================
+*/
+void T200_Disp::draw()
+{
+
+	int		x=0;
+	int		y=0;
+	int		addr, col, row;
+	uchar	value;
+
+	/* Draw the static portions of the LCD / screen */
+	draw_static();
+
+	/* Get RAM address where display should start */
+	addr = (m_dstarth << 8) | m_dstartl;
+
+	fl_color(FL_BLACK);
+
+	/* Check if the driver is in "graphics" mode */
+	if (m_mcr & 0x02)
+	{
+		/* Loop through all 128 display pixel rows */
+		for (row = 0; row < 128; row++)
+		{
+			y = row;
+
+			/* Loop through all 40 LCD columns */
+			for (col = 0; col < 40; col++)
+			{
+				/* Calculate x coordinate (Characters are 6 pixels wide) */
+				x= col * 6;
+
+
+				/* Get data to be displayed on "LCD" */
+				value = m_ram[addr++];
+				if (addr >= 8192)
+					addr = 0;
+
+				// Erase line so it is grey, then fill in with black where needed
+//				fl_color(FL_GRAY);
+//				fl_rectf(x*MultFact + gXoffset,y*MultFact + 
+//					gYoffset,8*MultFact,gRectsize);
+//				fl_color(FL_BLACK);
+
+				// Draw the black pixels
+				drawpixel(x++,y, value&0x01);
+				drawpixel(x++,y, value&0x02);
+				drawpixel(x++,y, value&0x04);
+				drawpixel(x++,y, value&0x08);
+				drawpixel(x++,y, value&0x10);
+				drawpixel(x++,y, value&0x20);
+			}
+		}
+	}
+}
+
+
+void T200_Disp::SetByte(int driver, int col, uchar value)
+{
+	int x;
+	int y;
+	int addr = driver;
+	int diff = addr - ((m_dstarth << 8) | m_dstartl);
+	if (diff < 0)
+		diff += 8192;
+
+	// Check if LCD already has the value being requested
+	if (m_ram[addr] == value)
+		return;
+
+	// Load new value into lcd "RAM"
+	m_ram[addr] = value;
+
+	// Calculate X position of byte */
+	x = (diff % 40) * 6;
+
+	// Calcluate y position of byte
+	y = (diff / 40);
+	if (y >= 128)
+		return;
+
+	// Set the display
+	gpDisp->window()->make_current();
+
+	fl_color(FL_GRAY);
+	fl_rectf(x*MultFact + gXoffset, y*MultFact + 
+		gYoffset, MultFact*6, gRectsize);
+	fl_color(FL_BLACK);
+
+	// Draw each pixel of byte
+	drawpixel(x++,y,value&0x01);
+	drawpixel(x++,y,(value&0x02)>>1);
+	drawpixel(x++,y,(value&0x04)>>2);
+	drawpixel(x++,y,(value&0x08)>>3);
+	drawpixel(x++,y,(value&0x10)>>4);
+	drawpixel(x++,y,(value&0x20)>>5);
+}
+
+unsigned char T200_Disp::ReadPort(unsigned char port)
+{
+	/* Read RAM data through dummy register */
+	m_ramrd = m_ramrd_dummy;
+	
+	/* Do a dummy read */
+	m_ramrd_dummy = m_ram[m_ramrd_addr++];
+	if (m_ramrd_addr >= 8192)
+		m_ramrd_addr = 0;
+
+	return m_ramrd;
+}
+
+/*
+=================================================================
+redraw_active:	This routine redraws only the active LCD pixel
+				portion of the screen.  This prevents screen
+				"flicker" that would be caused by erasing the
+				entire background and redrawing the static data
+				every time the screen scrolls.
+=================================================================
+*/
+void T200_Disp::redraw_active()
+{
+
+	int		x=0;
+	int		y=0;
+	int		addr, col, row;
+	uchar	value;
+
+	// Set the display
+	gpDisp->window()->make_current();
+
+	/* Get RAM address where display should start */
+	addr = (m_dstarth << 8) | m_dstartl;
+
+	/* Check if the driver is in "graphics" mode */
+	if (m_mcr & 0x02)
+	{
+		/* Loop through all 128 display pixel rows */
+		for (row = 0; row < 128; row++)
+		{
+			// Erase line so it is grey, then fill in with black where needed
+			y = row;
+			fl_color(FL_GRAY);
+			fl_rectf(gXoffset,y*MultFact + 
+				gYoffset,240*MultFact,gRectsize);
+			fl_color(FL_BLACK);
+
+			/* Loop through all 40 LCD columns */
+			for (col = 0; col < 40; col++)
+			{
+				/* Calculate x coordinate (Characters are 6 pixels wide) */
+				x= col * 6;
+
+				/* Get data to be displayed on "LCD" */
+				value = m_ram[addr++];
+				if (addr >= 8192)
+					addr = 0;
+
+				// Draw the black pixels
+				drawpixel(x++,y, value&0x01);
+				drawpixel(x++,y, value&0x02);
+				drawpixel(x++,y, value&0x04);
+				drawpixel(x++,y, value&0x08);
+				drawpixel(x++,y, value&0x10);
+				drawpixel(x++,y, value&0x20);
+			}
+		}
+	}
+}
 

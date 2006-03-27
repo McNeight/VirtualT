@@ -37,31 +37,83 @@
 extern "C" {
 #endif
 extern int gDelayUpdateKeys;
-void initpref(void);
-void initdisplay(void);
+void init_pref(void);
+void init_display(void);
 void drawbyte(int driver, int column, int value);
 void power_down();
 void process_windows_event();
 void display_cpu_speed(void);
 void show_error(const char*);
+void t200_command(unsigned char ir, unsigned char data);
+unsigned char t200_readport(unsigned char port);
 
 #ifdef __cplusplus
 
 class T100_Disp : public Fl_Widget
 {
 public:
-	int m_MyFocus;
-	void PowerDown();
 	T100_Disp(int x, int y, int w, int h);
 
-	void SetByte(int driver, int col, uchar value);
+	virtual void	PowerDown();
+	virtual void	SetByte(int driver, int col, uchar value);
+	virtual void	Command(int instruction, uchar data);
+	virtual void	Clear(void);
 
 protected:
-	virtual int handle(int event);
-	void draw();
+	virtual int		handle(int event);
+	virtual void	draw();
+	virtual void	draw_static();
 
-	uchar	lcd[10][256];
+	int				m_MyFocus;
+	uchar			lcd[10][256];
 
+};
+
+
+class T200_Disp : public T100_Disp
+{
+public:
+	T200_Disp(int x, int y, int w, int h);
+	virtual void	Command(int instruction , uchar data);
+	virtual void	SetByte(int driver, int col, uchar value);
+	unsigned char	ReadPort(unsigned char port);
+
+protected:
+	virtual void	draw();
+	virtual void	redraw_active();
+
+	uchar			m_ram[8192];			/* T200 Display RAM storage */
+	uchar			m_mcr;					/* Mode Control Register */
+	uchar			m_hpitch;				/* Horizontal Character pitch */
+	uchar			m_hcnt;					/* Horizontal character count */
+	uchar			m_tdiv;					/* Time divisions */
+	uchar			m_curspos;				/* Cursor position */
+	uchar			m_dstartl;				/* Display start Low */
+	uchar			m_dstarth;				/* Display start High */
+	int				m_last_dstart;			/* Last dstart for clear operations */
+	uchar			m_cursaddrl;			/* Cursor address Low */
+	uchar			m_cursaddrh;			/* Cursor address High */
+	uchar			m_ramwr;				/* Data to be written to the RAM */
+	uchar			m_ramrd;				/* Data read from the RAM */
+	uchar			m_ramrd_dummy;			/* Dummy read register */
+	int				m_ramrd_addr;			/* Address for RAM reads */
+	int				m_redraw_count;
+
+	enum {
+		SET_MCR,
+		SET_HPITCH,
+		SET_HCNT,
+		SET_TDIV,
+		SET_CURSPOS,
+		SET_DSTARTL = 8,
+		SET_DSTARTH,
+		SET_CURSADDRL,
+		SET_CURSADDRH,
+		RAM_WR,
+		RAM_RD,
+		RAM_BIT_CLR,
+		RAM_BIT_SET 
+	};
 };
 
 }

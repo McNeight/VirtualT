@@ -31,6 +31,7 @@
 #include <time.h>
 #include <stdio.h>
 
+#include "VirtualT.h"
 #include "cpu.h"
 #include "gen_defs.h"
 #include "io.h"
@@ -38,36 +39,41 @@
 #include "display.h"
 #include "setup.h"
 #include "m100emu.h"
+#include "memory.h"
+#include "sound.h"
 
 uchar lcd[10][256];
 uchar lcdpointers[10]={0,0,0,0,0,0,0,0,0,0};
 uchar lcddriver=0;
 uchar lcd_fresh_ptr[10] = {1,1,1,1,1,1,1,1,1,1 };
+uchar io90;
+uchar ioA1;
 uchar ioBA;
 uchar ioB9;
 uchar ioE8;
 uchar ioBC;		/* Low byte of 14-bit timer */
 uchar ioBD;		/* High byte of 14-bit timer */
-
-
+uchar ioD0;		/* D0-DF io for T200 */
+uchar t200_ir;  /* Instruction register */
+uchar t200_mcr; /* Mode Control Register */
+uchar t200_uart_state = 0;
+uchar gRp5c01_mode;
+uchar gRp5c01_data[4][13];
 uchar keyscan[9] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+char  keyin[9];
 
-uint  lcdbits=0;
-time_t	clock_time = 0;
-time_t	last_clock_time = 1;
-struct	tm	*mytime	;
-
+uint			lcdbits=0;
+time_t			clock_time = 0;
+time_t			last_clock_time = 1;
+struct	tm		*mytime	;
 unsigned long	gSpecialKeys = 0;
-unsigned	char	gKeyStates[128];
+unsigned char	gKeyStates[128];
 int				gDelayUpdateKeys = 0;
 int				gDelayCount = 0;
-int				gModel = MODEL_M100;
+uchar			clock_sr[5];			/* 40 Bit shift register */
+uchar			clock_sr_index = 0;
+uchar			clock_serial_out = 0;
 
-uchar clock_sr[5];			/* 40 Bit shift register */
-uchar clock_sr_index = 0;
-uchar clock_serial_out = 0;
-
-char keyin[9];
 
 void update_keys(void)
 {
@@ -75,6 +81,13 @@ void update_keys(void)
 	int buf_index = 0xFF9A;
 	int c;
 	uchar key;
+
+	if (gModel == MODEL_T200)
+		buf_index = 0xFD0E;
+	else if (gModel == MODEL_PC8201)
+		buf_index = 0xFE58;
+		
+		
 
 	/* Insure keystroke was recgonized by the system */
 	for (c = 0; c < 9; c++)
@@ -116,63 +129,218 @@ void update_keys(void)
 				  (gKeyStates['t'] << 4) | (gKeyStates['y'] << 5) |
 				  (gKeyStates['u'] << 6) | (gKeyStates['i'] << 7));
 
-	keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
-				  (gKeyStates['['] << 2) | (gKeyStates[';'] << 3) |
-				  (gKeyStates['\''] << 4) | (gKeyStates[','] << 5) |
-				  (gKeyStates['.'] << 6) | (gKeyStates['/'] << 7));
-
 	keyscan[4] = ~(gKeyStates['1']       | (gKeyStates['2'] << 1) |
 				  (gKeyStates['3'] << 2) | (gKeyStates['4'] << 3) |
 				  (gKeyStates['5'] << 4) | (gKeyStates['6'] << 5) |
 				  (gKeyStates['7'] << 6) | (gKeyStates['8'] << 7));
 
-	keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
-				  (gKeyStates['-'] << 2) | (gKeyStates['='] << 3)) &
-				  (unsigned char) (gSpecialKeys >> 24);
+	if (gModel != MODEL_PC8201)
+	{
+		keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
+					  (gKeyStates['['] << 2) | (gKeyStates[';'] << 3) |
+					  (gKeyStates['\''] << 4) | (gKeyStates[','] << 5) |
+					  (gKeyStates['.'] << 6) | (gKeyStates['/'] << 7));
 
-	keyscan[6] = (unsigned char) ((gSpecialKeys >> 16) & 0xFF);
+		keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
+					  (gKeyStates['-'] << 2) | (gKeyStates['='] << 3)) &
+					  (unsigned char) (gSpecialKeys >> 24);
 
-	keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0xFF);
+		keyscan[6] = (unsigned char) ((gSpecialKeys >> 16) & 0xFF);
 
-	keyscan[8] = (unsigned char) (gSpecialKeys & 0xFF);
+		keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0xFF);
+
+		keyscan[8] = (unsigned char) (gSpecialKeys & 0xFF);
+	}
+	else
+	{
+		keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
+					  (gKeyStates['@'] << 2) | (gKeyStates['\\'] << 3) |
+					  (gKeyStates[','] << 4) | (gKeyStates['.'] << 5) |
+					  (gKeyStates['/'] << 6) | (gKeyStates[']'] << 7));
+
+		keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
+					  (gKeyStates[';'] << 2) | (gKeyStates[':'] << 3) |
+					  (gKeyStates['-'] << 4) | (gKeyStates['['] << 5)) &
+					  (unsigned char) (((gSpecialKeys & MT_SPACE) | ~MT_SPACE) >> 10) &
+					  (unsigned char) (((gSpecialKeys & MT_INS) | ~MT_INS) >> 17);
+
+		keyscan[6] = (unsigned char) (((gSpecialKeys & MT_BKSP) >> 17) | ~(MT_BKSP >> 17)) &
+					 (unsigned char) (((gSpecialKeys & MT_UP) >> 29) | ~(MT_UP >> 29)) &
+					 (unsigned char) (((gSpecialKeys & MT_DOWN) >> 29) | ~(MT_DOWN >> 29)) &
+					 (unsigned char) (((gSpecialKeys & MT_LEFT) >> 25) | ~(MT_LEFT >> 25)) &
+					 (unsigned char) (((gSpecialKeys & MT_RIGHT) >> 25) | ~(MT_RIGHT >> 25)) &
+					 (unsigned char) (((gSpecialKeys & MT_TAB) >> 13) | ~(MT_TAB >> 13)) &
+					 (unsigned char) (((gSpecialKeys & MT_ESC) >> 13) | ~(MT_ESC >> 13)) &
+					 (unsigned char) (((gSpecialKeys & MT_ENTER) >> 16) | ~(MT_ENTER >> 16));
+ 
+		keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0x1F);
+
+		keyscan[8] = (unsigned char) ((gSpecialKeys & 0x07) | 0xF8) &
+					 (unsigned char) (((gSpecialKeys & MT_CAP_LOCK) | ~MT_CAP_LOCK) >> 1);
+	}
 }
 
 void init_io(void)
 {
 	int c;
 
-	// Initialize special keys variable
+	/* Initialize special keys variable */
 	gSpecialKeys = 0xFFFFFFFF;
 
 	for (c = 0; c < 128; c++)
 		gKeyStates[c] = 0;
 
-	// Initialize keyscan variables
+	/* Initialize keyscan variables */
 	update_keys();
 
-	// Initialize serial I/O structures
+	/* Initialize serial I/O structures */
+	t200_uart_state = 0;			/* Confiture 8152 to Mode state */
 	ser_init();
 
-	// Setup callback for serial I/O
+	/* Setup callback for serial I/O */
 	ser_set_callback(cb_int65);
+
+	ioA1 = 0;
+	io90 = 0;
+	ioA1 = 0;
+	ioBA = 0;
+	ioB9 = 0;
+	ioE8 = 0;
+	ioBC = 0;		/* Low byte of 14-bit timer */
+	ioBD = 0;		/* High byte of 14-bit timer */
+	ioD0 = 0;		/* D0-DF io for T200 */
 }
 
 void deinit_io(void)
 {
-	// Deinitialize the serial port
+	/* Deinitialize the serial port */
 	ser_deinit();
 }
 
 
 int cROM = 0;
 
+void clock_chip_cmd(void)
+{
+	static int	clk_cnt = 1;
+
+	/* Clock chip command strobe */
+	switch (ioB9 & 0x07)
+	{
+	case 0:		/* NOP */
+		break;
+	case 1:		/* Serial Shift */
+		clock_serial_out = clock_sr[0] & 0x01;
+		clock_sr_index = 0;
+		break;
+	case 2:		/* Write Clock chip */
+		clock_sr_index = 0;
+		break;
+	case 3:		/* Read clock chip */
+		if (--clk_cnt > 0)
+			break;
+
+		clk_cnt = 20;
+
+		clock_time = time(&clock_time);
+		if (clock_time == last_clock_time)
+			break;
+
+		last_clock_time = clock_time;
+		mytime = localtime(&clock_time);
+		
+		/* Update Clock Chip Shift register Seconds */
+		clock_sr[0] = mytime->tm_sec % 10;
+		clock_sr[0] |= (mytime->tm_sec / 10) << 4;
+
+		/* Minutes */
+		clock_sr[1] = mytime->tm_min % 10;
+		clock_sr[1] |= (mytime->tm_min / 10) << 4;
+
+		/* Hours */
+		clock_sr[2] = mytime->tm_hour % 10;
+		clock_sr[2] |= (mytime->tm_hour / 10) << 4;
+
+		/* Day of month */
+		clock_sr[3] = mytime->tm_mday % 10;
+		clock_sr[3] |= (mytime->tm_mday / 10) << 4;
+
+		/* Day of week */
+		clock_sr[4] = (mytime->tm_wday) % 10;
+
+		/* Month */
+		clock_sr[4] |= (mytime->tm_mon + 1) << 4;
+
+		clock_sr_index = 0;
+
+		if ((memory[0xF92E] == 0) && (memory[0xF92D] == 0))
+		{
+			memory[0xF92D] = mytime->tm_year % 10;
+			memory[0xF92E] = (mytime->tm_year % 100) / 10;
+		}
+	}
+}
 void out(uchar port, uchar val)
 {
 	int		c;
 	unsigned char flags;
-	static int	clk_cnt = 20;
 
 	switch(port) {
+		case 0x70:	/* ReMem Mode port */
+		case 0x81:	/* ReMem RAMPAC emulation port */
+		case 0x83:	/* ReMem RAMPAC emulation port */
+			remem_out(port, val);
+			break;
+
+		case 0x90:	/* T200 Clock/Timer chip */
+			if (gModel == MODEL_PC8201)
+			{
+				if ((val & 0x10) && !(io90 & 0x10))
+				{
+					clock_chip_cmd();
+					break;
+				}
+
+				io90 = val;
+				break;
+			}
+		case 0x91:  
+		case 0x92:
+		case 0x93:
+		case 0x94:
+		case 0x95:
+		case 0x96:
+		case 0x97:
+		case 0x98:
+		case 0x99:
+		case 0x9A:
+		case 0x9B:
+		case 0x9C:
+			if (gModel == MODEL_T200)
+			{
+				gRp5c01_data[gRp5c01_mode & 0x03][port & 0x0F] = val;
+
+				/* Check if the time is being set */
+				if (gRp5c01_mode == 0)
+				{
+					/* Add code here to update the system time */
+				}
+				/* Check if the alarm is being set */
+				else if (gRp5c01_mode == 1)
+				{
+				}
+			}
+			break;
+
+		case 0x9D:	/* Clock chip Mode Register */
+			if (gModel == MODEL_T200)
+				gRp5c01_mode = val & 0x03;
+			break;
+
+		case 0x9E:
+		case 0x9F:
+			break;
+
 		case 0xA0:	/* Modem control port */
 			/*
 			Bit:
@@ -180,6 +348,31 @@ void out(uchar port, uchar val)
 				line)
 			    1 - Modem enable (1-Modem chip enabled) */
 			return;
+
+		case 0xA1:	/* RAM bank port on PC-8201A */
+			/* Test for a change to the ROM bank (0x0000 - 0x7FFF) */
+			if ((val & 0x0F) == ioA1)
+				break;
+
+			if ((val & 0x03) != (ioA1 & 0x03))
+			{
+				set_rom_bank((unsigned char) (val & 0x03));
+			}
+
+			/* Test for a change to the RAM bank (0x8000 - 0xFFFF) */
+			if ((val & 0x0C) != (ioA1 & 0x0C))
+			{
+				/* Convert HW select to bank number */
+				c = (val & 0x0C) >> 2;
+				if (c > 0)
+					c--;
+
+				/* Set bank number */
+				set_ram_bank((unsigned char) c);
+			}
+
+			ioA1 = val & 0x0F;
+			break;
 
 		case 0xB0:	/* PIO Command/Status Register */
 		case 0xB8:
@@ -249,20 +442,43 @@ void out(uchar port, uchar val)
 				power_down();
 			}
 
-			// Update COM settings
-			if ((val & 0xC8) != (ioBA & 0xC8))
+			/* Update COM settings */
+			if (gModel != MODEL_T200)
 			{
-				if ((val & 0x08) == 1)
-					c = 0;
+				if ((val & 0xC8) != (ioBA & 0xC8))
+				{
+					if ((val & 0x08) == 1)
+						c = 0;
+					else
+					{
+						flags = 0;
+						if ((val & 0x40) == 0)
+							flags |= SER_SIGNAL_DTR;
+						if ((val & 0x80) == 0)
+							flags |= SER_SIGNAL_RTS;
+					}
+					ser_set_signals(flags);
+				}
+			}
+
+			if ((ioBA & 0x04) != (A & 0x04))
+			{
+				if (A & 0x04)
+					sound_stop_tone();
 				else
 				{
-					flags = 0;
-					if ((val & 0x40) == 0)
-						flags |= SER_SIGNAL_DTR;
-					if ((val & 0x80) == 0)
-						flags |= SER_SIGNAL_RTS;
+					unsigned short div, freq;
+					div = ((ioBD & 0x3F) << 8) | ioBC;
+					if (div != 0)
+						freq = (unsigned short) (2457600L / div);
+					else
+						freq = 500;
+					sound_start_tone(freq);
 				}
-				ser_set_signals(flags);
+			}
+			if ((ioBA & 0x20) != (A & 0x20))
+			{
+				sound_toggle_speaker((A & 0x20) >> 5);
 			}
 
 			ioBA = A;
@@ -287,7 +503,7 @@ void out(uchar port, uchar val)
 			return;
 
 		case 0xC0:	/* Bidirectional data bus for UART (6402) (C0H-CFH same) */
-		case 0xC1:
+		case 0xC1:  /* Status/Control bus for T200 */
 		case 0xC2:
 		case 0xC3:
 		case 0xC4:
@@ -301,8 +517,58 @@ void out(uchar port, uchar val)
 		case 0xCC:
 		case 0xCD:
 		case 0xCE:
+			if (gModel == MODEL_T200)
+			{
+				ser_write_byte(val);
+				return;
+			}
 		case 0xCF:
-			ser_write_byte(val);
+			if (gModel == MODEL_T200)
+			{
+				if (t200_uart_state == 0)
+				{
+					/* Set Mode state - first check data bits*/
+					c = ((val & 0x0C) >> 2) + 5;
+					ser_set_bit_size(c);
+
+					/* Set stop bits */
+					c = val & 0x80 ? 2 : 1;
+					ser_set_stop_bits(c);
+
+					/* Set Parity */
+					if (val & 0x10) 
+						c = val & 0x20 ? 'E' : 'O';
+					else
+						c = 'N';
+					ser_set_parity((char) c);
+
+					t200_uart_state = 1;
+				}
+				else
+				{
+					/* Command state - first checkf for reset operation */
+					if (val & 0x40)
+					{
+						/* Reset the UART */
+						t200_uart_state = 0;
+						return;
+					}
+
+					/* Set UART state based on command */
+					flags = 0;
+					/* Test for DTR */
+					if (val & 0x02)
+						flags |= SER_SIGNAL_DTR;
+
+					/* Test for RTS */
+					if (val & 0x20)
+						flags |= SER_SIGNAL_RTS;
+
+					ser_set_signals(flags);
+				}													    
+			}
+			else
+				ser_write_byte(val);
 			return;
 
 		case 0xD0:	/* Status control register for UART, modem, and phone (6402)  */
@@ -321,31 +587,51 @@ void out(uchar port, uchar val)
 		case 0xDD:
 		case 0xDE:
 		case 0xDF:
-			/*
-			Bits:
-			    0 - Stop Bits (1-1.5, 0-2)
-			    1 - Parity (1-even, 0-odd)
-			    2 - Parity Enable (1-no parity, 0-parity enabled)
-			    3 - Data length (00-5 bits, 10-6 bits, 01-7 bits, 11-8 
-				bits)
-			    4 - Data length (see bit 3) */
-
-			if ((ioBA & 0x08) == 0)
+			if (gModel != MODEL_T200)
 			{
-				// Set stop bits
-				c = val & 0x01 ? 2 : 1;
-				ser_set_stop_bits(c);
-  
-				// Set Parity
-				if (val & 0x04) 
-					c = 'N';
-				else
-					c = val & 0x02 ? 'E' : 'O';
-				ser_set_parity((char) c);
+				/*
+				Bits:
+					0 - Stop Bits (1-1.5, 0-2)
+					1 - Parity (1-even, 0-odd)
+					2 - Parity Enable (1-no parity, 0-parity enabled)
+					3 - Data length (00-5 bits, 10-6 bits, 01-7 bits, 11-8 
+					bits)
+					4 - Data length (see bit 3) */
 
-				// Set bit size
-				c = ((val & 0x18) >> 3) + 5;
-				ser_set_bit_size(c);
+				if ((ioBA & 0x08) == 0)
+				{
+					/* Set stop bits */
+					c = val & 0x01 ? 2 : 1;
+					ser_set_stop_bits(c);
+  
+					/* Set Parity */
+					if (val & 0x04) 
+						c = 'N';
+					else
+						c = val & 0x02 ? 'E' : 'O';
+					ser_set_parity((char) c);
+
+					/* Set bit size */
+					c = ((val & 0x18) >> 3) + 5;
+					ser_set_bit_size(c);
+				}
+			}
+			else
+			{
+				/* ROM and RAM bank seleciton bits */
+				/* Check for a change in the current RAM bank */
+				if ((ioD0 & 0x0C) != (val & 0x0C))
+				{
+					set_ram_bank((unsigned char)((val >> 2) & 0x03));
+				}
+
+				/* Check for a change in the current ROM bank */
+				if ((ioD0 & 0x03) != (val & 0x03))
+				{
+					set_rom_bank((uchar) (val & 0x03));
+				}
+
+				ioD0 = val;
 			}
 			return;
 
@@ -371,74 +657,16 @@ void out(uchar port, uchar val)
 			    1 - STROBE (not) signal to printer
 			    2 - STROBE for Clock chip (1990)
 			    3 - Remote plug control signal */
-			if(val&0x01) {
-				if(cROM!=1) {
-					memcpy(memory,optROM,ROMSIZE);
-					cROM=1;
-				}
-			}
-			else {
-				if(cROM!=0) {
-					memcpy(memory,sysROM,ROMSIZE);
-					cROM=0;
-				}
-			}
-			if ((val & 0x04) && !(ioE8 & 0x04))
+			if (gModel != MODEL_T200)
 			{
-				/* Clock chip command strobe */
-				switch (ioB9 & 0x07)
+				/* Check for change in ROM selection */
+				if ((val & 0x01) != cROM)
+					set_rom_bank((uchar) (val & 0x01));
+
+				/* Check for Clock Chip strobe */
+				if ((val & 0x04) && !(ioE8 & 0x04))
 				{
-				case 0:		/* NOP */
-					break;
-				case 1:		/* Serial Shift */
-					clock_serial_out = clock_sr[0] & 0x01;
-					clock_sr_index = 0;
-					break;
-				case 2:		/* Write Clock chip */
-					clock_sr_index = 0;
-					break;
-				case 3:		/* Read clock chip */
-					if (--clk_cnt > 0)
-						break;
-
-					clk_cnt = 20;
-
-					clock_time = time(&clock_time);
-					if (clock_time == last_clock_time)
-						break;
-
-					last_clock_time = clock_time;
-					mytime = localtime(&clock_time);
-					
-					/* Update Clock Chip Shift register Seconds */
-					clock_sr[0] = mytime->tm_sec % 10;
-					clock_sr[0] |= (mytime->tm_sec / 10) << 4;
-
-					/* Minutes */
-					clock_sr[1] = mytime->tm_min % 10;
-					clock_sr[1] |= (mytime->tm_min / 10) << 4;
-
-					/* Hours */
-					clock_sr[2] = mytime->tm_hour % 10;
-					clock_sr[2] |= (mytime->tm_hour / 10) << 4;
-
-					/* Day of month */
-					clock_sr[3] = mytime->tm_mday % 10;
-					clock_sr[3] |= (mytime->tm_mday / 10) << 4;
-
-					/* Day of week */
-					clock_sr[4] = (mytime->tm_wday) % 10;
-
-					/* Month */
-					clock_sr[4] |= (mytime->tm_mon + 1) << 4;
-
-					clock_sr_index = 0;
-
-					if ((memory[0xF92E] == 0) && (memory[0xF92D] == 0))
-					{
-						memory[0xF92D] = mytime->tm_year % 10;
-						memory[0xF92E] = (mytime->tm_year % 100) / 10;
-					}
+					clock_chip_cmd();
 					break;
 				}
 			}
@@ -462,41 +690,60 @@ void out(uchar port, uchar val)
 		case 0xFC:
 		case 0xFD:
 		case 0xFE:	/* Row select */
-			for (c = 0; c < 10; c++)
+			if (gModel != MODEL_T200)
 			{
-				if (lcdbits & (1 << c))
+				for (c = 0; c < 10; c++)
 				{
-					/* Save page and column info for later use */
-					lcdpointers[c]=A;
+					if (lcdbits & (1 << c))
+					{
+						/* Save page and column info for later use */
+						lcdpointers[c]=A;
 
-					/* New pointer loaded - mark it as "fresh" */
-					if ((A & 0x3F) < 50)
-						lcd_fresh_ptr[c] = 1;
+						/* New pointer loaded - mark it as "fresh" */
+						if ((A & 0x3F) < 50)
+							lcd_fresh_ptr[c] = 1;
+					}
 				}
+			} 
+			else
+			{
+				/* Execute the command using the value supplied */
+				t200_command(t200_ir, val);
 			}
 			return;
 		case 0xFF:	/* Data output */
-			for (c = 0; c < 10; c++)
+			if (gModel != MODEL_T200)
 			{
-				if (lcdbits & (1 << c))
+				for (c = 0; c < 10; c++)
 				{
-					if ((lcdpointers[c]&0x3f) < 50)
+					if (lcdbits & (1 << c))
 					{
-						/* Save Byte in LCD memory */
-						lcd[c][lcdpointers[c]]=A;
+						if ((lcdpointers[c]&0x3f) < 50)
+						{
+							/* Save Byte in LCD memory */
+							lcd[c][lcdpointers[c]]=A;
 
-						/* Draw the byte on the display */
-						drawbyte(c,lcdpointers[c],A);
+							/* Draw the byte on the display */
+							drawbyte(c,lcdpointers[c],A);
 
-						/* Update the pointer if */
-						lcdpointers[c]++;
-						if ((lcdpointers[c] & 0x3F) >= 50)
-							lcdpointers[c] &= 0xC0;	
+							/* Update the pointer if */
+							lcdpointers[c]++;
+							if ((lcdpointers[c] & 0x3F) >= 50)
+								lcdpointers[c] &= 0xC0;	
 
-						/* We just changed the pointer so it isn't fresh any more */
-						lcd_fresh_ptr[c] = 0;
+							/* We just changed the pointer so it isn't fresh any more */
+							lcd_fresh_ptr[c] = 0;
+						}
 					}
 				}
+			}
+			else
+			{
+				/* Save the T200 LCD controller Instruction Register */
+				if (val == 0x0D)
+					t200_command(val, 0);
+				else
+					t200_ir = val;
 			}
 			return;
 	}
@@ -512,8 +759,99 @@ int inport(uchar port)
 		case 0x82:  /* Optional IO thinger? */
 			return(0xA2);
 	
+		case 0x90:	/* T200 Clock/Timer chip */
+		case 0x91:  
+		case 0x92:
+		case 0x93:
+		case 0x94:
+		case 0x95:
+		case 0x96:
+		case 0x97:
+		case 0x98:
+		case 0x99:
+		case 0x9A:
+		case 0x9B:
+		case 0x9C:
+			if (gModel == MODEL_T200)
+			{
+				/* Check if the time is being set */
+				if (gRp5c01_mode == 0)
+				{
+					/* Read system clock and update "chip" */
+					if (port == 0x90)
+					{
+						clock_time = time(&clock_time);
+						if (clock_time != last_clock_time)
+						{
+							last_clock_time = clock_time;
+							mytime = localtime(&clock_time);
+							
+							/* Update Clock Chip Shift register Seconds */
+							gRp5c01_data[0][0] = mytime->tm_sec % 10;
+							gRp5c01_data[0][1] = mytime->tm_sec / 10;
+
+							/* Minutes */
+							gRp5c01_data[0][2] = mytime->tm_min % 10;
+							gRp5c01_data[0][3] = mytime->tm_min / 10;
+
+							/* Hours */
+							/* Test if we are in 12 or 24 hour mode */
+							if (gRp5c01_data[1][10] == 1)
+							{
+								gRp5c01_data[0][4] = mytime->tm_hour % 10;
+								gRp5c01_data[0][5] = mytime->tm_hour / 10;
+							}
+							else
+							{
+								gRp5c01_data[0][4] = (mytime->tm_hour % 12) % 10;
+								gRp5c01_data[0][5] = (mytime->tm_hour % 12) / 10;
+								if (mytime->tm_hour >=12)
+									gRp5c01_data[0][5] |= 2;
+							}
+
+							/* Day of week */
+							gRp5c01_data[0][6] = mytime->tm_wday;
+
+							/* Day of month */
+							gRp5c01_data[0][7] = mytime->tm_mday % 10;
+							gRp5c01_data[0][8] = mytime->tm_mday / 10;
+
+							/* Month */
+							gRp5c01_data[0][9] = (mytime->tm_mon+1) % 10;
+							gRp5c01_data[0][10] = (mytime->tm_mon+1) / 10;
+
+							/* Year */
+							gRp5c01_data[0][11] = mytime->tm_year % 10;
+							gRp5c01_data[0][12] = (mytime->tm_year % 100) / 10;
+						}
+					}
+				}
+				/* Check if the alarm is being set */
+				else if (gRp5c01_mode == 1)
+				{
+				}
+
+				/* Return data stored in the RP5C01 "chip" */
+				ret = gRp5c01_data[gRp5c01_mode & 0x03][port & 0x0F];
+				return ret;
+			}
+			return 0;;
+
+		case 0x9D:	/* Clock chip Mode Register */
+			return gRp5c01_mode;
+
+		case 0x9E:
+		case 0x9F:
+			return 0;;
+
 		case 0xA0:	/* Modem control port */
-			return(0xA0);
+			if ((gModel == MODEL_PC8201) || (gModel == MODEL_PC8300))
+				return ioA1;
+			else
+				return 0xA0;
+
+		case 0xA1:	/* Bank control port on NEC laptops */
+			return ioA1;
 
 		case 0xB0:	/* PIO Command/Status Register */
 		case 0xB8:
@@ -553,7 +891,11 @@ int inport(uchar port)
 			if (setup.com_mode != SETUP_COM_NONE)
 				ser_get_flags(&flags);
 			flags &= SER_FLAG_CTS | SER_FLAG_DSR;
-			return clock_serial_out | flags;
+			if (gModel == MODEL_T200)
+				flags |= 0x01;				/* Low Power Sense (not) */
+			else
+				flags |= clock_serial_out;
+			return flags;
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
 		case 0xBC:
@@ -578,8 +920,29 @@ int inport(uchar port)
 		case 0xCC:
 		case 0xCD:
 		case 0xCE:
+			if (gModel == MODEL_T200)
+			{
+				ser_read_byte(&ret);
+				return ret;
+			}
 		case 0xCF:
-			ser_read_byte(&ret);
+			if (gModel == MODEL_T200)
+			{
+				ret = 1;
+				if (ser_get_flags(&flags) == SER_PORT_NOT_OPEN)
+				{
+					ret = SER_FLAG_TX_EMPTY << 2;
+				}
+				else
+				{
+					ret |= (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR)) << 3;
+					ret |= flags & SER_FLAG_PARITY_ERR;
+					ret |= (flags & SER_FLAG_TX_EMPTY) << 2; 
+					ret |= (flags & SER_FLAG_DSR) << 1;
+				}
+			}
+			else
+				ser_read_byte(&ret);
 			return ret;
 
 		case 0xD0:	/* Status control register for UART, modem, and phone (6402)  */
@@ -598,32 +961,39 @@ int inport(uchar port)
 		case 0xDD:
 		case 0xDE:
 		case 0xDF:
-			/*
-			Bits:
-			    0 - Data on telephone line (used to detect carrier)
-			    1 - Overrun error from UART
-			    2 - Framing error from UART
-			    3 - Parity error from UART
-			    4 - Transmit buffer empty from UART
-			    5 - Ring line on modem connector
-			    6 - Not used
-			    7 - Low Power signal from power supply (LPS not) */
-
-			// Check if RS-232 is "Muxed in"
-			if ((ioBA & 0x08) == 0)
+			if (gModel != MODEL_T200)
 			{
-				flags = 0;
-				if (setup.com_mode != SETUP_COM_NONE)
+				/*
+				Bits:
+					0 - Data on telephone line (used to detect carrier)
+					1 - Overrun error from UART
+					2 - Framing error from UART
+					3 - Parity error from UART
+					4 - Transmit buffer empty from UART
+					5 - Ring line on modem connector
+					6 - Not used
+					7 - Low Power signal from power supply (LPS not) */
+
+				/* Check if RS-232 is "Muxed in" */
+				if ((ioBA & 0x08) == 0)
 				{
-					// Get flags from serial routines
-					ser_get_flags(&flags);
-					flags = (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR | 
-						SER_FLAG_PARITY_ERR)) | ((flags & SER_FLAG_TX_EMPTY) 
-						<<	4) | ((flags & SER_FLAG_RING) >> 1);
+					flags = 0;
+					if (setup.com_mode != SETUP_COM_NONE)
+					{
+						/* Get flags from serial routines */
+						ser_get_flags(&flags);
+						flags = (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR | 
+							SER_FLAG_PARITY_ERR)) | ((flags & SER_FLAG_TX_EMPTY) 
+							<<	4) | ((flags & SER_FLAG_RING) >> 1);
+					}
+					return flags | 0x80;
 				}
-				return flags | 0x80;
+				return(0x90);
 			}
-			return(0x90);
+			else
+			{
+				return ioD0;
+			}
 
 		case 0xE0:	/* Keyboard input and misc. device select (E0H-EFH same) */
 		case 0xE1:
@@ -706,7 +1076,10 @@ int inport(uchar port)
 		case 0xFC:
 		case 0xFD:
 		case 0xFE:
-			return(64);
+			if (gModel == MODEL_T200)
+				return t200_readport(0xFE);
+			else
+				return(64);
 		case 0xFF:
 			/* Loop through all LCD driver modules */
 			for (c = 0; c < 10; c++)
@@ -730,5 +1103,23 @@ int inport(uchar port)
 
 		default:
 			return(0);
+	}
+}
+
+void io_set_ram_bank(unsigned char bank)
+{
+	if (gModel == MODEL_T200)
+	{
+		/* Update ioD0 port with bank bits */
+		ioD0 = (ioD0 & 3) | ((bank & 3) << 2);
+	}
+	else if ((gModel == MODEL_PC8201) || (gModel == MODEL_PC8300))
+	{
+		/* Convert bank number to HW select.  Bank 1 not used in HW */
+		if (bank > 0)
+			bank++;
+
+		/* Update I/O port with RAM bank info (High address bits) */
+		ioA1 = (ioA1 & 3) | ((bank & 3) << 2);
 	}
 }

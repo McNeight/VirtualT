@@ -47,6 +47,7 @@ void init_io(void);
 void deinit_io(void);
 void out(uchar port, uchar val);
 void update_keys(void);
+void io_set_ram_bank(unsigned char bank);
 int inport(uchar port);
 #ifdef __cplusplus
 }
@@ -78,17 +79,13 @@ int inport(uchar port);
 #define	MT_LABEL		0x00200000     // F9
 #define	MT_PRINT		0x00400000
 #define	MT_ENTER		0x00800000
+#define	MT_INS			0x01000000
+#define	MT_DEL			0x02000000
 
 
 #define	MT_LEFT			0x10000000
 #define	MT_RIGHT		0x20000000
 #define	MT_UP			0x40000000
 #define	MT_DOWN			0x80000000
-
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-};
 
 #endif

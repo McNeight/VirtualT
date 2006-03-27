@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.1 2004/08/31 15:17:57 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -28,7 +28,6 @@
  */
 
 
-
 #include <sys/types.h>
 #include <ctype.h>
 #include <stdio.h>
@@ -37,7 +36,7 @@
 #endif
 
 #include <FL/Fl.H>
-#include <FL/Fl_Help_Dialog.h>
+#include <FL/Fl_Help_Dialog.H>
 #include <FL/fl_ask.H> 
 #include <FL/Fl_File_Chooser.H>
 #include <FL/Fl_Hold_Browser.H>
@@ -85,6 +84,7 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 	Fl_File_Chooser		*FileWin;
 	int					count, len;
 	char				buffer[65536];
+	char				option_name[32];
 	unsigned short		start_addr;
 
 	const char			*filename;
@@ -128,7 +128,9 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 	}
 
 	// Save the selected file in the preferences
-    virtualt_prefs.set("OptRomFile",filename);
+	get_model_string(option_name, gModel);
+	strcat(option_name, "_OptRomFile");
+    virtualt_prefs.set(option_name, filename);
 
 	strcpy(gsOptRomFile, filename);
 
@@ -707,7 +709,7 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 	}
 
 	// Determine Directory entry location for new file
-	addr4 = gStdRomDesc->sDirectory;
+	addr4 = gStdRomDesc->sDirectory + 11 * gStdRomDesc->sFirstDirEntry;
 	dir_index = 0;
 	while (get_memory8(addr4) != 0)
 	{
@@ -787,9 +789,14 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 
 	if (file_type == TYPE_BA)
 	{
+		/* Update beginning of .DO file pointer */
 		addr3 = get_memory16(gStdRomDesc->sBeginDO);
 		if (addr3 > addr1)
 			set_memory16(gStdRomDesc->sBeginDO, addr3 + len);
+
+		/* Update BASIC size variable */
+		addr3 = get_memory16(gStdRomDesc->sBasicSize);
+		set_memory16(gStdRomDesc->sBasicSize, addr3 + len-2);
 	}
 
 	addr3 = get_memory16(gStdRomDesc->sBeginVar);
@@ -1022,7 +1029,7 @@ void save_file(model_t_files_t *pFile)
 		{
 			for (c = 0; c < len; c++)
 			{
-				get_memory8(addr1+c);
+				ch = get_memory8(addr1+c);
 				fwrite(&ch, 1, 1, fd);
 			}
 		}

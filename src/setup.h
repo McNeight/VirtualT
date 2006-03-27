@@ -33,10 +33,12 @@
 
 #ifdef __cplusplus
 void cb_PeripheralSetup (Fl_Widget* w, void*);
+void cb_MemorySetup (Fl_Widget* w, void*);
 extern "C" {
 #endif
 
 void load_setup_preferences(void);
+void load_memory_preferences(void);
 
 
 typedef struct peripheral_setup
@@ -62,11 +64,27 @@ typedef struct peripheral_setup
 
 extern peripheral_setup_t setup;
 
+typedef struct memory_setup
+{
+	int		mem_mode;					// Mode for Memory emulation
+	char	remem_file[256];			// Filename for ReMem storage
+	char	rampac_file[256];			// Filename for RamPac storage
+} memory_setup_t;
+
+extern memory_setup_t	mem_setup;
+
 enum {
 	SETUP_COM_NONE,
 	SETUP_COM_SIMULATED,
 	SETUP_COM_HOST,
 	SETUP_COM_OTHER
+};
+
+enum {
+	SETUP_MEM_BASE,
+	SETUP_MEM_RAMPAC,
+	SETUP_MEM_REMEM,
+	SETUP_MEM_REMEM_RAMPAC
 };
 
 #ifdef __cplusplus

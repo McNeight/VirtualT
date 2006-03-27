@@ -34,7 +34,7 @@
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Tabs.H>
-#include <FL/Fl_ScrollBar.H>
+#include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Choice.H>
 

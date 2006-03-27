@@ -41,6 +41,7 @@
 #include <unistd.h>
 #endif
 
+#include "VirtualT.h"
 #include "io.h"
 #include "cpu.h"
 #include "doins.h"
@@ -50,13 +51,18 @@
 #include "roms.h"
 #include "intelhex.h"
 #include "setup.h"
+#include "memory.h"
+#include "m100emu.h"
+#include "sound.h"
 
 int		fullspeed=0;
+int		gModel = MODEL_M100;
 
 uchar	cpu[14];
 uchar	memory[65536];
-uchar	sysROM[ROMSIZE];
-uchar	optROM[ROMSIZE];
+uchar	sysROM[65536];
+uchar	msplanROM[32768];
+uchar	optROM[32768];
 char	op[26];
 UINT64	cycles=0;
 UINT64	instructs=0;
@@ -80,9 +86,18 @@ char path[255];
 char file[255];
 
 extern RomDescription_t		gM100_Desc;
+extern RomDescription_t		gM200_Desc;
+extern RomDescription_t		gN8201_Desc;
+extern uchar				gReMem;
 extern int					cROM;
-RomDescription_t	*gStdRomDesc;
+extern unsigned char		ioD0;
+RomDescription_t			*gStdRomDesc;
 
+
+/* Define Debug global variables */
+char	gDebugActive = 0;
+char	gStopped = 0;
+char	gSingleStep = 0;
 
 #ifdef _WIN32
 __inline double hirestimer(void)
@@ -108,9 +123,9 @@ __inline double hirestimer(void)
 }
 #endif
 
+double last_instruct=0;
 void cpu_delay(int cy)
 {
-	static double last_instruct=0;
 	double	hires;
 
 	if(!fullspeed) {
@@ -173,118 +188,190 @@ void resetcpu(void)
 
 }
 
-void load_opt_rom(void)
+/*
+=============================================================================
+get_model_string:	This function returns the sring name of the specified
+					emulation model.
+=============================================================================
+*/
+void get_model_string(char* str, int model)
 {
-	int				len, c;
-	int				fd;
-	unsigned short	start_addr;
-	char			buf[65536];
-
-	// Clear the option ROM memory
-	memset(optROM,0,ROMSIZE);
-
-	// Check if an option ROM is loaded
-	if ((len = strlen(gsOptRomFile)) == 0)
-		return;
-
-	// Check type of option ROM
-	if (((gsOptRomFile[len-1] | 0x20) == 'x') &&
-		((gsOptRomFile[len-2] | 0x20) == 'e') &&
-		((gsOptRomFile[len-3] | 0x20) == 'h'))
+	switch (model)
 	{
-		// Load Intel HEX file
-		len = load_hex_file(gsOptRomFile, buf, &start_addr);
-
-		// Check for invalid HEX file
-		if ((len > 32768) || (start_addr != 0))
-			return;
-
-		// Copy data to optROM
-		for (c = 0; c < len; c++)
-			optROM[c] = buf[c];
-	}
-	else
-	{
-		// Open BIN file
-		strcpy(file,path);
-		strcat(file,gsOptRomFile);
-		fd=open(file,O_RDONLY);
-		if(fd!=-1) 
-		{
-			read(fd, optROM, ROMSIZE);
-			close(fd);
-		}
+	case MODEL_M100:
+		strcpy(str, "m100");
+		break;
+	case MODEL_M102:
+		strcpy(str, "m102");
+		break;
+	case MODEL_T200:
+		strcpy(str, "t200");
+		break;
+//	case MODEL_M10:
+//		strcpy(str, "m10");
+//		break;
+	case MODEL_PC8201:
+		strcpy(str, "pc8201");
+		break;
+	case MODEL_PC8300:
+		strcpy(str, "pc8300");
+		break;
 	}
 }
 
-void initcpu(void)
+/*
+=============================================================================
+get_emulation_path:	This function returns the path of the emulation directory
+					based on the supplied model.
+=============================================================================
+*/
+void get_emulation_path(char* emu, int model)
 {
-	int	fd;
-	int	i;
-	
-	FILE	*ram;
+	strcpy(emu, path);			/* Copy VirtualT path */
+	switch (model)
+	{
+	case MODEL_M100:
+		strcat(emu, "M100/");
+		break;
+	case MODEL_M102:
+		strcat(emu, "M102/");
+		break;
+	case MODEL_T200:
+		strcat(emu, "T200/");
+		break;
+//	case MODEL_M10:
+//		strcat(emu, "m10/");
+//		break;
+	case MODEL_PC8201:
+		strcat(emu, "PC8201/");
+		break;
+	case MODEL_PC8300:
+		strcat(emu, "PC8300/");
+		break;
+	}
+}
 
-	A=0;
-	F=0;
-	B=0;
-	C=0;
-	E=0;
-	H=0;
-	L=0;
-	SPH=0;
-	SPL=0;
-	PCH=0;
-	PCL=0;
+/*
+=============================================================================
+get_rom_path:	This function returns the path of the ROM file for the 
+				model specified.  The path is strcpy(ed) into the string 
+				supplied.
+=============================================================================
+*/
+void get_rom_path(char* file, int model)
+{
+	strcpy(file, path);			/* Copy VirtualT path */
+	switch (model)
+	{
+	case MODEL_M100:
+		strcpy(file, "M100/M100rom.bin");
+		break;
+	case MODEL_M102:
+		strcpy(file, "M102/M102rom.bin");
+		break;
+	case MODEL_T200:
+		strcpy(file, "T200/T200rom.bin");
+		break;
+//	case MODEL_M10:
+//		strcpy(file, "m10/m10rom.bin");
+//		break;
+	case MODEL_PC8201:
+		strcpy(file, "PC8201/PC8201rom.bin");
+		break;
+	case MODEL_PC8300:
+		strcpy(file, "PC8300/PC8300rom.bin");
+		break;
+	}
+}
+
+/*
+=============================================================================
+check_model_support:	This function checks for support for the specified 
+						Model and returns TRUE if that model is supported.
+
+						Model Support is determined by checking for the 
+						appropriate directory structure with the correct ROM
+						file.
+=============================================================================
+*/
+int check_model_support(int model)
+{
+	char	file[256];
+	int		fd;
+
+
+	/* Get the path for the model supplied */
+	get_rom_path(file, model);
+
+	/* Attempt to open the ROM file */
+	if ((fd = open(file, O_RDONLY)) == -1)
+		return FALSE;
+
+	/* Open successful, close the file and return */
+	close(fd);
+	return TRUE;
+}
+
+/*
+======================================================================
+initcpu:	This function initializes the CPU and the system memories
+			including loading the ROM and RAM files.
+======================================================================
+*/
+void init_cpu(void)
+{
+	int		fd;
+	int		i;
+
+	/* Initialize CPU registers */
+	A = F = B = C = D = E = H = L = 0;
+	SPH = SPL = 0;
+	PCH = PCL = 0;
 	IM=0x08;
 	cpuMISC=0;
 	
-	
-	//J. Vernet : Added to have an absolute path to the ROM.bin
-	
-	
-	strcpy(file,path);
-	strcat(file,"ROM.bin");
-	
-	
-	fd=open(file,O_RDONLY | O_BINARY);
-	if(fd<0)
+	/* Get Path to ROM based on current Model selection */
+	get_rom_path(file, gModel);
+
+	/* Open the ROM file */
+	fd = open(file,O_RDONLY | O_BINARY);
+	if (fd < 0)
 	{
-		show_error("Could not open ROM.bin");
-		bail("Could not open ROM.bin");
+		show_error("Could not open ROM file");
 	}
-	
-	if(read(fd, sysROM, ROMSIZE)<ROMSIZE)
+
+	/* Read data from the ROM file */
+	if (read(fd, sysROM, ROMSIZE)<ROMSIZE)
 	{
-		show_error("Error reading ROM.bin: bad Rom file");
-		bail("Error reading ROM.bin");
+		show_error("Error reading ROM file: Bad Rom file");
 	}
+
+	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
+	if (gModel == MODEL_T200)
+		read(fd, msplanROM, 32768);
 	
+	/* Close the ROM file */
 	close(fd);
 
+	/* Copy ROM into system memory */
 	memcpy(memory, sysROM, ROMSIZE);
 
-	gStdRomDesc = &gM100_Desc;
+	/* Set pointer to ROM Description */
+	if (gModel == MODEL_T200)
+		gStdRomDesc = &gM200_Desc;
+	else if (gModel == MODEL_PC8201)
+		gStdRomDesc = &gN8201_Desc;
+	else
+		gStdRomDesc = &gM100_Desc;
 
+	/* Clear the system memory RAM area */
 	for (i = 0; i < RAMSIZE; i++)
-		memory[ROMSIZE + i] = 0;
+		memory[RAMSTART + i] = 0;
 
-    //J. Vernet : Added to have an absolute path to the RAM.bin
-	strcpy(file,path);
-	strcat(file,"RAM.bin");
-	
-	//ram=fopen("./RAM.bin", "rb");
-	ram=fopen(file, "rb");
-	i=1;
-	if(ram!=0)
-	{
-		if(fread(memory+ROMSIZE, 1, RAMSIZE, ram)==RAMSIZE)
-			i=0;
-		fclose(ram);
-	}
+	/* Read RAM from file in emulation directory */
+	load_ram();
 
-
-	// Load option ROM if any
-
+	/* Load option ROM if any */
 	load_opt_rom();
 }
 
@@ -314,8 +401,8 @@ __inline void check_interrupts(void)
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 6.5 CALLed\n");
 		DECSP2;
-		MEM(SP)=PCL;
-		MEM(SP+1)=PCH;
+		MEMSET(SP, PCL);
+		MEMSET(SP+1, PCH);
 		/* MEM16(SP)=PC; */
 		PCL=52;
 		PCH=0;
@@ -328,8 +415,8 @@ __inline void check_interrupts(void)
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 CALLed\n");
 		DECSP2;
-		MEM(SP)=PCL;
-		MEM(SP+1)=PCH;
+		MEMSET(SP, PCL);
+		MEMSET(SP+1, PCH);
 		/* MEM16(SP)=PC; */
 		PCL=60;
 		PCH=0;
@@ -343,6 +430,12 @@ __inline void check_interrupts(void)
 	}
 
 	return;
+}
+
+mem_monitor_cb	gMemMonitor = NULL;
+void	mem_set_monitor_callback(mem_monitor_cb cb)
+{
+	gMemMonitor = cb;
 }
 
 void maint(void)
@@ -379,6 +472,8 @@ void maint(void)
 						display_cpu_speed();
 					}
 					twice_flag = 0;
+					if (gMemMonitor != NULL)
+						gMemMonitor();
 				}
 				else
 					twice_flag++;
@@ -391,35 +486,50 @@ void maint(void)
 	process_windows_event();
 }
 
+/*
+========================================================================
+emulate:	This routine contains the main loop that handles active 
+			emulation and maintenance tasks.
+========================================================================
+*/
 void emulate(void)
 {
-	unsigned int i;
-	unsigned int j;
-	int	top=0;
-	char *p;
-	FILE *fd;
-	int	nxtmaint=1;
+	unsigned int	i,j;
+	unsigned int	v;
+	int				top=0;
+	char			*p;
+	int				nxtmaint=1;
 
 	starttime=msclock();
 	while(!gExitApp) {
-	#include "do_instruct.h"
+
+		/* Instruction emulation contained in header file */
+		#include "do_instruct.h"
+
+		/* Check if we are performing tracing */
 		if(trace && tracefile != NULL)
 			fprintf(tracefile, "%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n"
 			,op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
-		nxtmaint--;
-		if(!nxtmaint) {
+
+		if (gDebugActive)
+		{
+			if (gStopped)
+			{
+				while (gStopped && !gSingleStep)
+				{
+					process_windows_event();
+				}
+				gSingleStep = 0;
+			}
+		}
+
+		/* Do maintenance tasks (Windows events, interrupts, etc.) */
+		if(!(--nxtmaint)) 
+		{
 			maint();
 			check_interrupts();
 			nxtmaint=128;
-                        // 128;
 		}
-	}
-
-	fd=fopen("./RAM.bin", "wb+");
-	if(fd!=0)
-	{
-		fwrite(memory+ROMSIZE, 1, RAMSIZE, fd);
-		fclose(fd);
 	}
 }
 
@@ -430,6 +540,12 @@ void handle_sig(int sig)
 }
 #endif
 
+
+/*
+========================================================================
+main:	This is the main entry point for the VirtualT application.
+========================================================================
+*/
 int main(int argc, char **argv)
 {
 	int i;
@@ -441,30 +557,43 @@ int main(int argc, char **argv)
 
 	if (trace)
 		tracefile = fopen("trace.txt", "w+");
+
 #ifdef __unix__
 	signal(SIGTERM,handle_sig);
 	signal(SIGHUP,handle_sig);
 	signal(SIGQUIT,handle_sig);
 	signal(SIGINT,handle_sig);
-#endif
-	// Added by JV for prefs
-	initpref();					// load user Menu preferences
-	load_setup_preferences();	// Load user Peripheral setup preferences
-	
-	#ifdef __unix__
+
 	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
-	// Beware: if the name (currently m100emu) changes, it will not work
-	
-	strncpy(path,argv[0],strlen(argv[0])-7);
-	# else if
+	i = strlen(argv[0])-1;
+	// Find last '/' in path to remove app name from the path
+	while ((path.argv[0][i] != '/') && (i > 0))
+		i--;
+	strncpy(path,argv[0], i+1);
+# else
 	strcpy(path,"./");
-	#endif
+#endif
+
+	// Added by JV for prefs
+	init_pref();					// load user Menu preferences
+	load_setup_preferences();	// Load user Peripheral setup preferences
+	load_memory_preferences();	// Load user Memory setup preferences
 	
-	initcpu();				// Initialize the CPU
-	init_io();				// Initialize I/O structures
-	initdisplay();			// Initialize the Display
-	emulate();				// Main emulation loop
-	
-	// Cleanup
-	deinit_io();			// Deinitialize I/O
+	/* Perform initialization */
+	init_mem();					/* Initialize Memory */
+	init_io();					/* Initialize I/O structures */
+	init_sound();				/* Initialize Sound system */
+	init_display();				/* Initialize the Display */
+	init_cpu();					/* Initialize the CPU */
+
+	/* Perform Emulation */
+	emulate();					/* Main emulation loop */
+
+	/* Save RAM comtents after emulation */
+	save_ram();
+
+	/* Cleanup */
+	deinit_io();				/* Deinitialize I/O */
+	deinit_sound();				/* Deinitialize sound */
+	free_mem();					/* Free memory used by ReMem and/or Rampac */
 }

@@ -35,7 +35,7 @@
 /* known subroutine calls and variable locations within the ROM	*/
 typedef struct Std_ROM_Addresses {
 	int	        addr;
-	char*		desc;
+	int			strnum;
 } Std_ROM_Addresses_t;
 
 /* Define structure for storing known table data stored withing the ROM */
@@ -44,6 +44,13 @@ typedef struct Std_ROM_Table {
 	int size;
 	char type;
 } Std_ROM_Table_t;
+
+/* Define structure for storing addresses and descriptions for */
+/* known subroutine calls and variable locations within the ROM	*/
+typedef struct Std_ROM_Strings {
+	int	        addr;
+	char*		desc;
+} Std_ROM_Strings_t;
 
 /* Define a structure to contain all information regarding a ROM */
 typedef struct RomDescription {
@@ -67,8 +74,10 @@ typedef struct RomDescription {
 	unsigned short      sLowRam;           /* Lowest RAM used by system */
 	unsigned short      sDirectory;        /* Start of RAM directory */
 	unsigned short      sBasicStrings;     /* BASIC string buffer pointer */
+	unsigned short		sBasicSize;	       /* Size of all BASIC programs */
 
 	unsigned short		sDirCount;         /* Number of entries in Directory */
+	unsigned short		sFirstDirEntry;    /* Index of first available enry */
 } RomDescription_t;
 
 enum {
@@ -76,6 +85,7 @@ enum {
 	 TABLE_TYPE_JUMP,
 	 TABLE_TYPE_CODE,
 	 TABLE_TYPE_MODIFIED_STRING,
+	 TABLE_TYPE_MODIFIED_STRING2,
 	 TABLE_TYPE_2BYTE,
 	 TABLE_TYPE_3BYTE,
 	 TABLE_TYPE_CTRL_DELIM,

@@ -372,7 +372,6 @@ DWORD ReadProc(LPVOID lpv)
     BOOL			fWaitingOnStat = FALSE;
     BOOL			fThreadDone = FALSE;
 	char			buf[128];
-	unsigned int	c;
 	ser_params_t	*sp;
 
 
@@ -406,8 +405,7 @@ DWORD ReadProc(LPVOID lpv)
 				// read completed immediately
                 if (dwRead)
 				{
-					for (c = 0; c < dwRead; c++)
-						process_read_byte(sp, buf[c]);
+					process_read_byte(sp, buf[0]);
 				}
             }
         }
@@ -429,14 +427,18 @@ DWORD ReadProc(LPVOID lpv)
 					break;
 			}
 			else
+			{
 				// Check for a monitor window and report change
 				if (sp->pMonCallback != NULL)
 					sp->pMonCallback(SER_MON_COM_SIGNAL, 0);
+				ResetEvent(osStatus.hEvent);
+			}
 		}
 
 
         // wait for pending operations to complete
         if ( fWaitingOnRead || fWaitingOnStat ) 
+//        if ( fWaitingOnRead) 
 		{
             dwRes = WaitForMultipleObjects(3, hArray, FALSE, INFINITE);
             switch(dwRes)
@@ -454,8 +456,8 @@ DWORD ReadProc(LPVOID lpv)
 						// read completed successfully
                         if (dwRead)
 						{
-							for (c = 0; c < dwRead; c++)
-								process_read_byte(sp, buf[c]);
+							if (fWaitingOnRead)
+								process_read_byte(sp, buf[0]);
 						}
 						fWaitingOnRead = FALSE;
                     }
@@ -1101,7 +1103,7 @@ int ser_get_flags(unsigned char *flags)
 		if (sp.open_flag == 0)
 		{
 			*flags = 0;
-			return SER_NO_ERROR;
+			return SER_PORT_NOT_OPEN;
 		}
 
 		#ifdef WIN32
@@ -1151,6 +1153,8 @@ int ser_get_flags(unsigned char *flags)
 
 		#endif
 	}
+	else if (setup.com_mode == SETUP_COM_NONE)
+		return SER_PORT_NOT_OPEN;
 
 	return SER_NO_ERROR;
 }

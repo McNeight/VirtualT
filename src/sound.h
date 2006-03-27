@@ -1,9 +1,9 @@
-/* doins.h */
+/* sound.h */
 
-/* $Id: doins.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: sound.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2005 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,13 +28,13 @@
  */
 
 
-#ifndef _DOINS_H_
-#define _DOINS_H_
+#ifndef SOUND_H
+#define SOUND_H
 
-#if defined(WIN32)
-void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov, int ts);
-#else
-__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts);
-#endif
+void	init_sound				(void);
+void	deinit_sound			(void);
+void	sound_start_tone		(int freq);
+void	sound_stop_tone			(void);
+void	sound_toggle_speaker	(int bitVal);
 
 #endif

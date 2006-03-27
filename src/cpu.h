@@ -35,14 +35,16 @@
 
 #include "gen_defs.h"
 
-#define RAMSIZE		32768
-#define ROMSIZE		32768
+#define RAMSIZE		(gModel==MODEL_T200?24576:32768)
+#define ROMSIZE		(gModel==MODEL_T200?40960:32768)
+#define RAMSTART	(gModel==MODEL_T200?40960:32768)
+#define OPTROMSIZE		32768
 #define ADDRESSSPACE	65536
 
 extern uchar cpu[14];
 extern uchar memory[ADDRESSSPACE];
-extern uchar sysROM[ROMSIZE];
-extern uchar optROM[ROMSIZE];
+extern uchar sysROM[65536];
+extern uchar optROM[32768];
 
 #define A cpu[0]
 #define F cpu[1]
@@ -79,13 +81,18 @@ extern uchar optROM[ROMSIZE];
 #define cpuMISC cpu[13]
 #define M memory[HL]
 #define INS memory[PC]
+//#define INS (uchar) (gReMem ? 0 : memory[PC])
 #define NXTINS memory[PC+1]
 #define INS16 (((int)memory[PC])|(((int)memory[PC+1])<<8))
 #define CF (F&0x01)
 #define XF ((F&0x02)>>1)
 #define XF_BIT	0x02
+#define	OV ((F&0x02)>>1)
+#define	OV_BIT	0x02
 #define PF ((F&0x04)>>2)
 #define AC ((F&0x10)>>4)
+#define	TS ((F&0x20)>>5)
+#define	TS_BIT	0x20
 #define ZF ((F&0x40)>>6)
 #define SF ((F&0x80)>>7)
 #define RST55MASK	(IM&0x01)
@@ -99,5 +106,6 @@ extern uchar optROM[ROMSIZE];
 
 #define MEM(x)		memory[x]
 #define MEM16(x)	(((ushort)MEM(x))|((ushort)MEM(x+1))<<8)
+#define	MEMSET(a,v)	{if (gReMem) remem_set8(a, v); else if(a>=ROMSIZE) memory[a]=v; }
 
 #endif

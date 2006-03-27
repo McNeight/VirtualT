@@ -1,9 +1,9 @@
-/* doins.h */
+/* memedit.h */
 
-/* $Id: doins.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: memedit.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2004 Ken Pettit and Stephen Hurd 
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,13 +28,63 @@
  */
 
 
-#ifndef _DOINS_H_
-#define _DOINS_H_
+#ifndef MEMEDIT_H
+#define MEMEDIT_H
 
-#if defined(WIN32)
-void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov, int ts);
-#else
-__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts);
-#endif
+
+#include "FL/Fl_File_Chooser.H"
+
+void cb_MemoryEditor (Fl_Widget* w, void*);
+void cb_MemoryEditorUpdate(void);
+
+
+#define		MENU_HEIGHT	32
+
+class T100_MemEditor : public Fl_Widget
+{
+public:
+	T100_MemEditor(int x, int y, int w, int h);
+	~T100_MemEditor();
+
+	void			SetMemRegion(int region);
+	void			SetMemAddress(int address);
+	void			SetScrollSize(void);
+	void			SetRegionOptions(void);
+	int				GetRegionEnum(void);
+	void			UpdateAddressText(void);
+	void			UpdateDispMem(void);
+	int				m_FirstLine;
+				
+protected:
+//	virtual int handle(int event);
+	void			draw();
+	virtual int		handle(int event);
+	void			DrawCursor(void);
+	void			EraseCursor(void);
+	void			ScrollUp(int lines);
+	void			ScrollDown(int lines);
+
+	int				m_MyFocus;
+	int				m_Region;
+	int				m_Cols;
+	int				m_Lines;
+	double			m_Max;
+	double			m_Height;
+	double			m_Width;
+	int				m_FirstAddress;
+
+	int				m_CursorAddress;
+	int				m_CursorCol;
+	int				m_CursorRow;
+	int				m_CursorField;
+
+	// Current selection control -- active & start / end addresses
+	int				m_SelActive;
+	long			m_SelEndRow;
+	long			m_SelEndCol;
+
+	Fl_Scrollbar*	m_pScroll;
+
+};
 
 #endif

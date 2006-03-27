@@ -39,7 +39,7 @@
 extern "C" {
 #endif
 
-extern char  op[16];
+extern char  op[26];
 extern int trace;
 extern int fullspeed;
 extern int gExitApp;
@@ -49,14 +49,22 @@ extern RomDescription_t	 *gStdRomDesc;
 extern int   gModel;
 extern char gsOptRomFile[256];
 __inline double hirestimer(void);
+typedef void (*mem_monitor_cb)(void);
+void	mem_set_monitor_callback(mem_monitor_cb cb);
 
 	
-void cpu_delay(int cy);
-void resetcpu(void);
-void load_opt_rom(void);
-void cb_int65(void);
+int		check_model_support(int model);
+void	get_emulation_path(char* emu, int model);
+void	get_model_string(char* str, int model);
+void	get_rom_path(char* file, int model);
+void	init_cpu(void);
+void	cpu_delay(int cy);
+void	resetcpu(void);
+void	cb_int65(void);
+
 #ifdef __cplusplus
 }
 #endif
+
 
 #endif
