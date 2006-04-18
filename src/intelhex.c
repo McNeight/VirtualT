@@ -42,6 +42,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "intelhex.h"
+#include "memory.h"
 
 /* some ansi prototypes.. maybe ought to make a .h file */
 
@@ -55,7 +56,7 @@ int parse_hex_line(char *theline, int bytes[], int *addr, int *num, int *code);
 void hexout(FILE *fhex, int byte, int memory_location, int end);
 
 
-extern char	memory[65536];		/* the memory is global */
+//extern char	memory[65536];		/* the memory is global */
 
 /* parses a line of intel hex code, stores the data in bytes[] */
 /* and the beginning address in addr, and returns a 1 if the */
@@ -169,6 +170,45 @@ int load_hex_file(char *filename, char *buffer, unsigned short *start_addr)
 	return n;
 }
 
+/* the command string format is "S begin end filename" where */
+/* "begin" and "end" are the locations to dump to the intel */
+/* hex file, specified in hexidecimal. */
+
+void save_hex_file_ext(int begin, int end, int region, FILE* fd)
+{
+	int		addr;
+	char	buffer[16384];
+	int		count, len, x;
+
+	if (begin > end) {
+		return;
+	}
+
+	// Calculate length of memory region
+	count = end - begin + 1;
+	addr = begin;
+	len = count > sizeof(buffer) ? sizeof(buffer) : count;
+
+	// Copy data out 1 buffer at a time
+	while (count > 0)
+	{
+		// Read next buffer from memory
+		get_memory8_ext(region, addr, len, buffer);
+
+		// Output all bytes in the buffer
+		for (x = 0; x < len; x++)
+			hexout(fd, buffer[x], addr + x - begin, 0);
+
+		// Update count
+		count -= len;
+		addr += len;
+
+		// Update len for next loop
+		len = count > sizeof(buffer) ? sizeof(buffer) : count;
+	}
+	hexout(fd, 0, 0, 1);
+}
+
 
 /* the command string format is "S begin end filename" where */
 /* "begin" and "end" are the locations to dump to the intel */
@@ -182,7 +222,7 @@ void save_hex_file(int begin, int end, FILE* fd)
 		return;
 	}
 	for (addr=begin; addr <= end; addr++)
-		hexout(fd, memory[addr], addr, 0);
+		hexout(fd, get_memory8((unsigned short) addr), addr, 0);
 	hexout(fd, 0, 0, 1);
 }
 

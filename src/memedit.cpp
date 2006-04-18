@@ -36,6 +36,7 @@
 #include <FL/Fl_Tabs.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Check_Button.H>
+#include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Input.H>  
 
@@ -52,9 +53,11 @@
 #include "memedit.h"
 #include "memory.h"
 #include "cpu.h"
+#include "cpuregs.h"
 extern "C"
+{
 #include "intelhex.h"
-
+}
 
 typedef struct memedit_ctrl_struct	
 {
@@ -78,9 +81,13 @@ typedef struct memedit_dialog
 	Fl_Window*			pWin;			// Dialog box window
 	Fl_Input*			pFilename;
 	Fl_Input*			pStartAddr;
+	Fl_Input*			pEndSaveAddr;
+	Fl_Input*			pSaveLen;
 	Fl_Box*				pEndAddr;
 	Fl_Button*			pBrowse;
 	Fl_Box*				pBytes;
+	Fl_Button*			pHex;
+	Fl_Button*			pBin;
 	char				sBytes[20];
 	int					iOk;
 } memedit_dialog_t;
@@ -89,6 +96,8 @@ void cb_PeripheralDevices (Fl_Widget* w, void*);
 void cb_load(Fl_Widget* w, void*);
 void cb_save_bin(Fl_Widget* w, void*);
 void cb_save_hex(Fl_Widget* w, void*);
+void cb_save_memory(Fl_Widget* w, void*);
+int str_to_i(const char *pStr);
 
 extern "C"
 {
@@ -101,12 +110,11 @@ extern uchar			gRampac;
 Fl_Menu_Item gMemEdit_menuitems[] = {
   { "&File",              0, 0, 0, FL_SUBMENU },
 	{ "Load from File...",          0, cb_load, 0 },
-	{ "Save to BIN...",      0, cb_save_bin, 0 },
-	{ "Save to HEX...",      0, cb_save_hex, 0 },
+	{ "Save to File...",      0, cb_save_memory, 0 },
 	{ 0 },
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
-	{ "CPU Registers",         0, 0 },
+	{ "CPU Registers",         0, cb_CpuRegs },
 	{ "Assembler",             0, 0 },
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Debugger",              0, 0 },
@@ -160,11 +168,27 @@ void cb_region(Fl_Widget* w, void*)
 
 	// Set new region here
 	memedit_ctrl.pMemEdit->SetScrollSize();
-
 	memedit_ctrl.pMemEdit->redraw();
-
 	memedit_ctrl.pMemEdit->UpdateAddressText();
 }
+
+/*
+============================================================================
+Callback routine for the Memory Range edit box
+============================================================================
+*/
+void cb_memory_range(Fl_Widget* w, void*)
+{
+	const char		*pStr;
+	int				address;
+
+	pStr = memedit_ctrl.pMemRange->value();
+	address = str_to_i(pStr);
+
+	// Set new region here
+	memedit_ctrl.pMemEdit->MoveTo(address);
+}
+
 
 void load_okButton_cb(Fl_Widget* w, void*)
 {
@@ -183,6 +207,18 @@ void load_okButton_cb(Fl_Widget* w, void*)
 		fl_alert("Please supply start address");
 		gDialog.pStartAddr->take_focus();
 		return;
+	}
+
+	// Test if writing - need end address or length if so
+	if (gDialog.pHex != NULL)
+	{
+		if ((strlen(gDialog.pEndSaveAddr->value()) == 0) &&
+			(strlen(gDialog.pSaveLen->value()) == 0))
+		{
+			fl_alert("Please supply end address or length");
+			gDialog.pEndSaveAddr->take_focus();
+			return;
+		}
 	}
 
 	// Indicate OK button pressed
@@ -247,12 +283,96 @@ void update_length_field(const char *filename)
 	}
 }
 
+void load_file_to_mem(const char *filename, int address)
+{
+	int					len;
+	unsigned char		*buffer;
+	unsigned short		start_addr;
+
+	// Check for hex file
+	len = strlen(filename);
+	if (((filename[len-1] | 0x20) == 'x') &&
+		((filename[len-2] | 0x20) == 'e') &&
+		((filename[len-3] | 0x20) == 'h'))
+	{
+		buffer = new unsigned char[65536];
+
+		// Check if hex file format is valid
+		len = load_hex_file((char *) filename, (char *) buffer, &start_addr);
+
+		if (len == 0)
+			return;
+		else
+		{
+			// Write data to the selected region
+			set_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, len, buffer);
+		}
+
+		// Free the memory
+		delete buffer;
+	}
+	else
+	{
+		// Open file as binary
+		FILE* fd;
+		if ((fd = fopen(filename, "r")) != NULL)
+		{
+			// Determine file length
+			fseek(fd, 0, SEEK_END);
+			len = ftell(fd);
+			buffer = new unsigned char[len];
+			fseek(fd, 0, SEEK_SET);
+			fread(buffer, 1, len, fd);
+			set_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, len, buffer);
+			fclose(fd);
+
+			delete buffer;
+		}
+		
+	}
+}
+
+void save_mem_to_file(const char *filename, int address, int count, int save_as_hex)
+{
+	unsigned char		*buffer;
+	FILE				*fd;
+
+
+	// Check for hex file
+	if (save_as_hex)
+	{
+		// Try to open the file for write
+		fd = fopen(filename, "w+");
+		if (fd == NULL)
+			return;
+
+		save_hex_file_ext(address, address+count-1, memedit_ctrl.pMemEdit->GetRegionEnum(), fd);
+
+		fclose(fd);
+	}
+	else
+	{
+		// Open file as binary
+		FILE* fd;
+		if ((fd = fopen(filename, "wb+")) != NULL)
+		{
+			buffer = new unsigned char[count];
+			get_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, count, buffer);
+			fwrite(buffer, count, 1, fd);
+			fclose(fd);
+
+			delete buffer;
+		}
+		
+	}
+}
+
 void load_browseButton_cb(Fl_Widget* w, void*)
 {
 	int					count;
 	const char *		filename;
 
-	Fl_File_Chooser file(".","*.{bin,hex}",1,"Load Optional ROM file");
+	Fl_File_Chooser file(".","*.{bin,hex}",1,"Select File to Open");
 	file.show();
 
 	while (file.visible())
@@ -272,6 +392,73 @@ void load_browseButton_cb(Fl_Widget* w, void*)
 	update_length_field(filename);
 }
 
+void save_browseButton_cb(Fl_Widget* w, void*)
+{
+	int					count, len;
+	const char *		filename;
+	char				filespec[10];
+	char				filepath[256];
+	FILE				*fd;
+	int					c;
+
+	if (gDialog.pHex->value())
+		strcpy(filespec, "*.hex");
+	else
+		strcpy(filespec, "*.bin");
+	Fl_File_Chooser file(".", filespec, Fl_File_Chooser::CREATE, "Select File to Open");
+
+	while (1)
+	{
+		file.show();
+		while (file.visible())
+			Fl::wait();
+
+		// Get filename
+		count = file.count();
+		if (count != 1)
+			return;
+		filename = file.value(1);
+		if (filename == 0)
+			return;
+
+		// Try to open the ouput file
+		fd = fopen(filename, "rb+");
+		if (fd != NULL)
+		{
+			// File already exists! Check for overwrite!
+			fclose(fd);
+
+			c = fl_choice("Overwrite existing file?", "Cancel", "Yes", "No");
+
+			// Test if Cancel selected
+			if (c == 0)
+				return;
+
+			if (c == 1)
+				break;
+		}
+	}
+
+	// Check if filename ends with ".hex"
+	len = strlen(filename);
+	if (((filename[len-1] | 0x20) == filespec[4]) &&
+		((filename[len-2] | 0x20) == filespec[3]) &&
+		((filename[len-3] | 0x20) == filespec[2]) &&
+		((filename[len-4] == '.')))
+	{
+			// Update filename field
+			gDialog.pFilename->value(filename);
+	}
+	else
+	{
+		strcpy(filepath, filename);
+		strcat(filepath, &filespec[1]);
+
+		// Update filename field
+		gDialog.pFilename->value(filepath);
+	}
+}
+
 void load_filename_cb(Fl_Widget* w, void*)
 {
 	const char *filename = gDialog.pFilename->value();
@@ -286,10 +473,11 @@ Callback routine for the Load Menu Item
 */
 void cb_load(Fl_Widget* w, void*)
 {
-
 	Fl_Box				*o;
 	Fl_Return_Button	*rb;
 	Fl_Button			*b;
+	const char *		pStr;
+	int					address;
 
 	// Build dialog box for selecting file and Memory Range
 	gDialog.pWin = new Fl_Window(400, 200, "Load Memory Dialog");
@@ -324,6 +512,9 @@ void cb_load(Fl_Widget* w, void*)
 	gDialog.pEndAddr = new Fl_Box(FL_NO_BOX, 120, 120, 90, 15, "");
 	gDialog.pEndAddr->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
+	// NULL out controls for Hex and Bin
+	gDialog.pHex = NULL;
+	gDialog.pBin = NULL;
 
 	// Create OK and Cancel buttons
 	rb = new Fl_Return_Button(90, 160, 75, 25, "OK");
@@ -343,13 +534,18 @@ void cb_load(Fl_Widget* w, void*)
 	// Check if OK button was pressed
 	if (gDialog.iOk)
 	{
-		// Try to open filename supplied
+		// Get Address where data should be written
+		pStr = gDialog.pStartAddr->value();
+		address = str_to_i(pStr);
 		
+		pStr = gDialog.pFilename->value();
+		load_file_to_mem(pStr, address);
+
 	}
 
 	delete gDialog.pWin;
+	gmew->take_focus();
 }
-
 
 /*
 ============================================================================
@@ -358,6 +554,25 @@ Callback routine for the save BIN Menu Item
 */
 void cb_save_bin(Fl_Widget* w, void*)
 {
+	char		filepath[256];
+	const char	*pStr;
+	int			len;
+
+	// Get current filepath
+	pStr = gDialog.pFilename->value();
+
+	len = strlen(pStr);
+	if (len != 0)
+	{
+		strcpy(filepath, pStr);
+		if (filepath[len-4] == '.')
+			filepath[len-4] = '\0';
+
+		strcat(filepath, ".bin");
+
+		gDialog.pFilename->value(filepath);
+	}
+
 }
 
 /*
@@ -367,7 +582,127 @@ Callback routine for the save HEX Menu Item
 */
 void cb_save_hex(Fl_Widget* w, void*)
 {
+	char		filepath[256];
+	const char	*pStr;
+	int			len;
+
+	// Get current filepath
+	pStr = gDialog.pFilename->value();
+
+	len = strlen(pStr);
+	if (len != 0)
+	{
+		strcpy(filepath, pStr);
+		if (filepath[len-4] == '.')
+			filepath[len-4] = '\0';
+
+		strcat(filepath, ".hex");
+
+		gDialog.pFilename->value(filepath);
+	}
 }
+
+/*
+============================================================================
+Callback routine for the Save Menu Item
+============================================================================
+*/
+void cb_save_memory(Fl_Widget* w, void*)
+{
+	Fl_Box				*o;
+	Fl_Return_Button	*rb;
+	Fl_Button			*b;
+	const char *		pStr;
+	int					address, end_addr, count;
+	int					save_as_hex;
+
+	// Build dialog box for selecting file and Memory Range
+	gDialog.pWin = new Fl_Window(400, 230, "Save Memory Dialog");
+	gDialog.pWin->callback(cb_dialogwin);
+
+	// Create radio buttons to select save type
+	gDialog.pHex = new Fl_Round_Button(10, 10, 110, 20, "Save as HEX");
+	gDialog.pHex->type(FL_RADIO_BUTTON);
+	gDialog.pHex->callback(cb_save_hex);
+	gDialog.pHex->value(1);
+
+	gDialog.pBin = new Fl_Round_Button(140, 10, 110, 20, "Save as BIN");
+	gDialog.pBin->type(FL_RADIO_BUTTON);
+	gDialog.pBin->callback(cb_save_bin);
+
+	// Create edit field for filename
+	o = new Fl_Box(FL_NO_BOX, 10, 40, 50, 15, "Filename");
+	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	gDialog.pFilename = new Fl_Input(10, 60, 300, 20, "");
+	gDialog.pFilename->callback(load_filename_cb);
+
+	// Create browse button
+	gDialog.pBrowse = new Fl_Button(320, 60, 70, 20, "Browse");
+	gDialog.pBrowse->callback(save_browseButton_cb);
+
+	// Create Edit fields for memory range
+	o = new Fl_Box(FL_NO_BOX, 10, 90, 110, 15, "Start Address");
+	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	gDialog.pStartAddr = new Fl_Input(120, 90, 90, 20, "");
+	gDialog.pStartAddr->value(memedit_ctrl.pMemRange->value());
+
+	o = new Fl_Box(FL_NO_BOX, 10, 120, 110, 15, "End Address");
+	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	gDialog.pEndSaveAddr = new Fl_Input(120, 120, 90, 20, "");
+
+	// Create edit field for length
+	o = new Fl_Box(FL_NO_BOX, 10, 150, 110, 15, "Length");
+	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	gDialog.pSaveLen = new Fl_Input(120, 150, 90, 20, "");
+
+	// Create OK and Cancel buttons
+	rb = new Fl_Return_Button(90, 190, 75, 25, "OK");
+	rb->callback(load_okButton_cb);
+
+	b = new Fl_Button(210, 190, 75, 25, "Cancel");
+	b->callback(load_cancelButton_cb);
+
+	gDialog.pWin->set_modal();
+
+	// Show the dialog box
+	gDialog.pWin->show();
+
+	while (gDialog.pWin->visible())
+		Fl::wait();
+
+	// Check if OK button was pressed
+	if (gDialog.iOk)
+	{
+		// Get Address where data should be written
+		pStr = gDialog.pStartAddr->value();
+		address = str_to_i(pStr);
+
+		// Get End address
+		pStr = gDialog.pEndSaveAddr->value();
+		if (strlen(pStr) != 0)
+		{
+			end_addr = str_to_i(pStr);
+			count = end_addr - address + 1;
+		}
+		else
+		{
+			pStr = gDialog.pSaveLen->value();
+			count = str_to_i(pStr);
+		}
+		
+		// Get save mode selection
+		save_as_hex = gDialog.pHex->value();
+
+		// Get filename selection
+		pStr = gDialog.pFilename->value();
+		save_mem_to_file(pStr, address, count, save_as_hex);
+
+	}
+
+	delete gDialog.pWin;
+	gmew->take_focus();
+}
+
 
 /*
 ============================================================================
@@ -439,6 +774,7 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 
 	// Create Filename edit field
 	memedit_ctrl.pMemRange = new Fl_Input(235, 8+MENU_HEIGHT, 210, 20, "");
+	memedit_ctrl.pMemRange->callback(cb_memory_range);
 //	memedit_ctrl.pMemRange->deactivate();
 
 	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40+MENU_HEIGHT, 545, 350-MENU_HEIGHT);
@@ -1665,6 +2001,58 @@ void T100_MemEditor::ScrollUp(int lines)
 	memedit_ctrl.pScroll->slider_size(size/m_Max);
 	memedit_ctrl.pScroll->linesize(1);
 	redraw();
+}
+
+/*
+================================================================
+MoveTo:	This function moves to the specified line
+================================================================
+*/
+void T100_MemEditor::MoveTo(int address)
+{
+	int		height, size, value, col;
+
+	/* Calculate line value */
+	value = address / 16;
+	col = address % 16;
+
+	// Erase the cursor, if any */
+	EraseCursor();
+
+	// Select 12 point Courier font
+	fl_font(FL_COURIER, 12);
+
+	// Get height of screen in lines
+	m_Height = fl_height();
+	height = memedit_ctrl.pScroll->h();
+	size = (int) (height / m_Height);
+
+	// Test if at bottom and scrolling down
+	if (value > m_Max - size)
+		value = (int) (m_Max - size);
+
+	// Update new value base on scroll distance requested
+	if (value < 0)
+		value = 0;
+
+	// Update scroll bar
+	memedit_ctrl.pScroll->value(value, 1, 0, (int) m_Max);
+	memedit_ctrl.pScroll->maximum(m_Max-size);
+	memedit_ctrl.pScroll->step(size / m_Max);
+	memedit_ctrl.pScroll->slider_size(size/m_Max);
+	memedit_ctrl.pScroll->linesize(1);
+	redraw();
+
+	/* Set cursor row and column */
+	m_CursorRow = address / 16 - value;
+	if (m_CursorField == 0)
+		m_CursorField = 1;
+	if (m_CursorField == 2)
+		m_CursorCol = 59 + col;
+	else
+		m_CursorCol = 9 + col * 3 + (col > 8 ? 1 : 0);
+
+	DrawCursor();
 }
 
 // Erase the cursor at its current position
