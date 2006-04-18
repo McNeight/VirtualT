@@ -30,8 +30,6 @@
 
 #define LXI(rp,h,l,rps)	{ \
 							INCPC; \
-							if(trace) \
-								sprintf(p,"LXI "rps",%04x",INS16); \
 							l=INS; \
 							INCPC; \
 							h=INS; \
@@ -41,16 +39,12 @@
 
 #define STAX(rp,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"STAX "rps); \
 							MEMSET(rp,A); \
 							cpu_delay(7); \
 						}
 
 #define INX(rp,h,l,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"INX "rps); \
 							l++; \
 							F &= ~XF_BIT; \
 							if(!l) { \
@@ -62,8 +56,6 @@
 
 #define INR(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"INR "rs); \
 							r++; \
 							if(r&0x0f==0) /* Low order nybble wrapped */ \
 								j=1; \
@@ -75,8 +67,6 @@
 
 #define DCR(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"DCR "rs); \
 							r--; \
 							if(r&0x0f==0x0f) /* Low order nybble wrapped */ \
 								j=1; \
@@ -88,8 +78,6 @@
 
 #define MVI(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								sprintf(p,"MVI "rs",%02x",INS); \
 							r=INS; \
 							INCPC; \
 							cpu_delay(7); \
@@ -97,8 +85,6 @@
 
 #define DAD(rp,rps)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"DAD "rps); \
 							i=HL; \
 							i+=rp; \
 							j=(HL&0x8000)==(rp&0x8000); \
@@ -116,16 +102,12 @@
 
 #define LDAX(rp,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"LDAX "rps); \
 							A=MEM(rp); \
 							cpu_delay(7); \
 						}
 
 #define DCX(rp,h,l,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"DCX "rps); \
 							l--; \
 							F &= ~XF_BIT; \
 							if(l==0xff) { \
@@ -137,24 +119,18 @@
 
 #define MOV(dest,src,ds,ss)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"MOV "ds","ss); \
 							dest=src; \
 							cpu_delay(4); \
 						}
 
 #define MOVM(src,ss)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"MOV M,"ss); \
 							MEMSET(HL, src); \
 							cpu_delay(7); \
 						}
 
 #define ADD(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"ADD "rs); \
 							i=A; \
 							i+=r; \
 							v=(A&0x80) == (r&0x80); \
@@ -172,8 +148,6 @@
 
 #define ADC(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"ADC "rs); \
 							i=A; \
 							i+=r; \
 							i+=(CF?1:0); \
@@ -192,8 +166,6 @@
 
 #define SUB(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"SUB "rs); \
 							i=A; \
 							i-=r; \
 							j = (((A & 0x0F)-(r & 0x0F)) & 0x10) >> 4; \
@@ -211,8 +183,6 @@
 
 #define SBB(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"SCB "rs); \
 							i=A; \
 							i-=r; \
 							i-=(CF?1:0); \
@@ -231,8 +201,6 @@
 
 #define ANA(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"ANA "rs); \
 							A&=r; \
 							setflags(A,-1,-1,1,-1,0,-2,-2); \
 							cpu_delay(4); \
@@ -240,8 +208,6 @@
 
 #define XRA(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"XRA "rs); \
 							A^=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
 							cpu_delay(4); \
@@ -249,8 +215,6 @@
 
 #define ORA(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"ORA "rs); \
 							A|=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
 							cpu_delay(4); \
@@ -258,8 +222,6 @@
 
 #define CMP(r,rs)		{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"CMP "rs); \
 							i=A; \
 							i-=r; \
 							if (i>0xFF) \
@@ -277,8 +239,6 @@
 
 #define POP(rp,h,l,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"POP "rps); \
 							l=MEM(SP); \
 							h=MEM(SP+1); \
 							INCSP2; \
@@ -287,8 +247,6 @@
 
 #define PUSH(rp,h,l,rps)	{ \
 							INCPC; \
-							if(trace) \
-								strcat(p,"PUSH "rps); \
 							DECSP2; \
 							MEMSET(SP,l); \
 							MEMSET(SP+1,h); \
@@ -297,8 +255,6 @@
 
 #define RST(num)		{ \
 							INCPC; \
-							if(trace) \
-								sprintf(p,"RST %d",num); \
 							DECSP2; \
 							MEMSET(SP,PCL); MEMSET(SP+1,PCH); \
 							PCH=0; \
@@ -308,8 +264,6 @@
 
 #define CALL(cond,ins)	{ \
 							INCPC; \
-							if(trace) \
-								sprintf(p,ins" %04x",INS16); \
 							INCPC2; \
 							if(cond) { \
 								DECSP2; \
@@ -322,8 +276,6 @@
 						}
 
 #define	RETURN(cond,ins)	{ \
-							if(trace) \
-								strcat(p,ins); \
 							INCPC; \
 							if(cond) { \
 								PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */ \
@@ -335,8 +287,6 @@
 
 #define JUMP(cond,ins)	{ \
 							INCPC; \
-							if(trace) \
-								sprintf(p,ins" %04x",INS16); \
 							if(cond) { \
 								SETPCINS16; \
 								cpu_delay(3); \
@@ -347,8 +297,8 @@
 						}
 
 {
-	if(trace)
-		p=op+sprintf(op,"%04x (%02x) ",PC,INS);
+//	if(trace)
+//		p=op+sprintf(op,"%04x (%02x) ",PC,INS);
 	if(!(INS&0x80)) {
 		if(!(INS&0x40)) {
 			if(!(INS&0x20)) {
@@ -359,8 +309,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x00:	/* NOP */
 									INCPC;
-									if(trace)
-										strcat(p,"NOP");
 									cpu_delay(4);
 									/* return; */
 								}
@@ -399,8 +347,6 @@
 								else {
 									/* case 0x07:	/* RLC */
 									INCPC;
-									if(trace)
-										strcat(p,"RLC");
 									i=A>>7;
 									A=(A<<1)|i;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
@@ -416,8 +362,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x08:	/* DSUB */
 									INCPC;
-									if (trace)
-										sprintf(p, "DSUB");
 									i = HL < BC;// - (CF?1:0);
 									j = HL - BC;// - (CF?1:0);
 									v = (HL&0x8000) == (BC&0x8000);
@@ -464,8 +408,6 @@
 								else {
 									/* case 0x0F:	/* RRC */
 									INCPC;
-									if(trace)
-										strcat(p,"RRC");
 									i=A<<7&0x80;
 									A=(A>>1)|i;
 									i>>=7;
@@ -484,8 +426,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x10:	/* ASHR */
 									INCPC;
-									if (trace)
-										sprintf(p, "ASHR");
 									i = L & CF ;
 									j = HL >> 1;
 									L = j & 0xFF;
@@ -529,8 +469,6 @@
 								else {
 									/* case 0x17:	/* RAL */
 									INCPC;
-									if(trace)
-										strcat(p,"RAL");
 									i=A>>7;
 									A<<=1;
 									A|=(CF?1:0);
@@ -547,8 +485,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x18:	/* RLDE */
 									INCPC;
-									if (trace)
-										sprintf(p, "RLDE");
 									i = D & 0x80 ? 1 : 0;
 									j = DE << 1;
 									E = (j & 0xFF) | (CF ? 1 : 0);
@@ -592,8 +528,6 @@
 								else {
 									/* case 0x1F:	/* RAR */
 									INCPC;
-									if(trace)
-										strcat(p,"RAR");
 									i=(A&0x01);
 									A>>=1;
 									A|=CF?0x80:0;
@@ -614,8 +548,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x20:	/* RIM */
 									INCPC;
-									if(trace)
-										strcat(p,"RIM");
 									A=IM;
 									cpu_delay(4);
 									/* return; */
@@ -629,8 +561,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x22:	/* SHLD */
 									INCPC;
-									if(trace)
-										sprintf(p,"SHLD %x",INS16);
 									MEMSET(INS16,L);
 									MEMSET(INS16+1,H);
 									/* MEM16(INS16)=HL; */
@@ -663,8 +593,6 @@
 								else {
 									/* case 0x27:	/* DAA */
 									INCPC;
-									if(trace)
-										strcat(p,"DAA");
 									i=j=0;
 									/* Check if lower nibble greater than 9 */
 									if(((A&0x0F) > 9)) {
@@ -692,8 +620,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x28:	/* LDEH */
 									INCPC;
-									if (trace)
-										sprintf(p, "LDEH %02x", INS);
 									j = HL + INS;
 									INCPC;
 									E = j & 0xFF;
@@ -710,8 +636,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x2A:	/* LHLD */
 									INCPC;
-									if(trace)
-										sprintf(p,"LHLD %x",INS16);
 									L=MEM(INS16);
 									H=MEM(INS16+1);
 									INCPC2;
@@ -742,8 +666,6 @@
 								else {
 									/* case 0x2F:	/* CMA */
 									INCPC;
-									if(trace)
-										strcat(p,"CMA");
 									A=~A;
 									cpu_delay(4);
 								}
@@ -758,8 +680,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x30:	/* SIM */
 									INCPC;
-									if(trace)
-										strcat(p,"SIM");
 									if (A & 0x08)	/* Check if Interrupt masking enabled */
 										IM=(IM & 0xF8) | (A&0x07);
 									/* Turn RST 7.5 pending off if bit 4 set */
@@ -778,8 +698,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x32:	/* STA */
 									INCPC;
-									if(trace)
-										sprintf(p,"STA %04x",INS16);
 									MEMSET(INS16,A);
 									INCPC2;
 									cpu_delay(13);
@@ -796,8 +714,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x34:	/* INR M */
 									INCPC;
-									if(trace)
-										strcat(p,"INR M");
 									MEMSET(HL,(uchar) (M+1));
 									if(M&0x0f==0) /* Low order nybble wrapped */
 										j=1;
@@ -809,8 +725,6 @@
 								else {
 									/* case 0x35:	/* DCR M */
 									INCPC;
-									if(trace)
-										strcat(p,"DCR M");
 									MEMSET(HL, (uchar)(M-1));
 									if(M&0x0f==0x0f) /* Low order nybble wrapped */
 										j=1;
@@ -824,17 +738,13 @@
 								if(!(INS&0x01)) {
 									/* case 0x36:	/* MVI M */
 									INCPC;
-									if(trace)
-										sprintf(p,"MVI M,%02x",INS); 
-									MEMSET((int)HL,INS);
+									MEMSET(HL,INS);
 									INCPC;
 									cpu_delay(10);
 								}
 								else {
 									/* case 0x37:	/* STC */
 									INCPC;
-									if(trace)
-										strcat(p,"STC");
 									setflags(0,-2,-2,-2,-2,1,-2,-2);
 									cpu_delay(4);
 									/* return; */
@@ -848,8 +758,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x38:	/* LDES */
 									INCPC;
-									if (trace)
-										sprintf(p, "LDES %02x", INS);
 									j = SP + INS;
 									INCPC;
 									E = j & 0xFF;
@@ -866,8 +774,6 @@
 								if(!(INS&0x01)) {
 									/* case 0x3A:	/* LDA */
 									INCPC;
-									if(trace)
-										sprintf(p,"LDA %04x",INS16);
 									A=MEM(INS16);
 									INCPC2;
 									cpu_delay(13);
@@ -898,8 +804,6 @@
 								else {
 									/* case 0x3F:	/* CMC */
 									INCPC;
-									if(trace)
-										strcat(p,"CMC");
 									setflags(A,-2,-2,-2,-2,CF?0:1,-2,-2);
 									cpu_delay(4);
 									/* return; */
@@ -1240,8 +1144,6 @@
 							else {
 								if(!(INS&0x01)) {
 									/* case 0x76:	/* HLT */
-									if(trace)
-										strcat(p,"HLT");
 									cpu_delay(4);
 									/* return; */
 								}
@@ -1703,8 +1605,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xC0:	/* RNZ */
 									INCPC;
-									if(trace)
-										strcat(p,"RNZ");
 									if(!ZF) {
 										PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */
 										INCSP2;
@@ -1744,8 +1644,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xC6:	/* ADI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"ADI %02x",INS);
 									i=A;
 									i+=INS;
 									j = (((A&0x0F)+(INS&0x0F)) &0x10)>>4;
@@ -1808,8 +1706,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xCE:	/* ACI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"ACI %02x",INS);
 									i=A;
 									i+=INS;
 									i+=(CF?1:0);
@@ -1856,8 +1752,6 @@
 								else {
 									/* case 0xD3:	/* OUT port */
 									INCPC;
-									if(trace)
-										sprintf(p,"OUT %02x",INS);
 									out(INS,A);
 									INCPC;
 									cpu_delay(10);
@@ -1880,8 +1774,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xD6:	/* SUI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"SUI %02x",INS);
 									i=A;
 									i-=INS;
 									j = (((A&0x0F)-(INS&0x0F)) &0x10)>>4;
@@ -1915,8 +1807,6 @@
 								else {
 									/* case 0xD9:	/* SHLX */
 									INCPC;
-									if (trace)
-										sprintf(p, "SHLX");
 									MEMSET(DE, L);
 									MEMSET(DE+1, H);
 									cpu_delay(10);
@@ -1931,8 +1821,6 @@
 								else {
 									/* case 0xDB:	/* IN port */
 									INCPC;
-									if(trace)
-										sprintf(p,"IN %x",INS);
 									A=inport(INS);
 									INCPC;
 									cpu_delay(10);
@@ -1955,8 +1843,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xDE:	/* SBI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"SBI %02x",INS);
 									i=A;
 									i-=INS;
 									i-=(CF?1:0);
@@ -2005,8 +1891,6 @@
 								else {
 									/* case 0xE3:	/* XTHL */
 									INCPC;
-									if(trace)
-										strcat(p,"XTHL");
 									i=H;
 									j=L;
 									L=MEM(SP);
@@ -2035,8 +1919,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xE6:	/* ANI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"ANI %02x",INS);
 									A=A&INS;
 									INCPC;
 									setflags(A,-1,-1,1,-1,0,-2,-2);
@@ -2073,8 +1955,6 @@
 								}
 								else {
 									/* case 0xEB:	/* XCHG */
-									if(trace)
-										strcat(p,"XCHG");
 									INCPC;
 									i=H;
 									H=D;
@@ -2099,8 +1979,6 @@
 								else {
 									/* case 0xED:	/* LHLX */
 									INCPC;
-									if (trace)
-										sprintf(p, "LHLX");
 									L=MEM(DE);
 									H=MEM(DE+1);
 									cpu_delay(10);
@@ -2111,8 +1989,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xEE:	/* XRI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"XRI %02x",INS);
 									A=A^INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
@@ -2148,8 +2024,6 @@
 								else {
 									/* case 0xF3:	/* DI */
 									INCPC;
-									if(trace)
-										strcat(p,"DI");
 									IM|=0x08;
 									cpu_delay(4);
 									/* return; */
@@ -2171,8 +2045,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xF6:	/* ORI n */
 									INCPC;
-									if(trace)
-										sprintf(p,"ORI %02x",INS);
 									A=A|INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
@@ -2196,8 +2068,6 @@
 								else {
 									/* case 0xF9:	/* SPHL */
 									INCPC;
-									if(trace)
-										strcat(p,"SPHL");
 									SPH=H;
 									SPL=L;
 									cpu_delay(6);
@@ -2211,8 +2081,6 @@
 								}
 								else {
 									/* case 0xFB:	/* EI */
-									if(trace)
-										strcat(p,"EI");
 									INCPC;
 									IM&=0xF7;
 									cpu_delay(4);
@@ -2236,8 +2104,6 @@
 								if(!(INS&0x01)) {
 									/* case 0xFE:	/* CPI n */
 									INCPC;
-									if(trace)
-										p+=sprintf(p,"CPI %02x",INS);
 									i=A;
 									i-=INS;
 									if(i>0xFF)

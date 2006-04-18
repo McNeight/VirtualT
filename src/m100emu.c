@@ -59,10 +59,14 @@ int		fullspeed=0;
 int		gModel = MODEL_M100;
 
 uchar	cpu[14];
-uchar	memory[65536];
-uchar	sysROM[65536];
-uchar	msplanROM[32768];
-uchar	optROM[32768];
+extern uchar	*gMemory[64];
+extern uchar	gBaseMemory[65536];
+extern uchar	gSysROM[65536];
+extern uchar	gMsplanROM[32768];
+extern uchar	gOptROM[32768];
+
+mem_monitor_cb	gMemMonitor = NULL;
+
 char	op[26];
 UINT64	cycles=0;
 UINT64	instructs=0;
@@ -77,6 +81,7 @@ UINT64	one_sec_cycles;
 DWORD   update_secs = 0;
 float	cpu_speed;
 int		gExitApp = 0;
+int		gExitLoop = 0;
 char	gsOptRomFile[256];
 DWORD	last_one_sec_time;
 
@@ -95,9 +100,11 @@ RomDescription_t			*gStdRomDesc;
 
 
 /* Define Debug global variables */
-char	gDebugActive = 0;
-char	gStopped = 0;
-char	gSingleStep = 0;
+char					gDebugActive = 0;
+char					gStopped = 0;
+char					gSingleStep = 0;
+debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
+
 
 #ifdef _WIN32
 __inline double hirestimer(void)
@@ -168,24 +175,82 @@ void bail(char *msg)
 	exit(1);
 }
 
+void jump_to_zero(void)
+{
+	int		i;
+
+	/* Clear all CPU registers */
+	for (i = 0; i < sizeof(cpu); i++)
+		cpu[i] = 0;
+}
+
 void resetcpu(void)
 {
-	A=0;
-	F=0;
-	B=0;
-	C=0;
-	E=0;
-	H=0;
-	L=0;
-	SPH=0;
-	SPL=0;
-	PCH=0;
-	PCL=0;
+	int		i;
+
+	/* Clear all CPU registers */
+	for (i = 0; i < sizeof(cpu); i++)
+		cpu[i] = 0;
+
+	/* Set interrupt mask */
 	IM=0x08;
 	cpuMISC=0;
-	memcpy(memory,sysROM,ROMSIZE);
-	cROM = 0;
 
+	/* Re-initialize memory */
+	reinit_mem();
+
+	/* Check if debug monitor active and updae if there are */
+	if (gDebugActive)
+	{
+		/* Call all debug monitor callback routines */
+		for (i = 0; i < 3; i++)
+		{
+			if (gpDebugMonitors[i] != NULL)
+				gpDebugMonitors[i]();
+		}
+	}
+}
+
+
+/*
+=============================================================================
+debug_set_monitor_callback:	This function adds a new debug monitor process.
+=============================================================================
+*/
+int debug_set_monitor_callback(debug_monitor_callback pCallback)
+{
+	int		x;
+
+	for (x = 0; x < 3; x++)
+	{
+		if (gpDebugMonitors[x] == NULL)
+		{
+			gpDebugMonitors[x] = pCallback;
+			return x;
+		}
+	}
+
+	return -1;
+}
+
+/*
+=============================================================================
+debug_clear_monitor_callback:	This function deletes the specified callback 
+								from the debug monitor list.
+=============================================================================
+*/
+void debug_clear_monitor_callback(debug_monitor_callback pCallback)
+{
+	int		x;
+
+	for (x = 0; x < 3; x++)
+	{
+		if (gpDebugMonitors[x] == pCallback)
+		{
+			gpDebugMonitors[x] = NULL;
+			return;
+		}
+	}
 }
 
 /*
@@ -341,20 +406,20 @@ void init_cpu(void)
 	}
 
 	/* Read data from the ROM file */
-	if (read(fd, sysROM, ROMSIZE)<ROMSIZE)
+	if (read(fd, gSysROM, ROMSIZE)<ROMSIZE)
 	{
 		show_error("Error reading ROM file: Bad Rom file");
 	}
 
 	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
 	if (gModel == MODEL_T200)
-		read(fd, msplanROM, 32768);
+		read(fd, gMsplanROM, 32768);
 	
 	/* Close the ROM file */
 	close(fd);
 
 	/* Copy ROM into system memory */
-	memcpy(memory, sysROM, ROMSIZE);
+	memcpy(gBaseMemory, gSysROM, ROMSIZE);
 
 	/* Set pointer to ROM Description */
 	if (gModel == MODEL_T200)
@@ -366,13 +431,15 @@ void init_cpu(void)
 
 	/* Clear the system memory RAM area */
 	for (i = 0; i < RAMSIZE; i++)
-		memory[RAMSTART + i] = 0;
+		gBaseMemory[RAMSTART + i] = 0;
 
 	/* Read RAM from file in emulation directory */
 	load_ram();
 
 	/* Load option ROM if any */
 	load_opt_rom();
+
+	gExitLoop = 1;
 }
 
 void cb_int65(void)
@@ -401,8 +468,17 @@ __inline void check_interrupts(void)
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 6.5 CALLed\n");
 		DECSP2;
-		MEMSET(SP, PCL);
-		MEMSET(SP+1, PCH);
+		if (gReMem)
+		{
+			MEMSET(SP, PCL);
+			MEMSET(SP+1, PCH);
+		}
+		else
+		{
+			gBaseMemory[SP] = PCL;
+			gBaseMemory[SP+1] = PCH;
+		}
+
 		/* MEM16(SP)=PC; */
 		PCL=52;
 		PCH=0;
@@ -415,8 +491,16 @@ __inline void check_interrupts(void)
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 CALLed\n");
 		DECSP2;
-		MEMSET(SP, PCL);
-		MEMSET(SP+1, PCH);
+		if (gReMem)
+		{
+			MEMSET(SP, PCL);
+			MEMSET(SP+1, PCH);
+		}
+		else
+		{
+			gBaseMemory[SP] = PCL;
+			gBaseMemory[SP+1] = PCH;
+		}
 		/* MEM16(SP)=PC; */
 		PCL=60;
 		PCH=0;
@@ -432,7 +516,6 @@ __inline void check_interrupts(void)
 	return;
 }
 
-mem_monitor_cb	gMemMonitor = NULL;
 void	mem_set_monitor_callback(mem_monitor_cb cb)
 {
 	gMemMonitor = cb;
@@ -486,6 +569,29 @@ void maint(void)
 	process_windows_event();
 }
 
+
+void do_debug_stuff(void)
+{
+	int		i;
+
+	/* Call all debug monitor callback routines */
+	for (i = 0; i < 3; i++)
+	{
+		if (gpDebugMonitors[i] != NULL)
+			gpDebugMonitors[i]();
+	}
+
+	if (gStopped)
+	{
+		/* Loop until not stopped or single step */
+		while (gStopped && !gSingleStep && !gExitApp)
+		{
+			process_windows_event();
+		}
+		gSingleStep = 0;
+	}
+}
+
 /*
 ========================================================================
 emulate:	This routine contains the main loop that handles active 
@@ -497,39 +603,64 @@ void emulate(void)
 	unsigned int	i,j;
 	unsigned int	v;
 	int				top=0;
-	char			*p;
+//har			*p;
 	int				nxtmaint=1;
 
 	starttime=msclock();
-	while(!gExitApp) {
-
-		/* Instruction emulation contained in header file */
-		#include "do_instruct.h"
-
-		/* Check if we are performing tracing */
-		if(trace && tracefile != NULL)
-			fprintf(tracefile, "%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n"
-			,op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
-
-		if (gDebugActive)
-		{
-			if (gStopped)
+	while(!gExitApp) 
+	{
+		/* Run appropriate emulation loop base on ReMem support */
+		if (gReMem)
+			while (!gExitLoop)
 			{
-				while (gStopped && !gSingleStep)
+				/* Check for active debug monitor windows */
+				if (gDebugActive)
 				{
-					process_windows_event();
+					do_debug_stuff();
+					if (gExitLoop) 
+						break;
 				}
-				gSingleStep = 0;
+
+				/* Instruction emulation contained in header file */
+				#include "do_instruct.h"
+
+				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+				if(!(--nxtmaint)) 
+				{
+					maint();
+					check_interrupts();
+					nxtmaint=128;
+				}
+			}
+
+		if (!gReMem)
+		{
+			while (!gExitLoop)
+			{
+				/* Check for active debug monitor windows */
+				if (gDebugActive)
+				{
+					do_debug_stuff();
+					if (gExitLoop)
+						break;
+				}
+
+				/* Instruction emulation contained in header file */
+				#define NO_REMEM
+				#include "cpu.h"
+				#include "do_instruct.h"
+
+				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+				if(!(--nxtmaint)) 
+				{
+					maint();
+					check_interrupts();
+					nxtmaint=128;
+				}
 			}
 		}
 
-		/* Do maintenance tasks (Windows events, interrupts, etc.) */
-		if(!(--nxtmaint)) 
-		{
-			maint();
-			check_interrupts();
-			nxtmaint=128;
-		}
+		gExitLoop = 0;
 	}
 }
 
@@ -567,7 +698,7 @@ int main(int argc, char **argv)
 	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
 	i = strlen(argv[0])-1;
 	// Find last '/' in path to remove app name from the path
-	while ((path.argv[0][i] != '/') && (i > 0))
+	while ((argv[0][i] != '/') && (i > 0))
 		i--;
 	strncpy(path,argv[0], i+1);
 # else
@@ -575,9 +706,9 @@ int main(int argc, char **argv)
 #endif
 
 	// Added by JV for prefs
-	init_pref();					// load user Menu preferences
-	load_setup_preferences();	// Load user Peripheral setup preferences
-	load_memory_preferences();	// Load user Memory setup preferences
+	init_pref();				/* load user Menu preferences */
+	load_setup_preferences();	/* Load user Peripheral setup preferences */
+	load_memory_preferences();	/* Load user Memory setup preferences */
 	
 	/* Perform initialization */
 	init_mem();					/* Initialize Memory */

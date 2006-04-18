@@ -50,6 +50,7 @@ public:
 	void Disassemble();
 	void SetTextViewer(class Fl_Text_Editor* pTextViewer);
 
+	static int DisassembleLine(int address, char* line);
 protected:
 	static char* m_StrTable[256];
 	static unsigned char m_LenTable[256];

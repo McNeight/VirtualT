@@ -17,31 +17,45 @@ memory.h
 extern "C" {
 #endif
 
+#define	REMEM_REV_MAJOR				4
+
+#define	REMEM_REV_M100				(REMEM_REV_MAJOR << 4)
+#define	REMEM_REV_M102				((REMEM_REV_MAJOR << 4) | 0x01)
+#define	REMEM_REV_T200				((REMEM_REV_MAJOR << 4) | 0x02)
+
+#define	REMEM_REV					(gModel == MODEL_M100 ? REMEM_REV_M100 : gModel == MODEL_M102 ? REMEM_REV_M102 : REMEM_REV_T200)
+
 #define	REMEM_MODE_NORMAL			0x01
 #define	REMEM_MODE_RAMPAC			0x02
-#define	REMEM_MODE_MAP_BITS			0x1C
-#define	REMEM_MODE_MAP_SHIFT		2
-#define	REMEM_MODE_FLASH1_RO		0x20
-#define	REMEM_MODE_FLASH2_RO		0x40
+#define	REMEM_MODE_IOENABLE			0x04
+#define	REMEM_MODE_MAP_BITS			0x38
+#define	REMEM_MODE_MAP_SHIFT		3
+#define	REMEM_MODE_FLASH1_RO		0x40
+#define	REMEM_MODE_FLASH2_RO		0x80
 
+#define	REMEM_SECTOR_PORT			0x61
+#define	REMEM_DATA_PORT				0x63
 #define	REMEM_MODE_PORT				0x70
-#define	REMEM_SECTOR_PORT			0x71
-#define	REMEM_VCTR_PORT				0x73
+#define	REMEM_REVID_PORT			0x71
 #define	RAMPAC_SECTOR_PORT			0x81
 #define	RAMPAC_DATA_PORT			0x83
 
 #define	REMEM_VCTR_RAM_CS			0x2000
-#define	REMEM_VCTR_FLASH1_CS		0x1000
-#define	REMEM_VCTR_FLASH2_CS		0x0800
+#define	REMEM_VCTR_FLASH2_CS		0x1000
+#define	REMEM_VCTR_FLASH1_CS		0x0800
 #define	REMEM_VCTR_READ_ONLY		0x4000
 #define	REMEM_VCTR_MMU_ACTIVE		0x8000
 #define	REMEM_VCTR_ADDRESS			0x07FF
 
-#define	REMEM_MAP_OFFSET			0x00100000000
-#define	REMEM_MAP_SIZE				(gModel == MODEL_T200 ? 1024 : 512)
-#define	REMEM_BANK_SIZE				(gModel == MODEL_T200 ? 256 : 128)
-#define	REMEM_BANKS_PER_MAP			(gModel == MODEL_T200 ? 8 : 4)
-#define	REMEM_RAM_BANK_OFFSET		0xA0
+#define	REMEM_MAP_OFFSET			0x1BF000
+#define	REMEM_MAP_SIZE				512
+#define	REMEM_BANK_SIZE				128
+#define	REMEM_BANKS_PER_MAP			4
+#define	REMEM_BLOCKS_PER_BANK		32
+#define	REMEM_RAM_MAP_OFFSET		(gModel == MODEL_T200 ? 0x50 : 0)
+#define REMEM_RAMPAC_OFFSET			0x1C0000
+#define	RAMPAC_SECTOR_SIZE			1024
+#define	RAMPAC_SECTOR_COUNT			256
 
 #define	REGION_RAM					0
 #define	REGION_ROM					1
@@ -55,7 +69,14 @@ extern "C" {
 #define	REGION_FLASH2				9
 #define	REGION_RAMPAC				10
 
+
+extern unsigned char	*gMemory[64];
+extern unsigned char	gSysROM[65536];
+extern unsigned char	gBaseMemory[65536];
+extern unsigned char	gReMem;
+
 void			init_mem(void);
+void			reinit_mem(void);
 void			free_mem(void);
 void			free_remem_mem(void);
 void			free_rampac_mem(void);

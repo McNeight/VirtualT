@@ -55,6 +55,7 @@
 #include "periph.h"
 #include "memory.h"
 #include "memedit.h"
+#include "cpuregs.h"
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
@@ -145,6 +146,7 @@ void close_disp_cb(Fl_Widget* w, void*)
 	if (gpDisp != NULL)
 	{
 		gExitApp = 1;
+		gExitLoop = 1;
 	}
 }
 
@@ -319,6 +321,31 @@ void cb_PC8300(Fl_Widget* w, void*)
 	switch_model(MODEL_PC8300);
 }
 
+#ifdef	__APPLE__
+//JV 08/10/05: add an action to choose the working directory
+void cb_choosewkdir(Fl_Widget* w, void*)
+{
+	/* Choose the working directory (ROM, RAM Files... */
+	char *ret;
+	
+	
+          ret=ChooseWorkDir();
+		  if(ret==NULL) exit(-1); 
+			else 
+			{
+				strcpy(path,ret);
+				#ifdef __unix__
+				strcat(path,"/");
+				#else
+				strcat(path,"\\");
+				#endif
+				virtualt_prefs.set("Path",path);
+			}
+        	
+}
+//--JV
+#endif
+
 /*
 =======================================================
 cb_help:	This routine displays the Help Subsystem
@@ -426,6 +453,9 @@ Fl_Menu_Item menuitems[] = {
 		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
 		{ 0 },
 	{ "Peripheral Setup...",     0, cb_PeripheralSetup, 0, 0 },
+#ifdef	__APPLE__
+    { "Directory...",			 0, cb_choosewkdir, 0, 0 }, // JV 08/10/05 menu Directory added
+#endif
 	{ "Memory Options...",       0, cb_MemorySetup, 0, FL_MENU_DIVIDER },
 	{ "Option ROM",              0, 0, 0, FL_SUBMENU },
 		{ gsMenuROM,             0, 0, 0, FL_MENU_DIVIDER },
@@ -435,7 +465,7 @@ Fl_Menu_Item menuitems[] = {
 	{ 0 },
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
-	{ "CPU Registers",         0, 0 },
+	{ "CPU Registers",         0, cb_CpuRegs },
 	{ "Assembler",             0, 0 },
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Debugger",              0, 0 },
@@ -681,7 +711,7 @@ void T100_Disp::draw()
 				x=(driver % 5) * 50;
 				x+=col;
 
-				y = row * 8;
+				y = row << 3;
 				if (driver > 4)
 					y += 32;
 
@@ -752,10 +782,6 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		drawpixel(x,y++,(value&0x20)>>5);
 		drawpixel(x,y++,(value&0x40)>>6);
 		drawpixel(x,y++,(value&0x80)>>7);
-
-		// Update display
-//		Fl::wait(0);
-//	}
 }
 // read Pref File
 // J. VERNET
@@ -1037,7 +1063,7 @@ void T100_Disp::PowerDown()
 			if (c == 5)
 				SetByte(driver, (column % 50) | 0xC0, 0);
 			else
-				SetByte(driver, (column % 50) | 0xC0, memory[mem_index++]);
+				SetByte(driver, (column % 50) | 0xC0, gSysROM[mem_index++]);
 			column++;
 		}
 	}
@@ -1054,7 +1080,7 @@ void T100_Disp::PowerDown()
 			if (c == 5)
 				SetByte(driver, (column % 50), 0);
 			else
-				SetByte(driver, (column % 50), memory[mem_index++]);
+				SetByte(driver, (column % 50), gSysROM[mem_index++]);
 			column++;
 		}
 	}
@@ -1988,7 +2014,7 @@ void T200_Disp::draw()
 	draw_static();
 
 	/* Get RAM address where display should start */
-	addr = (m_dstarth << 8) | m_dstartl;
+	addr = ((m_dstarth << 8) | m_dstartl) & (8192-1);
 
 	fl_color(FL_BLACK);
 
@@ -2106,7 +2132,7 @@ void T200_Disp::redraw_active()
 	gpDisp->window()->make_current();
 
 	/* Get RAM address where display should start */
-	addr = (m_dstarth << 8) | m_dstartl;
+	addr =( (m_dstarth << 8) | m_dstartl) &(8192-1);
 
 	/* Check if the driver is in "graphics" mode */
 	if (m_mcr & 0x02)

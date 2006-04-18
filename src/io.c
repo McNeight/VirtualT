@@ -73,6 +73,7 @@ int				gDelayCount = 0;
 uchar			clock_sr[5];			/* 40 Bit shift register */
 uchar			clock_sr_index = 0;
 uchar			clock_serial_out = 0;
+extern int		gRomBank;
 
 
 void update_keys(void)
@@ -80,7 +81,7 @@ void update_keys(void)
 	int equal = 1;
 	int buf_index = 0xFF9A;
 	int c;
-	uchar key;
+	unsigned char key;
 
 	if (gModel == MODEL_T200)
 		buf_index = 0xFD0E;
@@ -94,7 +95,7 @@ void update_keys(void)
 	{
 		key = (uchar) ((~keyscan[c]) & 0xFF);
 		/* Old keyscan matrix must match buffer in memory */
-		if (memory[buf_index] != key)
+		if (get_memory8((unsigned short) buf_index) != key)
 		{
 			equal = 0;
 			break;
@@ -217,9 +218,6 @@ void deinit_io(void)
 	ser_deinit();
 }
 
-
-int cROM = 0;
-
 void clock_chip_cmd(void)
 {
 	static int	clk_cnt = 1;
@@ -273,10 +271,10 @@ void clock_chip_cmd(void)
 
 		clock_sr_index = 0;
 
-		if ((memory[0xF92E] == 0) && (memory[0xF92D] == 0))
+		if ((get_memory8(0xF92E) == 0) && (get_memory8(0xF92D) == 0))
 		{
-			memory[0xF92D] = mytime->tm_year % 10;
-			memory[0xF92E] = (mytime->tm_year % 100) / 10;
+			set_memory8(0xF92D, (unsigned char) (mytime->tm_year % 10));
+			set_memory8(0xF92E, (unsigned char) ((mytime->tm_year % 100) / 10));
 		}
 	}
 }
@@ -286,9 +284,11 @@ void out(uchar port, uchar val)
 	unsigned char flags;
 
 	switch(port) {
-		case 0x70:	/* ReMem Mode port */
-		case 0x81:	/* ReMem RAMPAC emulation port */
-		case 0x83:	/* ReMem RAMPAC emulation port */
+		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
+		case REMEM_DATA_PORT:		/* ReMem Data Port */
+		case REMEM_MODE_PORT:		/* ReMem Mode port */
+		case RAMPAC_SECTOR_PORT:	/* ReMem/RAMPAC emulation port */
+		case RAMPAC_DATA_PORT:		/* ReMem RAMPAC emulation port */
 			remem_out(port, val);
 			break;
 
@@ -660,7 +660,7 @@ void out(uchar port, uchar val)
 			if (gModel != MODEL_T200)
 			{
 				/* Check for change in ROM selection */
-				if ((val & 0x01) != cROM)
+				if ((val & 0x01) != gRomBank)
 					set_rom_bank((uchar) (val & 0x01));
 
 				/* Check for Clock Chip strobe */
@@ -756,6 +756,17 @@ int inport(uchar port)
 	unsigned char flags;
 
 	switch(port) {
+		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
+		case REMEM_DATA_PORT:		/* ReMem Data Port */
+		case REMEM_MODE_PORT:		/* ReMem Mode port */
+		case REMEM_REVID_PORT:		/* ReMem Rev ID */
+		case RAMPAC_SECTOR_PORT:	/* ReMem/RAMPAC emulation port */
+		case RAMPAC_DATA_PORT:		/* ReMem RAMPAC emulation port */
+			if (remem_in(port, &ret))
+				return ret;
+			else
+				return 0;
+
 		case 0x82:  /* Optional IO thinger? */
 			return(0xA2);
 	

@@ -48,7 +48,7 @@ extern "C"
 #include "intelhex.h"
 #include "m100emu.h"
 extern RomDescription_t *gStdRomDesc;
-void resetcpu(void);
+void jump_to_zero(void);
 }
 
 
@@ -138,7 +138,7 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 	strcpy(gsMenuROM, fl_filename_name(gsOptRomFile));
 
 	load_opt_rom();
-	resetcpu();
+	jump_to_zero();
 }
 
 
@@ -826,7 +826,7 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 
 
 	// Reset the system so file will show up
-	resetcpu();
+	jump_to_zero();
 
 }
 
@@ -1128,13 +1128,16 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 	{
 		// Find entry for the file selected
 		c = fsb->value();
-		for (x = 0; x < tCount; x++)
+		if (c)
 		{
-			// Search array for entry
-			if (strcmp(fsb->text(c), tFiles[x].name) == 0)
+			for (x = 0; x < tCount; x++)
 			{
-				save_file(&tFiles[x]);
-				break;
+				// Search array for entry
+				if (strcmp(fsb->text(c), tFiles[x].name) == 0)
+				{
+					save_file(&tFiles[x]);
+					break;
+				}
 			}
 		}
 	}
@@ -1145,3 +1148,16 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 	delete fsb;
 	delete gSaveToHost;
 }
+
+#ifdef	__APPLE__
+//JV 08/10/05: add a function to choose the working directory (where are the ROMs files)
+char* ChooseWorkDir()
+{
+	char *ret=NULL;
+	
+	ret = fl_dir_chooser("Choose Working Directory",".",0);
+
+	return ret;
+}
+//JV
+#endif

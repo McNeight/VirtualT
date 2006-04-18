@@ -53,6 +53,7 @@ public:
 	int				GetRegionEnum(void);
 	void			UpdateAddressText(void);
 	void			UpdateDispMem(void);
+	void			MoveTo(int value);
 	int				m_FirstLine;
 				
 protected:

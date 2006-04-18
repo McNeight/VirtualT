@@ -31,6 +31,8 @@
 #ifndef PERIPH_H
 #define PERIPH_H
 
+#include <FL/Fl_Scrollbar.H>
+
 void cb_PeripheralDevices (Fl_Widget* w, void*);
 
 

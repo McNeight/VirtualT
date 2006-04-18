@@ -37,7 +37,6 @@
 #include "serial.h"
 #include "setup.h"
 #include "display.h"
-#include "m100emu.h"
 
 ser_params_t	sp;
 

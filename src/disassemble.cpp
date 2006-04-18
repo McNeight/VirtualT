@@ -47,6 +47,8 @@
 #include "periph.h"
 #include "memedit.h"
 #include "romstrings.h"
+#include "cpuregs.h"
+#include "memory.h"
 
 Fl_Window *gpDis;
 
@@ -158,7 +160,7 @@ Fl_Menu_Item gDis_menuitems[] = {
 	{ 0 },
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
-	{ "CPU Registers",         0, 0 },
+	{ "CPU Registers",         0, cb_CpuRegs },
 	{ "Assembler",             0, 0 },
 	{ "Disassembler",          0, 0 },
 	{ "Debugger",              0, 0 },
@@ -213,7 +215,7 @@ void disassembler_cb(Fl_Widget* w, void*) {
 		pDisassembler->SetTextViewer(td);
 
 		// Give the disassembler something to disassemble
-		pDisassembler->CopyIntoMem(memory, ROMSIZE);
+		pDisassembler->CopyIntoMem(gSysROM, ROMSIZE);
 
 		gpDis->resizable(m);
 		gpDis->resizable(td);
@@ -855,4 +857,43 @@ void VTDis::CopyIntoMem(unsigned char *ptr, int len)
 	{
 		m_memory[c] = ptr[c];
 	}
+}
+
+int VTDis::DisassembleLine(int address, char* line)
+{
+	char			arg[60];
+	int				addr;
+	unsigned char	opcode;
+	unsigned char	op_len;
+
+	// Get opcode from memory
+	opcode = gMemory[address>>10][address&0x3FF];
+
+	// Determine length of this opcode
+	op_len = m_LenTable[opcode] & 0x03;
+
+	// Print the address and opcode value to the temporary line buffer
+	sprintf(line, "%04XH  ", address);
+
+	// Print the opcode text to the temp line buffer
+	strcat(line, m_StrTable[opcode]);
+
+	// Check if this opcode has a single byte argument
+	if (op_len == 1)
+	{
+		// Single byte argument
+		sprintf(arg, "%02XH", gMemory[(address+1)>>10][(address+1)&0x3FF]);
+		strcat(line, arg);
+	}
+
+	// Check if this opcode as a 2 byte argument
+	else if (op_len == 2)
+	{
+		// Double byte argument
+		addr = get_memory8(address+1) | (get_memory8(address+2) << 8);
+		sprintf(arg, "%04XH", addr);
+		strcat(line, arg);
+	}
+
+	return 1;
 }

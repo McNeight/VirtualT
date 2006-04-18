@@ -33,12 +33,12 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <tchar.h>
-#include <process.h>
 
 #ifdef _WIN32
 #include <windows.h>
 #include <mmsystem.h>
+#include <tchar.h>
+#include <process.h>
 #endif
 
 #ifdef __unix__
@@ -53,7 +53,7 @@
 #pragma comment(lib, "winmm.lib")
 
 #define				snd_Buffers		2 
-#define				cwSizel			96
+#define				cwSizel			32
 
 /*
  * module static data
@@ -67,6 +67,7 @@ unsigned int			NextBuf, fDone [snd_Buffers] ;
 unsigned int			Index ;
 unsigned short			readbuf [2 * cwSizel] ;          /* input buffer */
 short int				tmpbuf [2 *  cwSizel] ;
+unsigned short			*gpOneHertz = NULL;
 int						m_Channels = 2 , 
 						m_SamplingRate = 22050, 
 						SamplesPerFrame = cwSizel;
@@ -74,13 +75,15 @@ short					*pcmbuf;
 short					*tmppcmbuf;
 int						frameCount=0;
 int						cwSize = 2*cwSizel;
+
 int						gPlayTone = 0;
 int						gToneFreq = 0;
 int						gFlushBuffers = 0;
 int						gExit = 0;
+int						gBeepOn = 0;
+int						gOneHzPtr = 0;
 extern	double			last_instruct;
 static	double			spkr_cycle = 0;
-int						gBeepOn = 0;
 
 #ifdef _WIN32
 HANDLE					g_hEquThread;
@@ -208,8 +211,6 @@ short *sndGetBuffer (void)
 	if (hOutput == NULL) 
 		return NULL ;
 
-	/* printf ("%i %i\t", NextBuf, Index) ; */
-
 	wbuf = (short *) wh [NextBuf].lpData ;
 	wbuf = &wbuf [g_FrameSize * Index++] ;
 
@@ -230,8 +231,6 @@ short *sndGetBuffer (void)
 
 	if (wh [NextBuf].dwFlags & WHDR_PREPARED)
 		waveOutUnprepareHeader (hOutput, &wh [NextBuf], sizeof (WAVEHDR)) ;
-
-	/* printf ("** **\t%i %i\t", NextBuf, 0) ; */
 
 	return (short *) wh [NextBuf].lpData ;
 }
@@ -264,26 +263,14 @@ void playback()
 {
     int		i;
     BOOL	fWantPlayback;
-	double	inc, sval;
-	static	double mult = 1;
-	static	double mult_add = 0;
-	static	double val = 0.0;
 	
 
-	if (gToneFreq != 0.0)
-		mult = (double) m_SamplingRate / (double) gToneFreq;
-	if (mult <= 10)
-		mult_add = .5;
-	if (mult >= 50)
-		mult_add = -.5;
-
-//	mult += mult_add;
-	inc = 1.0 / (double) cwSize;
 	for (i = 0; i < cwSize; i++)
 	{
-		val += inc;
-		sval = sin(val * 6.283*mult) * 32700;
-		readbuf[i] = (unsigned short) sval;
+		readbuf[i] = gpOneHertz[gOneHzPtr];
+		gOneHzPtr += gToneFreq;
+		if (gOneHzPtr >= m_SamplingRate)
+			gOneHzPtr -= m_SamplingRate;
 	}
 	fWantPlayback = TRUE;
 
@@ -310,7 +297,6 @@ void playback()
 DWORD WINAPI EquProc(LPVOID lpParam)
 {
 	static  creatflag;
-
 
 	while (1)
 	{
@@ -360,10 +346,23 @@ init_sound:	This routine initializes the sound output device(s)
 */
 void init_sound(void)
 {
+	int		x;
+	double	w;
+
 	gExit = 0;
+
+	// Create sin table
+	gpOneHertz = malloc(m_SamplingRate * sizeof(unsigned short));
+	w = 2.0 * 3.14159 / (double) m_SamplingRate;
+	for (x = 0; x < m_SamplingRate; x++)
+	{
+		gpOneHertz[x] = (unsigned short) (sin(w * (double) x) * 32767.0);
+	}
+
 	return;
 
 #ifdef _WIN32
+	// Start thread to handle Sound I/O
 	g_hEquThread = (HANDLE)_beginthreadex(0,0,EquProc,0,0,&dwThreadID);
 #endif
 }
@@ -371,13 +370,14 @@ void init_sound(void)
 
 /*
 ==================================================================
-init_sound:	This routine deinitializes the sound output device(s)
-			for tone generations.
+deinit_sound:	This routine deinitializes the sound output device(s)
+				for tone generations.
 ==================================================================
 */
 void deinit_sound(void)
 {
 	gExit = 1;
+	free(gpOneHertz);
 
 #ifdef _WIN32
 //	sndCloseOutput();
@@ -392,8 +392,11 @@ start_tone:	This routine starts a tone of specified frequency
 */
 void sound_start_tone(int freq)
 {
-	gToneFreq = freq;
-	gPlayTone = 1;
+	if (freq < m_SamplingRate / 2.0)
+	{
+		gToneFreq = freq;
+		gPlayTone = 1;
+	}
 }
 
 /*
@@ -432,7 +435,7 @@ void sound_toggle_speaker(int bitVal)
 	if ((delta < 5000) && (delta != 0.0))
 	{
 		gBeepOn = 1;
-		sound_start_tone((int) (1.0 / delta));
+		sound_start_tone((int) (60000.0 / delta));
 	}
 
 }

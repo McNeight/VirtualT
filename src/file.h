@@ -44,4 +44,16 @@ void cb_SaveToHost(Fl_Widget* w, void*);
 extern int		BasicSaveMode;
 extern int		COSaveMode;
 
+#ifdef	__APPLE__
+//JV 10/08/05
+char* ChooseWorkDir();
+
+#ifdef __cplusplus
+extern "C"
+#endif
+extern char path[255];
+
+//JV
+#endif
+
 #endif

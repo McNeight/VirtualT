@@ -48,11 +48,11 @@
 #include <ctype.h>
 
 #include "m100emu.h"
-#include "io.h"
 #include "serial.h"
 #include "setup.h"
 #include "memory.h"
 #include "memedit.h"
+#include "file.h"
 
 extern	Fl_Preferences virtualt_prefs;
 
@@ -146,6 +146,13 @@ void save_setup_preferences(void)
 
 void load_setup_preferences(void)
 {
+	#ifdef	__APPLE__
+		//JV 10/08/05
+		int ex;
+		char *ret;
+		//---------JV
+	#endif
+
 	// Load COM emulation settings
 	virtualt_prefs.get("ComMode", setup.com_mode,0);
 	virtualt_prefs.get("ComCmd",  setup.com_cmd,"", 128);
@@ -161,6 +168,29 @@ void load_setup_preferences(void)
 	// Load BCR emulation settings
 
 	// Load Sound emulation settings
+
+#ifdef	__APPLE__
+	//JV 08/10/05
+	// Load Path Preferences
+	ex=virtualt_prefs.get("Path",path,".",256);
+	if(ex==0) // no path in the pref file or pref file nonexistent 
+	{
+		ret=ChooseWorkDir(); // return the directory
+		if(ret==NULL) 
+			exit(-1); //nothing choose: do nothing....
+		else 
+		{
+			strcpy(path,ret);
+			#ifdef __unix__
+			strcat(path,"/");
+			#else
+			strcat(path,"\\");
+			#endif 
+			virtualt_prefs.set("Path",path); // set pref path
+		}
+	}
+	//JV
+#endif
 }
 
 /*
@@ -642,6 +672,10 @@ void cb_memory_OK(Fl_Widget* w, void*)
 
 	// Update Memory Editor
 	cb_MemoryEditorUpdate();
+
+	/* Reset the CPU */
+	resetcpu();
+	gExitLoop = 1;
 
 	// Destroy the window
 	gmsw->hide();
