@@ -606,6 +606,146 @@ void cb_reg_pc_changed(Fl_Widget* w, void*)
 
 /*
 ============================================================================
+Routine to handle Change to BC edit field
+============================================================================
+*/
+void cb_reg_bc_changed(Fl_Widget* w, void*)
+{
+	int				new_bc;
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegBC->value();
+	new_bc = str_to_i(pStr);
+
+	B = (new_bc >> 8) & 0xFF;
+	C = new_bc & 0xFF;
+
+	// Update B edit box
+	sprintf(str, cpuregs_ctrl.sBfmt, B);
+	cpuregs_ctrl.pRegB->value(str);
+
+	// Update C edit box
+	sprintf(str, cpuregs_ctrl.sCfmt, C);
+	cpuregs_ctrl.pRegC->value(str);
+}
+
+/*
+============================================================================
+Routine to handle Change to B edit field
+============================================================================
+*/
+void cb_reg_b_changed(Fl_Widget* w, void*)
+{
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegB->value();
+	B = str_to_i(pStr);
+
+	// Update B edit box
+	sprintf(str, cpuregs_ctrl.sBfmt, B);
+	cpuregs_ctrl.pRegB->value(str);
+
+	// Update BC edit box
+	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
+	cpuregs_ctrl.pRegBC->value(str);
+}
+
+/*
+============================================================================
+Routine to handle Change to C edit field
+============================================================================
+*/
+void cb_reg_c_changed(Fl_Widget* w, void*)
+{
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegC->value();
+	C = str_to_i(pStr);
+
+	// Update C edit box
+	sprintf(str, cpuregs_ctrl.sCfmt, C);
+	cpuregs_ctrl.pRegC->value(str);
+
+	// Update BC edit box
+	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
+	cpuregs_ctrl.pRegBC->value(str);
+}
+
+/*
+============================================================================
+Routine to handle Change to DE edit field
+============================================================================
+*/
+void cb_reg_de_changed(Fl_Widget* w, void*)
+{
+	int				new_de;
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegDE->value();
+	new_de = str_to_i(pStr);
+
+	D = (new_de >> 8) & 0xFF;
+	E = new_de & 0xFF;
+
+	// Update D edit box
+	sprintf(str, cpuregs_ctrl.sDfmt, D);
+	cpuregs_ctrl.pRegD->value(str);
+
+	// Update E edit box
+	sprintf(str, cpuregs_ctrl.sEfmt, E);
+	cpuregs_ctrl.pRegE->value(str);
+}
+
+/*
+============================================================================
+Routine to handle Change to D edit field
+============================================================================
+*/
+void cb_reg_d_changed(Fl_Widget* w, void*)
+{
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegD->value();
+	D = str_to_i(pStr);
+
+	// Update B edit box
+	sprintf(str, cpuregs_ctrl.sDfmt, D);
+	cpuregs_ctrl.pRegD->value(str);
+
+	// Update BC edit box
+	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
+	cpuregs_ctrl.pRegDE->value(str);
+}
+
+/*
+============================================================================
+Routine to handle Change to E edit field
+============================================================================
+*/
+void cb_reg_e_changed(Fl_Widget* w, void*)
+{
+	const char		*pStr;
+	char			str[20];
+
+	pStr = cpuregs_ctrl.pRegE->value();
+	E = str_to_i(pStr);
+
+	// Update C edit box
+	sprintf(str, cpuregs_ctrl.sEfmt, E);
+	cpuregs_ctrl.pRegE->value(str);
+
+	// Update DE edit box
+	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
+	cpuregs_ctrl.pRegDE->value(str);
+}
+
+/*
+============================================================================
 Routine to handle Change to HL edit field
 ============================================================================
 */
@@ -1389,31 +1529,37 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	// Register B  Edit Box
 	cpuregs_ctrl.pRegB = new Fl_Input(50, 69+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegB->deactivate();
+	cpuregs_ctrl.pRegB->callback(cb_reg_b_changed);
 	cpuregs_ctrl.pRegB->value("0x00");
 
 	// Register C Edit Box
 	cpuregs_ctrl.pRegC = new Fl_Input(150, 69+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegC->deactivate();
+	cpuregs_ctrl.pRegC->callback(cb_reg_c_changed);
 	cpuregs_ctrl.pRegC->value("0x00");
 
 	// Register BC Edit Box
 	cpuregs_ctrl.pRegBC = new Fl_Input(250, 69+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegBC->deactivate();
+	cpuregs_ctrl.pRegBC->callback(cb_reg_bc_changed);
 	cpuregs_ctrl.pRegBC->value("0x0000");
 
 	// Register D  Edit Box
 	cpuregs_ctrl.pRegD = new Fl_Input(50, 94+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegD->deactivate();
+	cpuregs_ctrl.pRegD->callback(cb_reg_d_changed);
 	cpuregs_ctrl.pRegD->value("0x00");
 
 	// Register E Edit Box
 	cpuregs_ctrl.pRegE = new Fl_Input(150, 94+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegE->deactivate();
+	cpuregs_ctrl.pRegE->callback(cb_reg_e_changed);
 	cpuregs_ctrl.pRegE->value("0x00");
 
 	// Register DE Edit Box
 	cpuregs_ctrl.pRegDE = new Fl_Input(250, 94+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegDE->deactivate();
+	cpuregs_ctrl.pRegDE->callback(cb_reg_de_changed);
 	cpuregs_ctrl.pRegDE->value("0x0000");
 
 	// Register H  Edit Box
