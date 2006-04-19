@@ -966,6 +966,16 @@ void load_opt_rom(void)
 			fread(gOptROM,1, OPTROMSIZE, fd);
 			fclose(fd);
 		}	
+
+		if (gReMem)
+		{
+			if (gModel == MODEL_T200)
+				for (c = 0; c < OPTROMSIZE; c++)
+					gReMemFlash1[0x20000 + c] = gOptROM[c];
+			else
+				for (c = 0; c < OPTROMSIZE; c++)
+					gReMemFlash1[0x10000 + c] = gOptROM[c];
+		}
 	}
 }
 
@@ -1008,6 +1018,12 @@ void set_ram_bank(unsigned char bank)
 				/* Loop through 24 1K RAM Blocks */
 				for (block = 40; block < 64; block++)
 					remem_copy_mmu_to_block(block);
+			}
+			else
+			{
+				// ReMem Normal mode not enabled - use system model
+				gRamBank = bank;
+				remem_copy_normal_to_system();
 			}
 		}
 	}
@@ -1219,6 +1235,8 @@ int remem_in(unsigned char port, unsigned char *data)
 				map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
 
 				gReMemSector++;				/* Increment to next sector */
+				if (gReMemSector >= REMEM_BLOCKS_PER_BANK)
+					gReMemSector = 0;
 				gReMemCounter = 0;			/* Clear sector counter */
 				gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
 						map * REMEM_MAP_SIZE + gReMemSector * REMEM_BANK_SIZE);
@@ -1462,6 +1480,8 @@ int remem_out(unsigned char port, unsigned char data)
 				map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
 
 				gReMemSector++;				/* Increment to next sector */
+				if (gReMemSector >= REMEM_BLOCKS_PER_BANK)
+					gReMemSector = 0;
 				gReMemCounter = 0;			/* Clear sector counter */
 				gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
 						map * REMEM_MAP_SIZE + gReMemSector * REMEM_BANK_SIZE);
