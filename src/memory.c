@@ -77,7 +77,10 @@ unsigned short get_memory16(unsigned short address)
 
 void set_memory8(unsigned short address, unsigned char data)
 {
-	remem_set8(address, data);
+	if (gReMem)
+		remem_set8(address, data);
+	else
+		gBaseMemory[address] = data;
 }
 
 void set_memory16(unsigned short address, unsigned short data)
