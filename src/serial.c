@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.5 2006/04/18 23:49:09 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -29,6 +29,9 @@
 
 #if defined(WIN32)
 #include <windows.h>
+#else
+#define TRUE (!0)
+#define FALSE (0)
 #endif
 #include <stdio.h>
 #include <string.h>

@@ -32,7 +32,7 @@ $(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
 ifndef FLTKDIR
 	@echo "FLTKDIR environment variable must be set first!"
 else
-	cd obj; gcc $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(LIBFILES) -o ../$@
+	cd obj; g++ $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(FLTKDIR)/src/Fl_Help_Dialog.o $(LIBFILES) -o ../$@
 	cd ..
 endif
 
@@ -66,7 +66,7 @@ periph.o:		periph.h serial.h setup.h display.h disassemble.h cpuregs.h
 serial.o:		serial.h setup.h display.h
 setup.o:		setup.h io.h serial.h memory.h memedit.h
 sound.c:		sound.h
-cpuregs.c:		cpuregs.h disassemble.h periph.h memedit.h cpu.h
+cpuregs.cpp:	cpuregs.h disassemble.h periph.h memedit.h cpu.h
 m100rom.o m102rom.o m200rom.o n8201rom.o romstrings.o: roms.h romstrings.h
 
 
