@@ -11,7 +11,7 @@ memory.c
 */
 
 #include <stdio.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 #include "VirtualT.h"
 #include "m100emu.h"
