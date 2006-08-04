@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.2 2004/08/31 15:08:56 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.5 2006/04/18 23:49:09 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+#include <stdlib.h>
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>

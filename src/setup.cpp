@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.4 2006/04/18 23:49:09 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -27,6 +27,7 @@
  * SUCH DAMAGE.
  */
 
+#include <stdlib.h>
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>

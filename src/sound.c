@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.2 2005/08/15 15:14:40 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.2 2006/04/18 23:49:09 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 

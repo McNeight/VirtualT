@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.5 2006/04/18 23:49:09 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.6 2006/06/13 04:36:30 jhoger Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -40,6 +40,7 @@
 #include "serial.h"
 #include "setup.h"
 #include "display.h"
+#include "gen_defs.h"
 
 ser_params_t	sp;
 
