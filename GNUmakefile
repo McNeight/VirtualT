@@ -1,17 +1,13 @@
 -include $(shell uname).mk
-CFLAGS		+=	-I $(FLTKDIR) -O6
-CPPFLAGS	+=	-I $(FLTKDIR)
-EXECUTABLE	=	virtualt
+EXECUTABLE	:=	virtualt
+VPATH		:=	src:obj
 
-FLTKCONFIG	=	$(FLTKDIR)/fltk-config
-VPATH		=	src:obj
+FLTKCONFIG	?=	fltk-config
 
 CFLAGS		+=	`$(FLTKCONFIG) --cflags --use-images`
-LDFLAGS		+=	`$(FLTKCONFIG) --ldstaticflags --use-images` -L /usr/X11R6/lib -L $(FLTKDIR)/lib
+CPPFLAGS	+=	`$(FLTKCONFIG) --cflags --use-images`
 
-OBJECTS		=	$(SOURCES:.c=.o)
-OBJECTSCPP	=	$(SOURCESCPP:.cpp=.o)
-LIBFILES	=	-lfltk -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lm -lc -lX11
+LIBFILES	=	-lm -lc -lX11
 OBJDIR		=   obj
 
 
@@ -21,6 +17,8 @@ OBJDIR		=   obj
 SOURCES		=	m100emu.c doins.c genwrap.c serial.c intelhex.c memory.c m100rom.c \
 				m200rom.c n8201rom.c romstrings.c sound.c io.c
 SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.cpp cpuregs.cpp
+OBJECTS		=	$(SOURCES:.c=.o)
+OBJECTSCPP	=	$(SOURCESCPP:.cpp=.o)
 
 
 # ========================
@@ -29,12 +27,8 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 all:			$(SOURCES) $(SOURCESCPP) $(EXECUTABLE)
 
 $(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
-ifndef FLTKDIR
-	@echo "FLTKDIR environment variable must be set first!"
-else
-	cd obj; g++ $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(FLTKDIR)/src/Fl_Help_Dialog.o $(LIBFILES) -o ../$@
+	cd obj; g++ $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) `$(FLTKCONFIG) --ldstaticflags --use-images` $(LIBFILES) -o ../$@
 	cd ..
-endif
 
 
 # ===============================
