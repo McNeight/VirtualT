@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.5 2006/04/18 23:49:09 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.6 2006/08/04 18:42:09 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -330,22 +330,22 @@ void get_rom_path(char* file, int model)
 	switch (model)
 	{
 	case MODEL_M100:
-		strcpy(file, "M100/M100rom.bin");
+		strcpy(file, "ROMs/M100rom.bin");
 		break;
 	case MODEL_M102:
-		strcpy(file, "M102/M102rom.bin");
+		strcpy(file, "ROMs/M102rom.bin");
 		break;
 	case MODEL_T200:
-		strcpy(file, "T200/T200rom.bin");
+		strcpy(file, "ROMs/T200rom.bin");
 		break;
 //	case MODEL_M10:
-//		strcpy(file, "m10/m10rom.bin");
+//		strcpy(file, "ROMs/m10rom.bin");
 //		break;
 	case MODEL_PC8201:
-		strcpy(file, "PC8201/PC8201rom.bin");
+		strcpy(file, "ROMs/N8201rom.bin");
 		break;
 	case MODEL_PC8300:
-		strcpy(file, "PC8300/PC8300rom.bin");
+		strcpy(file, "ROMs/PC8300rom.bin");
 		break;
 	}
 }
