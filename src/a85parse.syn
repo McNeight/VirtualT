@@ -1,0 +1,705 @@
+{
+// 8085 Assembler Parser Syntax
+
+// Written by Kenneth D. Pettit
+//	      This is an input syntax grammer for the Anagram LARL Parser Generator
+
+}
+
+[
+	auto resynch
+	disregard WS
+	disregard cstyle comment
+    distinguish lexemes
+	distinguish keywords { 'a-z'+'A-Z' + '0-9' + '_' + '$' + '-' + '+' + 'e' + 'E' }
+	case sensitive = off
+	lexeme { integer, literal name, register 8 bit, register 16 bit, hex integer,
+		decimal integer, real, simple real, literal string, label,  
+		string chars, include string, include chars, literal name, ascii integer,
+		escape char, asm hex value, singlequote chars, asm include,
+		singlequote string }
+	sticky { literal name, integer, label, string chars, decimal integer, ascii integer }
+	parser file name = ".\\#.cpp"
+]
+
+any text char   = ~eof - newline
+ascii           = 1..126
+WS	            = ' ' + '\t'
+digit           = '0-9'
+eof             = -1 + 0
+hex digit       = '0-9' + 'A-F' + 'a-f'
+newline         = '\n'
+letter          = 'a-z' + 'A-Z' + '_'
+string char     = ~eof - ('"' + '\\' + '\n')
+rst arg			= '0-7'
+asm incl char	= 'a-z' + 'A-Z' + '0-9' + '_' + '.' + '\\' + '/'
+PLUS			= '+'
+MINUS			= '-'
+
+/*
+============================================================================
+   Define the target token below.  This token is what the parser is trying 
+   to reduce the file to.  The token is a sequence of zero or more 
+   statements followed by an end-of-file 
+============================================================================
+*/
+a85parse $
+ -> { statement }...,
+    eof
+
+/*
+============================================================================
+   Define what a comment looks like.  We allow C, C++, and assembly style 
+   comments.
+============================================================================
+*/
+comment
+ -> "//", any text char?..., newline
+ -> ';', any text char?..., newline
+ -> ',', any text char?..., newline
+
+cstyle comment
+ -> "/*", ~eof..., "*/"
+
+
+/* 
+============================================================================
+   Define what any individual statement can look like 
+============================================================================
+*/
+statement
+ -> WS?..., expression, '\n'
+ -> WS?..., expression, comment
+ -> WS?..., comment
+ -> WS?..., newline
+ -> WS?..., cstyle comment
+
+expression
+ -> label
+ -> "include", literal string						= gAsm->include(ss[ss_idx--]);
+ -> "include", include string						= gAsm->include(ss[ss_idx--]);
+ -> "include", asm include							= gAsm->include(ss[ss_idx--]);
+ -> "#include", literal string 						= gAsm->include(ss[ss_idx--]);
+ -> "#include", include string						= gAsm->include(ss[ss_idx--]);
+ -> "#pragma", "list"								= gAsm->pragma_list();
+ -> "#pragma", "hex"								= gAsm->pragma_hex();
+ -> "#ifdef", literal name							= gAsm->preproc_ifdef(ss[ss_idx--]);
+ -> "#ifndef", literal name							= gAsm->preproc_ifndef(ss[ss_idx--]);
+ -> "#else"											= gAsm->preproc_else();
+ -> "#endif"										= gAsm->preproc_endif();
+ -> "#define", literal name							= gAsm->preproc_define(ss[ss_idx--]);
+ -> "#undef", literal name							= gAsm->preproc_undef(ss[ss_idx--]);
+ -> literal name, "equ", equation					= gAsm->equate(ss[ss_idx--]);
+ -> literal name, "set", equation					= gAsm->directive_set(ss[ss_idx--]);
+ -> label, "equ", equation							= gAsm->equate((const char *) -1);
+ -> label, "set", equation							= gAsm->directive_set((const char *) -1);
+ -> label?, "org", equation							= gAsm->directive_org();
+ -> label?, "aseg"									= gAsm->directive_aseg();
+ -> label?, "cseg"									= gAsm->directive_cseg(0);
+ -> label?, "dseg"									= gAsm->directive_dseg(0);
+ -> literal name, "ds", equation					= { gAsm->label(ss[ss_idx--]); gAsm->directive_ds(); }
+ -> label?, "ds", equation							= gAsm->directive_ds();
+ -> literal name, "db", expression list, WS?...		= { gAsm->label(ss[ss_idx--]); gAsm->directive_db(); }
+ -> label?, "db", expression list, WS?...			= gAsm->directive_db();
+ -> literal name, "dw", expression list, WS?...		= { gAsm->label(ss[ss_idx--]); gAsm->directive_dw(); }
+ -> label?, "dw", expression list, WS?...			= gAsm->directive_dw();
+ -> label?, "extrn", name list						= gAsm->directive_extern();
+ -> label?, "extern", name list						= gAsm->directive_extern();
+ -> label?, "public", name list						= gAsm->directive_public();
+ -> label?, "name", literal name					= gAsm->directive_name(ss[ss_idx--]);
+ -> label?, "stkln", equation						= gAsm->directive_stkln();
+ -> label?, "end"									= gAsm->directive_end("");
+ -> label?, "end", literal name						= gAsm->directive_end(ss[ss_idx--]);
+ -> label?, "if", condition, WS?...					= gAsm->directive_if();
+ -> label?, "else"									= gAsm->directive_else();
+ -> label?, "endif"									= gAsm->directive_endif();
+ -> label?, "title", singlequote string				= gAsm->directive_title(ss[ss_idx--]);
+ -> label?, "title", literal string					= gAsm->directive_title(ss[ss_idx--]);
+ -> label?, "page", WS..., integer:n				= gAsm->directive_page(n);
+ -> label?, "page"									= gAsm->directive_page(-1);
+ -> label?, "sym"									= gAsm->directive_sym();
+ -> label?, "link", asm include						= gAsm->directive_link(ss[ss_idx--]);
+ -> label?, "maclib", literal name					= gAsm->directive_maclib(ss[ss_idx--]);
+ -> label?, instruction list, WS?...
+
+
+expression list
+ -> literal string									= expression_list_literal();
+ -> singlequote string
+ -> equation										= expression_list_equation();
+ -> expression list, WS?..., ",", WS?..., equation		= expression_list_equation();
+ -> expression list, WS?..., ",", WS?..., literal string	= expression_list_literal();
+ -> expression list, WS?..., ",", WS?..., singlequote string	= expression_list_literal();
+
+/*
+============================================================================
+   Define a literal name below.  A literal name is a sequence of letters 
+   with no space or punctuation between.
+============================================================================
+*/
+
+name list
+ -> literal name									= gNameList->Add(ss[ss_idx--]);
+ -> name list, WS?..., ",", WS?..., literal name					= gNameList->Add(ss[ss_idx--]);
+
+literal name
+ -> literal alpha
+ -> "$"												= { strcpy(ss[++ss_idx], "$"); ss_len = 1; }
+
+literal alpha
+ -> letter+'$':c									= { ss[++ss_idx][0] = c; ss[ss_idx][1] = 0; ss_len = 1; }
+ -> literal name, letter+'$':c						= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+ -> literal name, digit:c							= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+
+asm include
+ -> asm incl char:c									= { ss[++ss_idx][0] = c; ss[ss_idx][1] = 0; ss_len = 1; }
+ -> asm include, asm incl char:c					= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+
+singlequote string
+ -> singlequote chars, '\''
+
+singlequote chars
+ -> '\'', escape char:ch1, escape char:ch2			= { ss_idx++; ss_len = 2; sprintf(ss[ss_idx], "%c%c", ch1, ch2); }
+ -> singlequote chars, escape char:c				= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+
+literal string
+ -> string chars, '"'
+
+string chars
+ -> '"'												= { ss_idx++; ss_len = 0; }
+ -> string chars, string char:c						= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+ -> string chars, '\\', ~eof - '\n':c				= { ss[ss_idx][ss_len++] = '\\'; ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+ -> string chars, '\\', '\n'
+
+include string
+ -> include chars, '>'								= { ss[ss_idx][ss_len++] = '>'; ss[ss_idx][ss_len] = 0; }
+
+include chars
+ -> '<'												= { ss[++ss_idx][0] = '<'; ss[ss_idx][1] = 0; ss_len = 1; }
+ -> include chars, string char - '>':c				= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+ -> include chars, '\\', ~eof - '\n':c				= { ss[ss_idx][ss_len++] = '\\'; ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+ -> include chars, '\\', '\n'
+
+label
+ -> literal name, ":"								= gAsm->label(ss[ss_idx--]);
+
+
+/* 
+============================================================================
+   Define conditions.  Conditions can be expressed using either the 
+   traditional 8085 assembly 'EQ', 'NE' format or using C format syntax
+   such as '==', '!-', etc.
+============================================================================
+*/
+condition
+ -> condition start, equation						= condition(-1);
+ -> equation										= condition(COND_NOCMP);
+
+condition start
+ -> equation, {"eq" | "==" | "="}					= condition(COND_EQ);
+ -> equation, {"ne" | "!="}							= condition(COND_NE);
+ -> equation, {"ge" | ">="}							= condition(COND_GE);
+ -> equation, {"le" | "<="}							= condition(COND_LE);
+ -> equation, {"gt" | ">"}							= condition(COND_GT);
+ -> equation, {"lt" | "<"}							= condition(COND_LT);
+
+condition start
+// -> equation										= { gCond->m_EqLeft = gEq; gEq = new CRpnEquation; }
+// -> equation, {"eq" | "==" | "="}, equation		= condition(COND_EQ);
+// -> equation, {"ne" | "!="}, equation				= condition(COND_NE);
+// -> equation, {"ge" | ">="}, equation				= condition(COND_GE);
+// -> equation, {"le" | "<="}, equation				= condition(COND_LE);
+// -> equation, {"gt" | ">"}, equation				= condition(COND_GT);
+// -> equation, {"lt" | "<"}, equation				= condition(COND_LT);
+
+/* 
+============================================================================
+   Define equations.  We support complex equations that consist of additive, 
+   multiplicative, bit and operators, and functions.  Order of presedence 
+   for these components follows standard algebraic presedence.
+============================================================================
+*/
+
+equation
+ -> inclusive or exp
+
+(void) inclusive or exp
+ -> exclusive or exp
+ -> inclusive or exp,'|',WS?..., exclusive or exp	= gEq->Add(RPN_BITOR);
+ -> inclusive or exp, "or", WS?...,exclusive or exp	= gEq->Add(RPN_BITOR);
+
+(void) exclusive or exp
+ -> and exp
+ -> exclusive or exp, '^', WS?..., and exp			= gEq->Add(RPN_BITXOR);
+ -> exclusive or exp, "xor", WS?..., and exp		= gEq->Add(RPN_BITXOR);
+
+(void) and exp
+ -> shift exp
+ -> and exp, '&', WS?..., shift exp					= gEq->Add(RPN_BITAND);
+ -> and exp, "and", WS?..., shift exp				= gEq->Add(RPN_BITAND);
+
+(void) shift exp
+ -> additive exp
+ -> shift exp, "<<", WS?..., additive exp			= gEq->Add(RPN_LEFTSHIFT);
+ -> shift exp, "shl", WS?..., additive exp			= gEq->Add(RPN_LEFTSHIFT);
+ -> shift exp, ">>", WS?..., additive exp			= gEq->Add(RPN_RIGHTSHIFT);
+ -> shift exp, "shr", WS?..., additive exp			= gEq->Add(RPN_RIGHTSHIFT);
+
+(void) additive exp
+ -> multiplicative exp
+ -> additive exp, '+', WS?..., multiplicative exp	= gEq->Add(RPN_ADD);
+ -> additive exp, '-', WS?..., multiplicative exp	= gEq->Add(RPN_SUBTRACT);
+
+(void) multiplicative exp
+// -> primary exp
+ -> urinary exp
+ -> multiplicative exp, '*', WS?..., primary exp	= gEq->Add(RPN_MULTIPLY);
+ -> multiplicative exp, '/', WS?..., primary exp	= gEq->Add(RPN_DIVIDE);
+ -> multiplicative exp, '%', WS?..., primary exp	= gEq->Add(RPN_MODULUS);
+ -> multiplicative exp, "mod", WS?..., primary exp	= gEq->Add(RPN_MODULUS);
+ -> multiplicative exp, "**", WS?..., primary exp	= gEq->Add(RPN_EXPONENT);
+
+urinary exp
+ -> primary exp
+ -> '!', primary exp								= gEq->Add(RPN_NOT);
+ -> "not", primary exp								= gEq->Add(RPN_NOT);
+ -> '~', primary exp								= gEq->Add(RPN_BITNOT);
+
+primary exp
+ -> value:n											= gEq->Add((double) n);
+ -> literal name									= gEq->Add(ss[ss_idx--]);
+ -> function
+ -> '(', equation, ')', WS?...
+
+(void) function
+-> "floor", '(', equation, ')'						= gEq->Add(RPN_FLOOR);
+-> "ceil", '(', equation, ')'						= gEq->Add(RPN_CEIL);
+-> "ln", '(', equation, ')'							= gEq->Add(RPN_LN);
+-> "log", '(', equation, ')'						= gEq->Add(RPN_LOG);
+-> "sqrt", '(', equation, ')'						= gEq->Add(RPN_SQRT);
+-> "ip", '(', equation, ')'							= gEq->Add(RPN_IP);
+-> "fp", '(', equation, ')'							= gEq->Add(RPN_FP);
+
+/* 
+============================================================================
+	Define what values look like
+============================================================================
+*/
+
+(double) value
+ -> integer:n										= n;
+ -> real:r											= r;
+
+(int) integer
+ -> ascii integer:n									= n;
+ -> decimal integer									= conv_to_dec();
+ -> hex integer										= conv_to_hex();
+ -> asm hex	value, "h"								= conv_to_hex();
+ -> decimal integer, "h"							= conv_to_hex();
+ -> decimal integer, "b"							= conv_to_bin();
+ -> decimal integer, "q"							= conv_to_oct();
+ -> decimal integer, "d"							= conv_to_dec();
+
+decimal integer
+ -> '+', '0-9':n									= { int_len = 1; integer[0] = n; integer[1] = 0; }
+ -> '-', '0-9':n									= { int_len = 2; integer[0] = '-', integer[1] = n; integer[2] = 0; }
+ -> '0-9':n											= { int_len = 1; integer[0] = n; integer[1] = 0; }
+ -> decimal integer, '0-9':n						= { integer[int_len++] = n; integer[int_len] = 0; }
+ -> decimal integer, '_'
+ -> decimal integer, '$'
+
+hex integer
+ -> '0', 'x' + 'X', hex digit:n						= { int_len = 1; integer[0] = n; integer[1] = 0; }
+ -> hex integer, hex digit:n						= { integer[int_len++] = n; integer[int_len] = 0; }
+
+asm hex value
+ -> decimal integer, 'A-F' + 'a-f':n				= { integer[int_len++] = n; integer[int_len] = 0; }
+ -> asm hex value, hex digit:n						= { integer[int_len++] = n; integer[int_len] = 0; }
+
+(int) ascii integer
+ -> '\'', escape char:n, '\''						= n;
+ -> "'\\'"											= '\\';
+
+(int) escape char
+ -> ascii - '\\' - '\'':n							= n;
+ -> '\\', '\\'										= '\\';
+ -> '\\', 'n'										= '\n';
+ -> '\\', 't'										= '\t';
+ -> '\\', 'r'										= '\r';
+ -> '\\', '0'										= '\0';
+ -> "''"											= '\'';
+ -> '\\', '\''										= '\'';
+
+(double) real
+ -> simple real
+
+(double) simple real
+ -> decimal integer, '.'							= { gDivisor = 1.0; return (double) conv_to_dec(); }
+ -> '.', '0-9':d									= { gDivisor = 10.0; return ((double) (d - '0') / gDivisor); }
+ -> simple real:r, '0-9':d							= { gDivisor *= 10.0; return (r + (double) (d - '0') / gDivisor); }
+
+
+/* 
+============================================================================
+	Define what registers look like
+============================================================================
+*/
+
+register 8 bit
+ -> "b"												= reg[reg_cnt++] = '0';
+ -> "c"												= reg[reg_cnt++] = '1';
+ -> "d"												= reg[reg_cnt++] = '2';
+ -> "e"												= reg[reg_cnt++] = '3';
+ -> "h"												= reg[reg_cnt++] = '4';
+ -> "l"												= reg[reg_cnt++] = '5';
+ -> "m"												= reg[reg_cnt++] = '6';
+ -> "a"												= reg[reg_cnt++] = '7';
+
+register 16 bit
+ -> "b"												= reg[reg_cnt++] = '0';
+ -> "d"												= reg[reg_cnt++] = '1';
+ -> "h"												= reg[reg_cnt++] = '2';
+ -> "sp"											= reg[reg_cnt++] = '3';
+
+stack register
+ -> "b"												= reg[reg_cnt++] = '0';
+ -> "d"												= reg[reg_cnt++] = '1';
+ -> "h"												= reg[reg_cnt++] = '2';
+ -> "psw"											= reg[reg_cnt++] = '3';
+ -> "a"												= reg[reg_cnt++] = '3';
+
+bd register
+ -> "b"												= reg[reg_cnt++] = '0';
+ -> "d"												= reg[reg_cnt++] = '1';
+
+/* 
+============================================================================
+	Define the 8085 instruction set
+============================================================================
+*/
+instruction list
+ -> instruction
+ -> instruction list, WS?..., '!'
+ -> instruction list, WS?..., instruction
+
+instruction
+ -> "aci", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_ACI);
+ -> "adc", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_ADC);
+ -> "add", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_ADD);
+ -> "adi", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_ADI);
+ -> "ana", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_ANA);
+ -> "ani", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_ANI);
+ -> "ashr"											= gAsm->opcode_arg_0		(OPCODE_ASHR);
+ -> "call", WS?..., equation						= gAsm->opcode_arg_equ16	(OPCODE_CALL);
+ -> "cc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CC);
+ -> "cm", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CM);
+ -> "cma"											= gAsm->opcode_arg_0		(OPCODE_CMA);
+ -> "cmc"											= gAsm->opcode_arg_0		(OPCODE_CMC);
+ -> "cmp", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_CMP);
+ -> "cnc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CNC);
+ -> "cnz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CNZ);
+ -> "cp", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CP);
+ -> "cpe", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CPE);
+ -> "cpi", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_CPI);
+ -> "cpo", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CPO);
+ -> "cz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_CZ);
+ ->	"daa"											= gAsm->opcode_arg_0		(OPCODE_DAA);
+ -> "dad", WS?..., register 16 bit					= gAsm->opcode_arg_1reg		(OPCODE_DAD);
+ -> "dcr", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_DCR);
+ -> "dcx", WS?..., register 16 bit					= gAsm->opcode_arg_1reg		(OPCODE_DCX);
+ -> "di"											= gAsm->opcode_arg_0		(OPCODE_DI);
+ -> "dsub"											= gAsm->opcode_arg_0		(OPCODE_DSUB);
+ -> "ei"											= gAsm->opcode_arg_0		(OPCODE_EI);
+ -> "hlt"											= gAsm->opcode_arg_0		(OPCODE_HLT);
+ -> "in", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_IN);
+ -> "inr", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_INR);
+ -> "inx", WS?..., register 16 bit					= gAsm->opcode_arg_1reg		(OPCODE_INX);
+ -> "jc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JC);
+ -> "jd", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JD);
+ -> "jx", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JD);
+ -> "jm", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JM);
+ -> "jmp", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JMP);
+ -> "jnc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JNC);
+ -> "jnd", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JND);
+ -> "jnx", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JND);
+ -> "jnz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JNZ);
+ -> "jp", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JP);
+ -> "jpe", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JPE);
+ -> "jpo", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JPO);
+ -> "jz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JZ);
+ -> "lda", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_LDA);
+ -> "ldax", WS?..., bd register						= gAsm->opcode_arg_1reg		(OPCODE_LDAX);
+ -> "ldeh", WS?..., equation						= gAsm->opcode_arg_equ8		(OPCODE_LDEH);
+ -> "ldes", WS?..., equation						= gAsm->opcode_arg_equ8		(OPCODE_LDES);
+ -> "lhld", WS?..., equation						= gAsm->opcode_arg_equ16	(OPCODE_LHLD);
+ -> "lhlx"											= gAsm->opcode_arg_0		(OPCODE_LHLX);
+ -> "lxi", WS?..., register 16 bit, WS?..., ',',
+		WS?..., equation							= gAsm->opcode_arg_1reg_equ8(OPCODE_LXI);
+ -> "mov", WS?..., register 8 bit, WS?..., 
+		",", WS?..., register 8 bit					= gAsm->opcode_arg_2reg		(OPCODE_MOV);
+ -> "mvi", WS?..., register 8 bit,WS?..., 
+		",", WS?..., equation						= gAsm->opcode_arg_1reg_equ8(OPCODE_MVI);
+ -> "nop"											= gAsm->opcode_arg_0		(OPCODE_NOP);
+ -> "ora", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_ORA);
+ -> "ori", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_ORI);
+ -> "out", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_OUT);
+ -> "pchl"											= gAsm->opcode_arg_0		(OPCODE_PCHL);
+ -> "pop", WS?..., stack register					= gAsm->opcode_arg_1reg		(OPCODE_POP);
+ -> "push", WS?..., stack register					= gAsm->opcode_arg_1reg		(OPCODE_PUSH);
+ -> "ral"											= gAsm->opcode_arg_0		(OPCODE_RAL);
+ -> "rar"											= gAsm->opcode_arg_0		(OPCODE_RAR);
+ -> "rc"											= gAsm->opcode_arg_0		(OPCODE_RC);
+ -> "ret"											= gAsm->opcode_arg_0		(OPCODE_RET);
+ -> "rim"											= gAsm->opcode_arg_0		(OPCODE_RIM);
+ -> "rlc"											= gAsm->opcode_arg_0		(OPCODE_RLC);
+ -> "rlde"											= gAsm->opcode_arg_0		(OPCODE_RLDE);
+ -> "rm"											= gAsm->opcode_arg_0		(OPCODE_RM);
+ -> "rnc"											= gAsm->opcode_arg_0		(OPCODE_RNC);
+ -> "rnz"											= gAsm->opcode_arg_0		(OPCODE_RNZ);
+ -> "rp"											= gAsm->opcode_arg_0		(OPCODE_RP);
+ -> "rpe"											= gAsm->opcode_arg_0		(OPCODE_RPE);
+ -> "rpo"											= gAsm->opcode_arg_0		(OPCODE_RPO);
+ -> "rrc"											= gAsm->opcode_arg_0		(OPCODE_RRC);
+ -> "rst", WS?..., rst arg:c						= gAsm->opcode_arg_imm		(OPCODE_RST, c);
+ -> "rz"											= gAsm->opcode_arg_0		(OPCODE_RZ);
+ -> "sbb", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_SBB);
+ -> "sbi", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_SBI);
+ -> "shld", WS?..., equation						= gAsm->opcode_arg_equ16	(OPCODE_SHLD);
+ -> "shlx"											= gAsm->opcode_arg_0		(OPCODE_SHLX);
+ -> "sim"											= gAsm->opcode_arg_0		(OPCODE_SIM);
+ -> "sphl"											= gAsm->opcode_arg_0		(OPCODE_SPHL);
+ -> "sta", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_STA);
+ -> "stax", WS?..., bd register						= gAsm->opcode_arg_1reg		(OPCODE_STAX);
+ -> "stc"											= gAsm->opcode_arg_0		(OPCODE_STC);
+ -> "sub", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_SUB);
+ -> "sui", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_SUI);
+ -> "xchg"											= gAsm->opcode_arg_0		(OPCODE_XCHG);
+ -> "xra", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_XRA);
+ -> "xri", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_XRI);
+ -> "xthl"											= gAsm->opcode_arg_0		(OPCODE_XTHL);
+
+ 
+
+{                       //  Embedded C
+
+#include "MString.h"							// Include MString header
+#include "MStringArray.h"						// Include MStringArray header
+#include "assemble.h"							// Include VTAssembler header
+
+#ifndef BOOL
+typedef int     BOOL;
+#endif
+
+#ifndef TRUE
+#define TRUE    1
+#define FALSE   0
+#endif
+
+VTAssembler*            gAsm = 0;				// Pointer to the assembler
+CRpnEquation*			gEq = 0;				// Pointer to active equation
+VTObArray*				gExpList = 0;			// Pointer to active expression list
+MStringArray*			gNameList = 0;			// Pointer to active name list
+CCondition*				gCond = 0;				// Pointer to active condition
+char					ss[32][256];			// String Stack;
+char					integer[64];			// Integer storage space
+char					int_len = 0;			// Integer string length
+int						ss_idx = 0;				// String Stack Index
+int						ss_len = 0;				// SS string length 
+double                  gDivisor = 1.0;			// Current divisor for float converwions
+int						gTabSize = 4;
+char					reg[10];				// Register arguments
+int						reg_cnt = 0;			// Register Arg count
+int						label = 0;				// Number of labels on string stack
+int						name_list_cnt = 0;		// Number of strings in name list
+int						ex_cnt = 0;				// Number of expressions in expression list
+
+void a85parse(void);
+
+// This function checks the string accumulator for errors
+// parsing the file.  If there are no errors, check the string
+// accumulator to insure it is empty.  If anything is left in the
+// accumulator, then there is an error with our parser.
+void check_string_stack(void)
+{
+	// If we have no errors...
+	if (gAsm->m_Errors.GetSize() == 0)
+	{
+		// Check string accumulator size
+		int stringCount;
+		if ((stringCount = ss_idx) != 0)
+		{
+			MString string;
+			string.Format("Internal Design Parse Error - %d string(s) left on stack!",
+				stringCount);
+			gAsm->m_Errors.Add(string);
+		}
+	}
+}
+
+// ParseDesignFile is the entry point for parsing design files.  The full path of
+// the design file should be passed as the only parameter.  If the design file is
+// parsed successfully, the routine will return TRUE, otherwise it will return
+// FALSE.
+BOOL ParseASMFile(const char* filename, VTAssembler* pAsm)
+{
+	if (pAsm == NULL)
+		return FALSE;
+
+	gAsm = pAsm;
+
+	// Clear old design from the CDesign object
+	gAsm->ResetContent();
+
+	// Insure no active equation left over from a previous run
+	if (gEq != 0)
+		delete gEq;
+	if (gExpList != 0)
+		delete gExpList;
+	if (gNameList != 0)
+		delete gNameList;
+	if (gCond != 0)
+		delete gCond;
+
+	// Allocate an active equation to be used during parsing
+	gEq = new CRpnEquation;
+	gExpList = new VTObArray;
+	gNameList = new MStringArray;
+	gCond = new CCondition;
+	gAsm->m_FileIndex = gAsm->m_Filenames.Add(filename);
+
+	// Try to open the file
+	if ((gAsm->m_fd = fopen(gAsm->m_Filenames[gAsm->m_FileIndex], "r")) == 0)
+		return FALSE;
+
+	// Reset the string stack
+	ss_idx = 0;
+	ss_len = 0;
+	int_len = 0;
+
+	// Reset the Register, name, expression, and label counters
+	reg_cnt = label = ex_cnt = name_list_cnt = 0;
+
+	// Parse the file.
+	a85parse();
+
+	fclose(gAsm->m_fd);
+
+	// Check for parser errors
+	check_string_stack();
+
+	// Check if errors occured
+	int count = gAsm->m_Errors.GetSize();
+	if (count != 0)
+		return FALSE;
+
+	// No errors!
+	return TRUE;
+}
+
+// Define macros to handle input and errors
+
+#define TAB_SPACING gTabSize
+
+#define GET_INPUT ((PCB).input_code = gAsm->m_fd != 0 ? \
+	fgetc(gAsm->m_fd) : 0)
+
+#define SYNTAX_ERROR {MString string;  string.Format("%s, line %d, column %d", \
+  (PCB).error_message, (PCB).line, (PCB).column); gAsm->m_Errors.Add(string); }
+
+#define PARSER_STACK_OVERFLOW {MString string;  string.Format(\
+   "\nParser stack overflow, line %d, column %d",\
+   (PCB).line, (PCB).column); gAsm->m_Errors.Add(string);}
+
+#define REDUCTION_TOKEN_ERROR {MString string;  string.Format(\
+    "\nReduction token error, line %d, column %d", \
+    (PCB).line, (PCB).column); gAsm->m_Errors.Add(string);}
+
+int do_hex(int h, int n)
+{
+	int temp1, temp2;
+
+	temp2 = h * 16;
+	temp1 = (n <='9' ? n-'0' : (n | 0x60) - 'a' + 10);
+	temp1 += temp2;
+	return temp1;
+}
+
+void expression_list_literal()
+{
+	CExpression *pExp = new CExpression;
+
+	pExp->m_Literal = ss[ss_idx--];
+	gExpList->Add(pExp);
+}
+
+void expression_list_equation()
+{
+	CExpression *pExp = new CExpression;
+
+	pExp->m_Equation = gEq;
+	gEq = new CRpnEquation;
+
+	gExpList->Add(pExp);
+}
+
+void condition(int condition)
+{
+	if (condition == -1)
+	{
+		// Get Right hand side equation
+		gCond->m_EqRight = gEq;
+	}
+	else
+	{
+		// Save conditional
+		gCond->m_Condition = condition;
+		gCond->m_EqLeft = gEq;
+	}
+
+		// Assign new equation for parser
+	gEq = new CRpnEquation;
+}
+
+int conv_to_hex()
+{
+	int temp1;
+
+	sscanf(integer, "%x", &temp1);
+	
+	return temp1;
+}
+
+int conv_to_dec()
+{
+	int temp1;
+
+	sscanf(integer, "%d", &temp1);
+	
+	return temp1;
+}
+
+int conv_to_oct()
+{
+	int temp1;
+
+	sscanf(integer, "%o", &temp1);
+	
+	return temp1;
+}
+
+int conv_to_bin()
+{
+	int temp1, x;
+
+	temp1 = 0;
+	x = 0;
+
+	while (integer[x] != 0)
+		temp1 = (temp1 << 1) + integer[x++] - '0';
+		
+	return temp1;
+}
+
+}                       // End of Embedded C
+
+

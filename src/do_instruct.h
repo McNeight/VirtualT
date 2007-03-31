@@ -29,62 +29,49 @@
 
 
 #define LXI(rp,h,l,rps)	{ \
-							INCPC; \
-							l=INS; \
-							INCPC; \
-							h=INS; \
-							INCPC; \
-							cpu_delay(10); \
+							l=INS_INC; \
+							h=INS_INC; \
+							cycle_delta+=10; \
 						}
 
 #define STAX(rp,rps)	{ \
-							INCPC; \
 							MEMSET(rp,A); \
-							cpu_delay(7); \
+							cycle_delta+=7; \
 						}
 
 #define INX(rp,h,l,rps)	{ \
-							INCPC; \
-							l++; \
 							F &= ~XF_BIT; \
-							if(!l) { \
+							if(!(++l)) { \
 								h++; \
 								F |= XF_BIT; \
 							} \
-							cpu_delay(6); \
+							cycle_delta += 6; \
 						}
 
 #define INR(r,rs)		{ \
-							INCPC; \
-							r++; \
-							if(r&0x0f==0) /* Low order nybble wrapped */ \
+							if((++r)&0x0f==0) /* Low order nybble wrapped */ \
 								j=1; \
 							else \
 								j=0; \
 							setflags(r,-1,-1,j,-1,-2, (r==0x80) || (r==0), -2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define DCR(r,rs)		{ \
-							INCPC; \
-							r--; \
-							if(r&0x0f==0x0f) /* Low order nybble wrapped */ \
+							if((--r)&0x0f==0x0f) /* Low order nybble wrapped */ \
 								j=1; \
 							else \
 								j=0; \
 							setflags(r,-1,-1,j,-1,-2, (r==0xFF) || (r==0x7F), -2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define MVI(r,rs)		{ \
-							INCPC; \
-							r=INS; \
-							INCPC; \
-							cpu_delay(7); \
+							r=INS_INC; \
+							cycle_delta += 7; \
 						}
 
 #define DAD(rp,rps)		{ \
-							INCPC; \
 							i=HL; \
 							i+=rp; \
 							j=(HL&0x8000)==(rp&0x8000); \
@@ -97,40 +84,35 @@
 							if (j) \
 								j = (HL&0x8000) != (rp&0x8000); \
 							setflags(0,-2,-2,-2,-2,i,j,-2 ); \
-							cpu_delay(10); \
+							cycle_delta += 10; \
 						}
 
 #define LDAX(rp,rps)	{ \
-							INCPC; \
 							A=MEM(rp); \
-							cpu_delay(7); \
+							cycle_delta += 7; \
 						}
 
 #define DCX(rp,h,l,rps)	{ \
-							INCPC; \
 							l--; \
 							F &= ~XF_BIT; \
 							if(l==0xff) { \
 								F |= XF_BIT; \
 								h--; \
 							} \
-							cpu_delay(6); \
+							cycle_delta += 6; \
 						}
 
 #define MOV(dest,src,ds,ss)	{ \
-							INCPC; \
 							dest=src; \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define MOVM(src,ss)	{ \
-							INCPC; \
 							MEMSET(HL, src); \
-							cpu_delay(7); \
+							cycle_delta += 7; \
 						}
 
 #define ADD(r,rs)		{ \
-							INCPC; \
 							i=A; \
 							i+=r; \
 							v=(A&0x80) == (r&0x80); \
@@ -143,11 +125,10 @@
 							if (v)	\
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define ADC(r,rs)		{ \
-							INCPC; \
 							i=A; \
 							i+=r; \
 							i+=(CF?1:0); \
@@ -161,11 +142,10 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define SUB(r,rs)		{ \
-							INCPC; \
 							i=A; \
 							i-=r; \
 							j = (((A & 0x0F)-(r & 0x0F)) & 0x10) >> 4; \
@@ -178,11 +158,10 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define SBB(r,rs)		{ \
-							INCPC; \
 							i=A; \
 							i-=r; \
 							i-=(CF?1:0); \
@@ -196,32 +175,28 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define ANA(r,rs)		{ \
-							INCPC; \
 							A&=r; \
 							setflags(A,-1,-1,1,-1,0,-2,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define XRA(r,rs)		{ \
-							INCPC; \
 							A^=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define ORA(r,rs)		{ \
-							INCPC; \
 							A|=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define CMP(r,rs)		{ \
-							INCPC; \
 							i=A; \
 							i-=r; \
 							if (i>0xFF) \
@@ -234,82 +209,74 @@
 							else \
 								v = 0; \
 							setflags(A-r,-1,-1,j,-1,i,v,-2); \
-							cpu_delay(4); \
+							cycle_delta += 4; \
 						}
 
 #define POP(rp,h,l,rps)	{ \
-							INCPC; \
 							l=MEM(SP); \
 							h=MEM(SP+1); \
 							INCSP2; \
-							cpu_delay(10); \
+							cycle_delta += 10; \
 						}
 
 #define PUSH(rp,h,l,rps)	{ \
-							INCPC; \
 							DECSP2; \
 							MEMSET(SP,l); \
 							MEMSET(SP+1,h); \
-							cpu_delay(12); \
+							cycle_delta += 12; \
 						}
 
 #define RST(num)		{ \
-							INCPC; \
 							DECSP2; \
 							MEMSET(SP,PCL); MEMSET(SP+1,PCH); \
 							PCH=0; \
 							PCL=8*num; \
-							cpu_delay(12); \
+							cycle_delta += 12; \
 						}
 
 #define CALL(cond,ins)	{ \
-							INCPC; \
 							INCPC2; \
 							if(cond) { \
 								DECSP2; \
 								MEMSET(SP,PCL); MEMSET(SP+1,PCH); /* MEM16(SP)=PC; */ \
 								DECPC2; \
 								SETPCINS16; \
-								cpu_delay(9); \
+								cycle_delta += 9; \
 							} \
-							cpu_delay(9); \
+							cycle_delta += 9; \
 						}
 
 #define	RETURN(cond,ins)	{ \
-							INCPC; \
 							if(cond) { \
 								PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */ \
 								INCSP2; \
-								cpu_delay(6); \
+								cycle_delta += 6; \
 							} \
-							cpu_delay(6); \
+							cycle_delta += 6; \
 						}
 
 #define JUMP(cond,ins)	{ \
-							INCPC; \
 							if(cond) { \
 								SETPCINS16; \
-								cpu_delay(3); \
+								cycle_delta += 3; \
 							} \
 							else \
 								INCPC2; \
-							cpu_delay(7); \
+							cycle_delta += 7; \
 						}
 
 {
-//	if(trace)
-//		p=op+sprintf(op,"%04x (%02x) ",PC,INS);
-	if(!(INS&0x80)) {
-		if(!(INS&0x40)) {
-			if(!(INS&0x20)) {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+	ins = INS_INC;
+	if(!(ins&0x80)) {
+		if(!(ins&0x40)) {
+			if(!(ins&0x20)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x00:	/* NOP */
-									INCPC;
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 								else {
@@ -318,7 +285,7 @@
 								}
 							}
 							else  {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x02:	/* STAX B */
 									STAX(BC,"B");
 								}
@@ -329,8 +296,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x04:	/* INR B */
 									INR(B,"B");
 								}
@@ -340,28 +307,26 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x06:	/* MVI B */
 									MVI(B,"B");
 								}
 								else {
 									/* case 0x07:	/* RLC */
-									INCPC;
 									i=A>>7;
 									A=(A<<1)|i;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x08:	/* DSUB */
-									INCPC;
 									i = HL < BC;// - (CF?1:0);
 									j = HL - BC;// - (CF?1:0);
 									v = (HL&0x8000) == (BC&0x8000);
@@ -370,7 +335,7 @@
 									if (v)
 										v = (HL&0x8000) != (BC&0x8000);
 									setflags(H | L,-2,-1,-2,-2,i,v,-2);
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 								else {
@@ -379,7 +344,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x0A:	/* LDAX B */
 									LDAX(BC,"B");
 								}
@@ -390,8 +355,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x0C:	/* INR C */
 									INR(C,"C");
 								}
@@ -401,18 +366,17 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x0E:	/* MVI C */
 									MVI(C,"C");
 								}
 								else {
 									/* case 0x0F:	/* RRC */
-									INCPC;
 									i=A<<7&0x80;
 									A=(A>>1)|i;
 									i>>=7;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
@@ -420,18 +384,17 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x10:	/* ASHR */
-									INCPC;
 									i = L & CF ;
 									j = HL >> 1;
 									L = j & 0xFF;
 									H = (H & 0x80) | ((j >> 8) & 0xFF);
 									setflags(0,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {
@@ -440,7 +403,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x12:	/* STAX D */
 									STAX(DE,"D");
 								}
@@ -451,8 +414,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x14:	/* INR D */
 									INR(D,"D");
 								}
@@ -462,35 +425,33 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x16:	/* MVI D */
 									MVI(D,"D");
 								}
 								else {
 									/* case 0x17:	/* RAL */
-									INCPC;
 									i=A>>7;
 									A<<=1;
 									A|=(CF?1:0);
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x18:	/* RLDE */
-									INCPC;
 									i = D & 0x80 ? 1 : 0;
 									j = DE << 1;
 									E = (j & 0xFF) | (CF ? 1 : 0);
 									D = (j >> 8) & 0xFF;
 									setflags(0,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 								else {
@@ -499,7 +460,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x1A:	/* LDAX D */
 									LDAX(DE,"D");
 								}
@@ -510,8 +471,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x1C:	/* INR E */
 									INR(E,"E");
 								}
@@ -521,18 +482,17 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x1E:	/* MVI E */
 									MVI(E,"E");
 								}
 								else {
 									/* case 0x1F:	/* RAR */
-									INCPC;
 									i=(A&0x01);
 									A>>=1;
 									A|=CF?0x80:0;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
@@ -541,15 +501,14 @@
 				}
 			}
 			else {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x20:	/* RIM */
-									INCPC;
 									A=IM;
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 								else {
@@ -558,14 +517,13 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x22:	/* SHLD */
-									INCPC;
 									MEMSET(INS16,L);
 									MEMSET(INS16+1,H);
 									/* MEM16(INS16)=HL; */
 									INCPC2;
-									cpu_delay(16);
+									cycle_delta += 16;
 									/* return; */
 								}
 								else {
@@ -575,8 +533,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x24:	/* INR H */
 									INR(H,"H");
 								}
@@ -586,13 +544,12 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x26:	/* MVI H */
 									MVI(H,"H");
 								}
 								else {
 									/* case 0x27:	/* DAA */
-									INCPC;
 									i=j=0;
 									/* Check if lower nibble greater than 9 */
 									if(((A&0x0F) > 9)) {
@@ -608,23 +565,22 @@
 										i|=0x60;/* Add 6 to upper nibble */
 									A+=i;
 									setflags(A,-1,-1,j,-1,i>>4?1:0,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */ /* Huh? */
 								}
 							}
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x28:	/* LDEH */
-									INCPC;
 									j = HL + INS;
 									INCPC;
 									E = j & 0xFF;
 									D = (j >> 8) & 0xFF;
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 								else {
@@ -633,13 +589,12 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x2A:	/* LHLD */
-									INCPC;
 									L=MEM(INS16);
 									H=MEM(INS16+1);
 									INCPC2;
-									cpu_delay(16);
+									cycle_delta += 16;
 								}
 								else {
 									/* case 0x2B:	/* DCX H */
@@ -648,8 +603,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x2C:	/* INR L */
 									INR(L,"L");
 								}
@@ -659,34 +614,32 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x2E:	/* MVI L */
 									MVI(L,"L");
 								}
 								else {
 									/* case 0x2F:	/* CMA */
-									INCPC;
 									A=~A;
-									cpu_delay(4);
+									cycle_delta += 4;
 								}
 							}
 						}
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x30:	/* SIM */
-									INCPC;
 									if (A & 0x08)	/* Check if Interrupt masking enabled */
 										IM=(IM & 0xF8) | (A&0x07);
 									/* Turn RST 7.5 pending off if bit 4 set */
 									if(A&0x10) {
 										IM&=0xBF;
 									}
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 								else {
@@ -695,12 +648,11 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x32:	/* STA */
-									INCPC;
 									MEMSET(INS16,A);
 									INCPC2;
-									cpu_delay(13);
+									cycle_delta += 13;
 									/* return; */
 								}
 								else {
@@ -710,59 +662,54 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x34:	/* INR M */
-									INCPC;
 									MEMSET(HL,(uchar) (M+1));
 									if(M&0x0f==0) /* Low order nybble wrapped */
 										j=1;
 									else
 										j=0;
 									setflags(M,-1,-1,j,-1,-2, (M==0x80) || (M==0), -2);
-									cpu_delay(10);
+									cycle_delta += 10;
 								}
 								else {
 									/* case 0x35:	/* DCR M */
-									INCPC;
 									MEMSET(HL, (uchar)(M-1));
 									if(M&0x0f==0x0f) /* Low order nybble wrapped */
 										j=1;
 									else 
 										j=0;
 									setflags(M,-1,-1,j,-1,-2, (M==0xFF) || (M==0x7F), -2);
-									cpu_delay(10);
+									cycle_delta += 10;
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x36:	/* MVI M */
-									INCPC;
 									MEMSET(HL,INS);
 									INCPC;
-									cpu_delay(10);
+									cycle_delta += 10;
 								}
 								else {
 									/* case 0x37:	/* STC */
-									INCPC;
 									setflags(0,-2,-2,-2,-2,1,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x38:	/* LDES */
-									INCPC;
 									j = SP + INS;
 									INCPC;
 									E = j & 0xFF;
 									D = (j >> 8) & 0xFF;
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 								else {
@@ -771,12 +718,11 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x3A:	/* LDA */
-									INCPC;
 									A=MEM(INS16);
 									INCPC2;
-									cpu_delay(13);
+									cycle_delta += 13;
 									/* return; */
 								}
 								else {
@@ -786,8 +732,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x3C:	/* INR A */
 									INR(A,"A");
 								}
@@ -797,15 +743,14 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x3E:	/* MVI A */
 									MVI(A,"A");
 								}
 								else {
 									/* case 0x3F:	/* CMC */
-									INCPC;
 									setflags(A,-2,-2,-2,-2,CF?0:1,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
@@ -815,12 +760,12 @@
 			}
 		}
 		else {
-			if(!(INS&0x20)) {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+			if(!(ins&0x20)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x40:	/* MOV B,B */
 									MOV(B,B,"B","B");
 								}
@@ -830,7 +775,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x42:	/* MOV B,D */
 									MOV(B,D,"B","D");
 								}
@@ -841,8 +786,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x44:	/* MOV B,H */
 									MOV(B,H,"B","H");
 								}
@@ -852,10 +797,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x46:	/* MOV B,M */
 									MOV(B,M,"B","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 									/* return; */
 								}
 								else {
@@ -866,9 +811,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x48:	/* MOV C,B */
 									MOV(C,B,"C","B");
 								}
@@ -878,7 +823,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x4A:	/* MOV C,D */
 									MOV(C,D,"C","D");
 								}
@@ -889,8 +834,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x4C:	/* MOV C,H */
 									MOV(C,H,"C","H");
 								}
@@ -900,10 +845,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x4E:	/* MOV C,M */
 									MOV(C,M,"C","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x4F:	/* MOV C,A */
@@ -914,10 +859,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x50:	/* MOV D,B */
 									MOV(D,B,"D","B");
 								}
@@ -927,7 +872,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x52:	/* MOV D,D */
 									MOV(D,D,"D","D");
 								}
@@ -938,8 +883,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x54:	/* MOV D,H */
 									MOV(D,H,"D","H");
 								}
@@ -949,10 +894,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x56:	/* MOV D,M */
 									MOV(D,M,"D","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x57:	/* MOV D,A */
@@ -962,9 +907,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x58:	/* MOV E,B */
 									MOV(E,B,"E","B");
 								}
@@ -974,7 +919,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x5A:	/* MOV E,D */
 									MOV(E,D,"E","D");
 								}
@@ -985,8 +930,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x5C:	/* MOV E,H */
 									MOV(E,H,"E","H");
 								}
@@ -996,10 +941,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x5E:	/* MOV E,M */
 									MOV(E,M,"E","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x5F:	/* MOV E,A */
@@ -1011,11 +956,11 @@
 				}
 			}
 			else {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x60:	/* MOV H,B */
 									MOV(H,B,"H","B");
 								}
@@ -1025,7 +970,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x62:	/* MOV H,D */
 									MOV(H,D,"H","D");
 								}
@@ -1036,8 +981,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x64:	/* MOV H,H */
 									MOV(H,H,"H","H");
 								}
@@ -1047,7 +992,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x66:	/* MOV H,M */
 									MOV(H,M,"H","M");
 								}
@@ -1059,9 +1004,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x68:	/* MOV L,B */
 									MOV(L,B,"L","B");
 								}
@@ -1071,7 +1016,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x6A:	/* MOV L,D */
 									MOV(L,D,"L","D");
 								}
@@ -1082,8 +1027,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x6C:	/* MOV L,H */
 									MOV(L,H,"L","H");
 								}
@@ -1093,10 +1038,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x6E:	/* MOV L,M */
 									MOV(L,M,"L","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x6F:	/* MOV L,A */
@@ -1107,10 +1052,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x70:	/* MOV M,B */
 									MOVM(B,"B");
 								}
@@ -1120,7 +1065,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x72:	/* MOV M,D */
 									MOVM(D,"D");
 								}
@@ -1131,8 +1076,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x74:	/* MOV M,H */
 									MOVM(H,"H");
 								}
@@ -1142,9 +1087,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x76:	/* HLT */
-									cpu_delay(4);
+									cycle_delta += 4;
+									DECPC;
 									/* return; */
 								}
 								else {
@@ -1155,9 +1101,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x78:	/* MOV A,B */
 									MOV(A,B,"A","B");
 								}
@@ -1167,7 +1113,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x7A:	/* MOV A,D */
 									MOV(A,D,"A","D");
 								}
@@ -1178,8 +1124,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x7C:	/* MOV A,H */
 									MOV(A,H,"A","H");
 								}
@@ -1189,10 +1135,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x7E:	/* MOV A,M */
 									MOV(A,M,"A","M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x7F:	/* MOV A,A */
@@ -1206,13 +1152,13 @@
 		}
 	}
 	else {
-		if(!(INS&0x40)) {
-			if(!(INS&0x20)) {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+		if(!(ins&0x40)) {
+			if(!(ins&0x20)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x80:	/* ADD B */
 									ADD(B,"B");
 								}
@@ -1222,7 +1168,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x82:	/* ADD D */
 									ADD(D,"D");
 								}
@@ -1233,8 +1179,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x84:	/* ADD H */
 									ADD(H,"H");
 								}
@@ -1244,10 +1190,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x86:	/* ADD M */
 									ADD(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x87:	/* ADD A */
@@ -1257,9 +1203,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x88:	/* ADC B */
 									ADC(B,"B");
 								}
@@ -1269,7 +1215,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x8A:	/* ADC D */
 									ADC(D,"D");
 								}
@@ -1280,8 +1226,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x8C:	/* ADC H */
 									ADC(H,"H");
 								}
@@ -1291,10 +1237,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x8E:	/* ADC M */
 									ADC(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x8F:	/* ADC A */
@@ -1305,10 +1251,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x90:	/* SUB B */
 									SUB(B,"B");
 								}
@@ -1318,7 +1264,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x92:	/* SUB D */
 									SUB(D,"D");
 								}
@@ -1329,8 +1275,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x94:	/* SUB H */
 									SUB(H,"H");
 								}
@@ -1340,10 +1286,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x96:	/* SUB M */
 									SUB(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x97:	/* SUB A */
@@ -1353,9 +1299,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x98:	/* SBB B */
 									SBB(B,"B");
 								}
@@ -1365,7 +1311,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x9A:	/* SBB D */
 									SBB(D,"D");
 								}
@@ -1376,8 +1322,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0x9C:	/* SBB H */
 									SBB(H,"H");
 								}
@@ -1387,10 +1333,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0x9E:	/* SBB M */
 									SBB(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0x9F:	/* SBB A */
@@ -1402,11 +1348,11 @@
 				}
 			}
 			else {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xA0:	/* ANA B */
 									ANA(B,"B");
 								}
@@ -1416,7 +1362,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xA2:	/* ANA D */
 									ANA(D,"D");
 								}
@@ -1427,8 +1373,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xA4:	/* ANA H */
 									ANA(H,"H");
 								}
@@ -1438,10 +1384,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xA6:	/* ANA M */
 									ANA(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0xA7:	/* ANA A */
@@ -1451,9 +1397,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xA8:	/* XRA B */
 									XRA(B,"B");
 								}
@@ -1463,7 +1409,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xAA:	/* XRA D */
 									XRA(D,"D");
 								}
@@ -1474,8 +1420,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xAC:	/* XRA H */
 									XRA(H,"H");
 								}
@@ -1485,10 +1431,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xAE:	/* XRA M */
 									XRA(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0xAF:	/* XRA A */
@@ -1499,10 +1445,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xB0:	/* ORA B */
 									ORA(B,"B");
 								}
@@ -1512,7 +1458,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xB2:	/* ORA D */
 									ORA(D,"D");
 								}
@@ -1523,8 +1469,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xB4:	/* ORA H */
 									ORA(H,"H");
 								}
@@ -1534,10 +1480,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xB6:	/* ORA M */
 									ORA(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0xB7:	/* ORA A */
@@ -1547,9 +1493,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xB8:	/* CMP B */
 									CMP(B,"B");
 								}
@@ -1559,7 +1505,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xBA:	/* CMP D */
 									CMP(D,"D");
 								}
@@ -1570,8 +1516,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xBC:	/* CMP H */
 									CMP(H,"H");
 								}
@@ -1581,10 +1527,10 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xBE:	/* CMP M */
 									CMP(M,"M");
-									cpu_delay(3);
+									cycle_delta += 3;
 								}
 								else {
 									/* case 0xBF:	/* CMP A */
@@ -1597,20 +1543,19 @@
 			}
 		}
 		else {
-			if(!(INS&0x20)) {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+			if(!(ins&0x20)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xC0:	/* RNZ */
-									INCPC;
 									if(!ZF) {
 										PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */
 										INCSP2;
-										cpu_delay(6);
+										cycle_delta += 6;
 									}
-									cpu_delay(6);
+									cycle_delta += 6;
 									/* return; */
 								}
 								else {
@@ -1619,7 +1564,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xC2:	/* JNZ addr */
 									JUMP(!ZF,"JNZ");
 								}
@@ -1630,8 +1575,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xC4:	/* CNZ addr */
 									CALL(!ZF,"CNZ");
 								}
@@ -1641,22 +1586,21 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xC6:	/* ADI n */
-									INCPC;
 									i=A;
 									i+=INS;
-									j = (((A&0x0F)+(INS&0x0F)) &0x10)>>4;
-									v = (A&0x80) == (INS&0x80);
+									j = (((A&0x0F)+(ins&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (ins&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
 									if (v)
-										v = (A&0x80) != (INS&0x80);
+										v = (A&0x80) != (ins&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									INCPC;
 									/* return; */
 								}
@@ -1668,9 +1612,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xC8:	/* RZ */
 									RETURN(ZF,"RZ");
 								}
@@ -1680,7 +1624,7 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xCA:	/* JZ addr */
 									JUMP(ZF,"JZ");
 								}
@@ -1692,8 +1636,8 @@
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xCC:	/* CZ addr */
 									CALL(ZF,"CZ");
 								}
@@ -1703,23 +1647,22 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xCE:	/* ACI n */
-									INCPC;
 									i=A;
 									i+=INS;
 									i+=(CF?1:0);
-									j = (((A&0x0F)+(INS&0x0F)+(CF?1:0)) &0x10)>>4;
-									v = (A&0x80) == (INS&0x80);
+									j = (((A&0x0F)+(ins&0x0F)+(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (ins&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
 									if (v)
-										v = (A&0x80) != (INS&0x80);
+										v = (A&0x80) != (ins&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									INCPC;
 									/* return; */
 								}
@@ -1732,10 +1675,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xD0:	/* RNC */
 									RETURN(!CF,"RNC");
 								}
@@ -1745,23 +1688,22 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xD2:	/* JNC addr */
 									JUMP(!CF,"JNC");
 								}
 								else {
 									/* case 0xD3:	/* OUT port */
-									INCPC;
 									out(INS,A);
 									INCPC;
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xD4:	/* CNC addr */
 									CALL(!CF,"CNC");
 								}
@@ -1771,22 +1713,21 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xD6:	/* SUI n */
-									INCPC;
 									i=A;
 									i-=INS;
-									j = (((A&0x0F)-(INS&0x0F)) &0x10)>>4;
-									v = (A&0x80) == (INS&0x80);
+									j = (((A&0x0F)-(ins&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (ins&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
 									if (v)
-										v = (A&0x80) != (INS&0x80);
+										v = (A&0x80) != (ins&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									INCPC;
 									/* return; */
 								}
@@ -1798,38 +1739,36 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xD8:	/* RC */
 									RETURN(CF,"RC");
 								}
 								else {
 									/* case 0xD9:	/* SHLX */
-									INCPC;
 									MEMSET(DE, L);
 									MEMSET(DE+1, H);
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xDA:	/* JC addr */
 									JUMP(CF,"JC");
 								}
 								else {
 									/* case 0xDB:	/* IN port */
-									INCPC;
 									A=inport(INS);
 									INCPC;
-									cpu_delay(10);
+									cycle_delta += 10;
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xDC:	/* CC addr */
 									CALL(CF,"CC");
 								}
@@ -1840,24 +1779,23 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xDE:	/* SBI n */
-									INCPC;
 									i=A;
 									i-=INS;
 									i-=(CF?1:0);
-									j = (((A&0x0F)-(INS&0x0F)-(CF?1:0)) &0x10)>>4;
-									v = (A&0x80) == (INS&0x80);
+									j = (((A&0x0F)-(ins&0x0F)-(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (ins&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
 									if (v)
-										v = (A&0x80) != (INS&0x80);
+										v = (A&0x80) != (ins&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
 									INCPC;
-									cpu_delay(7);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {
@@ -1870,11 +1808,11 @@
 				}
 			}
 			else {
-				if(!(INS&0x10)) {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+				if(!(ins&0x10)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xE0:	/* RPO */
 									RETURN(!PF,"RPO");
 								}
@@ -1884,13 +1822,12 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xE2:	/* JPO addr */
 									JUMP(!PF,"JPO");
 								}
 								else {
 									/* case 0xE3:	/* XTHL */
-									INCPC;
 									i=H;
 									j=L;
 									L=MEM(SP);
@@ -1899,14 +1836,14 @@
 									MEMSET(SP, (uchar) j);
 									MEMSET(SP+1, (uchar) i);
 									/* MEM16(SP)=i; */
-									cpu_delay(16);
+									cycle_delta += 16;
 									/* return; */
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xE4:	/* CPO addr */
 									CALL(!PF,"CPO");
 								}
@@ -1916,13 +1853,12 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xE6:	/* ANI n */
-									INCPC;
 									A=A&INS;
 									INCPC;
 									setflags(A,-1,-1,1,-1,0,-2,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {
@@ -1933,9 +1869,9 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xE8:	/* RPE */
 									RETURN(PF,"RPE");
 								}
@@ -1944,18 +1880,17 @@
 									PCH=H;
 									PCL=L;
 									/* PC=HL; */
-									cpu_delay(6);
+									cycle_delta += 6;
 									/* return; */
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xEA:	/* JPE addr */
 									JUMP(PF,"JPE");
 								}
 								else {
 									/* case 0xEB:	/* XCHG */
-									INCPC;
 									i=H;
 									H=D;
 									D=i;
@@ -1965,34 +1900,32 @@
 									/* i=HL; */
 									/* HL=DE; */
 									/* DE=i; */
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xEC:	/* CPE addr */
 									CALL(PF,"CPE");
 								}
 								else {
 									/* case 0xED:	/* LHLX */
-									INCPC;
 									L=MEM(DE);
 									H=MEM(DE+1);
-									cpu_delay(10);
+									cycle_delta += 10;
 									/* return; */
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xEE:	/* XRI n */
-									INCPC;
 									A=A^INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
-									cpu_delay(4);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {
@@ -2004,10 +1937,10 @@
 					}
 				}
 				else {
-					if(!(INS&0x08)) {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+					if(!(ins&0x08)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xF0:	/* RP */
 									RETURN(!SF,"RP");
 								}
@@ -2017,22 +1950,21 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xF2:	/* JP addr */
 									JUMP(!SF,"JP");
 								}
 								else {
 									/* case 0xF3:	/* DI */
-									INCPC;
 									IM|=0x08;
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xF4:	/* CP addr */
 									CALL(!SF,"CP");
 								}
@@ -2042,13 +1974,12 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xF6:	/* ORI n */
-									INCPC;
 									A=A|INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
-									cpu_delay(7);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {
@@ -2059,38 +1990,36 @@
 						}
 					}
 					else {
-						if(!(INS&0x04)) {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+						if(!(ins&0x04)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xF8:	/* RM */
 									RETURN(SF,"RM");
 								}
 								else {
 									/* case 0xF9:	/* SPHL */
-									INCPC;
 									SPH=H;
 									SPL=L;
-									cpu_delay(6);
+									cycle_delta += 6;
 									/* return; */
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xFA:	/* JM addr */
 									JUMP(SF,"JM");
 								}
 								else {
 									/* case 0xFB:	/* EI */
-									INCPC;
 									IM&=0xF7;
-									cpu_delay(4);
+									cycle_delta += 4;
 									/* return; */
 								}
 							}
 						}
 						else {
-							if(!(INS&0x02)) {
-								if(!(INS&0x01)) {
+							if(!(ins&0x02)) {
+								if(!(ins&0x01)) {
 									/* case 0xFC:	/* CM addr */
 									CALL(SF,"CM");
 								}
@@ -2101,23 +2030,22 @@
 								}
 							}
 							else {
-								if(!(INS&0x01)) {
+								if(!(ins&0x01)) {
 									/* case 0xFE:	/* CPI n */
-									INCPC;
 									i=A;
 									i-=INS;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
-									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
-									if ((A&0x80) == (INS&0x80))
-										v = (A&0x80) != (INS&0x80);
-									else
-										v = 0;
-									setflags(A-INS,-1,-1,j,-1,i,v,-2);
+//									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
+//									if ((A&0x80) == (ins&0x80))
+//										v = (A&0x80) != (ins&0x80);
+//									else
+//										v = 0;
+									setflags(A-INS,-1,-1,j,-1,i,0,-2);
 									INCPC;
-									cpu_delay(7);
+									cycle_delta += 7;
 									/* return; */
 								}
 								else {

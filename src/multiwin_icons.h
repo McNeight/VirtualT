@@ -1,9 +1,9 @@
-/* m100emu.h */
+/* multiwin_icons.cpp */
 
-/* $Id: m100emu.h,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
+/* $Id: multiwin_icons.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2006 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,51 +28,27 @@
  */
 
 
-#ifndef _M100EMU_H_
-#define _M100EMU_H_
+#ifndef MULTIWIN_ICONS_H
+#define	MULTIIWN_ICONS_H
 
-#include "gen_defs.h"
-#include "roms.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Pixmap.H>
 
+extern Fl_Pixmap gMultiWinDocIcon;
+extern Fl_Pixmap gCloseIcon;
+extern Fl_Pixmap gCloseIconSelected;
+extern Fl_Pixmap gCloseIconInactive;
+extern Fl_Pixmap gMinimizeIcon;
+extern Fl_Pixmap gMinimizeIconSelected;
+extern Fl_Pixmap gMinimizeIconInactive;
+extern Fl_Pixmap gMaximizeIcon;
+extern Fl_Pixmap gMaximizeIconSelected;
+extern Fl_Pixmap gMaximizeIconInactive;
+extern Fl_Pixmap gRestoreIcon;
+extern Fl_Pixmap gRestoreIconSelected;
+extern Fl_Pixmap gRestoreIconInactive;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern char  op[26];
-extern int trace;
-extern int fullspeed;
-extern int gExitApp;
-extern int gExitLoop;
-extern float cpu_speed;
-extern uchar *gMemory[64];
-extern RomDescription_t	 *gStdRomDesc;
-extern int   gModel;
-extern char gsOptRomFile[256];
-__inline double hirestimer(void);
-typedef void (*mem_monitor_cb)(void);
-typedef void (*debug_monitor_callback)();
-void	mem_set_monitor_callback(mem_monitor_cb cb);
-int		debug_set_monitor_callback(debug_monitor_callback pCallback);
-void	debug_clear_monitor_callback(debug_monitor_callback pCallback);
-extern	char	gDebugActive;
-extern	char	gStopped;
-extern	char	gSingleStep;
-extern	int		gDebugMonitorFreq;
-
-	
-int		check_model_support(int model);
-void	get_emulation_path(char* emu, int model);
-void	get_model_string(char* str, int model);
-void	get_rom_path(char* file, int model);
-void	init_cpu(void);
-//void	cpu_delay(int cy);
-void	resetcpu(void);
-void	cb_int65(void);
-
-#ifdef __cplusplus
-}
-#endif
-
+extern char * gMultiWinDoc_xpm[];
 
 #endif
+

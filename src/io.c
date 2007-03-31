@@ -667,7 +667,7 @@ void out(uchar port, uchar val)
 				if ((val & 0x04) && !(ioE8 & 0x04))
 				{
 					clock_chip_cmd();
-					break;
+//					break;
 				}
 			}
 
@@ -702,6 +702,8 @@ void out(uchar port, uchar val)
 						/* New pointer loaded - mark it as "fresh" */
 						if ((A & 0x3F) < 50)
 							lcd_fresh_ptr[c] = 1;
+						else
+							lcdcommand(c, A);
 					}
 				}
 			} 

@@ -31,7 +31,7 @@
 #ifndef _VIRTUALT_H_
 #define _VIRTUALT_H_
 
-#define VERSION	"0.7"
+#define VERSION	"0.9"
 
 enum {
 	 MODEL_M100
@@ -41,5 +41,9 @@ enum {
 	,MODEL_PC8300
 };
 
+#ifndef TRUE
+#define TRUE 1
+#define FALSE 0
+#endif
 
 #endif

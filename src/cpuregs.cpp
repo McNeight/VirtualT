@@ -50,6 +50,8 @@
 
 #define		MENU_HEIGHT	32
 
+void cb_Ide(Fl_Widget* w, void*) ;
+
 /*
 ============================================================================
 Global variables
@@ -66,15 +68,12 @@ int				gDebugMonitorFreq = 8192;
 // Menu items for the disassembler
 Fl_Menu_Item gCpuRegs_menuitems[] = {
   { "&Tools", 0, 0, 0, FL_SUBMENU },
-	{ "CPU Registers",         0, 0 },
-	{ "Assembler",             0, 0 },
+	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
-	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
 	{ 0 },
   { 0 }
 };
@@ -342,6 +341,14 @@ void debug_monitor_cb(int fMonType, unsigned char data)
 }
 }
 
+char get_m()
+{
+	if (gReMem)
+		return (gMemory[gIndex[HL]][HL & 0x3FF]);
+	else
+		return gBaseMemory[HL];
+}
+
 /*
 ============================================================================
 debug_cpuregs_cb:	This routine is the callback for the CPURegs Monitor
@@ -354,6 +361,10 @@ void debug_cpuregs_cb (void)
 	char	str[100];
 	char	flags[10];
 	int		x, len;
+
+	// Check for breakpoint
+	if (PC == 0x5797)
+		gStopped = 1;
 
 	if (!gStopped)
 		if (++gDebugCount < gDebugMonitorFreq)
@@ -410,7 +421,7 @@ void debug_cpuregs_cb (void)
 	cpuregs_ctrl.pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 
 	// Update flags
@@ -459,6 +470,7 @@ void debug_cpuregs_cb (void)
 			gDebugMonitorFreq = gSaveFreq;	
 		}
 	}
+
 }
 
 /*
@@ -770,7 +782,7 @@ void cb_reg_hl_changed(Fl_Widget* w, void*)
 	cpuregs_ctrl.pRegL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 	
 }
@@ -797,7 +809,7 @@ void cb_reg_h_changed(Fl_Widget* w, void*)
 	cpuregs_ctrl.pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 	
 }
@@ -824,7 +836,7 @@ void cb_reg_l_changed(Fl_Widget* w, void*)
 	cpuregs_ctrl.pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 	
 }
@@ -1289,7 +1301,7 @@ void cb_reg_m_hex(Fl_Widget* w, void*)
 	char str[8];
 
 	strcpy(cpuregs_ctrl.sMfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 
 	cpuregs_ctrl.pAllHex->value(0);
@@ -1306,7 +1318,7 @@ void cb_reg_m_dec(Fl_Widget* w, void*)
 	char str[8];
 
 	strcpy(cpuregs_ctrl.sMfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sMfmt, M);
+	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
 
 	cpuregs_ctrl.pAllHex->value(0);

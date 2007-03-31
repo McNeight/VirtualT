@@ -11,7 +11,8 @@ memory.c
 */
 
 #include <stdio.h>
-#include <stdlib.h>
+#include <malloc.h>
+#include <string.h>
 
 #include "VirtualT.h"
 #include "m100emu.h"
@@ -29,9 +30,11 @@ uchar			gMsplanROM[32768];	/* MSPLAN ROM T200 Only */
 extern char		path[255];
 extern char		file[255];
 
+int				gOptRomRW = 0;		/* Flag to make OptROM R/W */
 unsigned char	rambanks[3*32768];	/* Model T200 & NEC RAM banks */
 uchar			gRamBank = 0;		/* Currently enabled bank */
-int	gRomBank = 0;		/* Current ROM Bank selection */
+int				gRomBank = 0;		/* Current ROM Bank selection */
+int				gRomSize = 32768;   /* Current ROM Size for R/O calculation */
 
 uchar			gReMem = 0;			/* Flag indicating if ReMem emulation enabled */
 uchar			gReMemBoot = 0;		/* ALT boot flag */
@@ -85,8 +88,8 @@ void set_memory8(unsigned short address, unsigned char data)
 
 void set_memory16(unsigned short address, unsigned short data)
 {
-		remem_set8(address, (unsigned char) (data & 0xFF));
-		remem_set8(address+1, (unsigned char) (data >> 8));
+	set_memory8(address, (unsigned char) (data & 0xFF));
+	set_memory8((unsigned short)(address+1), (unsigned char) (data >> 8));
 }
 
 /*
@@ -108,7 +111,10 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = RAMSTART + address;
 		for (c = 0; c < count; c++)
 		{
-			data[c] = gMemory[addr>>10][addr&0x3FF];
+			if (gReMem)
+				data[c] = gMemory[addr>>10][addr&0x3FF];
+			else
+				data[c] = gBaseMemory[addr];
 			addr++;
 		}
 		break;
@@ -117,7 +123,10 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = address;
 		for (c = 0; c < count; c++)
 		{
-			data[c] = gMemory[addr>>10][addr&0x3FF];
+			if (gReMem)
+				data[c] = gMemory[addr>>10][addr&0x3FF];
+			else
+				data[c] = gBaseMemory[addr];
 			addr++;
 		}
 		break;
@@ -141,7 +150,10 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				data[c] = gMemory[addr>>10][addr&0x3FF];
+				if (gReMem)
+					data[c] = gMemory[addr>>10][addr&0x3FF];
+				else
+					data[c] = gBaseMemory[addr];
 				addr++;
 			}
 		}
@@ -160,7 +172,10 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				data[c] = gMemory[addr>>10][addr&0x3FF];
+				if (gReMem)
+					data[c] = gMemory[addr>>10][addr&0x3FF];
+				else
+					data[c] = gBaseMemory[addr];
 				addr++;
 			}
 		}
@@ -182,7 +197,10 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				data[c] = gMemory[addr>>10][addr&0x3FF];
+				if (gReMem)
+					data[c] = gMemory[addr>>10][addr&0x3FF];
+				else
+					data[c] = gBaseMemory[addr];
 				addr++;
 			}
 		}
@@ -263,7 +281,10 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = RAMSTART + address;
 		for (c = 0; c < count; c++)
 		{
-			gMemory[addr>>10][addr&0x3FF] = data[c];
+			if (gReMem)
+				gMemory[addr>>10][addr&0x3FF] = data[c];
+			else
+				gBaseMemory[addr] = data[c];
 			addr++;
 		}
 		break;
@@ -272,7 +293,10 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = address;
 		for (c = 0; c < count; c++)
 		{
-			gMemory[addr>>10][addr&0x3FF] = data[c];
+			if (gReMem)
+				gMemory[addr>>10][addr&0x3FF] = data[c];
+			else
+				gBaseMemory[addr] = data[c];
 			addr++;
 		}
 		break;
@@ -296,7 +320,10 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				gMemory[addr>>10][addr&0x3FF] = data[c];
+				if (gReMem)
+					gMemory[addr>>10][addr&0x3FF] = data[c];
+				else
+					gBaseMemory[addr] = data[c];
 				addr++;
 			}
 		}
@@ -315,7 +342,10 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				gMemory[addr>>10][addr&0x3FF] = data[c];
+				if (gReMem)
+					gMemory[addr>>10][addr&0x3FF] = data[c];
+				else
+					gBaseMemory[addr] = data[c];
 				addr++;
 			}
 		}
@@ -337,7 +367,10 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				gMemory[addr>>10][addr&0x3FF] = data[c];
+				if (gReMem)
+					gMemory[addr>>10][addr&0x3FF] = data[c];
+				else
+					gBaseMemory[addr] = data[c];
 				addr++;
 			}
 		}
@@ -446,6 +479,9 @@ void init_mem(void)
 	gReMem = (mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
 	gRampac = (mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
 
+	// Initialize ROM size base on current model
+	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
+
 	for (c = 0; c < 65536; c++)
 		gIndex[c] = c >> 10;
 
@@ -482,6 +518,13 @@ void init_mem(void)
 	}
 	else
 	{
+		/* Reset Rom Size back to original */
+		if (gModel == MODEL_T200)
+			gRomSize = 40960;
+		else
+			gRomSize = 32768;
+
+		/* Copy Memory */
 		for (c = 0; c < ROMSIZE/1024; c++)
 			gMemory[c] = &gSysROM[c*1024];
 
@@ -516,6 +559,9 @@ void init_mem(void)
 
 void reinit_mem(void)
 {
+	// Initialize ROM size base on current model
+	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
+
 	/* Check if ReMem emulation on */
 	if (gReMem)
 	{
@@ -1052,13 +1098,20 @@ void set_rom_bank(unsigned char bank)
 		case MODEL_M102:
 			gRomBank = bank;
 			if (bank & 0x01) 
+			{
 				memcpy(gBaseMemory,gOptROM,ROMSIZE);
+				gRomSize = gOptRomRW ? 0 : 32768;				
+			}	
 			else 
+			{
+				gRomSize = 32768;
 				memcpy(gBaseMemory,gSysROM,ROMSIZE);
+			}
 			break;
 
 		case MODEL_T200:	/* Model 200 emulation */
 			gRomBank = bank;
+			gRomSize = 40960;
 			switch (bank) {
 			case 0:
 				memcpy(gBaseMemory,gSysROM,ROMSIZE);
@@ -1068,6 +1121,7 @@ void set_rom_bank(unsigned char bank)
 				break;
 			case 2:
 				memcpy(gBaseMemory,gOptROM,sizeof(gOptROM));
+				gRomSize = gOptRomRW ? 0 : 40960;
 				break;
 			}
 			break;
@@ -1075,6 +1129,7 @@ void set_rom_bank(unsigned char bank)
 		case MODEL_PC8201:	/* NEC laptops */
 		case MODEL_PC8300:
 			gRomBank = bank;	/* Update global ROM bank var */
+			gRomSize = 32768;
 
 			switch (bank)
 			{
@@ -1084,6 +1139,7 @@ void set_rom_bank(unsigned char bank)
 
 			case 1:			/* Option ROM bank */
 				memcpy(gBaseMemory,gOptROM,ROMSIZE);
+				gRomSize = gOptRomRW ? 0 : 32768;
 				break;
 
 			case 2:			/* RAM banks */

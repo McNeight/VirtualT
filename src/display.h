@@ -40,6 +40,7 @@ extern int gDelayUpdateKeys;
 void init_pref(void);
 void init_display(void);
 void drawbyte(int driver, int column, int value);
+void lcdcommand(int driver, int value);
 void power_down();
 void process_windows_event();
 void display_cpu_speed(void);
@@ -58,14 +59,30 @@ public:
 	virtual void	SetByte(int driver, int col, uchar value);
 	virtual void	Command(int instruction, uchar data);
 	virtual void	Clear(void);
+	virtual void	Reset(void);
+
+	int				MultFact;
+	int				DisplayMode;
+	int				SolidChars;
+	int				DispHeight;
+
+	int				gRectsize;
+	int				gXoffset;
+	int				gYoffset;
+
+	int				m_DebugMonitor;
+
+	const virtual	T100_Disp& operator=(const T100_Disp& srcDisp);
 
 protected:
 	virtual int		handle(int event);
 	virtual void	draw();
+	__inline void	drawpixel(int x, int y, int color);
 	virtual void	draw_static();
 
 	int				m_MyFocus;
 	uchar			lcd[10][256];
+	uchar			top_row[10];
 
 };
 
@@ -77,6 +94,7 @@ public:
 	virtual void	Command(int instruction , uchar data);
 	virtual void	SetByte(int driver, int col, uchar value);
 	unsigned char	ReadPort(unsigned char port);
+	const virtual			T200_Disp& operator=(const T200_Disp& srcDisp);
 
 protected:
 	virtual void	draw();

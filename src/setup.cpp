@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.4 2006/04/18 23:49:09 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -27,7 +27,6 @@
  * SUCH DAMAGE.
  */
 
-#include <stdlib.h>
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
@@ -110,7 +109,12 @@ typedef struct memory_ctrl_struct
 	Fl_Button*			pReMemBrowse;
 	Fl_Button*			pRampacBrowse;
 	Fl_Box*				pReMemText;
+	Fl_Check_Button*	pOptRomRW;
 } memory_ctrl_t;
+
+extern "C" {
+extern int			gOptRomRW;
+}
 
 
 Fl_Window	*gpsw;				// Peripheral Setup Window
@@ -529,6 +533,10 @@ void save_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_RampacFile");
 	virtualt_prefs.set(pref, mem_setup.rampac_file);
+
+	strcpy(pref, str);
+	strcat(pref, "_OptRomRW");
+	virtualt_prefs.set(pref, gOptRomRW);
 }
 
 void load_memory_preferences(void)
@@ -561,6 +569,11 @@ void load_memory_preferences(void)
 	virtualt_prefs.get(pref, mem_setup.rampac_file, path, 256);
 	if (strlen(mem_setup.rampac_file) == 0)
 		strcpy(mem_setup.rampac_file, path);
+
+	// Load OptRom R/W or R/O option
+	strcpy(pref, str);
+	strcat(pref, "_OptRomRW");
+	virtualt_prefs.get(pref, gOptRomRW, 0);
 }
 
 /*
@@ -616,6 +629,9 @@ void cb_memory_OK(Fl_Widget* w, void*)
 		mem_setup.mem_mode = SETUP_MEM_REMEM;
 	else if (mem_ctrl.pReMem_Rampac->value() == 1)
 		mem_setup.mem_mode = SETUP_MEM_REMEM_RAMPAC;
+
+	// Get OptRom R/W Enable setting
+	gOptRomRW = mem_ctrl.pOptRomRW->value();
 
 	// Allocate ReMem and / or Rampac memory if not already
 	init_mem();
@@ -847,7 +863,7 @@ Routine to create the PeripheralSetup Window and tabs
 void cb_MemorySetup (Fl_Widget* w, void*)
 {
 	// Create Peripheral Setup window
-	gmsw = new Fl_Window(420, 260, "Memory Emulation Options");
+	gmsw = new Fl_Window(420, 280, "Memory Emulation Options");
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
@@ -908,14 +924,17 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 		mem_ctrl.pReMemText->hide();
 	}
 
+	// Option ROM RW Enable
+	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 200, 210, 20, "Make Option ROM R/W");
+	mem_ctrl.pOptRomRW->value(gOptRomRW);
+
 	// OK button
-    { Fl_Button* o = new Fl_Button(160, 220, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(160, 240, 60, 30, "Cancel");
       o->callback((Fl_Callback*)cb_memory_cancel);
     }
-    { Fl_Return_Button* o = new Fl_Return_Button(230, 220, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(230, 240, 60, 30, "OK");
       o->callback((Fl_Callback*)cb_memory_OK);
     }
 
 	gmsw->show();
 }
-

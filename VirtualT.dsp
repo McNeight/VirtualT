@@ -70,7 +70,7 @@ LINK32=link.exe
 # PROP Ignore_Export_Lib 0
 # PROP Target_Dir ""
 # ADD BASE CPP /nologo /W3 /Gm /GX /ZI /Od /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
-# ADD CPP /nologo /W3 /Gm /GX /ZI /Od /I "$(FLTKDIR)" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
+# ADD CPP /nologo /W3 /Gm /GX /Zi /Od /I "$(FLTKDIR)" /D "WIN32" /D "_DEBUG" /D "_WINDOWS" /D "_MBCS" /YX /FD /GZ /c
 # ADD BASE MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD MTL /nologo /D "_DEBUG" /mktyplib203 /win32
 # ADD BASE RSC /l 0x409 /d "_DEBUG"
@@ -80,8 +80,8 @@ BSC32=bscmake.exe
 # ADD BSC32 /nologo
 LINK32=link.exe
 # ADD BASE LINK32 kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /nologo /subsystem:windows /debug /machine:I386 /pdbtype:sept
-# ADD LINK32 $(FLTKDIR)/lib/fltkd.lib $(FLTKDIR)/lib/fltkimagesd.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /debug /machine:I386 /nodefaultlib:"libcd" /pdbtype:sept /libpath:"..\lib"
-# SUBTRACT LINK32 /pdb:none /incremental:no
+# ADD LINK32 $(FLTKDIR)/lib/fltkd.lib $(FLTKDIR)/lib/fltkimagesd.lib wsock32.lib comctl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib /nologo /subsystem:windows /machine:I386 /nodefaultlib:"libcd" /libpath:"..\lib"
+# SUBTRACT LINK32 /pdb:none /incremental:no /debug /pdbtype:<none>
 
 !ENDIF 
 
@@ -92,6 +92,66 @@ LINK32=link.exe
 # Begin Group "Source Files"
 
 # PROP Default_Filter "cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
+# Begin Group "asm"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\src\a85parse.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\assemble.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\MString.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\MStringArray.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\rpn_eqn.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\vtobj.cpp
+# End Source File
+# End Group
+# Begin Group "ide"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\src\Flu_DND.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\flu_pixmaps.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\Flu_Tree_Browser.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FluSimpleString.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\ide.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\multiwin.cpp
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\multiwin_icons.cpp
+# End Source File
+# End Group
 # Begin Source File
 
 SOURCE=.\src\cpuregs.cpp
@@ -172,6 +232,78 @@ SOURCE=.\src\sound.c
 # Begin Group "Header Files"
 
 # PROP Default_Filter "h;hpp;hxx;hm;inl"
+# Begin Group "asm.h"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\src\a85parse.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\assemble.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\elf.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\MString.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\MStringArray.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\rpn_eqn.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\vtobj.h
+# End Source File
+# End Group
+# Begin Group "ide.h"
+
+# PROP Default_Filter ""
+# Begin Source File
+
+SOURCE=.\src\FLU\Flu_DND.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FLU\Flu_Enumerations.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FLU\flu_export.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FLU\flu_pixmaps.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FLU\Flu_Tree_Browser.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\FLU\FluSimpleString.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\ide.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\multiwin.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\src\multiwin_icons.h
+# End Source File
+# End Group
 # Begin Source File
 
 SOURCE=.\src\cpu.h

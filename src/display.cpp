@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.5 2006/04/18 23:49:09 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.2 2004/08/31 15:08:56 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -27,7 +27,6 @@
  * SUCH DAMAGE.
  */
 
-#include <stdlib.h>
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
@@ -63,25 +62,64 @@ extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
 extern RomDescription_t		*gStdRomDesc;
+extern int					gRomSize;
 }
+
+void cb_Ide(Fl_Widget* w, void*) ;
 
 Fl_Window		*MainWin = NULL;
 T100_Disp		*gpDisp;
+T100_Disp		*gpDebugMonitor;
 Fl_Box			*gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
 Fl_Menu_Bar		*Menu;
 Fl_Preferences	virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
 char			gsMenuROM[40];
 char			gDelayedError[128] = {0};
-
 int				MultFact = 3;
 int				DisplayMode = 1;
 int				SolidChars = 0;
 int				DispHeight = 64;
-
 int				gRectsize = 2;
 int				gXoffset;
 int				gYoffset;
+
 void switch_model(int model);
+
+void setMonitorWindow(Fl_Window* pWin)
+{
+	if (pWin == 0)
+	{
+		gpDebugMonitor = 0;
+		return;
+	}
+
+	if (gpDebugMonitor == 0)   
+	{
+		if (gModel == MODEL_T200)
+		{
+			gpDebugMonitor = new T200_Disp(0, 0, 240*2, 128*2);
+			(T200_Disp &) *gpDebugMonitor = (T200_Disp &) *gpDisp;
+		}
+		else
+		{
+			gpDebugMonitor = new T100_Disp(0, 0, 240*2,64*2);
+			// Copy current monitor to debug monitor
+			*gpDebugMonitor = *gpDisp;
+
+		}
+
+		gpDebugMonitor->DisplayMode = 0;
+		gpDebugMonitor->SolidChars = 1;
+		gpDebugMonitor->MultFact = 2;
+		gpDebugMonitor->gRectsize = 2;
+		gpDebugMonitor->gXoffset = 0;
+		gpDebugMonitor->gYoffset = 0;
+
+		pWin->insert(*gpDebugMonitor, 3);
+		gpDebugMonitor->show();
+	}
+}
+
 
 char *gSpKeyText[] = {
 	"SHIFT",
@@ -163,27 +201,45 @@ resize_window:	This function resizes the main window and repositions
 void resize_window()
 {
 	if (gModel == MODEL_T200)
+	{
+		gpDisp->DispHeight = 128;
 		DispHeight = 128;
+	}
 	else
+	{
+		gpDisp->DispHeight = 64;
 		DispHeight = 64;
-	MainWin->resize(MainWin->x(), MainWin->y(), 240*MultFact +
-		90*DisplayMode+2,DispHeight*MultFact + 50*DisplayMode + MENU_HEIGHT + 22);
-	Menu->resize(0, 0, 240*MultFact + 90*DisplayMode+2, MENU_HEIGHT-2);
-	gpDisp->resize(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2, DispHeight*MultFact
-		+ 50*DisplayMode+2);
-	gpGraph->resize(0, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
-	gpCode->resize(60, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
-	gpCaps->resize(120, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
-	gpKey->resize(180, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 120, 20);
-	gpSpeed->resize(300, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2, 60, 20);
-	gpKeyInfo->resize(360, MENU_HEIGHT+DispHeight*MultFact + 50*DisplayMode+2,
-		MainWin->w()-360, 20);
+	}
+	MainWin->resize(MainWin->x(), MainWin->y(), 240*gpDisp->MultFact +
+		90*gpDisp->DisplayMode+2,gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
+	Menu->resize(0, 0, 240*gpDisp->MultFact + 90*gpDisp->DisplayMode+2, 
+		MENU_HEIGHT-2);
+	gpDisp->resize(0, MENU_HEIGHT, 240*gpDisp->MultFact + 90*gpDisp->DisplayMode+2, 
+		gpDisp->DispHeight*gpDisp->MultFact	+ 50*gpDisp->DisplayMode+2);
+	gpGraph->resize(0, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpCode->resize(60, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpCaps->resize(120, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpKey->resize(180, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 120, 20);
+	gpSpeed->resize(300, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpKeyInfo->resize(360, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, MainWin->w()-360, 20);
 
 	gRectsize = MultFact - (1 - SolidChars);
 	if (gRectsize == 0)
 		gRectsize = 1;
 	gXoffset = 45*DisplayMode+1;
 	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
+
+	gpDisp->gRectsize = gRectsize;
+	gpDisp->gXoffset = gXoffset;
+	gpDisp->gYoffset = gYoffset;
+
 	Fl::check();
 	MainWin->redraw();
 }
@@ -216,38 +272,50 @@ Menu Item Callbacks
 */
 void cb_1x(Fl_Widget* w, void*)
 {
+	gpDisp->MultFact = 1;
 	MultFact = 1;
-        virtualt_prefs.set("MultFact",1);
+
+	virtualt_prefs.set("MultFact",1);
 	resize_window();
 }
 void cb_2x(Fl_Widget* w, void*)
 {
+	gpDisp->MultFact = 2;
 	MultFact = 2;
-        virtualt_prefs.set("MultFact",2);
+
+	virtualt_prefs.set("MultFact",2);
 	resize_window();
 }
 void cb_3x(Fl_Widget* w, void*)
 {
+	gpDisp->MultFact = 3;
 	MultFact = 3;
-        virtualt_prefs.set("MultFact",3);
+
+	virtualt_prefs.set("MultFact",3);
 	resize_window();
 }
 void cb_4x(Fl_Widget* w, void*)
 {
+	gpDisp->MultFact = 4;
 	MultFact = 4;
-        virtualt_prefs.set("MultFact",4);
+
+	virtualt_prefs.set("MultFact",4);
 	resize_window();
 }
 void cb_framed(Fl_Widget* w, void*)
 {
-	DisplayMode  ^= 1;
-        virtualt_prefs.set("DisplayMode",DisplayMode);
+	gpDisp->DisplayMode  ^= 1;
+	DisplayMode ^= 1;
+
+	virtualt_prefs.set("DisplayMode",gpDisp->DisplayMode);
 	resize_window();
 }
 void cb_solidchars (Fl_Widget* w, void*)
 {
-	SolidChars  ^= 1;
-        virtualt_prefs.set("SolidChars",SolidChars);
+	gpDisp->SolidChars  ^= 1;
+	SolidChars ^= 1;
+	
+	virtualt_prefs.set("SolidChars",gpDisp->SolidChars);
 	resize_window();
 }
 void cb_save_basic(Fl_Widget* w, void*)
@@ -267,6 +335,10 @@ void cb_reset (Fl_Widget* w, void*)
 	
 	if(a==1) 
 		resetcpu();
+
+	gpDisp->Reset();
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->Reset();
 }
 
 void cb_UnloadOptRom (Fl_Widget* w, void*)
@@ -467,14 +539,12 @@ Fl_Menu_Item menuitems[] = {
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "CPU Registers",         0, cb_CpuRegs },
-	{ "Assembler",             0, 0 },
+	{ "Assembler / IDE",       0, cb_Ide},
 	{ "Disassembler",          0, disassembler_cb },
-	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
 	{ 0 },
   { "&Help", 0, 0, 0, FL_SUBMENU },
 	{ "Help", 0, cb_help },
@@ -507,9 +577,13 @@ void switch_model(int model)
 	load_memory_preferences();
 	init_mem();
 
+	gRomSize = 32768;
 	/* Set pointer to ROM Description */
 	if (gModel == MODEL_T200)
+	{
 		gStdRomDesc = &gM200_Desc;
+		gRomSize = 40960;
+	}
 	else if (gModel == MODEL_PC8201)
 		gStdRomDesc = &gN8201_Desc;
 	else
@@ -517,6 +591,8 @@ void switch_model(int model)
 
 	/* Clear the LCD */
 	gpDisp->Clear();
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->Clear();
 
 	delete MainWin;
 	init_display();
@@ -547,9 +623,35 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 	  {
 		  for (int c = 0; c < 256; c++)
 			  lcd[driver][c] = 0;
+		  top_row[driver] = 0;
 	  }
 
 	  m_MyFocus = 0;
+	  m_DebugMonitor = 0;
+
+	  MultFact = 3;
+	  DisplayMode = 1;
+	  SolidChars = 0;
+	  DispHeight = 64;
+	  gRectsize = 2;
+}
+
+const T100_Disp& T100_Disp::operator=(const T100_Disp& srcDisp)
+{
+	int		driver, c;
+
+	// Copy the LCD data
+	if (this != &srcDisp)
+	{
+		for (driver = 0; driver < 10; driver++)
+		{
+			for (c = 0; c < 256; c++)
+				lcd[driver][c] = srcDisp.lcd[driver][c];
+			top_row[driver] = srcDisp.top_row[driver];		 
+		}
+	}
+
+	return *this;
 }
 
 /*
@@ -560,6 +662,14 @@ Command:	This function processes commands sent to
 */
 void T100_Disp::Command(int instruction, uchar data)
 {
+	int driver = instruction;
+
+	if ((data & 0x3F) == 0x3E)
+	{
+		if (top_row[driver] != data >> 6)
+			damage(1, gXoffset, gYoffset, 240*MultFact, 64*MultFact);
+		top_row[driver] = data >> 6;
+	}
 }
 
 /*
@@ -580,16 +690,35 @@ void T100_Disp::Clear(void)
 
 /*
 =================================================================
+Reset:	This routine Resets the "LCD"
+=================================================================
+*/
+void T100_Disp::Reset(void)
+{
+  int driver;
+
+  for (driver = 0; driver < 10; driver++)
+  {
+	  for (int c = 0; c < 256; c++)
+		  lcd[driver][c] = 0;
+	  top_row[driver] = 0;
+  }
+  redraw();
+}
+
+/*
+=================================================================
 drawpixel:	This routine is called by the system to draw a single
 			black pixel on the "LCD".
 =================================================================
 */
 // Draw the black pixels on the LCD
-__inline void drawpixel(int x, int y, int color)
+__inline void T100_Disp::drawpixel(int x, int y, int color)
 {
 	// Check if the pixel color is black and draw if it is
 	if (color)
-		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,gRectsize,gRectsize);
+		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,
+		gRectsize, gRectsize);
 }
 
 /*
@@ -682,6 +811,7 @@ void T100_Disp::draw_static()
 			}
 		}
 	}
+
 }
 
 /*
@@ -712,7 +842,7 @@ void T100_Disp::draw()
 				x=(driver % 5) * 50;
 				x+=col;
 
-				y = row << 3;
+				y = ((row-top_row[driver]+4) % 4) << 3;
 				if (driver > 4)
 					y += 32;
 
@@ -762,12 +892,12 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		x=(driver % 5) * 50 + (col&0x3F);
 
 		// Calcluate y position of byte
-		y = ((col & 0xC0) >> 6) * 8;
+		y = ((((col & 0xC0) >> 6) - top_row[driver] + 4) % 4) * 8;
 		if (driver > 4)
 			y += 32;
 
 		// Set the display
-		gpDisp->window()->make_current();
+		window()->make_current();
 
 		fl_color(FL_GRAY);
 		fl_rectf(x*MultFact + gXoffset, y*MultFact + 
@@ -832,6 +962,7 @@ void init_display(void)
 	else
 		gpDisp = new T100_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
 			DispHeight*MultFact + 50*DisplayMode+2);
+
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
         
@@ -975,6 +1106,14 @@ void init_display(void)
 	if (gRectsize == 0)
 		gRectsize = 1;
 
+	gpDisp->DispHeight = DispHeight;
+	gpDisp->DisplayMode = DisplayMode;
+	gpDisp->MultFact = MultFact;
+	gpDisp->SolidChars = SolidChars;
+	gpDisp->gRectsize = gRectsize;
+	gpDisp->gXoffset = gXoffset;
+	gpDisp->gYoffset = gYoffset;
+
 	/* End the Window and show it */
 	MainWin->end();
 	MainWin->show();
@@ -992,7 +1131,7 @@ void init_display(void)
 	}
 }
 
-char	label[40];
+static char	label[40];
 
 void display_cpu_speed(void)
 {
@@ -1004,6 +1143,18 @@ void display_cpu_speed(void)
 void drawbyte(int driver, int column, int value)
 {
 	gpDisp->SetByte(driver, column, value);
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->SetByte(driver, column, value);
+
+
+	return;
+}
+
+void lcdcommand(int driver, int value)
+{
+	gpDisp->Command(driver, value);
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->Command(driver, value);
 
 	return;
 }
@@ -1011,6 +1162,8 @@ void drawbyte(int driver, int column, int value)
 void power_down()
 {
 	gpDisp->PowerDown();
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->PowerDown();
 
 	return;
 }
@@ -1025,6 +1178,7 @@ void process_windows_event()
 // Called when the Model T shuts its power off
 void T100_Disp::PowerDown()
 {
+	window()->make_current();
 	// Clear display
     fl_color(FL_GRAY);
 	if (DisplayMode == 1)
@@ -1100,6 +1254,9 @@ int T100_Disp::handle(int event)
 	switch (event)
 	{
 	case FL_FOCUS:
+		m_MyFocus = 1;
+		break;
+	case FL_PUSH:
 		m_MyFocus = 1;
 		break;
 
@@ -1789,6 +1946,8 @@ t200_command:	This function processes commands sent to
 void t200_command(unsigned char ir, unsigned char data)
 {
 	gpDisp->Command(ir, data);
+	if (gpDebugMonitor != 0)
+		gpDebugMonitor->Command(ir, data);
 }
 
 /*
@@ -1800,6 +1959,37 @@ t200_readport:	This function returns the I/O port data
 unsigned char t200_readport(unsigned char port)
 {
 	return ((T200_Disp*)gpDisp)->ReadPort(port);
+}
+
+const T200_Disp& T200_Disp::operator=(const T200_Disp& srcDisp)
+{
+	int		c;
+
+	// Copy the LCD data
+	if (this != &srcDisp)
+	{
+		for (c = 0; c < 8192; c++)
+			m_ram[c] = srcDisp.m_ram[c];
+
+		// Copy control variables
+		m_dstarth = srcDisp.m_dstarth;
+		m_dstartl = srcDisp.m_dstartl;
+		m_mcr = srcDisp.m_mcr;
+		m_hpitch = srcDisp.m_hpitch;
+		m_hcnt = srcDisp.m_hcnt;
+		m_curspos = srcDisp.m_curspos;
+		m_cursaddrh = srcDisp.m_cursaddrh;
+		m_cursaddrl = srcDisp.m_cursaddrl;
+		m_ramrd = srcDisp.m_ramrd;
+		m_ramwr = srcDisp.m_ramwr;
+		m_ramrd_addr = srcDisp.m_ramrd_addr;
+		m_ramrd_dummy = srcDisp.m_ramrd_dummy;
+		m_redraw_count = srcDisp.m_redraw_count;
+		m_tdiv = srcDisp.m_tdiv;
+		m_last_dstart = srcDisp.m_last_dstart;
+	}
+
+	return *this;
 }
 
 /*
@@ -2083,7 +2273,7 @@ void T200_Disp::SetByte(int driver, int col, uchar value)
 		return;
 
 	// Set the display
-	gpDisp->window()->make_current();
+	window()->make_current();
 
 	fl_color(FL_GRAY);
 	fl_rectf(x*MultFact + gXoffset, y*MultFact + 
@@ -2130,7 +2320,7 @@ void T200_Disp::redraw_active()
 	uchar	value;
 
 	// Set the display
-	gpDisp->window()->make_current();
+	window()->make_current();
 
 	/* Get RAM address where display should start */
 	addr =( (m_dstarth << 8) | m_dstartl) &(8192-1);

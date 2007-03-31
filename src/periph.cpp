@@ -46,13 +46,15 @@
 #include <string.h>
 #include <time.h>
 
+#include "m100emu.h"
 #include "serial.h"
 #include "display.h"
-#include "m100emu.h"
 #include "disassemble.h"
 #include "periph.h"
 #include "memedit.h"
 #include "cpuregs.h"
+
+void cb_Ide(Fl_Widget* w, void*) ;
 
 
 typedef struct periph_ctrl_struct	
@@ -128,14 +130,11 @@ typedef struct periph_ctrl_struct
 Fl_Menu_Item gPeriph_menuitems[] = {
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "CPU Registers",         0, cb_CpuRegs },
-	{ "Assembler",             0, 0 },
+	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
-	{ "Debugger",              0, 0 },
 	{ "Memory Editor",         0, cb_MemoryEditor },
-	{ "Peripheral Devices",    0, 0 },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
 	{ 0 },
 
   { 0 }

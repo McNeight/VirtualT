@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.6 2006/08/04 18:42:09 deuce Exp $ */
+/* $Id: m100emu.c,v 1.2 2004/08/31 15:14:40 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -31,8 +31,8 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -68,8 +68,12 @@ extern uchar	gOptROM[32768];
 
 mem_monitor_cb	gMemMonitor = NULL;
 
+long	hist[256];
+int		order[256];
+
 char	op[26];
 UINT64	cycles=0;
+int		cycle_delta;
 UINT64	instructs=0;
 static UINT64	last_isr_cycle=0;
 int		trace=0;
@@ -132,7 +136,7 @@ __inline double hirestimer(void)
 #endif
 
 double last_instruct=0;
-void cpu_delay(int cy)
+void throttle(int cy)
 {
 	double	hires;
 
@@ -157,7 +161,8 @@ void cpu_delay(int cy)
 	else
 		last_instruct = 0;
 	cycles+=cy;
-	instructs++;
+	cycle_delta=0;
+//	instructs++;
 //	if (hires-last_instruct > 1)
 //		last_instruct = hires;
 }
@@ -330,22 +335,22 @@ void get_rom_path(char* file, int model)
 	switch (model)
 	{
 	case MODEL_M100:
-		strcpy(file, "ROMs/M100rom.bin");
+		strcpy(file, "M100/M100rom.bin");
 		break;
 	case MODEL_M102:
-		strcpy(file, "ROMs/M102rom.bin");
+		strcpy(file, "M102/M102rom.bin");
 		break;
 	case MODEL_T200:
-		strcpy(file, "ROMs/T200rom.bin");
+		strcpy(file, "T200/T200rom.bin");
 		break;
 //	case MODEL_M10:
-//		strcpy(file, "ROMs/m10rom.bin");
+//		strcpy(file, "m10/m10rom.bin");
 //		break;
 	case MODEL_PC8201:
-		strcpy(file, "ROMs/N8201rom.bin");
+		strcpy(file, "PC8201/PC8201rom.bin");
 		break;
 	case MODEL_PC8300:
-		strcpy(file, "ROMs/PC8300rom.bin");
+		strcpy(file, "PC8300/PC8300rom.bin");
 		break;
 	}
 }
@@ -405,6 +410,8 @@ void init_cpu(void)
 	{
 		show_error("Could not open ROM file");
 	}
+
+	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
 
 	/* Read data from the ROM file */
 	if (read(fd, gSysROM, ROMSIZE)<ROMSIZE)
@@ -484,7 +491,7 @@ __inline void check_interrupts(void)
 		PCL=52;
 		PCH=0;
 		/* PC=52; */
-		cpu_delay(10);	/* This may not be correct */
+		cycle_delta += 10;	/* This may not be correct */
 		IM=IM&0xDF;
 		last_isr_cycle = cycles;
 	}
@@ -506,7 +513,7 @@ __inline void check_interrupts(void)
 		PCL=60;
 		PCH=0;
 		/* PC=60; */
-		cpu_delay(10);	/* This may not be correct */
+		cycle_delta += 10;	/* This may not be correct */
 		IM=IM&0xBF;
 		last_isr_cycle = cycles;
 
@@ -567,6 +574,7 @@ void maint(void)
 
 		}
 	}
+	throttle(cycle_delta);
 	process_windows_event();
 }
 
@@ -606,6 +614,7 @@ void emulate(void)
 	int				top=0;
 //har			*p;
 	int				nxtmaint=1;
+	int				ins;
 
 	starttime=msclock();
 	while(!gExitApp) 
@@ -685,6 +694,12 @@ int main(int argc, char **argv)
 	for(i=0;i<argc;i++) {
 		if(!strcmp(argv[i],"-t"))
 			trace=1;
+	}
+
+	for (i = 0; i < 256; i++)
+	{
+		hist[i] = 0;
+		order[i] = i;
 	}
 
 	if (trace)

@@ -40,44 +40,65 @@ extern "C" {
 #endif
 
 #define RAMSIZE		(gModel==MODEL_T200?24576:32768)
-#define ROMSIZE		(gModel==MODEL_T200?40960:32768)
+//#define ROMSIZE		(gModel==MODEL_T200?40960:32768)
+#define ROMSIZE		gRomSize
 #define RAMSTART	(gModel==MODEL_T200?40960:32768)
+
 #define OPTROMSIZE		32768
 #define ADDRESSSPACE	65536
 
 extern uchar cpu[14];
 extern uchar *gMemory[64];
+extern int gRomSize;
+
 //extern uchar gSysROM[65536];
 //extern uchar gOptROM[32768];
 
-#define A cpu[0]
-#define F cpu[1]
-#define B cpu[2]
-#define C cpu[3]
-#define D cpu[4]
-#define E cpu[5]
-#define H cpu[6]
-#define L cpu[7]
-#define PCH cpu[8]
-#define PCL cpu[9]
-#define SPH cpu[10]
-#define SPL cpu[11]
+#define A cpu[1]
+#define F cpu[0]
+#define B cpu[3]
+#define C cpu[2]
+#define D cpu[5]
+#define E cpu[4]
+#define H cpu[7]
+#define L cpu[6]
+#define PCH cpu[9]
+#define PCL cpu[8]
+#define SPH cpu[11]
+#define SPL cpu[10]
 
 /* Thoses macros can NOT be set */
+#ifdef WIN32
+
+#define AF (*(ushort*)&F)
+#define BC (*(ushort*)&C)
+#define DE (*(ushort*)&E)
+#define HL (*(ushort*)&L)
+#define PC (*(ushort*)&PCL)
+#define INCPC   ((*(ushort*)&PCL)++)
+#define INCPC2   ((*(ushort*)&PCL)+=2)
+#define DECSP   ((*(ushort*)&SPL)--)
+#define DECSP2  ((*(ushort*)&SPL)-=2)
+
+#else
+
 #define AF ((((ushort)A)<<8)|F)
 #define BC ((((ushort)B)<<8)|C)
 #define DE ((((ushort)D)<<8)|E)
 #define HL ((((ushort)H)<<8)|L)
 #define PC ((((ushort)PCH)<<8)|PCL)
-#define SP ((((ushort)SPH)<<8)|SPL)
-#define INCPC	{PCL++;  if(PCL==0) PCH++;}
+#define INCPC	PCL++;  if(PCL==0) PCH++;
 #define INCPC2	{PCL+=2; if(PCL<2)  PCH++;}
-#define INCSP	{SPL++;  if(SPL==0) SPH++;}
-#define INCSP2	{SPL+=2; if(SPL<2)  SPH++;}
-#define DECPC	{PCL--;  if(PCL==0xff) PCH--;}
-#define DECPC2	{PCL-=2; if(PCL>0xfd)  PCH--;}
 #define DECSP	{SPL--;  if(SPL==0xff) SPH--;}
 #define DECSP2	{SPL-=2; if(SPL>0xfd)  SPH--;}
+
+#endif
+
+#define DECPC	{PCL--;  if(PCL==0xff) PCH--;}
+#define DECPC2	{PCL-=2; if(PCL>0xfd)  PCH--;}
+#define SP ((((ushort)SPH)<<8)|SPL)
+#define INCSP	{SPL++;  if(SPL==0) SPH++;}
+#define INCSP2	{SPL+=2; if(SPL<2)  SPH++;}
 
 extern int gIndex[65536];
 
@@ -127,12 +148,14 @@ the settings for ReMem support.
 #undef	MEM
 #undef	MDM16
 #undef	MEMSET
+#undef	INS_INC
 
 #ifdef NO_REMEM
 
 #define SETPCINS16 {int pc=PC; PCL=gBaseMemory[pc++]; PCH=gBaseMemory[pc];}
 #define M			gBaseMemory[HL]
 #define INS			gBaseMemory[PC]
+#define INS_INC		gBaseMemory[PC]; INCPC;
 #define NXTINS		gBaseMemory[PC+1]
 #define INS16		(((int)gBaseMemory[PC])|((int)gBaseMemory[PC+1]<<8))
 #define MEM(x)		gBaseMemory[x]
@@ -144,6 +167,7 @@ the settings for ReMem support.
 #define SETPCINS16 {int pc=PC; PCL=get_memory8((unsigned short) pc++); PCH=get_memory8((unsigned short) pc);}
 #define M			(gMemory[gIndex[HL]][HL & 0x3FF])
 #define INS			(gMemory[gIndex[PC]][PC & 0x3FF])
+#define INS_INC		(gMemory[gIndex[PC]][PC & 0x3FF]); INCPC;
 #define NXTINS		(get_memory8((unsigned short) (PC+1)))
 #define INS16		(((int)get_memory8((unsigned short) (PC)))|(((int)get_memory8((unsigned short) (PC+1)))<<8))
 #define MEM(x)		(gMemory[gIndex[x]][x & 0x3FF])

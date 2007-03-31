@@ -60,24 +60,32 @@ void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carr
 __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts)
 #endif
 {
-	if(sign>=0)
-		F=(F&0x7F)|(sign?0x80:0);
-	else if(sign==-1)
-		F=(F&0x7F)|(regval&0x80);
+	if (sign!=-2)
+	{
+		if(sign>=0)
+			F=(F&0x7F)|(sign?0x80:0);
+		else 
+			F=(F&0x7F)|(regval&0x80);
+	}
 
-	if(zero>=0)
-		F=(F&0xBF)|(zero?0x40:0);
-	else if(zero==-1)
-		F=(F&0xBF)|(regval?0:0x40);
+	if (zero != -2)
+	{
+		if(zero>=0)
+			F=(F&0xBF)|(zero?0x40:0);
+		else
+			F=(F&0xBF)|(regval?0:0x40);
+	}
 
 	if(auxcarry>=0)
 		F=(F&0xEF)|(auxcarry?0x10:0);
 
-	if(parity>=0)
-		F=(F&0xFB)|(parity?0x04:0);
-	else if(parity==-1) {
-		/* Table Lookup */
-		F=(F&0xFB)|paritybits[regval & 0xFF];
+	if (parity != -2)
+	{
+		if(parity>=0)
+			F=(F&0xFB)|(parity?0x04:0);
+		else
+			/* Table Lookup */
+			F=(F&0xFB)|paritybits[regval & 0xFF];
 	}
 
 	if(carry>=0)

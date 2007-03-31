@@ -59,6 +59,8 @@ extern "C"
 #include "intelhex.h"
 }
 
+void cb_Ide(Fl_Widget* w, void*); 
+
 typedef struct memedit_ctrl_struct	
 {
 	Fl_Menu_Bar*		pMenu;
@@ -115,14 +117,11 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "CPU Registers",         0, cb_CpuRegs },
-	{ "Assembler",             0, 0 },
+	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
-	{ "Debugger",              0, 0 },
-	{ "Memory Editor",         0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
 	{ 0 },
 
   { 0 }

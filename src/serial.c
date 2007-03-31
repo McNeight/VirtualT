@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.6 2006/06/13 04:36:30 jhoger Exp $ */
+/* $Id: serial.c,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -29,18 +29,15 @@
 
 #if defined(WIN32)
 #include <windows.h>
-#else
-#define TRUE (!0)
-#define FALSE (0)
 #endif
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+#include "VirtualT.h"
 #include "serial.h"
 #include "setup.h"
 #include "display.h"
-#include "gen_defs.h"
 
 ser_params_t	sp;
 

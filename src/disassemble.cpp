@@ -50,6 +50,8 @@
 #include "cpuregs.h"
 #include "memory.h"
 
+void cb_Ide(Fl_Widget* w, void*) ;
+
 Fl_Window *gpDis;
 
 // Callback routine for the close box of the Disassembler window
@@ -161,14 +163,11 @@ Fl_Menu_Item gDis_menuitems[] = {
 
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "CPU Registers",         0, cb_CpuRegs },
-	{ "Assembler",             0, 0 },
-	{ "Disassembler",          0, 0 },
-	{ "Debugger",              0, 0 },
+	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
-	{ "BASIC Debugger",        0, 0 },
 	{ 0 },
 
   { 0 }
@@ -867,7 +866,7 @@ int VTDis::DisassembleLine(int address, char* line)
 	unsigned char	op_len;
 
 	// Get opcode from memory
-	opcode = gMemory[address>>10][address&0x3FF];
+	opcode = get_memory8(address);
 
 	// Determine length of this opcode
 	op_len = m_LenTable[opcode] & 0x03;
@@ -882,7 +881,7 @@ int VTDis::DisassembleLine(int address, char* line)
 	if (op_len == 1)
 	{
 		// Single byte argument
-		sprintf(arg, "%02XH", gMemory[(address+1)>>10][(address+1)&0x3FF]);
+		sprintf(arg, "%02XH", get_memory8(address+1));
 		strcat(line, arg);
 	}
 
