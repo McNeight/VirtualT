@@ -1006,6 +1006,7 @@ void load_sys_rom(void)
 	if (fd < 0)
 	{
 		show_error("Could not open ROM file");
+		return;
 	}
 
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
