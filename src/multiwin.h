@@ -1,6 +1,6 @@
-/* multiwin.cpp */
+/* multiwin.h */
 
-/* $Id: multiwin.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multiwin.h,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -37,17 +37,22 @@
 
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Pixmap.H>
+#include <FL/Fl_Text_Editor.H>
+#include <FL/Fl_Text_Buffer.H>
 #include "vtobj.h"
+#include "MString.h"
 
-class Fl_Multi_Window : public Fl_Double_Window
+class Fl_Multi_Window : public Fl_Double_Window, public VTObject
 {
 public:
-	Fl_Multi_Window(int x, int y, int w, int h, const char *label = 0);
+	Fl_Multi_Window(int x=0, int y=0, int w=600, int h=500, const char *label = 0);
 	~Fl_Multi_Window();
 
 	Fl_Window*		ClientArea() { return m_pClientArea; };
 
 	int				m_NoResize;
+
+	DECLARE_DYNCREATE(Fl_Multi_Window)
 
 protected:
 	void virtual	draw(void);
@@ -55,6 +60,7 @@ protected:
 	void			CloseIconSelected();
 	void			MaximizeIconSelected();
 	void			MinimizeIconSelected();
+	int virtual		OkToClose(void);
 
 	Fl_Window*		m_pClientArea;
 	Fl_Pixmap*		m_pIcon;

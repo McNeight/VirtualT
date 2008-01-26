@@ -1,9 +1,9 @@
-/* VirtualT.h */
+/* fl_usage_box.h */
 
-/* $Id: VirtualT.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: fl_usage_box.h,v 1.1.1.1 2008/01/05 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2008 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,23 +28,44 @@
  */
 
 
-#ifndef _VIRTUALT_H_
-#define _VIRTUALT_H_
+#ifndef _FL_USAGE_BOX_H_
+#define _FL_USAGE_BOX_H_
 
-#define VERSION	"1.0"
+#include <FL/Fl.H>
+#include <FL/Fl_Box.H>
 
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-	,MODEL_PC8201
-	,MODEL_M10
-	,MODEL_PC8300
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+
+class Fl_Usage_Box : public Fl_Box
+{
+public:
+	Fl_Usage_Box(int x, int y, int w, int h);
+
+	void			SetUsageColor(int index, int color);
+	void			SetUsageRange(int min, int max);
+	void			SetBackgroundColor(int color);
+	void			AddUsageEvent(int start, int end, unsigned char usage);
+	void			ClearUsageMap(void);
+
+protected:
+	virtual void	draw();
+
+	unsigned char*	m_pUsageMap;
+	int				m_usageMapSize;
+	int				m_usageMin, m_usageMax;
+
+	int				m_usageColors[256];
+	int				m_maxUsageEntry;
+	int				m_backgroundColor;
+	int				m_pixelsPerUsage;
+	double			m_usageScale;
 };
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
+}
 #endif
 
 #endif

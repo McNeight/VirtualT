@@ -49,6 +49,8 @@ int	Fl_Multi_Window::m_MinimizeRegions[200] = { -1 };
 
 Fl_Multi_Window* gpDestroyPtr = 0;
 
+IMPLEMENT_DYNCREATE(Fl_Multi_Window, VTObject)
+
 void multi_window_idle_proc(void* w)
 {
 	if (gpDestroyPtr != 0)
@@ -340,7 +342,10 @@ int Fl_Multi_Window::handle(int event)
 				{
 					// Check which Icon was selected
 					if (m_InIconArea == 1)
+					{
+						Fl::release();
 						CloseIconSelected();
+					}
 					else if (m_InIconArea == 2)
 						MaximizeIconSelected();
 					else if (m_InIconArea == 3)
@@ -466,6 +471,11 @@ Routine to handle selection of the close window icon
 void Fl_Multi_Window::CloseIconSelected()
 {
 	Fl_Window* p;
+
+	// Check if it is okay to close
+	if (!OkToClose())
+		return;
+
 	hide();
 	p = (Fl_Window*) parent();
 	p->remove(this);
@@ -474,6 +484,10 @@ void Fl_Multi_Window::CloseIconSelected()
 	gpDestroyPtr = this;
 }
 
+int Fl_Multi_Window::OkToClose(void)
+{
+	return TRUE;
+}
 /*
 ===============================================================
 Routine to handle selection of the restore icon

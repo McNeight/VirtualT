@@ -33,7 +33,7 @@
 
 #include "MString.h"
 #include "vtobj.h"
-
+#include "project.h"
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
@@ -50,6 +50,7 @@ public:
 
 	MString						m_Name;
 	Flu_Tree_Browser::Node*		m_Node;
+	class VT_IdeGroup*			m_ParentGroup;
 };
 
 class VT_IdeGroup : public VTObject
@@ -66,30 +67,50 @@ public:
 	Flu_Tree_Browser::Node*		m_Node;
 };
 
-
-class VT_IdeProject
+class VT_ReplaceDlg
 {
 public:
-	VT_IdeProject()		{ m_Dirty = 0; };
-	~VT_IdeProject();
+	VT_ReplaceDlg(class VT_Ide* pParent);
+	~VT_ReplaceDlg();
 
-	MString			m_Name;
-	MString			m_RootPath;
-	MString			m_IncludePath;
-	MString			m_LinkPath;
-	MString			m_AsmOptions;
-	MString			m_LinkOptions;
-	VTObArray		m_Groups;
-	int				m_Dirty;
+	Fl_Window*		m_pReplaceDlg;
+	Fl_Input*		m_pFind;
+	Fl_Input*		m_pWith;
+	Fl_Button*		m_pAll;
+	Fl_Button*		m_pNext;
+	Fl_Button*		m_pCancel;
+
+	class VT_Ide*	m_pParent;
+
+	char			search[256];
+};
+
+class VT_FindDlg
+{
+public:
+	VT_FindDlg(class VT_Ide* pParent);
+	~VT_FindDlg();
+
+	Fl_Window*			m_pFindDlg;
+	Fl_Input*			m_pFind;
+	Fl_Round_Button*	m_pForward;
+	Fl_Round_Button*	m_pBackward;
+	Fl_Button*			m_pNext;
+	Fl_Button*			m_pCancel;
+
+	class VT_Ide*		m_pParent;
+
+	char				search[256];
 };
 
 class VT_Ide : public Fl_Window
 {
 public:
-	VT_Ide(int w, int h, const char *title = 0);
+	VT_Ide(int x, int y, int w, int h, const char *title = 0);
 
 // Methods
 	virtual void	show();
+	virtual int		handle(int event);
 
 	void			NewProject(void);
 	void			OpenProject(void);
@@ -98,16 +119,40 @@ public:
 	int				ParsePrjFile(const char *name);
 	void			RightClick(Flu_Tree_Browser::Node* n);
 	void			NewFolder(Flu_Tree_Browser::Node* n);
+	void			NewFile(void);
+	void			SaveFile(void);
+	void			SaveAs(void);
+	void			OpenFile(void);
+	void			Copy(void);
+	void			Cut(void);
+	void			Paste(void);
+	void			Find(void);
+	void			FindNext(void);
+	void			Replace(void);
+	void			ReplaceAll(void);
+	void			ReplaceNext(void);
 	void			AddFilesToFolder(Flu_Tree_Browser::Node* n);
+	void			DeleteItem(Flu_Tree_Browser::Node* n);
 	void			FolderProperties(Flu_Tree_Browser::Node* n);
 	void			OpenTreeFile(Flu_Tree_Browser::Node* n);
 	void			AssembleTreeFile(Flu_Tree_Browser::Node* n);
 	void			TreeFileProperties(Flu_Tree_Browser::Node* n);
+	void			BuildProject(void);
+	void			CleanProject(void);
+	void			ShowProjectSettings(void);
+	MString			MakePathRelative(const MString& path, const MString& relTo);
+	MString			MakePathAbsolute(const MString& path, const MString& relTo);
+	MString			ProjectName(void);
+	int				ProjectDirty(void);
 
-	Fl_Window*					m_EditWindow;
+	Fl_Window*		m_EditWindow;
+	VT_ReplaceDlg*	m_pReplaceDlg;
+	VT_FindDlg*		m_pFindDlg;
+
 protected:
 	virtual void	draw();
 	void			AddGroupToTree(VTObject *pObj, const char *fmt);
+	void			NewEditWindow(const MString& title, const MString& file);
 
 	Fl_Window*					m_ProjWindow;
 	Flu_Tree_Browser*			m_ProjTree;
@@ -119,7 +164,10 @@ protected:
 	Fl_Group*					m_DebugTab;
 	Fl_Group*					m_WatchTab;
 	Flu_Tree_Browser::Node*		m_Node;
-	VT_IdeProject*				m_ActivePrj;
+	VT_Project*					m_ActivePrj;
+	MString						m_LastDir;
+	int							m_OpenLocation;
 };
 
 #endif
+

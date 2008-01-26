@@ -998,8 +998,11 @@ RomDescription_t gM100_Desc = {
 	0xF962,                     /* Start of RAM directory */
 	0xF678,                     /* BASIC string	buffer pointer */
 	0xFAD8,						/* BASIC Size */
+	0xFF9A,						/* Keyscan location */
+	0x7711,						/* Character generator table */
 
 	24,							/* Number of directory entries */
-	8							/* Index of first Dir entry */
+	8,							/* Index of first Dir entry */
+	0x5B0D						/* Addres of MS Copyright string */
 };
 

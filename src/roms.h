@@ -75,9 +75,12 @@ typedef struct RomDescription {
 	unsigned short      sDirectory;        /* Start of RAM directory */
 	unsigned short      sBasicStrings;     /* BASIC string buffer pointer */
 	unsigned short		sBasicSize;	       /* Size of all BASIC programs */
+	unsigned short		sKeyscan;	       /* Location of Keyscan array */
+	unsigned short		sCharTable;        /* Location of Charater generator table */
 
 	unsigned short		sDirCount;         /* Number of entries in Directory */
 	unsigned short		sFirstDirEntry;    /* Index of first available enry */
+	unsigned short		sMSCopyright;	   /* Address of MS Copyright string on MENU */
 } RomDescription_t;
 
 enum {
@@ -86,6 +89,7 @@ enum {
 	 TABLE_TYPE_CODE,
 	 TABLE_TYPE_MODIFIED_STRING,
 	 TABLE_TYPE_MODIFIED_STRING2,
+	 TABLE_TYPE_MODIFIED_STRING3,
 	 TABLE_TYPE_2BYTE,
 	 TABLE_TYPE_3BYTE,
 	 TABLE_TYPE_CTRL_DELIM,

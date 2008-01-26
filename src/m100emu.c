@@ -27,7 +27,6 @@
  * SUCH DAMAGE.
  */
 
-
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -35,6 +34,7 @@
 #include <stdlib.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <direct.h>
 #endif
 
 #ifdef __unix__
@@ -55,21 +55,17 @@
 #include "memory.h"
 #include "m100emu.h"
 #include "sound.h"
+#include "remote.h"
 
 int		fullspeed=0;
 int		gModel = MODEL_M100;
 
 uchar	cpu[14];
 extern uchar	*gMemory[64];
-extern uchar	gBaseMemory[65536];
-extern uchar	gSysROM[65536];
 extern uchar	gMsplanROM[32768];
 extern uchar	gOptROM[32768];
 
 mem_monitor_cb	gMemMonitor = NULL;
-
-long	hist[256];
-int		order[256];
 
 char	op[26];
 UINT64	cycles=0;
@@ -85,10 +81,16 @@ DWORD	one_sec_time;
 UINT64	one_sec_cycles;
 DWORD   update_secs = 0;
 float	cpu_speed;
-int		gExitApp = 0;
-int		gExitLoop = 0;
+volatile int		gExitApp = 0;
+volatile int		gExitLoop = 0;
 char	gsOptRomFile[256];
+int		gShowVersion = 0;
 DWORD	last_one_sec_time;
+int		gMaintCount = 262888;
+int		gOsDelay = 0;
+int		gNoGUI = 0;
+int		gSocketPort = 0;
+int		gRemoteSwitchModel = -1;
 
 //Added J. VERNET
 
@@ -98,10 +100,11 @@ char file[255];
 extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
+extern RomDescription_t		gM10_Desc;
 extern uchar				gReMem;
 extern int					cROM;
 extern unsigned char		ioD0;
-RomDescription_t			*gStdRomDesc;
+RomDescription_t			*gStdRomDesc = NULL;
 
 
 /* Define Debug global variables */
@@ -140,13 +143,15 @@ void throttle(int cy)
 {
 	double	hires;
 
-	if(!fullspeed) {
+	if(!fullspeed) 
+	{
 		if(last_instruct==0)
 			last_instruct=hirestimer();
 
 		last_instruct+=cy*0.000000416666666667;
 
-		while((hires = hirestimer())<last_instruct) {
+		while((hires = hirestimer())<last_instruct) 
+		{
 	#ifdef _WIN32
 			Sleep(1);
 	#else
@@ -188,33 +193,6 @@ void jump_to_zero(void)
 	/* Clear all CPU registers */
 	for (i = 0; i < sizeof(cpu); i++)
 		cpu[i] = 0;
-}
-
-void resetcpu(void)
-{
-	int		i;
-
-	/* Clear all CPU registers */
-	for (i = 0; i < sizeof(cpu); i++)
-		cpu[i] = 0;
-
-	/* Set interrupt mask */
-	IM=0x08;
-	cpuMISC=0;
-
-	/* Re-initialize memory */
-	reinit_mem();
-
-	/* Check if debug monitor active and updae if there are */
-	if (gDebugActive)
-	{
-		/* Call all debug monitor callback routines */
-		for (i = 0; i < 3; i++)
-		{
-			if (gpDebugMonitors[i] != NULL)
-				gpDebugMonitors[i]();
-		}
-	}
 }
 
 
@@ -261,6 +239,24 @@ void debug_clear_monitor_callback(debug_monitor_callback pCallback)
 
 /*
 =============================================================================
+debug_step:	This function performs a CPU step operation and invokes the 
+			callback for each debug monitor to inform it of the CPU step 
+			operation.
+=============================================================================
+*/
+void debug_step(void)
+{
+	int		x;
+
+	for (x = 0; x < 3; x++)
+	{
+		if (gpDebugMonitors[x] != NULL)
+			gpDebugMonitors[x](DEBUG_CPU_STEP);
+	}
+}
+
+/*
+=============================================================================
 get_model_string:	This function returns the sring name of the specified
 					emulation model.
 =============================================================================
@@ -278,9 +274,9 @@ void get_model_string(char* str, int model)
 	case MODEL_T200:
 		strcpy(str, "t200");
 		break;
-//	case MODEL_M10:
-//		strcpy(str, "m10");
-//		break;
+	case MODEL_M10:
+		strcpy(str, "m10");
+		break;
 	case MODEL_PC8201:
 		strcpy(str, "pc8201");
 		break;
@@ -288,6 +284,30 @@ void get_model_string(char* str, int model)
 		strcpy(str, "pc8300");
 		break;
 	}
+}
+
+/*
+=============================================================================
+get_model_from_string:	This function returns the model number given the 
+						sring name specified.
+=============================================================================
+*/
+int get_model_from_string(char* str)
+{
+	if (strcmp("m100", str) == 0)
+		return MODEL_M100;
+	else if (strcmp("m102", str) == 0)
+		return MODEL_M102;
+	else if (strcmp("t200", str) == 0)
+		return MODEL_T200;
+	else if (strcmp("pc8201", str) == 0)
+		return MODEL_PC8201;
+	else if (strcmp("pc8300", str) == 0)
+		return MODEL_PC8300;
+	else if (strcmp("m10", str) == 0)
+		return MODEL_M10;
+
+	return -1;
 }
 
 /*
@@ -310,9 +330,9 @@ void get_emulation_path(char* emu, int model)
 	case MODEL_T200:
 		strcat(emu, "T200/");
 		break;
-//	case MODEL_M10:
-//		strcat(emu, "m10/");
-//		break;
+	case MODEL_M10:
+		strcat(emu, "M10/");
+		break;
 	case MODEL_PC8201:
 		strcat(emu, "PC8201/");
 		break;
@@ -343,9 +363,9 @@ void get_rom_path(char* file, int model)
 	case MODEL_T200:
 		strcpy(file, "T200/T200rom.bin");
 		break;
-//	case MODEL_M10:
-//		strcpy(file, "m10/m10rom.bin");
-//		break;
+	case MODEL_M10:
+		strcpy(file, "M10/m10rom.bin");
+		break;
 	case MODEL_PC8201:
 		strcpy(file, "PC8201/PC8201rom.bin");
 		break;
@@ -382,7 +402,17 @@ int check_model_support(int model)
 	close(fd);
 	return TRUE;
 }
-
+void model_8201_bug_workaround(int reason)
+{
+	// Remove debugging after 
+	if (PC == 0x6d91)
+	{
+		lock_remote();
+		debug_clear_monitor_callback(model_8201_bug_workaround);
+		gDebugActive--;
+		unlock_remote();
+	}
+}
 /*
 ======================================================================
 initcpu:	This function initializes the CPU and the system memories
@@ -391,7 +421,6 @@ initcpu:	This function initializes the CPU and the system memories
 */
 void init_cpu(void)
 {
-	int		fd;
 	int		i;
 
 	/* Initialize CPU registers */
@@ -401,41 +430,7 @@ void init_cpu(void)
 	IM=0x08;
 	cpuMISC=0;
 	
-	/* Get Path to ROM based on current Model selection */
-	get_rom_path(file, gModel);
-
-	/* Open the ROM file */
-	fd = open(file,O_RDONLY | O_BINARY);
-	if (fd < 0)
-	{
-		show_error("Could not open ROM file");
-	}
-
-	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
-
-	/* Read data from the ROM file */
-	if (read(fd, gSysROM, ROMSIZE)<ROMSIZE)
-	{
-		show_error("Error reading ROM file: Bad Rom file");
-	}
-
-	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
-	if (gModel == MODEL_T200)
-		read(fd, gMsplanROM, 32768);
-	
-	/* Close the ROM file */
-	close(fd);
-
-	/* Copy ROM into system memory */
-	memcpy(gBaseMemory, gSysROM, ROMSIZE);
-
-	/* Set pointer to ROM Description */
-	if (gModel == MODEL_T200)
-		gStdRomDesc = &gM200_Desc;
-	else if (gModel == MODEL_PC8201)
-		gStdRomDesc = &gN8201_Desc;
-	else
-		gStdRomDesc = &gM100_Desc;
+	load_sys_rom();
 
 	/* Clear the system memory RAM area */
 	for (i = 0; i < RAMSIZE; i++)
@@ -447,9 +442,77 @@ void init_cpu(void)
 	/* Load option ROM if any */
 	load_opt_rom();
 
+	/* 
+		Work around a stupid PC-8201 bug that couldn't be found.  For some reason,
+		in the Windows Release build, the ROM gets stuck looking for RS232 data and
+		waiting for SHIFT-BREAK to be pressed in the boot routine.  If I try to trace
+		the ROM, the problem goes away, so it has to be timing related somewhere.  I
+		found that simply adding delay by "debug tracing" each PC location fixes the
+		issue.  The code below adds a 1-time debug hook during boot do add delay that
+		is later removed.  This allows delay to be added at boot without adding any 
+		additional delay (if statements) during the main portion of the code. This is a 
+		horrible kludge, but it fixes the problem.
+	*/
+#ifdef WIN32
+	if (gModel == MODEL_PC8201)
+	{
+		lock_remote();
+		debug_set_monitor_callback(model_8201_bug_workaround);
+		gDebugActive++;
+		unlock_remote();
+	}
+#endif
+
 	gExitLoop = 1;
 }
 
+
+void resetcpu(void)
+{
+	int		i;
+
+	/* Clear all CPU registers */
+	for (i = 0; i < sizeof(cpu); i++)
+		cpu[i] = 0;
+
+	/* Set interrupt mask */
+	IM=0x08;
+	cpuMISC=0;
+
+	/* Re-initialize memory */
+	reinit_mem();
+
+	/* Check if debug monitor active and updae if there are */
+	if (gDebugActive)
+	{
+		/* Call all debug monitor callback routines */
+		for (i = 0; i < 3; i++)
+		{
+			if (gpDebugMonitors[i] != NULL)
+				gpDebugMonitors[i](DEBUG_PC_CHANGED);
+		}
+	}
+	/* 
+		Work around a stupid PC-8201 bug that couldn't be found.  For some reason,
+		in the Windows Release build, the ROM gets stuck looking for RS232 data and
+		waiting for SHIFT-BREAK to be pressed in the boot routine.  If I try to trace
+		the ROM, the problem goes away, so it has to be timing related somewhere.  I
+		found that simply adding delay by "debug tracing" each PC location fixes the
+		issue.  The code below adds a 1-time debug hook during boot do add delay that
+		is later removed.  This allows delay to be added at boot without adding any 
+		additional delay (if statements) during the main portion of the code. This is a 
+		horrible kludge, but it fixes the problem.
+	*/
+#ifdef WIN32
+	if (gModel == MODEL_PC8201)
+	{
+		lock_remote();
+		debug_set_monitor_callback(model_8201_bug_workaround);
+		gDebugActive++;
+		unlock_remote();
+	}
+#endif
+}
 void cb_int65(void)
 {
 	IM|=0x20;
@@ -463,7 +526,8 @@ __inline void check_interrupts(void)
 	static UINT64	last_rst75=0;
 	static DWORD    last_rst_ms = 0;
 
-	if((last_rst75+rst7cycles)<cycles) {
+	if (((last_rst75 + rst7cycles) < cycles) && !INTDIS)
+	{
 		IM|=0x40;
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 Issued diff = %d\n", (DWORD) (cycles - last_rst75));
@@ -520,13 +584,17 @@ __inline void check_interrupts(void)
 		if (gDelayUpdateKeys == 1)
 			update_keys();
 	}
-
 	return;
 }
 
 void	mem_set_monitor_callback(mem_monitor_cb cb)
 {
 	gMemMonitor = cb;
+}
+
+void remote_switch_model(int model)
+{
+	gRemoteSwitchModel = model;
 }
 
 void maint(void)
@@ -570,11 +638,17 @@ void maint(void)
 					twice_flag++;
 			}
 			last_one_sec_time = one_sec_time;
-			one_sec_time = systime;
+			one_sec_time = (unsigned long) systime;
 
 		}
 	}
 	throttle(cycle_delta);
+	if (gRemoteSwitchModel != -1)
+	{
+		switch_model(gRemoteSwitchModel);
+		gRemoteSwitchModel = -1;
+	}
+	handle_simkey();
 	process_windows_event();
 }
 
@@ -584,21 +658,25 @@ void do_debug_stuff(void)
 	int		i;
 
 	/* Call all debug monitor callback routines */
+	unlock_remote();
 	for (i = 0; i < 3; i++)
 	{
 		if (gpDebugMonitors[i] != NULL)
-			gpDebugMonitors[i]();
+			gpDebugMonitors[i](DEBUG_PC_CHANGED);
 	}
 
 	if (gStopped)
 	{
+		gOsDelay = 1;
 		/* Loop until not stopped or single step */
 		while (gStopped && !gSingleStep && !gExitApp)
 		{
 			process_windows_event();
 		}
+		gOsDelay = 0;
 		gSingleStep = 0;
 	}
+	lock_remote();
 }
 
 /*
@@ -617,6 +695,7 @@ void emulate(void)
 	int				ins;
 
 	starttime=msclock();
+	lock_remote();
 	while(!gExitApp) 
 	{
 		/* Run appropriate emulation loop base on ReMem support */
@@ -634,12 +713,22 @@ void emulate(void)
 				/* Instruction emulation contained in header file */
 				#include "do_instruct.h"
 
-				/* Do maintenance tasks (Windows events, interrupts, etc.) */
-				if(!(--nxtmaint)) 
+				// Check if next inst is SIM
+				if (get_memory8(PC) == 0xF3)
 				{
+					check_interrupts();
+				}
+
+				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+				if(!(--nxtmaint & 0x3FF)) 
+				{
+					unlock_remote();
+					gOsDelay = nxtmaint == 0;
 					maint();
 					check_interrupts();
-					nxtmaint=128;
+					if (gOsDelay)
+						nxtmaint=gMaintCount;
+					lock_remote();
 				}
 			}
 
@@ -660,18 +749,29 @@ void emulate(void)
 				#include "cpu.h"
 				#include "do_instruct.h"
 
-				/* Do maintenance tasks (Windows events, interrupts, etc.) */
-				if(!(--nxtmaint)) 
+				// Check if next inst is SIM
+				if (get_memory8(PC) == 0xF3)
 				{
+					check_interrupts();
+				}
+
+				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+				if(!(--nxtmaint & 0x3FF)) 
+				{
+					unlock_remote();
+					gOsDelay = nxtmaint == 0;
 					maint();
 					check_interrupts();
-					nxtmaint=128;
+					if (gOsDelay)
+						nxtmaint=gMaintCount;
+					lock_remote();
 				}
 			}
 		}
 
 		gExitLoop = 0;
 	}
+	unlock_remote();
 }
 
 #ifdef __unix__
@@ -681,6 +781,87 @@ void handle_sig(int sig)
 }
 #endif
 
+int process_args(int argc, char **argv)
+{
+	int i;
+
+	for (i = 0; i < argc; i++)
+	{
+		// Seach for trace flag
+		if (!strcmp(argv[i], "-t"))
+		{
+			trace = 1;				/* Turn on trace mode */
+			tracefile = fopen("trace.txt", "w+");
+		}
+
+		// Search for No-GUI flag
+		if (!strcmp(argv[i], "-nogui"))
+			gNoGUI = 1;
+
+		// Search for Socket Port flag
+		if (!strncmp(argv[i], "-p", 2))
+		{
+			// Check if port number is part of flag
+			if (strlen(argv[i]) != 2)
+			{
+				gSocketPort = atoi(&argv[i][2]);
+			}
+			else
+			{
+				// Socket number is next argument
+				if (i + 1 >= argc)
+				{
+					printf("%s: -p port not specified\n", argv[0]);
+					return 1;
+				}
+				else
+				{
+					gSocketPort = atoi(argv[i+1]);
+					i++;
+				}
+			}
+		}
+	}
+
+	return 0;
+}
+
+void setup_unix_signals(void)
+{
+#ifdef __unix__
+	signal(SIGTERM,handle_sig);
+	signal(SIGHUP,handle_sig);
+	signal(SIGQUIT,handle_sig);
+	signal(SIGINT,handle_sig);
+#endif
+}
+
+void setup_working_path(char **argv)
+{
+#ifdef __unix__
+	int		i;
+
+	getcwd(path, sizeof(path));
+
+	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
+	if (strlen(path) == 0)
+	{
+		i = strlen(argv[0])-1;
+		// Find last '/' in path to remove app name from the path
+		while ((argv[0][i] != '/') && (i > 0))
+			i--;
+		strncpy(path,argv[0], i+1);
+	}
+	
+	// Check if the last character is '/'
+	i = strlen(path);
+	if (path[i-1] != '/')
+		strcat(path, "/");
+# else
+	_getcwd(path, sizeof(path));
+	strcat(path,"\\");
+#endif
+}
 
 /*
 ========================================================================
@@ -689,37 +870,11 @@ main:	This is the main entry point for the VirtualT application.
 */
 int main(int argc, char **argv)
 {
-	int i;
+	if (process_args(argc, argv))	/* Parse command line args */
+		return;
 
-	for(i=0;i<argc;i++) {
-		if(!strcmp(argv[i],"-t"))
-			trace=1;
-	}
-
-	for (i = 0; i < 256; i++)
-	{
-		hist[i] = 0;
-		order[i] = i;
-	}
-
-	if (trace)
-		tracefile = fopen("trace.txt", "w+");
-
-#ifdef __unix__
-	signal(SIGTERM,handle_sig);
-	signal(SIGHUP,handle_sig);
-	signal(SIGQUIT,handle_sig);
-	signal(SIGINT,handle_sig);
-
-	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
-	i = strlen(argv[0])-1;
-	// Find last '/' in path to remove app name from the path
-	while ((argv[0][i] != '/') && (i > 0))
-		i--;
-	strncpy(path,argv[0], i+1);
-# else
-	strcpy(path,"./");
-#endif
+	setup_unix_signals();		/* Setup Unix signal handling */
+	setup_working_path(argv);	/* Create a working dir path */
 
 	// Added by JV for prefs
 	init_pref();				/* load user Menu preferences */
@@ -732,11 +887,12 @@ int main(int argc, char **argv)
 	init_sound();				/* Initialize Sound system */
 	init_display();				/* Initialize the Display */
 	init_cpu();					/* Initialize the CPU */
+	init_remote();				/* Initialize the remote control */
 
 	/* Perform Emulation */
 	emulate();					/* Main emulation loop */
 
-	/* Save RAM comtents after emulation */
+	/* Save RAM contents after emulation */
 	save_ram();
 
 	/* Cleanup */

@@ -150,7 +150,15 @@ void VTAssembler::ResetContent(void)
 		// Remove all items from Publics array.  The actual items are duplicates
 		// and will be deleted elsewhere
 		m_Publics[seg].RemoveAll();
+
+		// Delete the CModule and create a new one
+		delete m_ActiveMod;
+		m_ActiveMod = new CModule;
+		m_Symbols = m_ActiveMod->m_Symbols[ASEG];
+		m_Instructions = m_ActiveMod->m_Instructions[ASEG];
+		m_ActiveAddr = m_ActiveMod->m_ActiveAddr[ASEG];
 	}
+
 
 	// Delete all Extern reference object
 	count = m_Externs.GetSize();
@@ -174,6 +182,14 @@ void VTAssembler::ResetContent(void)
 	m_Hex = 0;
 	m_List = 0;
 	m_Address = 0;
+	m_DebugInfo = 0;
+	m_LastLabelAdded = 0;
+
+	// Clean up include stack
+	while (m_IncludeDepth != 0)
+		fclose(m_IncludeStack[--m_IncludeDepth]);
+	for (c = 0; c < 32; c++)
+		m_IncludeName[c] = "";
 
 	// Initialize IF stack
 	m_IfDepth = 0;
@@ -240,10 +256,13 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 			// Try to find variable in equate array
 			temp = op.m_Variable;
 			local = 0;
-			if ((temp[0] == '$') && (temp[1] != 0))
+			if (temp.GetLength() > 1)
 			{
-				temp = m_LastLabel + "%%" + op.m_Variable;
-				local = 1;
+				if ((temp[0] == '$') && (temp[1] != 0))
+				{
+					temp = m_LastLabel + "%%" + op.m_Variable;
+					local = 1;
+				}
 			}
 			pStr = (const char *) temp;
 			symbol = (CSymbol *) 0;
@@ -297,8 +316,22 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 							errMsg.Format("Error in line %d(%s):  Local symbol %s undefined", m_Line,
 								(const char *) m_Filenames[m_FileIndex], (const char *) op.m_Variable);
 						else
+						{
+							// Check if AuotExtern is enabled
+							if (m_AsmOptions.Find("-e") != -1)
+							{
+								// Add symbol as an EXTERN
+								symbol = new CSymbol;
+								symbol->m_Line = m_Line;
+								symbol->m_FileIndex = m_FileIndex;			// Save index of the current file
+								symbol->m_Name = op.m_Variable;
+								symbol->m_SymType = SYM_EXTERN;
+								(*m_Symbols)[symbol->m_Name] = symbol;
+								return 0;
+							}
 							errMsg.Format("Error in line %d(%s):  Symbol %s undefined", m_Line,
 								(const char *) m_Filenames[m_FileIndex], (const char *) op.m_Variable);
+						}
 						m_Errors.Add(errMsg);
 						m_UndefSymbols[op.m_Variable] = 0;
 					}
@@ -731,6 +764,10 @@ This function is called when the parser detects an include operation.
 */
 void VTAssembler::include(const char *filename)
 {
+	int				count, c;
+	MString			incPathFile;
+	FILE*			fd;
+
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 		return;
@@ -739,7 +776,23 @@ void VTAssembler::include(const char *filename)
 	m_Line = (PCB).line;
 	
 	// Try to open the file
-	if ((m_fd = fopen(filename, "rb")) == 0)
+	fd = fopen(filename, "rb");
+
+	// If file did not open, then look in include directories
+	if (fd == 0)
+	{
+		count = m_IncludeDirs.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			incPathFile = m_IncludeDirs[c] + filename;
+			fd = fopen((const char *) incPathFile, "rb");
+			if (fd != 0)
+				break;
+		}
+	}
+
+	// Check if file was found in any of the directories
+	if (fd == 0)
 	{
 		MString errMsg;
 		errMsg.Format("Error in line %d(%s):  Unable to open include file %s",
@@ -747,17 +800,21 @@ void VTAssembler::include(const char *filename)
 		m_Errors.Add(errMsg);
 		return;
 	} else {
-//		m_IncludeName[m_IncludeDepth] = m_Filename;
 		m_IncludeIndex[m_IncludeDepth] = m_FileIndex;
 		m_IncludeStack[m_IncludeDepth++] = m_fd;
 
-		m_FileIndex = m_Filenames.Add(filename);
-//		m_Filename = filename;
+		// Check if this file already in the m_Filenames list!
 
+
+		m_FileIndex = m_Filenames.Add(filename);
+										  
+		// Now loading from a different FD!
+		m_fd = fd;
 		a85parse();
 		fclose(m_fd);
+
+		// Restore the previous FD
 		m_fd = m_IncludeStack[--m_IncludeDepth];
-//		m_Filename = m_IncludeName[m_IncludeDepth];
 		m_FileIndex = m_IncludeIndex[m_IncludeDepth];
 	}
 }
@@ -1158,7 +1215,7 @@ void VTAssembler::directive_aseg()
 	m_ActiveAddr = m_ActiveMod->m_ActiveAddr[ASEG];
 
 	// Update address location
-	m_Address = m_ActiveMod->m_Address[ASEG];
+	m_Address = (unsigned short) m_ActiveMod->m_Address[ASEG];
 }
 
 void VTAssembler::directive_cseg(int page)
@@ -1183,7 +1240,7 @@ void VTAssembler::directive_cseg(int page)
 	m_ActiveAddr = m_ActiveMod->m_ActiveAddr[CSEG];
 
 	// Update address location
-	m_Address = m_ActiveMod->m_Address[CSEG];
+	m_Address = (unsigned short) m_ActiveMod->m_Address[CSEG];
 }
 
 void VTAssembler::directive_dseg(int page)
@@ -1208,7 +1265,7 @@ void VTAssembler::directive_dseg(int page)
 	m_ActiveAddr = m_ActiveMod->m_ActiveAddr[DSEG];
 
 	// Update address location
-	m_Address = m_ActiveMod->m_Address[DSEG];
+	m_Address = (unsigned short) m_ActiveMod->m_Address[DSEG];
 }
 
 void VTAssembler::directive_ds()
@@ -2408,9 +2465,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 						if (pSymbol->m_Name == pExt->m_Name)
 						{
 							if (pExt->m_Size == 1)
-								pExt->m_SymIdx = pSymbol->m_Off8;
+								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off8;
 							else
-								pExt->m_SymIdx = pSymbol->m_Off16;
+								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off16;
 						}
 					}
 				}
@@ -2718,6 +2775,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 	Add debug sections to .OBJ file
 	=======================================
 	*/
+	if (m_AsmOptions.Find("-g") >= 0)
+	{
+	}
 
 
 	/*
@@ -2879,9 +2939,14 @@ int VTAssembler::EquationIsExtern(CRpnEquation* pEq, int size)
 void VTAssembler::Parse(MString filename)
 {
 	int		success = 1;
-	MString	outfile;								 \
+	MString	outfile;								 
 	MString	temp;
 
+
+	// Clean up the assembler files from previous assembler
+	ResetContent();
+
+	// Try to assemble the file
 	if (success = ParseASMFile(filename, this))
 	{
 		// No parse errors!  Try to assemble
@@ -2898,34 +2963,38 @@ void VTAssembler::Parse(MString filename)
 				outfile = filename;
 
 			// Append .obj to filename
+			temp = outfile;
 			outfile += ".obj";
 
 			// Generate the object file
 			CreateObjFile(outfile);
 
 			// Generate a listing file if requested
+			CreateList(temp);
 		}
 	}
-
-	// If not successful, display list of errors
-	if (!success)
-	{
-		char	str[120];
-		int		count, c;
-
-		count = m_Errors.GetSize();
-		for (c = 0; c < count; c++)
-		{
-			strcpy(str, m_Errors[c]);
-		}
-	}
-
-	// Clean up the assembler files
-	ResetContent();
 }
 
-void VTAssembler::CreateList()
+void VTAssembler::CreateList(MString& filename)
 {
+	MString		outfile;
+	FILE*		fd;
+
+	if ((m_AsmOptions.Find("-l") != -1) || (m_List))
+	{
+		if ((strcmp(filename, ".asm") == 0) || (strcmp(filename, "a85") == 0))
+		{
+			outfile = filename.Left(filename.GetLength()-4);
+		}
+		else
+			outfile = filename;
+
+		// Append .lst to filename
+		outfile += ".lst";
+
+		fd = fopen(outfile, "wb+");
+		fclose(fd);
+	}
 }
 
 void VTAssembler::CreateHex()
@@ -3030,5 +3099,70 @@ CInstruction::~CInstruction()
 			char str[30];
 			strcpy(str, m_Group->GetClass()->m_ClassName);
 		}
+	}
+}
+
+void VTAssembler::SetAsmOptions(const MString& options)
+{
+	// Set the options string in case we need it later
+	m_AsmOptions = options;
+
+	// Parse the options later during assembly
+}
+
+void VTAssembler::SetIncludeDirs(const MString& dirs)
+{
+	// Save the string in case we need it later
+	m_IncludePath = dirs;
+
+	// Recalculate the include directories
+	CalcIncludeDirs();
+}
+
+void VTAssembler::SetDefines(const MString& defines)
+{
+	// Save the string in case we need it later
+	m_ExtDefines = defines;
+}
+
+void VTAssembler::SetRootPath(const MString& path)
+{
+	// Save the string in case we need it later
+	m_RootPath = path;
+
+	// Recalculate the include directories
+	CalcIncludeDirs();
+}
+
+void VTAssembler::CalcIncludeDirs(void)
+{
+	char*		pStr;
+	char*		pToken;
+	MString		temp;
+
+	m_IncludeDirs.RemoveAll();
+
+	// Check if there is an include path
+	if (m_IncludePath.GetLength() == 0)
+		return;
+
+	// Copy path to a char array so we can tokenize
+	pStr = new char[m_IncludePath.GetLength()];
+	strcpy(pStr, (const char *) m_IncludePath);
+
+	pToken = strtok(pStr, ",;");
+	while (pToken != NULL)
+	{
+		// Generate the path
+		temp = pToken;
+		temp.Trim();
+		temp += "/";
+		temp = m_RootPath + "/" + temp;
+
+		// Now add it to the array
+		m_IncludeDirs.Add(temp);
+
+		// Get next token
+		pToken = strtok(NULL, ",;");
 	}
 }

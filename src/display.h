@@ -44,11 +44,20 @@ void lcdcommand(int driver, int value);
 void power_down();
 void process_windows_event();
 void display_cpu_speed(void);
+void display_map_mode(char *str);
 void show_error(const char*);
 void t200_command(unsigned char ir, unsigned char data);
 unsigned char t200_readport(unsigned char port);
+void handle_simkey(void);
+void switch_model(int);
+
+typedef int (*get_key_t)(int);
+typedef int (*event_key_t)(void);
 
 #ifdef __cplusplus
+
+#define	VT_SIM_KEYUP	3120
+#define	VT_SIM_KEYDOWN	3121
 
 class T100_Disp : public Fl_Widget
 {
@@ -60,6 +69,9 @@ public:
 	virtual void	Command(int instruction, uchar data);
 	virtual void	Clear(void);
 	virtual void	Reset(void);
+	void			SimulateKeydown(int key);
+	void			SimulateKeyup(int key);
+	void			HandleSimkey(void);
 
 	int				MultFact;
 	int				DisplayMode;
@@ -77,8 +89,12 @@ public:
 protected:
 	virtual int		handle(int event);
 	virtual void	draw();
+	static int		sim_get_key(int key);
+	static int		sim_event_key(void);
 	__inline void	drawpixel(int x, int y, int color);
 	virtual void	draw_static();
+	static int		m_simKeys[32];
+	static int		m_simEventKey;
 
 	int				m_MyFocus;
 	uchar			lcd[10][256];

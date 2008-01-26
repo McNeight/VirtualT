@@ -1,9 +1,9 @@
-/* VirtualT.h */
+/* remote.h */
 
-/* $Id: VirtualT.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: remote.h,v 1.1.1.1 2008/01/07 06:46:11 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2008 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,23 +28,34 @@
  */
 
 
-#ifndef _VIRTUALT_H_
-#define _VIRTUALT_H_
+#ifndef _REMOTE_H_
+#define _REMOTE_H_
 
-#define VERSION	"1.0"
-
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-	,MODEL_PC8201
-	,MODEL_M10
-	,MODEL_PC8300
-};
-
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+void	init_remote(void);
+void	lock_remote(void);
+void	unlock_remote(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#define	BPTYPE_MAIN		0x01
+#define	BPTYPE_OPT		0x02
+#define	BPTYPE_MPLAN	0x04
+#define	BPTYPE_RAM		0x08
+#define	BPTYPE_RAM2		0x10
+#define	BPTYPE_RAM3		0x20
+
+typedef struct
+{
+	int		top_row;
+	int		top_col;
+	int		bottom_row;
+	int		bottom_col;
+} lcd_rect_t;
 
 #endif

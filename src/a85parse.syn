@@ -7,7 +7,9 @@
 }
 
 [
-	auto resynch
+//	auto resynch
+	diagnose errors
+	error frame
 	disregard WS
 	disregard cstyle comment
     distinguish lexemes
@@ -72,7 +74,8 @@ statement
  -> WS?..., expression, comment
  -> WS?..., comment
  -> WS?..., newline
- -> WS?..., cstyle comment
+ -> WS?..., cstyle comment						
+ -> error, '\n'
 
 expression
  -> label
@@ -125,11 +128,12 @@ expression
 
 expression list
  -> literal string									= expression_list_literal();
- -> singlequote string
+ -> singlequote string								= expression_list_literal();
  -> equation										= expression_list_equation();
  -> expression list, WS?..., ",", WS?..., equation		= expression_list_equation();
  -> expression list, WS?..., ",", WS?..., literal string	= expression_list_literal();
  -> expression list, WS?..., ",", WS?..., singlequote string	= expression_list_literal();
+ [ hidden {expression list} ]
 
 /*
 ============================================================================
@@ -140,7 +144,7 @@ expression list
 
 name list
  -> literal name									= gNameList->Add(ss[ss_idx--]);
- -> name list, WS?..., ",", WS?..., literal name					= gNameList->Add(ss[ss_idx--]);
+ -> name list, WS?..., ",", WS?..., literal name	= gNameList->Add(ss[ss_idx--]);
 
 literal name
  -> literal alpha
@@ -161,6 +165,7 @@ singlequote string
 singlequote chars
  -> '\'', escape char:ch1, escape char:ch2			= { ss_idx++; ss_len = 2; sprintf(ss[ss_idx], "%c%c", ch1, ch2); }
  -> singlequote chars, escape char:c				= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
+[ hidden {singlequote chars} ]
 
 literal string
  -> string chars, '"'
@@ -170,6 +175,7 @@ string chars
  -> string chars, string char:c						= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
  -> string chars, '\\', ~eof - '\n':c				= { ss[ss_idx][ss_len++] = '\\'; ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
  -> string chars, '\\', '\n'
+[ hidden {string chars} ]
 
 include string
  -> include chars, '>'								= { ss[ss_idx][ss_len++] = '>'; ss[ss_idx][ss_len] = 0; }
@@ -179,6 +185,7 @@ include chars
  -> include chars, string char - '>':c				= { ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
  -> include chars, '\\', ~eof - '\n':c				= { ss[ss_idx][ss_len++] = '\\'; ss[ss_idx][ss_len++] = c; ss[ss_idx][ss_len] = 0; }
  -> include chars, '\\', '\n'
+[ hidden {include chars} ]
 
 label
  -> literal name, ":"								= gAsm->label(ss[ss_idx--]);
@@ -202,8 +209,9 @@ condition start
  -> equation, {"le" | "<="}							= condition(COND_LE);
  -> equation, {"gt" | ">"}							= condition(COND_GT);
  -> equation, {"lt" | "<"}							= condition(COND_LT);
+[ hidden {condition start} ]
 
-condition start
+//condition start
 // -> equation										= { gCond->m_EqLeft = gEq; gEq = new CRpnEquation; }
 // -> equation, {"eq" | "==" | "="}, equation		= condition(COND_EQ);
 // -> equation, {"ne" | "!="}, equation				= condition(COND_NE);
@@ -318,6 +326,7 @@ asm hex value
 
 (int) ascii integer
  -> '\'', escape char:n, '\''						= n;
+ -> '\'', escape char:n1, escape char:n2, '\''		= (n1 << 8) | n2;
  -> "'\\'"											= '\\';
 
 (int) escape char
@@ -337,6 +346,7 @@ asm hex value
  -> decimal integer, '.'							= { gDivisor = 1.0; return (double) conv_to_dec(); }
  -> '.', '0-9':d									= { gDivisor = 10.0; return ((double) (d - '0') / gDivisor); }
  -> simple real:r, '0-9':d							= { gDivisor *= 10.0; return (r + (double) (d - '0') / gDivisor); }
+[ hidden {simple real} ]
 
 
 /* 
@@ -569,7 +579,11 @@ BOOL ParseASMFile(const char* filename, VTAssembler* pAsm)
 
 	// Try to open the file
 	if ((gAsm->m_fd = fopen(gAsm->m_Filenames[gAsm->m_FileIndex], "r")) == 0)
+	{
+		// Add error indicating failure to open file
+		gAsm->m_Errors.Add("Error opening file");
 		return FALSE;
+	}
 
 	// Reset the string stack
 	ss_idx = 0;
@@ -600,11 +614,15 @@ BOOL ParseASMFile(const char* filename, VTAssembler* pAsm)
 
 #define TAB_SPACING gTabSize
 
-#define GET_INPUT ((PCB).input_code = gAsm->m_fd != 0 ? \
-	fgetc(gAsm->m_fd) : 0)
+#define GET_INPUT {(PCB).input_code = gAsm->m_fd != 0 ? \
+	fgetc(gAsm->m_fd) : 0; if ((PCB).input_code == 13) (PCB).input_code = fgetc(gAsm->m_fd);}
 
-#define SYNTAX_ERROR {MString string;  string.Format("%s, line %d, column %d", \
-  (PCB).error_message, (PCB).line, (PCB).column); gAsm->m_Errors.Add(string); }
+#define SYNTAX_ERROR {MString string;  if ((PCB).error_frame_token != 0) \
+  string.Format("Malformed %s - %s, line %d, column %d", \
+  TOKEN_NAMES[(PCB).error_frame_token], (PCB).error_message, (PCB).line, (PCB).column); else \
+  string.Format("%s, line %d, column %d", \
+  (PCB).error_message, (PCB).line, (PCB).column); \
+  gAsm->m_Errors.Add(string); ss_idx = 0; ss_len = 0; }
 
 #define PARSER_STACK_OVERFLOW {MString string;  string.Format(\
    "\nParser stack overflow, line %d, column %d",\

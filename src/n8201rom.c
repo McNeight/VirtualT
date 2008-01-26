@@ -909,8 +909,11 @@ RomDescription_t gN8201_Desc = {
 	0xF84F,                     /* Start of RAM directory */
 	0xF459,                     /* BASIC string	buffer pointer */
 	0xF9CA,						/* BASIC Size */
+	0xFE58,						/* Keyscan array */
+	0x78B7,						/* Character generator array */
 
 	24,							/* Number of directory entries */
-	8							/* Index of first Dir entry */
+	8,							/* Index of first Dir entry */
+	0x7FAE						/* Address of MS Copyright string */
 };
 

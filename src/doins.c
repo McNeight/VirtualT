@@ -63,33 +63,33 @@ __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry
 	if (sign!=-2)
 	{
 		if(sign>=0)
-			F=(F&0x7F)|(sign?0x80:0);
+			F=(F&~SF_BIT)|(sign?SF_BIT:0);
 		else 
-			F=(F&0x7F)|(regval&0x80);
+			F=(F&~SF_BIT)|(regval&SF_BIT);
 	}
 
 	if (zero != -2)
 	{
 		if(zero>=0)
-			F=(F&0xBF)|(zero?0x40:0);
+			F=(F&~ZF_BIT)|(zero?ZF_BIT:0);
 		else
-			F=(F&0xBF)|(regval?0:0x40);
+			F=(F&~ZF_BIT)|(regval?0:ZF_BIT);
 	}
 
 	if(auxcarry>=0)
-		F=(F&0xEF)|(auxcarry?0x10:0);
+		F=(F&~AC_BIT)|(auxcarry?AC_BIT:0);
 
 	if (parity != -2)
 	{
 		if(parity>=0)
-			F=(F&0xFB)|(parity?0x04:0);
+			F=(F&~PF_BIT)|(parity?PF_BIT:0);
 		else
 			/* Table Lookup */
-			F=(F&0xFB)|paritybits[regval & 0xFF];
+			F=(F&~PF_BIT)|paritybits[regval & 0xFF];
 	}
 
 	if(carry>=0)
-		F=(F&0xFE)|(carry?1:0);
+		F=(F&~CF_BIT)|(carry?CF_BIT:0);
 
 	if (ov >= 0)
 		F=(F&~OV_BIT)|(ov?OV_BIT:0);

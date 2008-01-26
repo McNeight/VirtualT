@@ -29,49 +29,64 @@
 
 
 #define LXI(rp,h,l,rps)	{ \
-							l=INS_INC; \
-							h=INS_INC; \
-							cycle_delta+=10; \
+							INCPC; \
+							l=INS; \
+							INCPC; \
+							h=INS; \
+							INCPC; \
+							cycle_delta+=(10); \
 						}
 
 #define STAX(rp,rps)	{ \
+							INCPC; \
 							MEMSET(rp,A); \
-							cycle_delta+=7; \
+							cycle_delta+=(7); \
 						}
 
 #define INX(rp,h,l,rps)	{ \
-							F &= ~XF_BIT; \
-							if(!(++l)) { \
-								h++; \
+							INCPC; \
+							F &= ~(OV_BIT|XF_BIT); \
+							if ((l==0xFF) && (h==0xFF)) \
 								F |= XF_BIT; \
+							l++; \
+							if(!l) { \
+								h++; \
+								F |= OV_BIT; \
 							} \
-							cycle_delta += 6; \
+							cycle_delta+=(6); \
 						}
 
 #define INR(r,rs)		{ \
-							if((++r)&0x0f==0) /* Low order nybble wrapped */ \
+							INCPC; \
+							r++; \
+							if((r&0x0f)==0) /* Low order nybble wrapped */ \
 								j=1; \
 							else \
 								j=0; \
 							setflags(r,-1,-1,j,-1,-2, (r==0x80) || (r==0), -2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define DCR(r,rs)		{ \
-							if((--r)&0x0f==0x0f) /* Low order nybble wrapped */ \
+							INCPC; \
+							r--; \
+							if((r&0x0f)==0x0f) /* Low order nybble wrapped */ \
 								j=1; \
 							else \
 								j=0; \
 							setflags(r,-1,-1,j,-1,-2, (r==0xFF) || (r==0x7F), -2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define MVI(r,rs)		{ \
-							r=INS_INC; \
-							cycle_delta += 7; \
+							INCPC; \
+							r=INS; \
+							INCPC; \
+							cycle_delta+=(7); \
 						}
 
 #define DAD(rp,rps)		{ \
+							INCPC; \
 							i=HL; \
 							i+=rp; \
 							j=(HL&0x8000)==(rp&0x8000); \
@@ -84,35 +99,42 @@
 							if (j) \
 								j = (HL&0x8000) != (rp&0x8000); \
 							setflags(0,-2,-2,-2,-2,i,j,-2 ); \
-							cycle_delta += 10; \
+							cycle_delta+=(10); \
 						}
 
 #define LDAX(rp,rps)	{ \
+							INCPC; \
 							A=MEM(rp); \
-							cycle_delta += 7; \
+							cycle_delta+=(7); \
 						}
 
 #define DCX(rp,h,l,rps)	{ \
-							l--; \
-							F &= ~XF_BIT; \
-							if(l==0xff) { \
+							INCPC; \
+							F &= ~(OV_BIT|XF_BIT); \
+							if ((l == 0) && (h == 0)) \
 								F |= XF_BIT; \
+							l--; \
+							if(l==0xff) { \
+								F |= OV_BIT; \
 								h--; \
 							} \
-							cycle_delta += 6; \
+							cycle_delta+=(6); \
 						}
 
 #define MOV(dest,src,ds,ss)	{ \
+							INCPC; \
 							dest=src; \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define MOVM(src,ss)	{ \
+							INCPC; \
 							MEMSET(HL, src); \
-							cycle_delta += 7; \
+							cycle_delta+=(7); \
 						}
 
 #define ADD(r,rs)		{ \
+							INCPC; \
 							i=A; \
 							i+=r; \
 							v=(A&0x80) == (r&0x80); \
@@ -125,10 +147,11 @@
 							if (v)	\
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define ADC(r,rs)		{ \
+							INCPC; \
 							i=A; \
 							i+=r; \
 							i+=(CF?1:0); \
@@ -142,10 +165,11 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define SUB(r,rs)		{ \
+							INCPC; \
 							i=A; \
 							i-=r; \
 							j = (((A & 0x0F)-(r & 0x0F)) & 0x10) >> 4; \
@@ -158,10 +182,11 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define SBB(r,rs)		{ \
+							INCPC; \
 							i=A; \
 							i-=r; \
 							i-=(CF?1:0); \
@@ -175,28 +200,32 @@
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
 							setflags(A,-1,-1,j,-1,i,v,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define ANA(r,rs)		{ \
+							INCPC; \
 							A&=r; \
 							setflags(A,-1,-1,1,-1,0,-2,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define XRA(r,rs)		{ \
+							INCPC; \
 							A^=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define ORA(r,rs)		{ \
+							INCPC; \
 							A|=r; \
 							setflags(A,-1,-1,0,-1,0,-2,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define CMP(r,rs)		{ \
+							INCPC; \
 							i=A; \
 							i-=r; \
 							if (i>0xFF) \
@@ -209,64 +238,72 @@
 							else \
 								v = 0; \
 							setflags(A-r,-1,-1,j,-1,i,v,-2); \
-							cycle_delta += 4; \
+							cycle_delta+=(4); \
 						}
 
 #define POP(rp,h,l,rps)	{ \
+							INCPC; \
 							l=MEM(SP); \
 							h=MEM(SP+1); \
 							INCSP2; \
-							cycle_delta += 10; \
+							cycle_delta+=(10); \
 						}
 
 #define PUSH(rp,h,l,rps)	{ \
+							INCPC; \
 							DECSP2; \
 							MEMSET(SP,l); \
 							MEMSET(SP+1,h); \
-							cycle_delta += 12; \
+							cycle_delta+=(12); \
 						}
 
 #define RST(num)		{ \
+							INCPC; \
 							DECSP2; \
 							MEMSET(SP,PCL); MEMSET(SP+1,PCH); \
 							PCH=0; \
 							PCL=8*num; \
-							cycle_delta += 12; \
+							cycle_delta+=(12); \
 						}
 
 #define CALL(cond,ins)	{ \
+							INCPC; \
 							INCPC2; \
 							if(cond) { \
 								DECSP2; \
 								MEMSET(SP,PCL); MEMSET(SP+1,PCH); /* MEM16(SP)=PC; */ \
 								DECPC2; \
 								SETPCINS16; \
-								cycle_delta += 9; \
+								cycle_delta+=(9); \
 							} \
-							cycle_delta += 9; \
+							cycle_delta+=(9); \
 						}
 
 #define	RETURN(cond,ins)	{ \
+							INCPC; \
 							if(cond) { \
 								PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */ \
 								INCSP2; \
-								cycle_delta += 6; \
+								cycle_delta+=(6); \
 							} \
-							cycle_delta += 6; \
+							cycle_delta+=(6); \
 						}
 
 #define JUMP(cond,ins)	{ \
+							INCPC; \
 							if(cond) { \
 								SETPCINS16; \
-								cycle_delta += 3; \
+								cycle_delta+=(3); \
 							} \
 							else \
 								INCPC2; \
-							cycle_delta += 7; \
+							cycle_delta+=(7); \
 						}
 
 {
-	ins = INS_INC;
+//	if(trace)
+//		p=op+sprintf(op,"%04x (%02x) ",PC,INS);
+ins = INS;
 	if(!(ins&0x80)) {
 		if(!(ins&0x40)) {
 			if(!(ins&0x20)) {
@@ -276,7 +313,8 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x00:	/* NOP */
-									cycle_delta += 4;
+									INCPC;
+									cycle_delta+=(4);
 									/* return; */
 								}
 								else {
@@ -313,10 +351,11 @@
 								}
 								else {
 									/* case 0x07:	/* RLC */
+									INCPC;
 									i=A>>7;
 									A=(A<<1)|i;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -327,6 +366,7 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x08:	/* DSUB */
+									INCPC;
 									i = HL < BC;// - (CF?1:0);
 									j = HL - BC;// - (CF?1:0);
 									v = (HL&0x8000) == (BC&0x8000);
@@ -334,8 +374,8 @@
 									H=(j >> 8) & 0xFF;
 									if (v)
 										v = (HL&0x8000) != (BC&0x8000);
-									setflags(H | L,-2,-1,-2,-2,i,v,-2);
-									cycle_delta += 10;
+									setflags(H | L,H&0x80,-1,-2,-2,i,v,-2);
+									cycle_delta+=(10);
 									/* return; */
 								}
 								else {
@@ -372,11 +412,12 @@
 								}
 								else {
 									/* case 0x0F:	/* RRC */
+									INCPC;
 									i=A<<7&0x80;
 									A=(A>>1)|i;
 									i>>=7;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -389,12 +430,13 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x10:	/* ASHR */
+									INCPC;
 									i = L & CF ;
 									j = HL >> 1;
 									L = j & 0xFF;
 									H = (H & 0x80) | ((j >> 8) & 0xFF);
 									setflags(0,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									/* return; */
 								}
 								else {
@@ -431,11 +473,12 @@
 								}
 								else {
 									/* case 0x17:	/* RAL */
+									INCPC;
 									i=A>>7;
 									A<<=1;
 									A|=(CF?1:0);
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -446,12 +489,13 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x18:	/* RLDE */
+									INCPC;
 									i = D & 0x80 ? 1 : 0;
 									j = DE << 1;
 									E = (j & 0xFF) | (CF ? 1 : 0);
 									D = (j >> 8) & 0xFF;
 									setflags(0,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 								else {
@@ -488,11 +532,12 @@
 								}
 								else {
 									/* case 0x1F:	/* RAR */
+									INCPC;
 									i=(A&0x01);
 									A>>=1;
 									A|=CF?0x80:0;
 									setflags(A,-2,-2,-2,-2,i,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -507,8 +552,9 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x20:	/* RIM */
+									INCPC;
 									A=IM;
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 								else {
@@ -519,11 +565,12 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x22:	/* SHLD */
+									INCPC;
 									MEMSET(INS16,L);
 									MEMSET(INS16+1,H);
 									/* MEM16(INS16)=HL; */
 									INCPC2;
-									cycle_delta += 16;
+									cycle_delta+=(16);
 									/* return; */
 								}
 								else {
@@ -550,6 +597,7 @@
 								}
 								else {
 									/* case 0x27:	/* DAA */
+									INCPC;
 									i=j=0;
 									/* Check if lower nibble greater than 9 */
 									if(((A&0x0F) > 9)) {
@@ -565,7 +613,7 @@
 										i|=0x60;/* Add 6 to upper nibble */
 									A+=i;
 									setflags(A,-1,-1,j,-1,i>>4?1:0,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */ /* Huh? */
 								}
 							}
@@ -576,11 +624,12 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x28:	/* LDEH */
+									INCPC;
 									j = HL + INS;
 									INCPC;
 									E = j & 0xFF;
 									D = (j >> 8) & 0xFF;
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 								else {
@@ -591,10 +640,11 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x2A:	/* LHLD */
+									INCPC;
 									L=MEM(INS16);
 									H=MEM(INS16+1);
 									INCPC2;
-									cycle_delta += 16;
+									cycle_delta+=(16);
 								}
 								else {
 									/* case 0x2B:	/* DCX H */
@@ -620,8 +670,9 @@
 								}
 								else {
 									/* case 0x2F:	/* CMA */
+									INCPC;
 									A=~A;
-									cycle_delta += 4;
+									cycle_delta+=(4);
 								}
 							}
 						}
@@ -633,13 +684,14 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x30:	/* SIM */
+									INCPC;
 									if (A & 0x08)	/* Check if Interrupt masking enabled */
 										IM=(IM & 0xF8) | (A&0x07);
 									/* Turn RST 7.5 pending off if bit 4 set */
 									if(A&0x10) {
 										IM&=0xBF;
 									}
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 								else {
@@ -650,9 +702,10 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x32:	/* STA */
+									INCPC;
 									MEMSET(INS16,A);
 									INCPC2;
-									cycle_delta += 13;
+									cycle_delta+=(13);
 									/* return; */
 								}
 								else {
@@ -665,36 +718,40 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x34:	/* INR M */
+									INCPC;
 									MEMSET(HL,(uchar) (M+1));
-									if(M&0x0f==0) /* Low order nybble wrapped */
+									if((M&0x0f)==0) /* Low order nybble wrapped */
 										j=1;
 									else
 										j=0;
 									setflags(M,-1,-1,j,-1,-2, (M==0x80) || (M==0), -2);
-									cycle_delta += 10;
+									cycle_delta+=(10);
 								}
 								else {
 									/* case 0x35:	/* DCR M */
+									INCPC;
 									MEMSET(HL, (uchar)(M-1));
-									if(M&0x0f==0x0f) /* Low order nybble wrapped */
+									if((M&0x0f)==0x0f) /* Low order nybble wrapped */
 										j=1;
 									else 
 										j=0;
 									setflags(M,-1,-1,j,-1,-2, (M==0xFF) || (M==0x7F), -2);
-									cycle_delta += 10;
+									cycle_delta+=(10);
 								}
 							}
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x36:	/* MVI M */
+									INCPC;
 									MEMSET(HL,INS);
 									INCPC;
-									cycle_delta += 10;
+									cycle_delta+=(10);
 								}
 								else {
 									/* case 0x37:	/* STC */
+									INCPC;
 									setflags(0,-2,-2,-2,-2,1,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -705,11 +762,12 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0x38:	/* LDES */
+									INCPC;
 									j = SP + INS;
 									INCPC;
 									E = j & 0xFF;
 									D = (j >> 8) & 0xFF;
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 								else {
@@ -720,9 +778,10 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x3A:	/* LDA */
+									INCPC;
 									A=MEM(INS16);
 									INCPC2;
-									cycle_delta += 13;
+									cycle_delta+=(13);
 									/* return; */
 								}
 								else {
@@ -749,8 +808,9 @@
 								}
 								else {
 									/* case 0x3F:	/* CMC */
+									INCPC;
 									setflags(A,-2,-2,-2,-2,CF?0:1,-2,-2);
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -800,7 +860,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x46:	/* MOV B,M */
 									MOV(B,M,"B","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 									/* return; */
 								}
 								else {
@@ -848,7 +908,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x4E:	/* MOV C,M */
 									MOV(C,M,"C","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x4F:	/* MOV C,A */
@@ -897,7 +957,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x56:	/* MOV D,M */
 									MOV(D,M,"D","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x57:	/* MOV D,A */
@@ -944,7 +1004,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x5E:	/* MOV E,M */
 									MOV(E,M,"E","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x5F:	/* MOV E,A */
@@ -1041,7 +1101,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x6E:	/* MOV L,M */
 									MOV(L,M,"L","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x6F:	/* MOV L,A */
@@ -1089,8 +1149,7 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0x76:	/* HLT */
-									cycle_delta += 4;
-									DECPC;
+									cycle_delta+=(4);
 									/* return; */
 								}
 								else {
@@ -1138,7 +1197,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x7E:	/* MOV A,M */
 									MOV(A,M,"A","M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x7F:	/* MOV A,A */
@@ -1193,7 +1252,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x86:	/* ADD M */
 									ADD(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x87:	/* ADD A */
@@ -1240,7 +1299,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x8E:	/* ADC M */
 									ADC(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x8F:	/* ADC A */
@@ -1289,7 +1348,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x96:	/* SUB M */
 									SUB(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x97:	/* SUB A */
@@ -1336,7 +1395,7 @@
 								if(!(ins&0x01)) {
 									/* case 0x9E:	/* SBB M */
 									SBB(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0x9F:	/* SBB A */
@@ -1387,7 +1446,7 @@
 								if(!(ins&0x01)) {
 									/* case 0xA6:	/* ANA M */
 									ANA(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0xA7:	/* ANA A */
@@ -1434,7 +1493,7 @@
 								if(!(ins&0x01)) {
 									/* case 0xAE:	/* XRA M */
 									XRA(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0xAF:	/* XRA A */
@@ -1483,7 +1542,7 @@
 								if(!(ins&0x01)) {
 									/* case 0xB6:	/* ORA M */
 									ORA(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0xB7:	/* ORA A */
@@ -1530,7 +1589,7 @@
 								if(!(ins&0x01)) {
 									/* case 0xBE:	/* CMP M */
 									CMP(M,"M");
-									cycle_delta += 3;
+									cycle_delta+=(3);
 								}
 								else {
 									/* case 0xBF:	/* CMP A */
@@ -1550,12 +1609,13 @@
 							if(!(ins&0x02)) {
 								if(!(ins&0x01)) {
 									/* case 0xC0:	/* RNZ */
+									INCPC;
 									if(!ZF) {
 										PCL=MEM(SP); PCH=MEM(SP+1); /* PC=MEM16(SP) */
 										INCSP2;
-										cycle_delta += 6;
+										cycle_delta+=(6);
 									}
-									cycle_delta += 6;
+									cycle_delta+=(6);
 									/* return; */
 								}
 								else {
@@ -1588,19 +1648,20 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xC6:	/* ADI n */
+									INCPC;
 									i=A;
 									i+=INS;
-									j = (((A&0x0F)+(ins&0x0F)) &0x10)>>4;
-									v = (A&0x80) == (ins&0x80);
+									j = (((A&0x0F)+(INS&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
 									if (v)
-										v = (A&0x80) != (ins&0x80);
+										v = (A&0x80) != (INS&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									INCPC;
 									/* return; */
 								}
@@ -1629,8 +1690,9 @@
 									JUMP(ZF,"JZ");
 								}
 								else {
-									/* case 0xCB:	/* INVALID? */
-									bail("0xCB is invalid");
+									/* case 0xCB:	/* RSTV */
+									if (OV)
+										RST(8);
 									/* return; */
 								}
 							}
@@ -1649,20 +1711,21 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xCE:	/* ACI n */
+									INCPC;
 									i=A;
 									i+=INS;
 									i+=(CF?1:0);
-									j = (((A&0x0F)+(ins&0x0F)+(CF?1:0)) &0x10)>>4;
-									v = (A&0x80) == (ins&0x80);
+									j = (((A&0x0F)+(INS&0x0F)+(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
 									if (v)
-										v = (A&0x80) != (ins&0x80);
+										v = (A&0x80) != (INS&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									INCPC;
 									/* return; */
 								}
@@ -1694,9 +1757,10 @@
 								}
 								else {
 									/* case 0xD3:	/* OUT port */
+									INCPC;
 									out(INS,A);
 									INCPC;
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 							}
@@ -1715,19 +1779,20 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xD6:	/* SUI n */
+									INCPC;
 									i=A;
 									i-=INS;
-									j = (((A&0x0F)-(ins&0x0F)) &0x10)>>4;
-									v = (A&0x80) == (ins&0x80);
+									j = (((A&0x0F)-(INS&0x0F)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
 									if (v)
-										v = (A&0x80) != (ins&0x80);
+										v = (A&0x80) != (INS&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									INCPC;
 									/* return; */
 								}
@@ -1747,9 +1812,10 @@
 								}
 								else {
 									/* case 0xD9:	/* SHLX */
+									INCPC;
 									MEMSET(DE, L);
 									MEMSET(DE+1, H);
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 							}
@@ -1760,9 +1826,10 @@
 								}
 								else {
 									/* case 0xDB:	/* IN port */
+									INCPC;
 									A=inport(INS);
 									INCPC;
-									cycle_delta += 10;
+									cycle_delta+=(10);
 								}
 							}
 						}
@@ -1774,28 +1841,29 @@
 								}
 								else {
 									/* case 0xDD:	/* JNX addr */
-									JUMP(!OV,"JND");
+									JUMP(!XF,"JNX");
 									/* return; */
 								}
 							}
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xDE:	/* SBI n */
+									INCPC;
 									i=A;
 									i-=INS;
 									i-=(CF?1:0);
-									j = (((A&0x0F)-(ins&0x0F)-(CF?1:0)) &0x10)>>4;
-									v = (A&0x80) == (ins&0x80);
+									j = (((A&0x0F)-(INS&0x0F)-(CF?1:0)) &0x10)>>4;
+									v = (A&0x80) == (INS&0x80);
 									A=i;
 									if (i>0xFF)
 										i = 1;
 									else
 										i = 0;
 									if (v)
-										v = (A&0x80) != (ins&0x80);
+										v = (A&0x80) != (INS&0x80);
 									setflags(A,-1,-1,j,-1,i,v,-2);
 									INCPC;
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									/* return; */
 								}
 								else {
@@ -1828,6 +1896,7 @@
 								}
 								else {
 									/* case 0xE3:	/* XTHL */
+									INCPC;
 									i=H;
 									j=L;
 									L=MEM(SP);
@@ -1836,7 +1905,7 @@
 									MEMSET(SP, (uchar) j);
 									MEMSET(SP+1, (uchar) i);
 									/* MEM16(SP)=i; */
-									cycle_delta += 16;
+									cycle_delta+=(16);
 									/* return; */
 								}
 							}
@@ -1855,10 +1924,11 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xE6:	/* ANI n */
+									INCPC;
 									A=A&INS;
 									INCPC;
 									setflags(A,-1,-1,1,-1,0,-2,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									/* return; */
 								}
 								else {
@@ -1880,7 +1950,7 @@
 									PCH=H;
 									PCL=L;
 									/* PC=HL; */
-									cycle_delta += 6;
+									cycle_delta+=(6);
 									/* return; */
 								}
 							}
@@ -1891,6 +1961,7 @@
 								}
 								else {
 									/* case 0xEB:	/* XCHG */
+									INCPC;
 									i=H;
 									H=D;
 									D=i;
@@ -1900,7 +1971,7 @@
 									/* i=HL; */
 									/* HL=DE; */
 									/* DE=i; */
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -1913,19 +1984,21 @@
 								}
 								else {
 									/* case 0xED:	/* LHLX */
+									INCPC;
 									L=MEM(DE);
 									H=MEM(DE+1);
-									cycle_delta += 10;
+									cycle_delta+=(10);
 									/* return; */
 								}
 							}
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xEE:	/* XRI n */
+									INCPC;
 									A=A^INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
-									cycle_delta += 7;
+									cycle_delta+=(4);
 									/* return; */
 								}
 								else {
@@ -1956,8 +2029,9 @@
 								}
 								else {
 									/* case 0xF3:	/* DI */
+									INCPC;
 									IM|=0x08;
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -1976,10 +2050,11 @@
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xF6:	/* ORI n */
+									INCPC;
 									A=A|INS;
 									INCPC;
 									setflags(A,-1,-1,0,-1,0,-2,-2);
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									/* return; */
 								}
 								else {
@@ -1998,9 +2073,10 @@
 								}
 								else {
 									/* case 0xF9:	/* SPHL */
+									INCPC;
 									SPH=H;
 									SPL=L;
-									cycle_delta += 6;
+									cycle_delta+=(6);
 									/* return; */
 								}
 							}
@@ -2011,8 +2087,9 @@
 								}
 								else {
 									/* case 0xFB:	/* EI */
+									INCPC;
 									IM&=0xF7;
-									cycle_delta += 4;
+									cycle_delta+=(4);
 									/* return; */
 								}
 							}
@@ -2025,27 +2102,28 @@
 								}
 								else {
 									/* case 0xFD:	/* JX addr */
-									JUMP(OV,"JD");
+									JUMP(XF,"JX");
 									/* return; */
 								}
 							}
 							else {
 								if(!(ins&0x01)) {
 									/* case 0xFE:	/* CPI n */
+									INCPC;
 									i=A;
 									i-=INS;
 									if(i>0xFF)
 										i=1;
 									else
 										i=0;
-//									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
-//									if ((A&0x80) == (ins&0x80))
-//										v = (A&0x80) != (ins&0x80);
-//									else
-//										v = 0;
-									setflags(A-INS,-1,-1,j,-1,i,0,-2);
+									j = (((A & 0x0F)-(INS & 0x0F)) & 0x10) >> 4;
+									if ((A&0x80) == (INS&0x80))
+										v = (A&0x80) != (INS&0x80);
+									else
+										v = 0;
+									setflags(A-INS,-1,-1,j,-1,i,v,-2);
 									INCPC;
-									cycle_delta += 7;
+									cycle_delta+=(7);
 									/* return; */
 								}
 								else {

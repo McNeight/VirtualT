@@ -66,7 +66,7 @@ void close_cb(Fl_Widget* w, void*)
 }
 
 // Table of OPCODE
-char * VTDis::m_StrTable[256] = {
+char * gStrTable[256] = {
 	"NOP",     "LXI B,",  "STAX B",  "INX B",   "INR B",   "DCR B",    "MVI B,",  "RLC",
 	"DSUB",    "DAD B",   "LDAX B",  "DCX B",   "INR C",   "DCR C",    "MVI C,",  "RRC", 
 
@@ -117,7 +117,7 @@ char * VTDis::m_StrTable[256] = {
 };
 
 // Table indicating length of each opcode
-unsigned char VTDis::m_LenTable[256] = {	
+unsigned char gLenTable[256] = {	
 	0,2,0,0,0,0,1,0,
 	0,0,0,0,0,0,1,0,
 	0,2,0,0,0,0,1,0,
@@ -152,7 +152,6 @@ unsigned char VTDis::m_LenTable[256] = {
 	0,0,2,0,2,2,1,0
 };
 
-
 // Menu items for the disassembler
 Fl_Menu_Item gDis_menuitems[] = {
   { "&File",              0, 0, 0, FL_SUBMENU },
@@ -166,7 +165,7 @@ Fl_Menu_Item gDis_menuitems[] = {
 	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-	{ "Simulation Log Viewer", 0, 0 },
+//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ 0 },
 
@@ -243,6 +242,8 @@ VTDis::VTDis()
 {
 	m_StartAddress = 0;
 	m_EndAddress = ROMSIZE-1;
+	m_BaseAddress = 0;
+	m_WantComments = 0;
 }
 
 void VTDis::SetTextViewer(Fl_Text_Editor *pTextViewer)
@@ -250,11 +251,110 @@ void VTDis::SetTextViewer(Fl_Text_Editor *pTextViewer)
 	m_pTextViewer = pTextViewer;
 }
 
+void VTDis::AppendComments(char* line, int opcode, int address)
+{
+	int		i, x, len, op_len;
+
+	// Calculate # spaces to add for fixed line len (make comments line up)
+	len = 28 - strlen(line);
+
+	// Determine length of this opcode
+	op_len = gLenTable[opcode] & 0x03;
+
+	// Add comments for known addresses.  Opcodes less that 128 are Variable
+	// spaces (these opcodes are LXI, LHLD, etc.)
+	if ((op_len == 2) && (opcode < 128))
+	{
+		x = 0;
+		while (m_pRom->pVars[x].addr != -1)
+		{
+			if (m_pRom->pVars[x].addr == address)
+			{
+				for (i = 0; i < len; i++)
+					strcat(line, " ");
+				strcat(line, "; ");
+				strcat(line, gDisStrings[m_pRom->pVars[x].strnum].desc);
+				break;
+			}
+
+			x++;
+		}
+	}
+	// Add comments for known function call addresses. Opcodes 128 and greater
+	// are CALLs and JMPs
+	if ((op_len == 2) && (opcode > 128))
+	{
+		x = 0;
+		while (m_pRom->pFuns[x].addr != -1)
+		{
+			if (m_pRom->pFuns[x].addr == address)
+			{
+				for (i = 0; i < len; i++)
+					strcat(line, " ");
+				strcat(line, "; ");
+				strcat(line, gDisStrings[m_pRom->pFuns[x].strnum].desc);
+				break;
+			}
+
+			x++;
+		}
+	}
+
+	// Handle RST 1 Commenting
+	if (opcode == 0xCF)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Compare next byte with M");
+	}
+	// Handle RST 2 Commenting
+	if (opcode == 0xD7)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Get next non-white char from M");
+	}
+	// Handle RST 3 Commenting
+	if (opcode == 0xDF)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Compare DE and HL");
+	}
+	// Handle RST 4 Commenting
+	if (opcode == 0xE7)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Send character in A to screen/printer");
+	}
+	// Handle RST 5 Commenting
+	if (opcode == 0xEF)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Determine type of last var used");
+	}
+	// Handle RST 6 Commenting
+	if (opcode == 0xF7)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Get sign of FAC1");
+	}
+	// Handle RST 7 Commenting
+	if (opcode == 0xFF)
+	{
+		for (i = 0; i < len; i++)
+			strcat(line, " ");
+		strcat(line, "; Jump to RST 38H Vector entry of following byte");
+	}
+}
+
 void VTDis::Disassemble()
 {
 	int		c;
-	int		x, i;
-	int		len;
+	int		x;
 	int		table;
 	char	line[200];
 	char	arg[60];
@@ -349,7 +449,7 @@ void VTDis::Disassemble()
 
 						if (next + 1 == last)
 						{
-							if (m_memory[next-1] & 0x80 == 0)
+							if ((m_memory[next-1] & 0x80) == 0)
 								strcat(line, "\"");
 							strcat(line, "\n\n");
 							tb->append(line);
@@ -360,7 +460,8 @@ void VTDis::Disassemble()
 				// Modified strings are those that start with a 0x80 and ends
 				// when the next string is found (the next 0x80).  All the
 				// BASIC keywords are stored this way
-				else if (m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING2)
+				else if ((m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING2)
+					|| (m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING3))
 				{
 					int next;
 					int last = c + m_pRom->pTables[x].size;
@@ -378,7 +479,13 @@ void VTDis::Disassemble()
 						{
 							sprintf(arg, "\",'%c' or 80H", m_memory[next] & 0x7F);
 							strcat(line, arg);
-							sprintf(arg, ", %02XH\n", m_memory[next+1]);
+							if (m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING2)
+							{ 
+								sprintf(arg, ", %02XH\n", m_memory[next+1]);
+								next++;
+							}
+							else
+								strcpy(arg, "\n");
 							strcat(line, arg);
 //							if ((m_memory[next-1] & 0x80) == 0)
 //								strcat(line, "\"");
@@ -386,7 +493,6 @@ void VTDis::Disassemble()
 							tb->append(line);
 							line[0]=0;
 							str_active = 0;
-							next++;
 							continue;
 						}
 						if (!str_active)
@@ -394,12 +500,17 @@ void VTDis::Disassemble()
 							if (m_memory[next] & 0x80)
 							{
 								sprintf(line, "%04XH  DB   '%c' OR 80H", next, m_memory[next] & 0x7F);
-								sprintf(arg, ", %02XH\n", m_memory[next+1]);
+								if (m_pRom->pTables[x].type == TABLE_TYPE_MODIFIED_STRING2)
+								{
+									sprintf(arg, ", %02XH\n", m_memory[next+1]);
+									next++;
+								}
+								else
+									strcpy(arg, "\n");
 								strcat(line, arg);
 								tb->append(line);
 								line[0]=0;
 								str_active = 0;
-								next++;
 								continue;
 							}
 							else
@@ -416,7 +527,7 @@ void VTDis::Disassemble()
 
 						if (next + 1 == last)
 						{
-							if (m_memory[next-1] & 0x80 == 0)
+							if ((m_memory[next-1] & 0x80) == 0)
 								strcat(line, "\"");
 							strcat(line, "\n\n");
 							tb->append(line);
@@ -699,13 +810,13 @@ void VTDis::Disassemble()
 		opcode = m_memory[c];
 
 		// Determine length of this opcode
-		op_len = m_LenTable[opcode] & 0x03;
+		op_len = gLenTable[opcode] & 0x03;
 
 		// Print the address and opcode value to the temporary line buffer
 		sprintf(line, "%04XH  (%02XH) ", c, opcode);
 
 		// Print the opcode text to the temp line buffer
-		strcat(line, m_StrTable[opcode]);
+		strcat(line, gStrTable[opcode]);
 
 		// Check if this opcode has a single byte argument
 		if (op_len == 1)
@@ -724,103 +835,13 @@ void VTDis::Disassemble()
 			strcat(line, arg);
 		}
 
-		// Calculate # spaces to add for fixed line len (make comments line up)
-		len = 28 - strlen(line);
-
-		// Add comments for known addresses.  Opcodes less that 128 are Variable
-		// spaces (these opcodes are LXI, LHLD, etc.)
-		if ((op_len == 2) && (opcode < 128))
-		{
-			x = 0;
-			while (m_pRom->pVars[x].addr != -1)
-			{
-				if (m_pRom->pVars[x].addr == addr)
-				{
-					for (i = 0; i < len; i++)
-						strcat(line, " ");
-					strcat(line, "; ");
-					strcat(line, gDisStrings[m_pRom->pVars[x].strnum].desc);
-					break;
-				}
-
-				x++;
-			}
-		}
-		// Add comments for known function call addresses. Opcodes 128 and greater
-		// are CALLs and JMPs
-		if ((op_len == 2) && (opcode > 128))
-		{
-			x = 0;
-			while (m_pRom->pFuns[x].addr != -1)
-			{
-				if (m_pRom->pFuns[x].addr == addr)
-				{
-					for (i = 0; i < len; i++)
-						strcat(line, " ");
-					strcat(line, "; ");
-					strcat(line, gDisStrings[m_pRom->pFuns[x].strnum].desc);
-					break;
-				}
-
-				x++;
-			}
-		}
-
-		// Handle RST 1 Commenting
-		if (opcode == 0xCF)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Compare next byte with M");
-		}
-		// Handle RST 2 Commenting
-		if (opcode == 0xD7)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Get next non-white char from M");
-		}
-		// Handle RST 3 Commenting
-		if (opcode == 0xDF)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Compare DE and HL");
-		}
-		// Handle RST 4 Commenting
-		if (opcode == 0xE7)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Send character in A to screen/printer");
-		}
-		// Handle RST 5 Commenting
-		if (opcode == 0xEF)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Determine type of last var used");
-		}
-		// Handle RST 6 Commenting
-		if (opcode == 0xF7)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Get sign of FAC1");
-		}
-		// Handle RST 7 Commenting
-		if (opcode == 0xFF)
-		{
-			for (i = 0; i < len; i++)
-				strcat(line, " ");
-			strcat(line, "; Jump to RST 38H Vector entry of following byte");
-		}
-
-		// Increment memory counter by opcode length
-		c += op_len;
+		AppendComments(line, opcode, addr);
 
 		// Finish off the line
 		strcat(line, "\n");
+
+		// Increment memory counter by opcode length
+		c += op_len;
 
 		// Add a blank line for JMP, CALL, and RET to provide routine separation
 		if (opcode == 195 || opcode == 201 || opcode == 0xE9)
@@ -858,6 +879,11 @@ void VTDis::CopyIntoMem(unsigned char *ptr, int len)
 	}
 }
 
+void VTDis::SetBaseAddress(int address)
+{
+	m_BaseAddress = address;
+}
+
 int VTDis::DisassembleLine(int address, char* line)
 {
 	char			arg[60];
@@ -869,13 +895,13 @@ int VTDis::DisassembleLine(int address, char* line)
 	opcode = get_memory8(address);
 
 	// Determine length of this opcode
-	op_len = m_LenTable[opcode] & 0x03;
+	op_len = gLenTable[opcode] & 0x03;
 
 	// Print the address and opcode value to the temporary line buffer
-	sprintf(line, "%04XH  ", address);
+	sprintf(line, "%04XH  ", address + m_BaseAddress);
 
 	// Print the opcode text to the temp line buffer
-	strcat(line, m_StrTable[opcode]);
+	strcat(line, gStrTable[opcode]);
 
 	// Check if this opcode has a single byte argument
 	if (op_len == 1)
@@ -892,7 +918,12 @@ int VTDis::DisassembleLine(int address, char* line)
 		addr = get_memory8(address+1) | (get_memory8(address+2) << 8);
 		sprintf(arg, "%04XH", addr);
 		strcat(line, arg);
+
+		if (m_WantComments)
+		{
+			AppendComments(line, opcode, addr);
+		}
 	}
 
-	return 1;
+	return 1+op_len;
 }

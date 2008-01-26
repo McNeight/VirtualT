@@ -120,7 +120,7 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
 	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-	{ "Simulation Log Viewer", 0, 0 },
+//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ 0 },
 
@@ -867,6 +867,7 @@ void T100_MemEditor::SetRegionOptions(void)
 		{
 		case MODEL_M100:
 		case MODEL_M102:
+		case MODEL_M10:
 			memedit_ctrl.pRegion->add("RAM");
 			memedit_ctrl.pRegion->add("ROM");
 			memedit_ctrl.pRegion->add("Opt ROM");
@@ -916,6 +917,7 @@ void T100_MemEditor::SetScrollSize(void)
 		switch (gModel)
 		{
 		case MODEL_M100:
+		case MODEL_M10:
 		case MODEL_M102:
 		case MODEL_PC8201:
 			if (region == 0)

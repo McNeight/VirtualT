@@ -27,7 +27,7 @@
  * SUCH DAMAGE.
  */
 
-#define _MT
+//#define _MT
 #include <sys/types.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -83,8 +83,9 @@ int						gFlushBuffers = 0;
 int						gExit = 0;
 int						gBeepOn = 0;
 int						gOneHzPtr = 0;
-extern	double			last_instruct;
-static	double			spkr_cycle = 0;
+extern	UINT64			cycles;
+extern	int				cycle_delta;
+static	UINT64			spkr_cycle = 0;
 
 #ifdef _WIN32
 HANDLE					g_hEquThread;
@@ -319,7 +320,7 @@ DWORD WINAPI EquProc(LPVOID lpParam)
 
 		if (gBeepOn)
 		{
-			if (last_instruct - spkr_cycle > 0.001)
+			if (cycles + cycle_delta - spkr_cycle > 0.001)
 			{
 				gPlayTone = 0;
 				gBeepOn = 0;
@@ -359,12 +360,13 @@ void init_sound(void)
 	{
 		gpOneHertz[x] = (unsigned short) (sin(w * (double) x) * 32767.0);
 	}
+	spkr_cycle = cycles;
 
 	return;
 
 #ifdef _WIN32
 	// Start thread to handle Sound I/O
-	g_hEquThread = (HANDLE)_beginthreadex(0,0,EquProc,0,0,&dwThreadID);
+//	g_hEquThread = (HANDLE)_beginthreadex(0,0,EquProc,0,0,&dwThreadID);
 #endif
 }
 
@@ -395,6 +397,7 @@ void sound_start_tone(int freq)
 {
 	if (freq < m_SamplingRate / 2.0)
 	{
+//		printf("Playing tone of frequency %d\n", freq);
 		gToneFreq = freq;
 		gPlayTone = 1;
 	}
@@ -408,6 +411,7 @@ stop_tone:	This routine stops playing of tones
 void sound_stop_tone(void)
 {
 
+//	printf("Stop playing tone\n");
 #ifdef _WIN32
 //	waveOutReset (hOutput) ;
 #endif
@@ -426,14 +430,14 @@ toggle_speaker:	This routine handles toggling of the I/O bit that
 */
 void sound_toggle_speaker(int bitVal)
 {
-	double			delta;
+	UINT64			delta;
 
 	/* Calculate delta between current cycle and last cycle */
-	delta = last_instruct - spkr_cycle;
-	spkr_cycle = last_instruct;
+	delta = cycles + cycle_delta - spkr_cycle;
+	spkr_cycle = cycles + cycle_delta;
 
 	/* Test if delta is within a valid range */
-	if ((delta < 5000) && (delta != 0.0))
+	if ((delta < 5000) && (delta != 0))
 	{
 		gBeepOn = 1;
 		sound_start_tone((int) (60000.0 / delta));

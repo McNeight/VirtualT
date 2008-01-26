@@ -49,6 +49,7 @@ void out(uchar port, uchar val);
 void update_keys(void);
 void io_set_ram_bank(unsigned char bank);
 int inport(uchar port);
+void show_remem_mode(void);
 #ifdef __cplusplus
 }
 #endif

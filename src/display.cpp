@@ -35,7 +35,6 @@
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Help_Dialog.H>
-#include <FL/fl_ask.H> 
 #include <FL/Fl_File_Chooser.H>
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
@@ -56,13 +55,17 @@
 #include "memory.h"
 #include "memedit.h"
 #include "cpuregs.h"
+#include "rememcfg.h"
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
+extern RomDescription_t		gM10_Desc;
 extern RomDescription_t		*gStdRomDesc;
 extern int					gRomSize;
+extern int					gMaintCount;
+extern int					gOsDelay;
 }
 
 void cb_Ide(Fl_Widget* w, void*) ;
@@ -71,6 +74,7 @@ Fl_Window		*MainWin = NULL;
 T100_Disp		*gpDisp;
 T100_Disp		*gpDebugMonitor;
 Fl_Box			*gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
+Fl_Box			*gpMap = NULL;
 Fl_Menu_Bar		*Menu;
 Fl_Preferences	virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
 char			gsMenuROM[40];
@@ -82,6 +86,7 @@ int				DispHeight = 64;
 int				gRectsize = 2;
 int				gXoffset;
 int				gYoffset;
+int				gSimKey = 0;
 
 void switch_model(int model);
 
@@ -120,6 +125,8 @@ void setMonitorWindow(Fl_Window* pWin)
 	}
 }
 
+int T100_Disp::m_simKeys[32];
+int	T100_Disp::m_simEventKey;
 
 char *gSpKeyText[] = {
 	"SHIFT",
@@ -170,13 +177,43 @@ void disassembler_cb(Fl_Widget* w, void*);
 void rspeed(Fl_Widget* w, void*) 
 {
 	fullspeed=0;
-        virtualt_prefs.set("fullspeed",0);
+	gMaintCount = 4096;
+    virtualt_prefs.set("fullspeed",0);
 
 }
 void fspeed(Fl_Widget* w, void*) 
 {
+	fullspeed=3;
+#ifdef WIN32
+	gMaintCount = 300000;
+#else
+	gMaintCount = 131272;
+#endif
+	virtualt_prefs.set("fullspeed",3);
+
+}
+
+void pf1speed(Fl_Widget* w, void*) 
+{
 	fullspeed=1;
-        virtualt_prefs.set("fullspeed",1);
+#ifdef WIN32
+	gMaintCount = 16384;
+#else
+	gMaintCount = 4096;
+#endif
+	virtualt_prefs.set("fullspeed",1);
+
+}
+
+void pf2speed(Fl_Widget* w, void*) 
+{
+	fullspeed=2;
+#ifdef WIN32
+	gMaintCount = 100000;
+#else
+	gMaintCount = 16384;
+#endif
+	virtualt_prefs.set("fullspeed",2);
 
 }
 
@@ -227,8 +264,10 @@ void resize_window()
 		50*gpDisp->DisplayMode+2, 120, 20);
 	gpSpeed->resize(300, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
 		50*gpDisp->DisplayMode+2, 60, 20);
-	gpKeyInfo->resize(360, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, MainWin->w()-360, 20);
+	gpMap->resize(360, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpKeyInfo->resize(420, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, MainWin->w()-420, 20);
 
 	gRectsize = MultFact - (1 - SolidChars);
 	if (gRectsize == 0)
@@ -331,14 +370,72 @@ void cb_save_co(Fl_Widget* w, void*)
 
 void cb_reset (Fl_Widget* w, void*)
 {
-	int a=fl_ask("Really Reset ?");
+	int 	a;
 	
-	if(a==1) 
-		resetcpu();
+	if (w != NULL)
+		a=fl_choice("Really Reset ?", "No", "Yes", NULL);
+	else
+		a = 1;
 
-	gpDisp->Reset();
-	if (gpDebugMonitor != 0)
-		gpDebugMonitor->Reset();
+	if(a==1) 
+	{
+		resetcpu();
+		show_remem_mode();
+
+		if (gpDisp != NULL)
+			gpDisp->Reset();
+		if (gpDebugMonitor != 0)
+			gpDebugMonitor->Reset();
+	}
+}
+
+void remote_reset(void)
+{
+	cb_reset(NULL, NULL);
+}
+
+void cb_coldBoot (Fl_Widget* w, void*)
+{
+	int x;
+	int a;
+
+	if (gReMem)
+	{
+		if (w != NULL)
+			a = fl_choice("Reload OpSys ROM?", "Cancel", "Yes", "No", NULL);
+		else
+			a = 2;
+		if (a == 1)
+			reload_sys_rom();
+	}
+	else
+	{
+		if (w != NULL)
+			a = fl_choice("Really Cold Boot ?", "No", "Yes", NULL);
+		else
+			a = 2;
+	}
+	
+	if(a != 0) 
+	{
+		resetcpu();
+		reinit_mem();
+
+		// Clear the RAM
+		for (x = 32768; x < 65536; x++)
+			set_memory8(x, 0);
+
+		show_remem_mode();
+
+		gpDisp->Reset();
+		if (gpDebugMonitor != 0)
+			gpDebugMonitor->Reset();
+	}
+}
+
+void remote_cold_boot(void)
+{
+	cb_coldBoot(NULL, NULL);
 }
 
 void cb_UnloadOptRom (Fl_Widget* w, void*)
@@ -378,11 +475,11 @@ void cb_M200(Fl_Widget* w, void*)
 	/* Switch to new model */
 	switch_model(MODEL_T200);
 }
-//void cb_M10(Fl_Widget* w, void*)
-//{
+void cb_M10(Fl_Widget* w, void*)
+{
 	/* Switch to new model */
-//	switch_model(MODEL_M10);
-//}
+	switch_model(MODEL_M10);
+}
 void cb_PC8201(Fl_Widget* w, void*)
 {
 	/* Switch to new model */
@@ -430,7 +527,8 @@ void cb_help (Fl_Widget* w, void*)
     Fl_Help_Dialog *HelpWin;
 	
 	HelpWin = new Fl_Help_Dialog();
-	HelpWin->load("help.htm");
+	HelpWin->resize(HelpWin->x(), HelpWin->y(), 760, 550);
+	HelpWin->load("doc/help.html");
 	HelpWin->show();
 
 }
@@ -445,43 +543,47 @@ void cb_about (Fl_Widget* w, void*)
   
    Fl_Window* o = new Fl_Window(420, 340);
   
-    { Fl_Box* o = new Fl_Box(20, 0, 325, 95, "Virtual T");
+    { Fl_Box* o = new Fl_Box(20, 0, 345, 95, "Virtual T");
       o->labelfont(11);
       o->labelsize(80);
     }
-    { Fl_Box* o = new Fl_Box(40, 105, 305, 40, "A Tandy Model 100/102/200 Emulator");
+    { Fl_Box* o = new Fl_Box(50, 105, 305, 40, "A Tandy Model 100/102/200 Emulator");
       o->labelfont(8);
       o->labelsize(24);
     }
-    { Fl_Box* o = new Fl_Box(20, 150, 335, 35, "written by: "); 
+    { Fl_Box* o = new Fl_Box(30, 150, 335, 35, "written by: "); 
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(20, 170, 335, 35, "Ken Pettit");
+    { Fl_Box* o = new Fl_Box(30, 170, 335, 35, "Ken Pettit");
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(15, 190, 340, 35, "Stephen Hurd");
+    { Fl_Box* o = new Fl_Box(25, 190, 340, 35, "Stephen Hurd");
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(15, 210, 340, 35, "Jerome Vernet (Mac OsX Port)");
+    { Fl_Box* o = new Fl_Box(25, 210, 340, 35, "Jerome Vernet");
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(85, 255, 195, 25, "V "VERSION);
+    { Fl_Box* o = new Fl_Box(25, 230, 340, 35, "John Hogerhuis");
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(25, 295, 320, 25, "This program may be distributed freely ");
+    { Fl_Box* o = new Fl_Box(95, 265, 195, 25, "V "VERSION);
+      o->labelfont(8);
+      o->labelsize(18);
+    }
+    { Fl_Box* o = new Fl_Box(35, 295, 320, 25, "This program may be distributed freely ");
       o->labelfont(8);
       o->labelsize(16);
     }
-    { Fl_Box* o = new Fl_Box(25, 315, 320, 25, "under the terms of the BSD license");
+    { Fl_Box* o = new Fl_Box(35, 315, 320, 25, "under the terms of the BSD license");
       o->labelfont(8);
       o->labelsize(16);
     }
-    { Fl_Box* o = new Fl_Box(10, 75, 320, 20, "in FLTK");
+    { Fl_Box* o = new Fl_Box(20, 75, 320, 20, "in FLTK");
       o->labelfont(8);
       o->labelsize(18);
     }
@@ -499,23 +601,27 @@ Fl_Menu_Item menuitems[] = {
 		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
 		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
 		{ 0 },
-	{ "Load RAM...",      0,             cb_LoadRam, 0 },
-	{ "Save RAM...",      0,             cb_SaveRam, 0, FL_MENU_DIVIDER },
-	{ "E&xit",            FL_CTRL + 'q', close_disp_cb, 0 },
+//	{ "Load RAM...",      0,      cb_LoadRam, 0 },
+//	{ "Save RAM...",      0,      cb_SaveRam, 0, 0 },
+//	{ "RAM Snapshots...", 0,      0, 0, FL_MENU_DIVIDER },
+	{ "E&xit",            0, 	  close_disp_cb, 0 },
 	{ 0 },
 
   { "&Emulation",         0, 0,        0, FL_SUBMENU },
-	{ "Reset",            0, cb_reset, 0, FL_MENU_DIVIDER },
+	{ "Reset",            0, cb_reset, 0, 0 },
+	{ "Cold Boot",        0, cb_coldBoot, 0, FL_MENU_DIVIDER },
 	{ "Model",            0, 0,        0, FL_SUBMENU 	 } ,
 		{ "M100",   0, cb_M100,   (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
 		{ "M102",   0, cb_M102,   (void *) 2, FL_MENU_RADIO },
 		{ "T200",   0, cb_M200,   (void *) 3, FL_MENU_RADIO },
 		{ "PC-8201",  0, cb_PC8201, (void *) 4, FL_MENU_RADIO },
-//		{ "8300",   0, cb_PC8300, (void *) 5, FL_MENU_RADIO },
+		{ "M10",    0, cb_M10, (void *) 5, FL_MENU_RADIO },
 		{ 0 },
 	{ "Speed", 0, 0, 0, FL_SUBMENU },
 		{ "2.4 MHz",     0, rspeed, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
-		{ "Max Speed",   0, fspeed, (void *) 1, FL_MENU_RADIO },
+		{ "Very CPU Friendly",0, pf1speed, (void *) 2, FL_MENU_RADIO },
+		{ "CPU Friendly",0, pf2speed, (void *) 3, FL_MENU_RADIO },
+		{ "Max Speed",   0, fspeed, (void *) 4, FL_MENU_RADIO },
 		{ 0 },
 	{ "Display", 0, 0, 0, FL_SUBMENU | FL_MENU_DIVIDER},
 		{ "1x",  0, cb_1x, (void *) 1, FL_MENU_RADIO },
@@ -542,8 +648,9 @@ Fl_Menu_Item menuitems[] = {
 	{ "Assembler / IDE",       0, cb_Ide},
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
+	{ "ReMem Configuration",   0, cb_RememCfg, 0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-	{ "Simulation Log Viewer", 0, 0 },
+//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ 0 },
   { "&Help", 0, 0, 0, FL_SUBMENU },
@@ -553,6 +660,67 @@ Fl_Menu_Item menuitems[] = {
 
   { 0 }
 };
+
+/*
+============================================================================
+remote_set_speed:	This function sets the speed of the emulation
+============================================================================
+*/
+void remote_set_speed(int speed)
+{
+	int		mIndex;
+	int		i;
+	
+	/* Set CPU Speed */
+	fullspeed = speed;
+	switch (fullspeed)
+	{
+#ifdef WIN32
+		case 0: gMaintCount = 4096; break;
+		case 1: gMaintCount = 16384; break;
+		case 2: gMaintCount = 100000; break;
+		case 3: gMaintCount = 300000; break;
+		default: gMaintCount = 4096; break;
+#else
+		case 0: gMaintCount = 4096; break;
+		case 1: gMaintCount = 4096; break;
+		case 2: gMaintCount = 16384; break;
+		case 3: gMaintCount = 131272; break;
+		default: gMaintCount = 4096; break;
+#endif
+	}
+
+	//==================================================
+	// Update Speed menu item if not default value
+	//==================================================
+	mIndex = 0;
+	while (menuitems[mIndex].callback_ != rspeed)
+		mIndex++;
+	for (i = 0; i < 4; i++)
+	{
+		if (i == fullspeed)
+			menuitems[mIndex+i].flags= FL_MENU_RADIO |FL_MENU_VALUE;
+		else
+			menuitems[mIndex+i].flags= FL_MENU_RADIO;
+	}
+}
+
+void init_menus(void)
+{
+	int 	remem_menu_flag = FL_MENU_INVISIBLE;
+	int		mIndex;
+
+	if (gReMem)
+	{
+		remem_menu_flag = 0;
+	}
+
+	// Locate the ReMem Configuration menu item
+	mIndex = 0;
+	while (menuitems[mIndex].callback_ != cb_RememCfg)
+		mIndex++;
+	menuitems[mIndex].flags= remem_menu_flag;
+}
 
 /*
 ============================================================================
@@ -566,6 +734,7 @@ void switch_model(int model)
 {
 	/* Save RAM for current emulation */
 	save_ram();
+	free_mem();
 
 	/* Switch to new model */
 	gModel = model;
@@ -586,6 +755,10 @@ void switch_model(int model)
 	}
 	else if (gModel == MODEL_PC8201)
 		gStdRomDesc = &gN8201_Desc;
+	else if (gModel == MODEL_M10)
+	{
+		gStdRomDesc = &gM10_Desc;
+	}
 	else
 		gStdRomDesc = &gM100_Desc;
 
@@ -596,6 +769,7 @@ void switch_model(int model)
 
 	delete MainWin;
 	init_display();
+	show_remem_mode();
 
 	/* Resize the window in case of size difference */
 	resize_window();
@@ -617,7 +791,7 @@ T100:Disp:	This is the class construcor
 T100_Disp::T100_Disp(int x, int y, int w, int h) :
   Fl_Widget(x, y, w, h)
 {
-	  int driver;
+	  int driver, c;
 
 	  for (driver = 0; driver < 10; driver++)
 	  {
@@ -625,6 +799,8 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 			  lcd[driver][c] = 0;
 		  top_row[driver] = 0;
 	  }
+	  for (c = 0; c < 32; c++)
+		m_simKeys[c] = 0;
 
 	  m_MyFocus = 0;
 	  m_DebugMonitor = 0;
@@ -881,6 +1057,9 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		if (lcd[driver][col] == value)
 			return;
 
+		//if (driver == 4)
+			//printf("%d=%d ", col, value);
+
 		// Load new value into lcd "RAM"
 		lcd[driver][col] = value;
 
@@ -933,6 +1112,24 @@ void init_pref(void)
 	strcat(option_name, "_OptRomFile");
 	virtualt_prefs.get(option_name,gsOptRomFile,"", 256);
 
+	/* Set CPU Speed */
+	switch (fullspeed)
+	{
+#ifdef WIN32
+		case 0: gMaintCount = 4096; break;
+		case 1: gMaintCount = 16384; break;
+		case 2: gMaintCount = 100000; break;
+		case 3: gMaintCount = 300000; break;
+		default: gMaintCount = 4096; break;
+#else
+		case 0: gMaintCount = 4096; break;
+		case 1: gMaintCount = 4096; break;
+		case 2: gMaintCount = 16384; break;
+		case 3: gMaintCount = 131272; break;
+		default: gMaintCount = 4096; break;
+#endif
+	}
+
 	if (strlen(gsOptRomFile) == 0)
 	{
 		strcpy(gsMenuROM, "No ROM loaded");
@@ -947,6 +1144,7 @@ void init_display(void)
 {
 	int	mIndex;
 	int	i;
+	char		temp[20];
 
 	if (gModel == MODEL_T200)
 		DispHeight = 128;
@@ -966,19 +1164,22 @@ void init_display(void)
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
         
-        
+	init_menus();
+
 // Treat Values read in pref files
 // J. VERNET 
 	//==================================================
 	// Update Speed menu item if not default value
 	//==================================================
-	if(fullspeed==1) 
+	mIndex = 0;
+	while (menuitems[mIndex].callback_ != rspeed)
+		mIndex++;
+	for (i = 0; i < 4; i++)
 	{
-		mIndex = 0;
-		while (menuitems[mIndex].callback_ != rspeed)
-			mIndex++;
-		menuitems[mIndex+1].flags= FL_MENU_RADIO |FL_MENU_VALUE;
-		menuitems[mIndex].flags= FL_MENU_RADIO;
+		if (i == fullspeed)
+			menuitems[mIndex+i].flags= FL_MENU_RADIO |FL_MENU_VALUE;
+		else
+			menuitems[mIndex+i].flags= FL_MENU_RADIO;
 	}
 
 	//==================================================
@@ -1010,7 +1211,7 @@ void init_display(void)
 	while (menuitems[mIndex].callback_ != cb_M100)
 		mIndex++;
 
-    for(i=MODEL_M100;i<=MODEL_PC8201;i++)
+    for(i=MODEL_M100;i<=MODEL_M10;i++)
     {
         if(i==gModel) 
             if(i==MODEL_PC8300) 
@@ -1095,10 +1296,14 @@ void init_display(void)
 	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"");
 	gpSpeed->labelsize(10);
-	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, MainWin->w()-360, 20,
+	gpMap = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+DispHeight*MultFact +
+		50*DisplayMode+2, 60, 20,"");
+	gpMap->labelsize(10);
+	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,420, MENU_HEIGHT+DispHeight*MultFact +
+		50*DisplayMode+2, MainWin->w()-420, 20,
 		"F9:Label  F10:Print  F11:Paste  F12:Pause");
 	gpKeyInfo->labelsize(10);
+	gSimKey = 0;
 
 	gXoffset = 45*DisplayMode+1;
 	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
@@ -1118,6 +1323,21 @@ void init_display(void)
 	MainWin->end();
 	MainWin->show();
 
+	// Set the initial string for ReMem
+	show_remem_mode();
+	if (gReMem)
+	{
+		// Check if ReMem is in "Normal" mode or MMU mode
+		if (inport(REMEM_MODE_PORT) & 0x01)
+		{
+			// Read the MMU Map
+			sprintf(temp, "Map:%d", (inport(REMEM_MODE_PORT) >> 3) & 0x07);
+			display_map_mode(temp);
+		}
+		else
+			display_map_mode("Normal");
+	}
+        
 
 	/* Check for Fl_Window event */
     Fl::check();
@@ -1132,12 +1352,23 @@ void init_display(void)
 }
 
 static char	label[40];
+static char mapStr[40];
 
 void display_cpu_speed(void)
 {
 	sprintf(label, "%4.1f Mhz", cpu_speed + .05);
 	Fl::check();
 	gpSpeed->label(label);
+}
+
+void display_map_mode(char *str)
+{
+	if (gpMap == NULL)
+		return;
+
+	strcpy(mapStr, str);
+	Fl::check();
+	gpMap->label(mapStr);
 }
 
 void drawbyte(int driver, int column, int value)
@@ -1170,8 +1401,15 @@ void power_down()
 
 void process_windows_event()
 {
-	//Fl::wait(0);
+	if (gOsDelay)
+#ifdef WIN32
+		Fl::wait(0.001);
+#else
+		Fl::wait(0.00001);
+#endif
+	else
         Fl::check();
+
 	return;
 }
 
@@ -1197,9 +1435,7 @@ void T100_Disp::PowerDown()
 	int driver, column;
 	int addr;
 
-	addr = 0x7711;
-	if (gModel == MODEL_PC8201)
-		addr = 0x78B7;
+	addr = gStdRomDesc->sCharTable;
 
 	for (driver = 0; driver < 10; driver++)
 		for (col = 0; col < 256; col++)
@@ -1241,6 +1477,120 @@ void T100_Disp::PowerDown()
 	}
 }
 
+void simulate_keydown(int key)
+{
+	if (gpDisp == NULL)
+		return;
+
+	gpDisp->SimulateKeydown(key);
+}
+
+void simulate_keyup(int key)
+{
+	if (gpDisp == NULL)
+		return;
+
+	gpDisp->SimulateKeyup(key);
+}
+
+void handle_simkey(void)
+{
+	if (gpDisp == NULL)
+		return;
+
+	if (gSimKey)
+		gpDisp->HandleSimkey();
+}
+
+void T100_Disp::HandleSimkey(void)
+{
+	int	simkey = gSimKey;
+	gSimKey = 0;
+	handle(simkey);
+}
+
+/*
+==========================================================================
+siulate_keydown:	Simulates an FL_KEYDOWN event
+==========================================================================
+*/
+void T100_Disp::SimulateKeydown(int key)
+{
+	int 	c;
+
+	// Loop through array and check if key is already down
+	for (c = 0; c < 32; c++)
+	{
+		if (m_simKeys[c] == key)
+			break;
+	}
+
+	// Test if key needs to be added to simKeys
+	if (c != 32)
+	{
+		// Find first non-zero entry
+		for (c = 0; c < 32; c++)
+			if (m_simKeys[c] == 0)
+				break;
+		if (c != 32)
+			m_simKeys[c] = key;
+	}
+	m_simEventKey = key;
+	gSimKey = VT_SIM_KEYDOWN;
+}
+
+/*
+==========================================================================
+siulate_keyup:	Simulates an FL_KEYUP event
+==========================================================================
+*/
+void T100_Disp::SimulateKeyup(int key)
+{
+	int  c;
+
+	// Loop through array and check if key is already down
+	for (c = 0; c < 32; c++)
+	{
+		if (m_simKeys[c] == key)
+		{
+			m_simKeys[c] = 0;
+			break;
+		}
+	}
+
+	m_simEventKey = key;
+	gSimKey = VT_SIM_KEYUP;
+}
+
+/*
+==========================================================================
+sim_get_key:	Returns the key that caused the event
+==========================================================================
+*/
+int T100_Disp::sim_get_key(int key)
+{
+	int  c;
+
+	// Loop through array and check if key is already down
+	for (c = 0; c < 32; c++)
+	{
+		if (m_simKeys[c] == key)
+			return TRUE;
+	}
+
+	return FALSE;
+}
+
+/*
+==========================================================================
+sim_event_key:	Returns the state of a simulated key
+==========================================================================
+*/
+int T100_Disp::sim_event_key(void)
+{
+	return m_simEventKey;
+}
+
 // Handle mouse events, key events, focus events, etc.
 char	keylabel[128];
 int T100_Disp::handle(int event)
@@ -1248,8 +1598,27 @@ int T100_Disp::handle(int event)
 	char	keystr[10];
 	char	isSpecialKey = 1;
 	int		c;
+	int		simulated;
+	get_key_t	get_key;
+	event_key_t	event_key;
 
 	unsigned int key;
+
+	get_key = Fl::get_key;
+	event_key = Fl::event_key;
+	simulated = FALSE;
+
+	if ((event == VT_SIM_KEYUP) || (event == VT_SIM_KEYDOWN))
+	{
+		get_key = sim_get_key;
+		event_key = sim_event_key;
+		simulated = TRUE;
+
+		if (event == VT_SIM_KEYUP)
+			event = FL_KEYUP;
+		else
+			event = FL_KEYDOWN;
+	}
 
 	switch (event)
 	{
@@ -1272,13 +1641,12 @@ int T100_Disp::handle(int event)
 		break;
 
 	case FL_KEYUP:
-		if (!m_MyFocus)
+		if (!m_MyFocus && !simulated)
 			return 1;
 
 		// Get the Key that was pressed
-		key = Fl::event_key();
-		//fprintf(stderr,"Touche: %d\n",key);
-                //fprintf(stderr,"Texte %s\n",Fl::event_text());
+		//key = Fl::event_key();
+		key = event_key();
 		switch (key)
 		{
 		case FL_Escape:
@@ -1407,53 +1775,7 @@ int T100_Disp::handle(int event)
 			=========================================
 			=========================================
 			*/
-			if (gModel != MODEL_PC8201)
-			{
-				if (key == ']')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys |= MT_GRAPH;
-						gSpecialKeys &= ~MT_SHIFT;
-						gKeyStates[']'] = 0;
-						gKeyStates['0'] = 0;
-					}
-					else
-					{
-						gSpecialKeys |= MT_SHIFT;
-						gKeyStates['['] = 0;
-					}
-				}
-				if (key == '[')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys |= MT_GRAPH;
-						gSpecialKeys &= ~MT_SHIFT;
-						gKeyStates['['] = 0;
-						gKeyStates['9'] = 0;
-					}
-				}
-				if (key == '`')
-				{
-					gSpecialKeys |= MT_GRAPH;
-					gKeyStates['['] = 0;
-				}
-				if (key == '\\')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys |= MT_GRAPH;
-						gKeyStates[';'] = 0;
-					}
-					else
-					{
-						gSpecialKeys |= MT_GRAPH;
-						gKeyStates['-'] = 0;
-					}
-				}
-			}
-			else
+			if (gModel == MODEL_PC8201)
 			{
 				// Handle the '^' key (Shift 6)
 				if (key == '6')
@@ -1533,7 +1855,7 @@ int T100_Disp::handle(int event)
 					else
 						gSpecialKeys |= MT_SHIFT;
 				}
-				// Handle the '_' key
+				// Handle the ':' key
 				if (key == ';')
 				{
 					gKeyStates[';'] = 0;
@@ -1574,6 +1896,171 @@ int T100_Disp::handle(int event)
 						gSpecialKeys |= MT_SHIFT;
 				}
 			}
+			else if (gModel == MODEL_M10)
+			{
+				// Handle the '@' key
+				if (key == '2')
+				{
+					gKeyStates['2'] = 0;
+					gKeyStates['@'] = 0;
+					gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '#' key
+				if (key == '3')
+				{
+					gSpecialKeys |= MT_GRAPH;
+					gKeyStates['h'] = 0;
+				}
+				// Handle the '^' key (Shift 6)
+				if (key == '6')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['6'] = 0;
+						gKeyStates['^'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['^'] = 0;
+					}
+				}
+				if (key == '`')
+				{
+					gKeyStates['@'] = 0;
+					gKeyStates['^'] = 0;
+				}
+				// Handle the '&' key
+				if (key == '7')
+				{
+					gKeyStates['7'] = 0;
+					gKeyStates['6'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '(' key
+				if (key == '9')
+				{
+					gKeyStates['8'] = 0;
+					gKeyStates['9'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the ')' key
+				if (key == '0')
+				{
+					gKeyStates['9'] = 0;
+					gKeyStates['0'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '*' key
+				if (key == '8')
+				{
+					gKeyStates['8'] = 0;
+					gKeyStates[':'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '_' key
+				if (key == '-')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['-'] = 0;
+						gKeyStates['0'] = 0;
+						gSpecialKeys |= MT_SHIFT;
+					}
+				}
+				if (key == '=')
+				{
+					gKeyStates[';'] = 0;
+					gKeyStates['-'] = 0;
+					gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the ':' key
+				if (key == ';')
+				{
+					gKeyStates[';'] = 0;
+					gKeyStates[':'] = 0;
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+						gSpecialKeys &= ~MT_SHIFT;
+					else
+						gSpecialKeys |= MT_SHIFT;
+				}
+				// Handle the '"' key (shift ')
+				if (key == '\'')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['\''] = 0;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 0;
+					}
+				}
+			}
+			else
+			{
+				if (key == ']')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates[']'] = 0;
+						gKeyStates['0'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['['] = 0;
+					}
+				}
+				if (key == '[')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['['] = 0;
+						gKeyStates['9'] = 0;
+					}
+				}
+				if (key == '`')
+				{
+					gSpecialKeys |= MT_GRAPH;
+					gKeyStates['['] = 0;
+				}
+				if (key == '\\')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gKeyStates[';'] = 0;
+					}
+					else
+					{
+						gSpecialKeys |= MT_GRAPH;
+						gKeyStates['-'] = 0;
+					}
+				}
+			}
 
 			isSpecialKey = 0;
 			break;
@@ -1582,7 +2069,7 @@ int T100_Disp::handle(int event)
 		break;
 
 	case FL_KEYDOWN:
-		if (!m_MyFocus)
+		if (!m_MyFocus && !simulated)
 			return 1;
 
 		if (ioBA & 0x10)
@@ -1592,7 +2079,7 @@ int T100_Disp::handle(int event)
 		}
 
 		// Get the Key that was pressed
-		key = Fl::event_key();
+		key = event_key();
 		switch (key)
 		{
 		case FL_Escape:
@@ -1708,68 +2195,7 @@ int T100_Disp::handle(int event)
 			{
 				gSpecialKeys &= ~MT_SPACE;
 			}
-			if (gModel != MODEL_PC8201)
-			{
-				if (key == ']')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gSpecialKeys |= MT_SHIFT;
-						gKeyStates[']'] = 0;
-						gKeyStates['0'] = 1;
-					}
-					else
-					{
-						gSpecialKeys &= ~MT_SHIFT;
-						gKeyStates['['] = 1;
-						gKeyStates[key] = 0;
-					}
-				}
-				if (key == '[')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gSpecialKeys |= MT_SHIFT;
-						gKeyStates['['] = 0;
-						gKeyStates['9'] = 1;
-					}
-				}
-				if (key == '`')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gSpecialKeys &= ~MT_SHIFT;
-						gKeyStates['`'] = 0;
-						gKeyStates['['] = 1;
-					}
-					else
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gKeyStates['`'] = 0;
-						gKeyStates['['] = 1;
-					}
-				}
-				if (key == '\\')
-				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gSpecialKeys &= ~MT_SHIFT;
-						gKeyStates['\\'] = 0;
-						gKeyStates[';'] = 1;
-					}
-					else
-					{
-						gSpecialKeys &= ~MT_GRAPH;
-						gKeyStates['-'] = 1;
-						gKeyStates['\\'] = 0;
-					}
-				}
-			}
-			else
+			if (gModel == MODEL_PC8201)
 			{
 				// Deal with special keys for the PC-8201
 
@@ -1880,6 +2306,204 @@ int T100_Disp::handle(int event)
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates['2'] = 0;
 						gKeyStates['@'] = 1;
+					}
+				}
+			}
+			else if (gModel == MODEL_M10)
+			{
+				// Handle the '@' key
+				if (key == '2')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['@'] = 1;
+					}
+				}
+				// Handle the '#' key
+				if (key == '3')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gSpecialKeys &= ~MT_GRAPH;
+						gKeyStates['3'] = 0;
+						gKeyStates['h'] = 1;
+					}
+				}
+				// Handle the '^' key  (Shift 6)
+				if (key == '6')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['6'] = 0;
+						gKeyStates['^'] = 1;
+					}
+					else
+					{
+						gKeyStates['^'] = 0;
+					}
+				}
+				if (key == '`')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['`'] = 0;
+						gKeyStates['^'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['`'] = 0;
+						gKeyStates['@'] = 1;
+					}
+				}
+				// Handle the '&' key
+				if (key == '7')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gKeyStates['7'] = 0;
+						gKeyStates['6'] = 1;
+					}
+				}
+				// Handle the '(' key
+				if (key == '9')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['9'] = 0;
+						gKeyStates['8'] = 1;
+					}
+				}
+				// Handle the '(' key
+				if (key == '0')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['0'] = 0;
+						gKeyStates['9'] = 1;
+					}
+				}
+				// Handle the '*' key
+				if (key == '8')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gKeyStates['8'] = 0;
+						gKeyStates[':'] = 1;
+					}
+				}
+				// Handle the '_' key
+				if (key == '-')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['-'] = 0;
+						gKeyStates['0'] = 1;
+					}
+				}
+				if (key == '=')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['='] = 0;
+						gKeyStates[';'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['='] = 0;
+						gKeyStates['-'] = 1;
+					}
+				}
+				// Handle the ':' key
+				if (key == ';')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{				 
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates[';'] = 0;
+						gKeyStates[':'] = 1;
+					}
+				}
+				// Handle the '"' key  (Shift ')
+				if (key == '\'')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gKeyStates['\''] = 0;
+						gKeyStates['2'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['2'] = 0;
+						gKeyStates['7'] = 1;
+					}
+				}
+			}
+			else
+			{
+				if (key == ']')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates[']'] = 0;
+						gKeyStates['0'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['['] = 1;
+						gKeyStates[key] = 0;
+					}
+				}
+				if (key == '[')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys |= MT_SHIFT;
+						gKeyStates['['] = 0;
+						gKeyStates['9'] = 1;
+					}
+				}
+				if (key == '`')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['`'] = 0;
+						gKeyStates['['] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gKeyStates['`'] = 0;
+						gKeyStates['['] = 1;
+					}
+				}
+				if (key == '\\')
+				{
+					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gSpecialKeys &= ~MT_SHIFT;
+						gKeyStates['\\'] = 0;
+						gKeyStates[';'] = 1;
+					}
+					else
+					{
+						gSpecialKeys &= ~MT_GRAPH;
+						gKeyStates['-'] = 1;
+						gKeyStates['\\'] = 0;
 					}
 				}
 			}

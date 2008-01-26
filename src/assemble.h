@@ -331,7 +331,7 @@ public:
 
 	VTMapStringToOb*	m_Symbols;			// Array of Symbols
 	VTObArray*			m_Instructions;		// Array of Instructions
-	long				m_Address;
+	unsigned short				m_Address;
 	MStringArray		m_Filenames;		// Array of filenames parsed during assembly
 	MString				m_LastLabel;		// Save value of last label parsed
 	CSymbol*			m_LastLabelSym;		// Pointer to CSymbol object for last label
@@ -350,6 +350,11 @@ public:
 	FILE*				m_IncludeStack[32];
 	int					m_IncludeIndex[32];
 	int					m_IncludeDepth;
+	MString				m_AsmOptions;		// Assembler options
+	MString				m_IncludePath;
+	MString				m_ExtDefines;		// External additional defines
+	MString				m_RootPath;			// Root path of project.
+	MStringArray		m_IncludeDirs;		// Array of '/' terminated include dirs
 
 	char				m_IfStat[100];
 	int					m_IfDepth;
@@ -358,16 +363,24 @@ public:
 // Operations
 	int					Evaluate(class CRpnEquation* eq, double* value,  
 							int reportError);
+	int					Assemble();
 	int					GetValue(MString & string, int & value);
 	void				ResetContent(void);
-	int					Assemble();
 	int					CreateObjFile(const char *filename);
 	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask);
 	int					EquationIsExtern(CRpnEquation* pEq, int size);
-	void				Parse(MString filename);
 	void				MakeBinary(int val, int length, MString& binary);
 	void				CreateHex();
-	void				CreateList();
+	void				CreateList(MString& filename);
+	void				CalcIncludeDirs();
+
+// Public Access functions
+	void				Parse(MString filename);
+	void				SetAsmOptions(const MString& options);
+	void				SetIncludeDirs(const MString& dirs);
+	void				SetDefines(const MString& defines);
+	void				SetRootPath(const MString& rootPath);
+	const MStringArray&		GetErrors() { return m_Errors; };
 };
 
 #endif

@@ -258,7 +258,7 @@ int DLLCALL xp_random(int n)
 	static BOOL initialized;
 
 	if(!initialized) {
-		srand(time(NULL));	/* seed random number generator */
+		srand((int) time(NULL));	/* seed random number generator */
 		rand();				/* throw away first result */
 		initialized=TRUE;
 	}

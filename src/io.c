@@ -34,6 +34,7 @@
 #include "VirtualT.h"
 #include "cpu.h"
 #include "gen_defs.h"
+#include "roms.h"
 #include "io.h"
 #include "serial.h"
 #include "display.h"
@@ -74,21 +75,20 @@ uchar			clock_sr[5];			/* 40 Bit shift register */
 uchar			clock_sr_index = 0;
 uchar			clock_serial_out = 0;
 extern int		gRomBank;
+extern RomDescription_t	*gStdRomDesc;
 
 
 void update_keys(void)
 {
 	int equal = 1;
-	int buf_index = 0xFF9A;
+	int buf_index;
 	int c;
 	unsigned char key;
 
-	if (gModel == MODEL_T200)
-		buf_index = 0xFD0E;
-	else if (gModel == MODEL_PC8201)
-		buf_index = 0xFE58;
-		
-		
+	if (gStdRomDesc == NULL)
+		return;
+
+	buf_index = gStdRomDesc->sKeyscan;
 
 	/* Insure keystroke was recgonized by the system */
 	for (c = 0; c < 9; c++)
@@ -105,7 +105,7 @@ void update_keys(void)
 
 	if (!equal)
 	{
-		if (++gDelayCount < 20)
+		if (++gDelayCount < 10)
 		{
 			gDelayUpdateKeys = 1;
 			return;
@@ -115,69 +115,122 @@ void update_keys(void)
 	gDelayUpdateKeys = 0;
 	gDelayCount = 0;
 	
-	keyscan[0] = ~(gKeyStates['z']       | (gKeyStates['x'] << 1) |
-				  (gKeyStates['c'] << 2) | (gKeyStates['v'] << 3) |
-				  (gKeyStates['b'] << 4) | (gKeyStates['n'] << 5) |
-				  (gKeyStates['m'] << 6) | (gKeyStates['l'] << 7));
-
-	keyscan[1] = ~(gKeyStates['a']       | (gKeyStates['s'] << 1) |
-				  (gKeyStates['d'] << 2) | (gKeyStates['f'] << 3) |
-				  (gKeyStates['g'] << 4) | (gKeyStates['h'] << 5) |
-				  (gKeyStates['j'] << 6) | (gKeyStates['k'] << 7));
-
-	keyscan[2] = ~(gKeyStates['q']       | (gKeyStates['w'] << 1) |
-				  (gKeyStates['e'] << 2) | (gKeyStates['r'] << 3) |
-				  (gKeyStates['t'] << 4) | (gKeyStates['y'] << 5) |
-				  (gKeyStates['u'] << 6) | (gKeyStates['i'] << 7));
-
-	keyscan[4] = ~(gKeyStates['1']       | (gKeyStates['2'] << 1) |
-				  (gKeyStates['3'] << 2) | (gKeyStates['4'] << 3) |
-				  (gKeyStates['5'] << 4) | (gKeyStates['6'] << 5) |
-				  (gKeyStates['7'] << 6) | (gKeyStates['8'] << 7));
-
-	if (gModel != MODEL_PC8201)
+	if (gModel == MODEL_M10)
 	{
-		keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
-					  (gKeyStates['['] << 2) | (gKeyStates[';'] << 3) |
-					  (gKeyStates['\''] << 4) | (gKeyStates[','] << 5) |
-					  (gKeyStates['.'] << 6) | (gKeyStates['/'] << 7));
+		keyscan[0] = ~(gKeyStates['q']       | (gKeyStates['w'] << 1) |
+				  	(gKeyStates['['] << 2) | (gKeyStates['1'] << 3) |
+				  	(gKeyStates['2'] << 4) | (gKeyStates['3'] << 5) |
+				  	(gKeyStates['4'] << 6) | (gKeyStates['5'] << 7));
 
-		keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
-					  (gKeyStates['-'] << 2) | (gKeyStates['='] << 3)) &
-					  (unsigned char) (gSpecialKeys >> 24);
+		keyscan[1] = ~(gKeyStates['y']       | (gKeyStates['6'] << 1) |
+				  	(gKeyStates['7'] << 2) | (gKeyStates['8'] << 3) |
+				  	(gKeyStates['9'] << 4) | (gKeyStates['0'] << 5) |
+				  	(gKeyStates['-'] << 6) | (gKeyStates['^'] << 7));
+	
+		keyscan[2] = ~(gKeyStates[']']       | (gKeyStates['@'] << 1) |
+				  	(gKeyStates[';'] << 2) | (gKeyStates[':'] << 3) |
+				  	(gKeyStates['/'] << 4) | (gKeyStates['.'] << 5) |
+				  	(gKeyStates[','] << 6) | (gKeyStates['m'] << 7));
 
-		keyscan[6] = (unsigned char) ((gSpecialKeys >> 16) & 0xFF);
+		keyscan[3] = ~(gKeyStates['a']       | (gKeyStates['\\'] << 1) |
+				  	(gKeyStates['z'] << 2) | (gKeyStates['x'] << 3) |
+				  	(gKeyStates['c'] << 4) | (gKeyStates['v'] << 5) |
+				  	(gKeyStates['b'] << 6) | (gKeyStates['n'] << 7));
+
+		keyscan[4] = ~(gKeyStates['s']       | (gKeyStates['d'] << 1) |
+				  	(gKeyStates['f'] << 2) | (gKeyStates['g'] << 3) |
+				  	(gKeyStates['h'] << 4) | (gKeyStates['j'] << 5) |
+				  	(gKeyStates['k'] << 6) | (gKeyStates['l'] << 7));
+
+		keyscan[5] = ~(gKeyStates['e']       | (gKeyStates['r'] << 1) |
+				  	(gKeyStates['t'] << 2) | (gKeyStates['u'] << 3) |
+				  	(gKeyStates['i'] << 4) | (gKeyStates['o'] << 5) |
+				  	(gKeyStates['p'] << 6)) & 
+					(unsigned char) (((gSpecialKeys & MT_SPACE) | ~MT_SPACE) >> 9);
+
+		keyscan[6] = (unsigned char) (((gSpecialKeys & MT_LEFT) >> 28) | ~(MT_LEFT >> 28)) &
+				 	(unsigned char) (((gSpecialKeys & MT_RIGHT) >> 28) | ~(MT_RIGHT >> 28)) &
+				 	(unsigned char) (((gSpecialKeys & MT_UP) >> 28) | ~(MT_UP >> 28)) &
+				 	(unsigned char) (((gSpecialKeys & MT_DOWN) >> 28) | ~(MT_DOWN >> 28)) &
+				 	(unsigned char) (((gSpecialKeys & MT_BKSP) >> 13) | ~(MT_BKSP >> 13)) &
+				 	(unsigned char) (((gSpecialKeys & MT_TAB) >> 13) | ~(MT_TAB >> 13)) &
+				 	(unsigned char) (((gSpecialKeys & MT_ENTER) >> 17) | ~(MT_ENTER >> 17)) &
+				 	(unsigned char) (((gSpecialKeys & MT_PASTE) >> 13) | ~(MT_PASTE >> 13));
 
 		keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0xFF);
 
-		keyscan[8] = (unsigned char) (gSpecialKeys & 0xFF);
+		keyscan[8] = (unsigned char) ((gSpecialKeys & 0x80) | 0x7F) &
+					(unsigned char) (((gSpecialKeys & 0x30) << 1) | 0x9F) &
+				 	(unsigned char) (((gSpecialKeys & 0x07) << 2) | 0xE3) &
+					(unsigned char) (((gSpecialKeys & MT_PRINT) >> 21) | ~(MT_PRINT >> 21)) &
+					(unsigned char) (((gSpecialKeys & MT_LABEL) >> 21) | ~(MT_LABEL >> 21));
 	}
 	else
 	{
-		keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
-					  (gKeyStates['@'] << 2) | (gKeyStates['\\'] << 3) |
-					  (gKeyStates[','] << 4) | (gKeyStates['.'] << 5) |
-					  (gKeyStates['/'] << 6) | (gKeyStates[']'] << 7));
+		keyscan[0] = ~(gKeyStates['z']       | (gKeyStates['x'] << 1) |
+				  	(gKeyStates['c'] << 2) | (gKeyStates['v'] << 3) |
+				  	(gKeyStates['b'] << 4) | (gKeyStates['n'] << 5) |
+				  	(gKeyStates['m'] << 6) | (gKeyStates['l'] << 7));
 
-		keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
-					  (gKeyStates[';'] << 2) | (gKeyStates[':'] << 3) |
-					  (gKeyStates['-'] << 4) | (gKeyStates['['] << 5)) &
-					  (unsigned char) (((gSpecialKeys & MT_SPACE) | ~MT_SPACE) >> 10) &
-					  (unsigned char) (((gSpecialKeys & MT_INS) | ~MT_INS) >> 17);
+		keyscan[1] = ~(gKeyStates['a']       | (gKeyStates['s'] << 1) |
+				  	(gKeyStates['d'] << 2) | (gKeyStates['f'] << 3) |
+				  	(gKeyStates['g'] << 4) | (gKeyStates['h'] << 5) |
+				  	(gKeyStates['j'] << 6) | (gKeyStates['k'] << 7));
+	
+		keyscan[2] = ~(gKeyStates['q']       | (gKeyStates['w'] << 1) |
+				  	(gKeyStates['e'] << 2) | (gKeyStates['r'] << 3) |
+				  	(gKeyStates['t'] << 4) | (gKeyStates['y'] << 5) |
+				  	(gKeyStates['u'] << 6) | (gKeyStates['i'] << 7));
 
-		keyscan[6] = (unsigned char) (((gSpecialKeys & MT_BKSP) >> 17) | ~(MT_BKSP >> 17)) &
-					 (unsigned char) (((gSpecialKeys & MT_UP) >> 29) | ~(MT_UP >> 29)) &
-					 (unsigned char) (((gSpecialKeys & MT_DOWN) >> 29) | ~(MT_DOWN >> 29)) &
-					 (unsigned char) (((gSpecialKeys & MT_LEFT) >> 25) | ~(MT_LEFT >> 25)) &
-					 (unsigned char) (((gSpecialKeys & MT_RIGHT) >> 25) | ~(MT_RIGHT >> 25)) &
-					 (unsigned char) (((gSpecialKeys & MT_TAB) >> 13) | ~(MT_TAB >> 13)) &
-					 (unsigned char) (((gSpecialKeys & MT_ESC) >> 13) | ~(MT_ESC >> 13)) &
-					 (unsigned char) (((gSpecialKeys & MT_ENTER) >> 16) | ~(MT_ENTER >> 16));
- 
-		keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0x1F);
+		keyscan[4] = ~(gKeyStates['1']       | (gKeyStates['2'] << 1) |
+				  	(gKeyStates['3'] << 2) | (gKeyStates['4'] << 3) |
+				  	(gKeyStates['5'] << 4) | (gKeyStates['6'] << 5) |
+				  	(gKeyStates['7'] << 6) | (gKeyStates['8'] << 7));
 
-		keyscan[8] = (unsigned char) ((gSpecialKeys & 0x07) | 0xF8) &
-					 (unsigned char) (((gSpecialKeys & MT_CAP_LOCK) | ~MT_CAP_LOCK) >> 1);
+		if (gModel != MODEL_PC8201)
+		{
+			keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
+					  	(gKeyStates['['] << 2) | (gKeyStates[';'] << 3) |
+					  	(gKeyStates['\''] << 4) | (gKeyStates[','] << 5) |
+					  	(gKeyStates['.'] << 6) | (gKeyStates['/'] << 7));
+
+			keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
+					  	(gKeyStates['-'] << 2) | (gKeyStates['='] << 3)) &
+					  	(unsigned char) (gSpecialKeys >> 24);
+
+			keyscan[6] = (unsigned char) ((gSpecialKeys >> 16) & 0xFF);
+	
+			keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0xFF);
+
+			keyscan[8] = (unsigned char) (gSpecialKeys & 0xFF);
+		}
+		else
+		{
+			keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
+					  	(gKeyStates['@'] << 2) | (gKeyStates['\\'] << 3) |
+					  	(gKeyStates[','] << 4) | (gKeyStates['.'] << 5) |
+					  	(gKeyStates['/'] << 6) | (gKeyStates[']'] << 7));
+
+			keyscan[5] = ~(gKeyStates['9']       | (gKeyStates['0'] << 1) |
+					  	(gKeyStates[';'] << 2) | (gKeyStates[':'] << 3) |
+					  	(gKeyStates['-'] << 4) | (gKeyStates['['] << 5)) &
+					  	(unsigned char) (((gSpecialKeys & MT_SPACE) | ~MT_SPACE) >> 10) &
+					  	(unsigned char) (((gSpecialKeys & MT_INS) | ~MT_INS) >> 17);
+
+			keyscan[6] = (unsigned char) (((gSpecialKeys & MT_BKSP) >> 17) | ~(MT_BKSP >> 17)) &
+					 	(unsigned char) (((gSpecialKeys & MT_UP) >> 29) | ~(MT_UP >> 29)) &
+					 	(unsigned char) (((gSpecialKeys & MT_DOWN) >> 29) | ~(MT_DOWN >> 29)) &
+					 	(unsigned char) (((gSpecialKeys & MT_LEFT) >> 25) | ~(MT_LEFT >> 25)) &
+					 	(unsigned char) (((gSpecialKeys & MT_RIGHT) >> 25) | ~(MT_RIGHT >> 25)) &
+					 	(unsigned char) (((gSpecialKeys & MT_TAB) >> 13) | ~(MT_TAB >> 13)) &
+					 	(unsigned char) (((gSpecialKeys & MT_ESC) >> 13) | ~(MT_ESC >> 13)) &
+					 	(unsigned char) (((gSpecialKeys & MT_ENTER) >> 16) | ~(MT_ENTER >> 16));
+ 	
+			keyscan[7] = (unsigned char) ((gSpecialKeys >> 8) & 0x1F);
+	
+			keyscan[8] = (unsigned char) ((gSpecialKeys & 0x07) | 0xF8) &
+					 	(unsigned char) (((gSpecialKeys & MT_CAP_LOCK) | ~MT_CAP_LOCK) >> 1);
+		}
 	}
 }
 
@@ -278,18 +331,44 @@ void clock_chip_cmd(void)
 		}
 	}
 }
+
+void show_remem_mode(void)
+{
+	char	temp[20];
+
+	/* Update Display map if output to Mode Port */
+	if (gReMem)
+	{
+		if (inport(REMEM_MODE_PORT) & 0x01)
+		{
+			sprintf(temp, "Map:%d", (inport(REMEM_MODE_PORT) >> 3) & 0x07);
+			display_map_mode(temp);
+		}
+		else
+			display_map_mode("Normal");
+
+		return;
+	}
+
+	/* Not in ReMem emulation mode */
+	display_map_mode("");
+}
+
 void out(uchar port, uchar val)
 {
 	int		c;
 	unsigned char flags;
 
 	switch(port) {
+		case REMEM_MODE_PORT:		/* ReMem Mode port */
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
 		case REMEM_DATA_PORT:		/* ReMem Data Port */
-		case REMEM_MODE_PORT:		/* ReMem Mode port */
 		case RAMPAC_SECTOR_PORT:	/* ReMem/RAMPAC emulation port */
 		case RAMPAC_DATA_PORT:		/* ReMem RAMPAC emulation port */
+		case 0x85:
 			remem_out(port, val);
+			if (port == REMEM_MODE_PORT)
+				show_remem_mode();	/* Update ReMem mode */
 			break;
 
 		case 0x90:	/* T200 Clock/Timer chip */
@@ -1021,12 +1100,14 @@ int inport(uchar port)
 
 			/* Read keyboard status -- First check bit 0 of output port 0xBA */
 			if ((ioBA & 0x01) == 0)
-				return (unsigned char) (gSpecialKeys & 0xFF);
+				//return (unsigned char) (gSpecialKeys & 0xFF);
+				return keyscan[8];
 
 			if (ioB9 == 0)
 			{
-				return keyscan[7] & keyscan[6] & keyscan[5] & keyscan[4] &
+				ret = keyscan[7] & keyscan[6] & keyscan[5] & keyscan[4] &
 					   keyscan[3] & keyscan[2] & keyscan[1] & keyscan[0];
+				return ret;
 			}
 
 			/* Check Bit 7 of port B9 */

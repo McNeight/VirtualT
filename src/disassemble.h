@@ -38,24 +38,28 @@ void disassembler_cb(Fl_Widget* w, void*);
 class VTDis 
 {
 public:
-	int m_EndAddress;
-	void CopyIntoMem(unsigned char * ptr, int len);
-	unsigned char m_memory[65536];
-	int m_StartAddress;
-	class Fl_Text_Editor* m_pTextViewer;
-	RomDescription_t	*m_pRom;
-
 	VTDis();
 
-	void Disassemble();
-	void SetTextViewer(class Fl_Text_Editor* pTextViewer);
+	int 					m_StartAddress;
+	int 					m_EndAddress;
+	unsigned char			m_memory[65536];
+	class Fl_Text_Editor* 	m_pTextViewer;
+	RomDescription_t		*m_pRom;
+	int						m_WantComments;
 
-	static int DisassembleLine(int address, char* line);
+	void 		Disassemble();
+	void 		SetTextViewer(class Fl_Text_Editor* pTextViewer);
+	void 		CopyIntoMem(unsigned char * ptr, int len);
+	int			DisassembleLine(int address, char* line);
+	void		SetBaseAddress(int address);
+	void		AppendComments(char* line, int opcode, int address);
+
 protected:
-	static char* m_StrTable[256];
-	static unsigned char m_LenTable[256];
-
+	char* 			m_StrTable[256];
+	unsigned char	m_LenTable[256];
+	int				m_BaseAddress;
 };
 
 
 #endif
+

@@ -3,29 +3,29 @@
 /* $Id: cpuregs.cpp,v 1.0 2006/03/27 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2006 Ken Pettit
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+* Copyright 2006 Ken Pettit
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+* ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+* OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+* SUCH DAMAGE.
+*/
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
@@ -52,13 +52,14 @@
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
+VTDis	cpu_dis;
 /*
 ============================================================================
 Global variables
 ============================================================================
 */
 cpuregs_ctrl_t	cpuregs_ctrl;
-Fl_Window		*gcpuw;
+Fl_Window		*gcpuw = NULL;
 int				gStopCountdown = 0;
 int				gSaveFreq = 0;
 int				gDisableRealtimeTrace = 0;
@@ -72,13 +73,13 @@ Fl_Menu_Item gCpuRegs_menuitems[] = {
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-	{ "Simulation Log Viewer", 0, 0 },
+//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ 0 },
   { 0 }
 };
 
-void debug_cpuregs_cb (void);
+void debug_cpuregs_cb (int);
 
 /*
 ============================================================================
@@ -87,7 +88,7 @@ Callback routine for the CPU Regs window
 */
 void cb_cpuregswin (Fl_Widget* w, void*)
 {
-	// Hide the window 
+	// Hide the window
 	gcpuw->hide();
 
 	// Disable debug processes
@@ -147,6 +148,7 @@ void get_reg_edits(void)
 {
 	const char*		pStr;
 	int				val, flags;
+	int				x;
 
 	// Get value of PC
 	pStr = cpuregs_ctrl.pRegPC->value();
@@ -188,7 +190,7 @@ void get_reg_edits(void)
 		if (val != BC)
 		{
 			// Update the values of B and C from the BC edit field
-			B = val >> 8; 
+			B = val >> 8;
 			C = val & 0xFF;
 		}
 		else
@@ -218,7 +220,7 @@ void get_reg_edits(void)
 		if (val != DE)
 		{
 			// Update the values of D and E from the DE edit field
-			D = val >> 8; 
+			D = val >> 8;
 			E = val & 0xFF;
 		}
 		else
@@ -248,7 +250,7 @@ void get_reg_edits(void)
 		if (val != HL)
 		{
 			// Update the values of H and L from the HL edit field
-			H = val >> 8; 
+			H = val >> 8;
 			L = val & 0xFF;
 		}
 		else
@@ -288,6 +290,70 @@ void get_reg_edits(void)
 		flags |= 0x01;
 
 	F = flags;
+
+	// Get value of Breakpoint 1
+	pStr = cpuregs_ctrl.pBreak1->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		cpuregs_ctrl.breakAddr[0] = val;
+	}
+	else
+		cpuregs_ctrl.breakAddr[0] = -1;
+
+	// Get value of Breakpoint 2
+	pStr = cpuregs_ctrl.pBreak2->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		cpuregs_ctrl.breakAddr[1] = val;
+	}
+	else
+		cpuregs_ctrl.breakAddr[1] = -1;
+
+	// Get value of Breakpoint 3
+	pStr = cpuregs_ctrl.pBreak3->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		cpuregs_ctrl.breakAddr[2] = val;
+	}
+	else
+		cpuregs_ctrl.breakAddr[2] = -1;
+
+	// Get value of Breakpoint 4
+	pStr = cpuregs_ctrl.pBreak4->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		cpuregs_ctrl.breakAddr[3] = val;
+	}
+	else
+		cpuregs_ctrl.breakAddr[3] = -1;
+
+	// Check if any breakpoints set
+	for (x = 0; x < 4; x++)
+		if (cpuregs_ctrl.breakAddr[x] != -1)
+			break;
+
+	// If no breakpoints set, restore old monitor frequency
+	if (x == 4)
+	{
+		if (cpuregs_ctrl.breakMonitorFreq != 0)
+			gSaveFreq = cpuregs_ctrl.breakMonitorFreq;
+	}
+	else
+	{
+		if (cpuregs_ctrl.breakMonitorFreq == 0)
+			cpuregs_ctrl.breakMonitorFreq = gSaveFreq;
+		gSaveFreq = 1;
+		gDebugMonitorFreq = 1;
+	}
+
+	cpuregs_ctrl.breakEnable[0] = !cpuregs_ctrl.pBreakDisable1->value();
+	cpuregs_ctrl.breakEnable[1] = !cpuregs_ctrl.pBreakDisable2->value();
+	cpuregs_ctrl.breakEnable[2] = !cpuregs_ctrl.pBreakDisable3->value();
+	cpuregs_ctrl.breakEnable[3] = !cpuregs_ctrl.pBreakDisable4->value();
 }
 
 /*
@@ -315,9 +381,9 @@ void cb_redraw_trace(Fl_Widget* w, void*)
 	draw = cpuregs_ctrl.iInstTraceHead;
 	for (x = 0; x < 8; x++)
 	{
-		// Draw the Stack 
+		// Draw the Stack
 		sprintf(str, "0x%02X", get_memory8(SP+x));
-		fl_draw(str, 560, 212+MENU_HEIGHT+x*15); 
+		fl_draw(str, 560, 212+MENU_HEIGHT+x*15);
 
 		// Now draw the Instruction Trace
 		if (x == 7)
@@ -351,20 +417,88 @@ char get_m()
 
 /*
 ============================================================================
+activate_controls:	This routine activates all the CPU controls except the
+STOP button, which it deactivates.
+============================================================================
+*/
+void activate_controls()
+{
+	// Change activation state of processor controls
+	cpuregs_ctrl.pStop->deactivate();
+	cpuregs_ctrl.pStep->activate();
+	cpuregs_ctrl.pRun->activate();
+	cpuregs_ctrl.pRedraw->activate();
+
+	// Activate the edit fields to allow register updates
+	cpuregs_ctrl.pRegA->activate();
+	cpuregs_ctrl.pRegB->activate();
+	cpuregs_ctrl.pRegC->activate();
+	cpuregs_ctrl.pRegD->activate();
+	cpuregs_ctrl.pRegE->activate();
+	cpuregs_ctrl.pRegH->activate();
+	cpuregs_ctrl.pRegL->activate();
+	cpuregs_ctrl.pRegPC->activate();
+	cpuregs_ctrl.pRegSP->activate();
+	cpuregs_ctrl.pRegBC->activate();
+	cpuregs_ctrl.pRegDE->activate();
+	cpuregs_ctrl.pRegHL->activate();
+	cpuregs_ctrl.pRegM->activate();
+
+	// Activate Flags
+	cpuregs_ctrl.pSFlag->activate();
+	cpuregs_ctrl.pZFlag->activate();
+	cpuregs_ctrl.pCFlag->activate();
+	cpuregs_ctrl.pTSFlag->activate();
+	cpuregs_ctrl.pACFlag->activate();
+	cpuregs_ctrl.pPFlag->activate();
+	cpuregs_ctrl.pOVFlag->activate();
+	cpuregs_ctrl.pXFlag->activate();
+
+	// Activate Breakpoints
+	cpuregs_ctrl.pBreak1->activate();
+	cpuregs_ctrl.pBreak2->activate();
+	cpuregs_ctrl.pBreak3->activate();
+	cpuregs_ctrl.pBreak4->activate();
+	cpuregs_ctrl.pBreakDisable1->activate();
+	cpuregs_ctrl.pBreakDisable2->activate();
+	cpuregs_ctrl.pBreakDisable3->activate();
+	cpuregs_ctrl.pBreakDisable4->activate();
+}
+
+void clear_trace(void)
+{
+	int 	x;
+
+	for (x = 0; x < 8; x++)
+		cpuregs_ctrl.sInstTrace[x][0] = 0;
+}
+
+/*
+============================================================================
 debug_cpuregs_cb:	This routine is the callback for the CPURegs Monitor
-					window.  This routine handles updating of Register 
+					window.  This routine handles updating of Register
 					values while the CPU is running.
 ============================================================================
 */
-void debug_cpuregs_cb (void)
+void debug_cpuregs_cb (int reason)
 {
 	char	str[100];
 	char	flags[10];
 	int		x, len;
 
 	// Check for breakpoint
-	if (PC == 0x5797)
-		gStopped = 1;
+	if (!gStopped)
+	{
+		for (x = 0; x < 4; x++)
+		{
+			if ((PC == cpuregs_ctrl.breakAddr[x]) && (cpuregs_ctrl.breakEnable[x]))
+			{
+				activate_controls();
+				clear_trace();
+				gStopped = 1;
+			}
+		}
+	}
 
 	if (!gStopped)
 		if (++gDebugCount < gDebugMonitorFreq)
@@ -375,7 +509,7 @@ void debug_cpuregs_cb (void)
 	// Update PC edit box
 	sprintf(str, cpuregs_ctrl.sPCfmt, PC);
 	cpuregs_ctrl.pRegPC->value(str);
-	
+
 	// Update SP edit box
 	sprintf(str, cpuregs_ctrl.sSPfmt, SP);
 	cpuregs_ctrl.pRegSP->value(str);
@@ -437,7 +571,7 @@ void debug_cpuregs_cb (void)
 	if (!gDisableRealtimeTrace || (gStopCountdown != 0) || gStopped)
 	{
 		// Disassemble 1 instruction
-		VTDis::DisassembleLine(PC, cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead]);
+		cpu_dis.DisassembleLine(PC, cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead]);
 
 		// Append spaces after opcode
 		len = 20 - strlen(cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead]);
@@ -467,7 +601,7 @@ void debug_cpuregs_cb (void)
 		if (--gStopCountdown == 0)
 		{
 			gStopped = 1;
-			gDebugMonitorFreq = gSaveFreq;	
+			gDebugMonitorFreq = gSaveFreq;
 		}
 	}
 
@@ -480,36 +614,7 @@ Routine to handle Stop button
 */
 void cb_debug_stop(Fl_Widget* w, void*)
 {
-	// Change activation state of processor controls
-	cpuregs_ctrl.pStop->deactivate();
-	cpuregs_ctrl.pStep->activate();
-	cpuregs_ctrl.pRun->activate();
-	cpuregs_ctrl.pRedraw->activate();
-
-	// Activate the edit fields to allow register updates
-	cpuregs_ctrl.pRegA->activate();
-	cpuregs_ctrl.pRegB->activate();
-	cpuregs_ctrl.pRegC->activate();
-	cpuregs_ctrl.pRegD->activate();
-	cpuregs_ctrl.pRegE->activate();
-	cpuregs_ctrl.pRegH->activate();
-	cpuregs_ctrl.pRegL->activate();
-	cpuregs_ctrl.pRegPC->activate();
-	cpuregs_ctrl.pRegSP->activate();
-	cpuregs_ctrl.pRegBC->activate();
-	cpuregs_ctrl.pRegDE->activate();
-	cpuregs_ctrl.pRegHL->activate();
-	cpuregs_ctrl.pRegM->activate();
-
-	// Activate Flags
-	cpuregs_ctrl.pSFlag->activate();
-	cpuregs_ctrl.pZFlag->activate();
-	cpuregs_ctrl.pCFlag->activate();
-	cpuregs_ctrl.pTSFlag->activate();
-	cpuregs_ctrl.pACFlag->activate();
-	cpuregs_ctrl.pPFlag->activate();
-	cpuregs_ctrl.pOVFlag->activate();
-	cpuregs_ctrl.pXFlag->activate();
+	activate_controls();
 
 	// Stop the processor
 	gStopCountdown = 8;
@@ -569,11 +674,54 @@ void cb_debug_run(Fl_Widget* w, void*)
 	cpuregs_ctrl.pOVFlag->deactivate();
 	cpuregs_ctrl.pXFlag->deactivate();
 
+	// Deactivate breakpoints
+	cpuregs_ctrl.pBreak1->deactivate();
+	cpuregs_ctrl.pBreak2->deactivate();
+	cpuregs_ctrl.pBreak3->deactivate();
+	cpuregs_ctrl.pBreak4->deactivate();
+	cpuregs_ctrl.pBreakDisable1->deactivate();
+	cpuregs_ctrl.pBreakDisable2->deactivate();
+	cpuregs_ctrl.pBreakDisable3->deactivate();
+	cpuregs_ctrl.pBreakDisable4->deactivate();
+
 	// Get Register updates
 	get_reg_edits();
 
 	// Start the processor
 	gStopped = 0;
+}
+
+/*
+============================================================================
+Routines to handle remote debugging commands 
+============================================================================
+*/
+int remote_cpureg_stop(void)
+{
+	if (gcpuw != NULL)
+	{
+		cb_debug_stop(NULL, NULL);
+		return 1;
+	}
+	return 0;
+}
+int remote_cpureg_run(void)
+{
+	if (gcpuw != NULL)
+	{
+		cb_debug_run(NULL, NULL);
+		return 1;
+	}
+	return 0;
+}
+int remote_cpureg_step(void)
+{
+	if (gcpuw != NULL)
+	{
+		cb_debug_step(NULL, NULL);
+		return 1;
+	}
+	return 0;
 }
 
 /*
@@ -596,7 +744,7 @@ void cb_reg_pc_changed(Fl_Widget* w, void*)
 		trace_tail = 7;
 
 	// Disassemble 1 instruction
-	VTDis::DisassembleLine(new_pc, cpuregs_ctrl.sInstTrace[trace_tail]);
+	cpu_dis.DisassembleLine(new_pc, cpuregs_ctrl.sInstTrace[trace_tail]);
 
 	// Append spaces after opcode
 	len = 20 - strlen(cpuregs_ctrl.sInstTrace[trace_tail]);
@@ -784,7 +932,7 @@ void cb_reg_hl_changed(Fl_Widget* w, void*)
 	// Update M edit box
 	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
-	
+
 }
 
 /*
@@ -811,7 +959,7 @@ void cb_reg_h_changed(Fl_Widget* w, void*)
 	// Update M edit box
 	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
-	
+
 }
 
 /*
@@ -838,7 +986,7 @@ void cb_reg_l_changed(Fl_Widget* w, void*)
 	// Update M edit box
 	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
 	cpuregs_ctrl.pRegM->value(str);
-	
+
 }
 
 /*
@@ -889,7 +1037,7 @@ Routine to handle Reg A Hex display mode
 ============================================================================
 */
 void cb_reg_a_hex(Fl_Widget* w, void*)
-{				  
+{
 	char str[8];
 
 	strcpy(cpuregs_ctrl.sAfmt,  "0x%02X");
@@ -1361,7 +1509,7 @@ void cb_reg_all_hex(Fl_Widget* w, void*)
 	cpuregs_ctrl.pDEDec->value(0);
 	cpuregs_ctrl.pHLDec->value(0);
 	cpuregs_ctrl.pMDec->value(0);
-	
+
 	// Select all "Hex" buttons
 	cpuregs_ctrl.pAHex->value(1);
 	cpuregs_ctrl.pBHex->value(1);
@@ -1450,7 +1598,7 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 		return;
 
 	// Create Peripheral Setup window
-	gcpuw = new Fl_Window(630, 400, "CPU Registers");
+	gcpuw = new Fl_Window(630, 480, "CPU Registers");
 	gcpuw->callback(cb_cpuregswin);
 
 	// Create a menu for the new window.
@@ -1468,7 +1616,7 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_NO_BOX, 20, 120+MENU_HEIGHT, 50, 15, "H");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	
+
 	o = new Fl_Box(FL_NO_BOX, 120, 20+MENU_HEIGHT, 50, 15, "A");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_NO_BOX, 120, 70+MENU_HEIGHT, 50, 15, "C");
@@ -1488,7 +1636,7 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
 
-	// Program Counter edit box 
+	// Program Counter edit box
 	cpuregs_ctrl.pRegPC = new Fl_Input(50, 19+MENU_HEIGHT, 60, 20, "");
 	cpuregs_ctrl.pRegPC->deactivate();
 	cpuregs_ctrl.pRegPC->callback(cb_reg_pc_changed);
@@ -1691,7 +1839,7 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	// Group the Reg D radio buttons togther
 	{
 		cpuregs_ctrl.g = new Fl_Group(370, 90 + MENU_HEIGHT, 100, 20, "");
-											
+
 		// Display format for Reg D
 		o = new Fl_Box(FL_NO_BOX, 340, 91+MENU_HEIGHT, 50, 15, "D");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
@@ -1884,7 +2032,7 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_DOWN_BOX, 20, 200+MENU_HEIGHT, 520, 124, "");
 	cpuregs_ctrl.iInstTraceHead = 0;
-	
+
 	// Create checkbox to disable realtime trace
 	cpuregs_ctrl.pDisableTrace = new Fl_Check_Button(200, 180+MENU_HEIGHT, 180, 20, "Disable Real-time Trace");
 	cpuregs_ctrl.pDisableTrace->callback(cb_disable_realtime_trace);
@@ -1895,22 +2043,46 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_DOWN_BOX, 550, 200+MENU_HEIGHT, 60, 124, "");
 
+	// Create Breakpoint edit boxes
+	o = new Fl_Box(FL_NO_BOX, 20, 375, 100, 15, "Breakpoints:");
+	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	cpuregs_ctrl.pBreak1 = new Fl_Input(120, 375, 60, 20, "");
+	cpuregs_ctrl.pBreak1->deactivate();
+	cpuregs_ctrl.pBreak1->value("");
+	cpuregs_ctrl.pBreakDisable1 = new Fl_Check_Button(125, 395, 40, 20, "Off");
+	cpuregs_ctrl.pBreakDisable1->deactivate();
+	cpuregs_ctrl.pBreak2 = new Fl_Input(200, 375, 60, 20, "");
+	cpuregs_ctrl.pBreak2->deactivate();
+	cpuregs_ctrl.pBreak2->value("");
+	cpuregs_ctrl.pBreakDisable2 = new Fl_Check_Button(205, 395, 40, 20, "Off");
+	cpuregs_ctrl.pBreakDisable2->deactivate();
+	cpuregs_ctrl.pBreak3 = new Fl_Input(280, 375, 60, 20, "");
+	cpuregs_ctrl.pBreak3->deactivate();
+	cpuregs_ctrl.pBreak3->value("");
+	cpuregs_ctrl.pBreakDisable3 = new Fl_Check_Button(285, 395, 40, 20, "Off");
+	cpuregs_ctrl.pBreakDisable3->deactivate();
+	cpuregs_ctrl.pBreak4 = new Fl_Input(360, 375, 60, 20, "");
+	cpuregs_ctrl.pBreak4->deactivate();
+	cpuregs_ctrl.pBreak4->value("");
+	cpuregs_ctrl.pBreakDisable4 = new Fl_Check_Button(365, 395, 40, 20, "Off");
+	cpuregs_ctrl.pBreakDisable4->deactivate();
+
 	// Create Stop button
-	cpuregs_ctrl.pStop = new Fl_Button(30, 365, 80, 25, "Stop");
+	cpuregs_ctrl.pStop = new Fl_Button(30, 445, 80, 25, "Stop");
 	cpuregs_ctrl.pStop->callback(cb_debug_stop);
 
 	// Create Step button
-	cpuregs_ctrl.pStep = new Fl_Button(130, 365, 80, 25, "Step");
+	cpuregs_ctrl.pStep = new Fl_Button(130, 445, 80, 25, "Step");
 	cpuregs_ctrl.pStep->deactivate();
 	cpuregs_ctrl.pStep->callback(cb_debug_step);
 
 	// Create Run button
-	cpuregs_ctrl.pRun = new Fl_Button(230, 365, 80, 25, "Run");
+	cpuregs_ctrl.pRun = new Fl_Button(230, 445, 80, 25, "Run");
 	cpuregs_ctrl.pRun->deactivate();
 	cpuregs_ctrl.pRun->callback(cb_debug_run);
 
 	// Create Redraw button
-	cpuregs_ctrl.pRedraw = new Fl_Button(330, 365, 80, 25, "Redraw");
+	cpuregs_ctrl.pRedraw = new Fl_Button(330, 445, 80, 25, "Redraw");
 	cpuregs_ctrl.pRedraw->deactivate();
 	cpuregs_ctrl.pRedraw->callback(cb_redraw_trace);
 
@@ -1922,6 +2094,16 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 
 	// Indicate an active debug window
 	gDebugActive++;
+	cpuregs_ctrl.breakMonitorFreq = 0;
+	cpuregs_ctrl.breakAddr[0] = -1;
+	cpuregs_ctrl.breakAddr[1] = -1;
+	cpuregs_ctrl.breakAddr[2] = -1;
+	cpuregs_ctrl.breakAddr[3] = -1;
+	cpuregs_ctrl.breakEnable[0] = 1;
+	cpuregs_ctrl.breakEnable[1] = 1;
+	cpuregs_ctrl.breakEnable[2] = 1;
+	cpuregs_ctrl.breakEnable[3] = 1;
 }
+
 
 

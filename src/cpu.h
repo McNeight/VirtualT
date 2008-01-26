@@ -104,16 +104,21 @@ extern int gIndex[65536];
 
 #define cpuMISC		cpu[13]
 #define CF			(F&0x01)
-#define XF			((F&0x02)>>1)
-#define XF_BIT		0x02
+#define	CF_BIT		0x01
 #define	OV			((F&0x02)>>1)
 #define	OV_BIT		0x02
 #define PF			((F&0x04)>>2)
+#define PF_BIT		0x04
+#define	TS			((F&0x08)>>3)
+#define	TS_BIT		0x08
 #define AC			((F&0x10)>>4)
-#define	TS			((F&0x20)>>5)
-#define	TS_BIT		0x20
+#define AC_BIT		0x10
+#define XF			((F&0x20)>>5)
+#define XF_BIT		0x20
 #define ZF			((F&0x40)>>6)
+#define	ZF_BIT		0x40
 #define SF			((F&0x80)>>7)
+#define	SF_BIT		0x80
 #define RST55MASK	(IM&0x01)
 #define RST65MASK	((IM&0x02)>>1)
 #define RST75MASK	((IM&0x04)>>2)

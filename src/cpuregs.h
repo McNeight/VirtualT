@@ -3,29 +3,29 @@
 /* $Id: cpuregs.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Ken Pettit
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
- */
+* Copyright 2004 Ken Pettit
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in the
+*    documentation and/or other materials provided with the distribution.
+*
+* THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+* ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+* IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+* ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+* FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+* DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+* OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+* HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+* OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+* SUCH DAMAGE.
+*/
 
 
 #ifndef CPUREGS_H
@@ -39,7 +39,7 @@
 
 void cb_CpuRegs(Fl_Widget* w, void*);
 
-typedef struct cpuregs_ctrl_struct	
+typedef struct cpuregs_ctrl_struct
 {
 	Fl_Menu_Bar*			pMenu;
 
@@ -59,6 +59,15 @@ typedef struct cpuregs_ctrl_struct
 	Fl_Input*			pRegPC;
 	Fl_Input*			pRegSP;
 	Fl_Input*			pRegM;
+
+	Fl_Input*			pBreak1;
+	Fl_Input*			pBreak2;
+	Fl_Input*			pBreak3;
+	Fl_Input*			pBreak4;
+	Fl_Check_Button*	pBreakDisable1;
+	Fl_Check_Button*	pBreakDisable2;
+	Fl_Check_Button*	pBreakDisable3;
+	Fl_Check_Button*	pBreakDisable4;
 
 	Fl_Check_Button*	pSFlag;
 	Fl_Check_Button*	pZFlag;
@@ -97,11 +106,17 @@ typedef struct cpuregs_ctrl_struct
 	Fl_Round_Button*	pHLDec;
 	Fl_Round_Button*	pMHex;
 	Fl_Round_Button*	pMDec;
+	Fl_Round_Button*	pBreakHex;
+	Fl_Round_Button*	pBreakDec;
 
 	Fl_Box*				pInstTrace[8];
 	char				sInstTrace[8][120];
 	int					iInstTraceHead;
 	Fl_Check_Button*	pDisableTrace;
+
+	int					breakAddr[4];
+	int					breakEnable[4];
+	int					breakMonitorFreq;
 
 	Fl_Button*			pStop;
 	Fl_Button*			pStep;
@@ -121,6 +136,7 @@ typedef struct cpuregs_ctrl_struct
 	char				sDEfmt[8];
 	char				sHLfmt[8];
 	char				sMfmt[8];
+	char				sBreakfmt[8];
 
 	Fl_Group*			g;
 
@@ -128,3 +144,4 @@ typedef struct cpuregs_ctrl_struct
 
 
 #endif
+

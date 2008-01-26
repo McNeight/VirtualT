@@ -983,8 +983,11 @@ RomDescription_t gM200_Desc = {
 	0xF252,                     /* Start of RAM directory */
 	0xEF63,                     /* BASIC string	buffer pointer */
 	0xF505,						/* BASIC size */
+	0xFD0E,						/* Keyscan array */
+	0x9063,						/* Character generator array */
 
 	52,							/* Number of directory entries */
-	9							/* Index of first dir entry */
+	9,							/* Index of first dir entry */
+	0x6803						/* Address of MS Copyright string */
 };
 

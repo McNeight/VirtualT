@@ -486,7 +486,9 @@ int tokenize(unsigned char* in, unsigned char* out, unsigned short addr)
 }
 
 
-void cb_LoadFromHost(Fl_Widget* w, void*)
+int gLoadError;
+
+void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 {
 	int					count, i, x;
 	Fl_File_Chooser		*fc;
@@ -505,35 +507,50 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 	int                 move_len;
 	int					need_tokenize;
 	
-	fc = new Fl_File_Chooser(".","Model T Files (*.{do,txt,ba,co,hex})",1,"Load file from Host");
-	fc->preview(0);
-	fc->show();
-
-	while (fc->visible())
-		Fl::wait();
-
-	count = fc->count();
-	if (count == 0)
+	if (w != NULL)
 	{
-		delete fc;
-		return;
-	}
+		fc = new Fl_File_Chooser(".","Model T Files (*.{do,txt,ba,co,hex})",1,"Load file from Host");
+		fc->preview(0);
+		fc->show();
+
+		while (fc->visible())
+			Fl::wait();
+
+		count = fc->count();
+		if (count == 0)
+		{
+			delete fc;
+			return;
+		}
 
 	// Get Filename
-	filename = fc->value(1);
-	if (filename == 0)
-	{
+		filename = fc->value(1);
+		if (filename == 0)
+		{
+			delete fc;
+			return;
+		}
+
+		len = strlen(filename);
 		delete fc;
-		return;
 	}
-	len = strlen(filename);
-	delete fc;
+	else
+	{
+		if (host_filename == NULL)
+			return;
+
+		filename = (const char*) host_filename;
+		len = strlen(filename);
+	}
 
 	// Open file
 	fd = fopen(filename, "rb");
 	if (fd == 0)
 	{
-		fl_message("Unable to open file %s", filename);
+		if (w != NULL)
+			fl_message("Unable to open file %s", filename);
+		else
+			gLoadError = 1;
 		return;
 	}
 
@@ -583,7 +600,10 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 	if (len > 262144)
 	{
 		fclose(fd);
-		fl_message(gTooLargeMsg);
+		if (w != NULL)
+			fl_message(gTooLargeMsg);
+		else
+			gLoadError = 1;
 		return;
 	}
 
@@ -620,7 +640,10 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 			conv[x++] = ch;
 			if (x >= 32768)
 			{
-				fl_message(gTooLargeMsg);
+				if (w != NULL)
+					fl_message(gTooLargeMsg);
+				else
+					gLoadError = 1;
 				return;
 			}
 		}
@@ -671,7 +694,12 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 	{
 		len = load_hex_file((char *)  filename, (char *) data, &start_addr);
 		if (len == 0)
-			fl_message("Invalid HEX file format");
+		{
+			if (w != NULL)
+				fl_message("Invalid HEX file format");
+			else
+				gLoadError = 1;
+		}
 	}
 
 	if (len == 0)
@@ -682,7 +710,10 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 	addr2 = get_memory16(gStdRomDesc->sBeginVar);
 	if (addr3 - addr2 < len)
 	{
-		fl_message(gTooLargeMsg);
+		if (w != NULL)
+			fl_message(gTooLargeMsg);
+		else
+			gLoadError = 1;
 		return;
 	}
 
@@ -700,7 +731,10 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 
 		if (x == 8)
 		{
-			fl_message("File %s already exists", filename_name);
+			if (w != NULL)
+				fl_message("File %s already exists", filename_name);
+			else
+				gLoadError = 1;
 			return;
 		}
 
@@ -717,7 +751,10 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 		addr4 += 11;
 		if (++dir_index >= gStdRomDesc->sDirCount)
 		{
-			fl_message("Too many files in directory");
+			if (w != NULL)
+				fl_message("Too many files in directory");
+			else
+				gLoadError = 1;
 			return;
 		}
 	}
@@ -830,6 +867,12 @@ void cb_LoadFromHost(Fl_Widget* w, void*)
 
 }
 
+int remote_load_from_host(const char *filename)
+{
+	gLoadError = 0;
+	cb_LoadFromHost(NULL, (void *) filename);
+	return gLoadError;
+}
 
 /*
 =======================================================================

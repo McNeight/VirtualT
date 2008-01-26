@@ -49,9 +49,10 @@ extern "C" {
 
 #define	REMEM_MAP_OFFSET			0x1BF000
 #define	REMEM_MAP_SIZE				512
-#define	REMEM_BANK_SIZE				128
-#define	REMEM_BANKS_PER_MAP			4
-#define	REMEM_BLOCKS_PER_BANK		32
+#define	REMEM_SECTOR_SIZE			128
+#define	REMEM_SECTORS_PER_MAP		4
+#define	REMEM_TOTAL_SECTORS			32
+#define	REMEM_BLOCKS_PER_BANK		(gModel == MODEL_T200 ? 40 : 32)
 #define	REMEM_RAM_MAP_OFFSET		(gModel == MODEL_T200 ? 0x50 : 0)
 #define REMEM_RAMPAC_OFFSET			0x1C0000
 #define	RAMPAC_SECTOR_SIZE			1024
@@ -84,6 +85,7 @@ void			load_rampac_ram(void);
 void			load_remem_ram(void);
 void			save_rampac_ram(void);
 void			save_remem_ram(void);
+void			reload_sys_rom(void);
 
 unsigned char	get_memory8(unsigned short address);
 unsigned short	get_memory16(unsigned short address);
@@ -106,9 +108,12 @@ void			remem_copy_block_to_mmu(int block);
 
 void			save_ram(void);
 void			load_ram(void);
+void			load_sys_rom(void);
 void			load_opt_rom(void);
 void			set_ram_bank(unsigned char page);
 void			set_rom_bank(unsigned char bank);
+unsigned char	get_ram_bank(void);
+unsigned char	get_rom_bank(void);
 
 
 #ifdef __cplusplus

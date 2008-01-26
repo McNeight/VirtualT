@@ -1,9 +1,9 @@
-/* VirtualT.h */
+/* multieditwin.h */
 
-/* $Id: VirtualT.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: multieditwin.h,v 1.1.1.1 2007/04/07 06:46:12 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2007 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,23 +28,41 @@
  */
 
 
-#ifndef _VIRTUALT_H_
-#define _VIRTUALT_H_
+#ifndef _MULTIEDITWIN_H_
+#define _MULTIEDITWIN_H_
 
-#define VERSION	"1.0"
+#include "multiwin.h"
 
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-	,MODEL_PC8201
-	,MODEL_M10
-	,MODEL_PC8300
+class Fl_Multi_Edit_Window : public Fl_Multi_Window
+{
+public:
+	Fl_Multi_Edit_Window(int x=0, int y=0, int w=600, int h=500, const char *label = 0);
+	~Fl_Multi_Edit_Window();
+
+	DECLARE_DYNCREATE(Fl_Multi_Edit_Window)
+
+	void			OpenFile(const MString& filename);
+	void			SaveFile(const MString& rootpath);
+	void			SaveAs(const MString& rootpath);
+	void			Copy(void);
+	void			Cut(void);
+	void			Paste(void);
+	int				ReplaceAll(const char * pFind, const char *pReplace);
+	int				ReplaceNext(const char * pFind, const char *pReplace);
+	int				IsModified(void) { return m_Modified; }
+	void			Modified(void);
+	void			ModifedCB(int, int, int, int, const char *);
+	const MString&	Filename(void) { return m_FileName; }
+	void			Title(const MString& title);
+
+	Fl_Text_Editor*	m_te;
+protected:
+	Fl_Text_Buffer*	m_tb;
+	MString			m_FileName;
+	MString			m_Title;
+	int				m_Modified;
+	int virtual		OkToClose(void);
 };
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
 #endif
 
-#endif

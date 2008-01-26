@@ -10,6 +10,7 @@ memory.c
 ============================================================================
 */
 
+#include <string.h>
 #include <stdio.h>
 #include <malloc.h>
 #include <string.h>
@@ -17,10 +18,12 @@ memory.c
 #include "VirtualT.h"
 #include "m100emu.h"
 #include "memory.h"
+#include "display.h"
 #include "cpu.h"
 #include "io.h"
 #include "intelhex.h"
 #include "setup.h"
+#include "filewrap.h"
 
 uchar			*gMemory[64];		/* CPU Memory space */
 uchar			gBaseMemory[65536];	/* System Memory */
@@ -61,6 +64,11 @@ unsigned char	*gRampacSaveSectPtr = 0;/* Pointer to current Sector memory */
 
 int				gIndex[65536];
 
+extern RomDescription_t		gM100_Desc;
+extern RomDescription_t		gM200_Desc;
+extern RomDescription_t		gN8201_Desc;
+extern RomDescription_t		gM10_Desc;
+extern int					gShowVersion;
 
 unsigned char get_memory8(unsigned short address)
 {
@@ -429,7 +437,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			for (cp_ptr = 0; cp_ptr < count; cp_ptr++)
 			{
 				/* Determine if address is part of MMU */
-				if ((addr >= REMEM_MAP_OFFSET) && (addr <= (REMEM_MAP_OFFSET + REMEM_MAP_SIZE * 8)))
+				if ((addr >= REMEM_MAP_OFFSET) && (addr < (REMEM_MAP_OFFSET + REMEM_MAP_SIZE * 8)))
 					/* Indiacte possible map chage */
 					map_changed = 1;
 
@@ -734,11 +742,15 @@ void save_ram(void)
 			switch (gModel)
 			{
 			case MODEL_M100:				/* M100 & M102 have single bank */
+			case MODEL_M10:					/* M100 & M102 have single bank */
 			case MODEL_M102:
 				fwrite(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 				break;
 
 			case MODEL_T200:
+				/* Copy base memory to rambanks */
+				set_ram_bank(gRamBank);
+
 				/* Save RAM */
 				fwrite(rambanks, 1, 3*RAMSIZE, fd);
 
@@ -749,6 +761,9 @@ void save_ram(void)
 
 			case MODEL_PC8201:
 			case MODEL_PC8300:
+				/* Copy base memory to rambanks */
+				set_ram_bank(gRamBank);
+
 				/* Save RAM */
 				fwrite(rambanks, 1, 3*RAMSIZE, fd);
 
@@ -822,8 +837,17 @@ void load_remem_ram(void)
 	}
 
 	/* Initalize MsplanROM area */
-	for (x = 0; x < sizeof(gMsplanROM); x++)
-		gReMemFlash1[0x10000 + x] = gMsplanROM[x];
+	if (gModel == MODEL_T200)
+		for (x = 0; x < sizeof(gMsplanROM); x++)
+			gReMemFlash1[0x10000 + x] = gMsplanROM[x];
+}
+
+void reload_sys_rom(void)
+{
+	int		x;
+	
+	for (x = 0; x < ROMSIZE; x++)
+		gReMemFlash1[x] = gSysROM[x];
 }
 
 /*
@@ -898,6 +922,7 @@ void load_ram(void)
 		switch (gModel)
 		{
 		case MODEL_M100:				/* M100 & M102 have single bank */
+		case MODEL_M10:					/* M100 & M102 have single bank */
 		case MODEL_M102:
 			fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 			break;
@@ -965,6 +990,100 @@ void load_ram(void)
 load_opt_rom:  This function loads option ROMS as specified by user settings.
 =============================================================================
 */
+void load_sys_rom(void)
+{
+	int					fd;
+	unsigned short		address;
+	char				oldString[15];
+	char				newString[40];
+	int					c, srchLen, strLen;
+
+	/* Get Path to ROM based on current Model selection */
+	get_rom_path(file, gModel);
+
+	/* Open the ROM file */
+	fd = open(file,O_RDONLY | O_BINARY);
+	if (fd < 0)
+	{
+		show_error("Could not open ROM file");
+	}
+
+	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
+
+	/* Read data from the ROM file */
+	if (read(fd, gSysROM, ROMSIZE)<ROMSIZE)
+	{
+		show_error("Error reading ROM file: Bad Rom file");
+	}
+
+	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
+	if (gModel == MODEL_T200)
+		read(fd, gMsplanROM, 32768);
+	
+	/* Close the ROM file */
+	close(fd);
+
+	/* Set pointer to ROM Description */
+	if (gModel == MODEL_T200)
+		gStdRomDesc = &gM200_Desc;
+	else if (gModel == MODEL_PC8201)
+		gStdRomDesc = &gN8201_Desc;
+	else if (gModel == MODEL_M10)
+		gStdRomDesc = &gM10_Desc;
+	else
+		gStdRomDesc = &gM100_Desc;
+
+	/* Test if VirtulalT version should replace (C) Micro***t text */
+	if (gShowVersion)
+	{
+		if (gModel == MODEL_PC8201)
+		{
+			sprintf(newString, " VirtualT %s ", VERSION);
+			newString[14] = 0;
+			strcpy(oldString, "(C) Micro");
+		}
+		else
+		{
+			sprintf(newString, "VirtualT %s", VERSION);
+			newString[12] = 0;
+			strcpy(oldString, "(C)Micro");
+		}
+		strcat(oldString, "soft");
+		
+		/* Start by checking the address identified in the StdRomDescription */
+		address = gStdRomDesc->sMSCopyright;
+
+		/* Check if the copyright string is where we expect it to be */
+		if (strncmp(&gSysROM[address], oldString, strlen(oldString)) != 0)
+		{
+			/* Okay, the copyright string has been moved (by the user?)  Find it */
+			address = 0;
+			srchLen = ROMSIZE-strlen(oldString)-1;
+			strLen = strlen(oldString);
+
+			for (c = 0; c < srchLen; c++)
+			{
+				if (strncmp(&gSysROM[c], oldString, strLen) == 0)
+				{
+					address = (unsigned short) c;
+					break;
+				}
+			}
+		}
+
+		/* If the address is good, update the ROM */
+		if (address != 0)
+			strcpy(&gSysROM[address], newString);
+	}
+
+	/* Copy ROM into system memory */
+	memcpy(gBaseMemory, gSysROM, ROMSIZE);
+}
+/*
+=============================================================================
+load_opt_rom:  This function loads option ROMS as specified by user settings.
+=============================================================================
+*/
 void load_opt_rom(void)
 {
 	int				len, c;
@@ -999,10 +1118,10 @@ void load_opt_rom(void)
 		{
 			if (gModel == MODEL_T200)
 				for (c = 0; c < len; c++)
-					gReMemFlash1[0x20000 + c] = buf[c];
+					gReMemFlash1[0x18000 + c] = buf[c];
 			else
 				for (c = 0; c < len; c++)
-					gReMemFlash1[0x10000 + c] = buf[c];
+					gReMemFlash1[0x8000 + c] = buf[c];
 		}
 
 	}
@@ -1020,10 +1139,10 @@ void load_opt_rom(void)
 		{
 			if (gModel == MODEL_T200)
 				for (c = 0; c < OPTROMSIZE; c++)
-					gReMemFlash1[0x20000 + c] = gOptROM[c];
+					gReMemFlash1[0x18000 + c] = gOptROM[c];
 			else
 				for (c = 0; c < OPTROMSIZE; c++)
-					gReMemFlash1[0x10000 + c] = gOptROM[c];
+					gReMemFlash1[0x8000 + c] = gOptROM[c];
 		}
 	}
 }
@@ -1076,6 +1195,26 @@ void set_ram_bank(unsigned char bank)
 			}
 		}
 	}
+}
+
+/*
+=============================================================================
+get_ram_bank:	This function gets the current RAM bank. 
+=============================================================================
+*/
+unsigned char get_ram_bank(void)
+{
+	return gRamBank;
+}
+
+/*
+=============================================================================
+get_rom_bank:	This function gets the current ROM bank. 
+=============================================================================
+*/
+unsigned char get_rom_bank(void)
+{
+	return gRomBank;
 }
 
 /*
@@ -1196,11 +1335,14 @@ void remem_set8(unsigned int address, unsigned char data)
 	int		ramBank;		/* The currently mapped ramBank within the Map */
 
  	/* Calculate which block is being accessed */
-//	block = address >> 10;	
 	block = gIndex[address];	
 
 	/* Test if ReMem memory block is read-only */
 	if ((gReMemMode & REMEM_MODE_NORMAL) && (gReMemMap[block] & REMEM_VCTR_READ_ONLY))
+		return;
+
+	/* Test if ReMem is in Normal mode and writing to ROM */
+	if (!(gReMemMode & REMEM_MODE_NORMAL) && (address < (unsigned int) ROMSIZE))
 		return;
 
 	/* Test if accessing MMU vector for current map */
@@ -1209,13 +1351,6 @@ void remem_set8(unsigned int address, unsigned char data)
 		/* Need to validate that address is accssing active portion of MMU page */
 		if (((address & 0x3FF) >= gReMemMapLower) && ((address & 0x3FF) < gReMemMapUpper))
 		{
-			/* System is making a change to the active MAP!!  Now we need to determine if */
-			/* The portion of the map being modified is selected by the current ROM/RAM */
-			/* bank settings */
-			bank = block / REMEM_BANK_SIZE;
-			romBank = gModel == MODEL_T200 ? gRomBank : gRomBank << 1;
-			ramBank = gModel == MODEL_T200 ? gRamBank : 1;
-
 			/* First validate that the data is actually changing */
 			if (gMemory[block][address&0x3FF] == data)
 				return;
@@ -1223,12 +1358,21 @@ void remem_set8(unsigned int address, unsigned char data)
 			/* Okay, data is really changing first update system memory */
 			gMemory[block][address&0x3FF] = data;										 
 
+			/* System is making a change to the active MAP!!  Now we need to determine if */
+			/* The portion of the map being modified is selected by the current ROM/RAM */
+			/* bank settings */
+			bank = ((address & 0x3FF) - gReMemMapLower) / REMEM_SECTOR_SIZE;
+			romBank = gModel == MODEL_T200 ? gRomBank : gRomBank << 1;
+			ramBank = gModel == MODEL_T200 ? gRamBank : 1;
+
 			/* Determine if the change was made in a mapped bank ROM or RAM */
 			if ((bank != romBank) && (bank != ramBank))
 				return;
 
 			/* Determine which map entry was modified */
-			mmuBlock = ((address & 0x3FF) - gReMemMapLower - (bank * REMEM_BANK_SIZE)) >> 1;
+			mmuBlock = ((address & 0x3FF) - gReMemMapLower - (bank * REMEM_SECTOR_SIZE)) >> 1;
+			if ((gModel != MODEL_T200) && (bank == 1))
+				mmuBlock += 32;
 
 			/* Update the gReMemMap vector table for this block */
 			if (address & 0x01)
@@ -1257,7 +1401,6 @@ remem_in:		This function services in operations to the ReMem emulation.
 int remem_in(unsigned char port, unsigned char *data)
 {
 	int				ret = 0;	/* Indicate if port serviced or not */
-	int				map;
 
 	/* Test if ReMem emulation is enabled */
 	if (!(gReMem | gRampac) || (gReMemRam == 0))
@@ -1288,17 +1431,14 @@ int remem_in(unsigned char port, unsigned char *data)
 			*data = *gReMemSectPtr++;		/* Get data at current Sector Pointer */
 			/* Update the ReMem Counter and Sector */
 			gReMemCounter++;				/* Increment Sector Counter */
-			if (gReMemCounter >= REMEM_BANK_SIZE)
+			if (gReMemCounter >= REMEM_SECTOR_SIZE)
 			{
-				/* Get the map number */
-				map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
-
 				gReMemSector++;				/* Increment to next sector */
-				if (gReMemSector >= REMEM_BLOCKS_PER_BANK)
+				if (gReMemSector >= REMEM_TOTAL_SECTORS)
 					gReMemSector = 0;
 				gReMemCounter = 0;			/* Clear sector counter */
 				gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
-						map * REMEM_MAP_SIZE + gReMemSector * REMEM_BANK_SIZE);
+						gReMemSector * REMEM_SECTOR_SIZE);
 			}
 		}
 		else
@@ -1458,12 +1598,9 @@ int remem_out(unsigned char port, unsigned char data)
 			gReMemSector = data;			/* Update Sector number */
 			gReMemCounter = 0;				/* Clear the ReMem counter */
 
-			/* Get the map number */
-			map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
-
 			/* Calculate pointer to actual RAM storage for this sector */
 			gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
-				map * REMEM_MAP_SIZE + gReMemSector * REMEM_BANK_SIZE);
+				gReMemSector * REMEM_SECTOR_SIZE);
 		}
 		ret = 1;
 		break;
@@ -1471,85 +1608,93 @@ int remem_out(unsigned char port, unsigned char data)
 		/* ReMem port for writing vector data */
 	case REMEM_DATA_PORT:
 		/* First check if RamPac Mode enabled */
-		if (gReMemMode & REMEM_MODE_IOENABLE)
+		ret = 1;
+		if (!(gReMemMode & REMEM_MODE_IOENABLE))
+			break;
+
+
+		/* Check if MMU mode is enabled.  If it is, we may need to dynamically */
+		/* load and unload blocks from system memory to ReMem Memory as a */
+		/* Result of the I/O update */
+		if (gReMemMode & REMEM_MODE_NORMAL)
 		{
-			/* Calculate ReMem Vector block based on current ReMemCounter */
-			block = (gReMemCounter >> 1) + gReMemSector * REMEM_BLOCKS_PER_BANK;
+			/* MMU mode is enabled - Test if update changes mapped block */
 
-			/* Check if MMU mode is enabled.  If it is, we may need to dynamically */
-			/* load and unload blocks from system memory to ReMem Memory as a */
-			/* Result of the I/O update */
-			if (gReMemMode & REMEM_MODE_NORMAL)
+			/* Calculate current MMU ROM bank */
+			bank = gModel == MODEL_T200 ? gRomBank : gRomBank << 1;
+
+			/* Convert current MMU map / ROM bank to sector format */
+			romSector = ((gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT) *
+				REMEM_SECTORS_PER_MAP + bank;
+
+			/* Calculate current MMU RAM bank */
+			bank = gModel == MODEL_T200 ? gRamBank : 1;
+
+			/* Convert current MMU map / ROM bank to sector format */
+			ramSector = ((gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT) *
+				REMEM_SECTORS_PER_MAP + bank;
+
+			/* Test if Current ReMem Sector same as current ReMem Map/Bank selection */
+			/* If it is, this means we are writing to an actively mapped bank and */
+			/* Need to swap the memory to/from system RAM */
+			if ((gReMemSector == romSector) || (gReMemSector == ramSector))
 			{
-				/* MMU mode is enabled - Test if update changes mapped block */
-
-				/* Calculate current MMU ROM bank */
-				bank = gModel == MODEL_T200 ? gRomBank : gRomBank << 1;
-
-				/* Convert current MMU map / ROM bank to sector format */
-				romSector = ((gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT) *
-					REMEM_BANKS_PER_MAP + bank;
-
-				/* Calculate current MMU RAM bank */
-				bank = gModel == MODEL_T200 ? gRamBank : 1;
-
-				/* Convert current MMU map / ROM bank to sector format */
-				ramSector = ((gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT) *
-					REMEM_BANKS_PER_MAP + bank;
-
-				/* Test if Current ReMem Sector same as current ReMem Map/Bank selection */
-				/* If it is, this means we are writing to an actively mapped bank and */
-				/* Need to swap the memory to/from system RAM */
-				if ((gReMemSector == romSector) || (gReMemSector == ramSector))
+				/* Swap memory in/out only if data actually changes */
+				if (*gReMemSectPtr != data)
 				{
-					/* Swap memory in/out only if data actually changes */
-					if (*gReMemSectPtr != data)
+					/* Calculate which ReMem Vector block is being changed */
+					block = (gReMemCounter >> 1);
+					if ((gModel != MODEL_T200) && (gReMemSector == ramSector))
+						block += 32;
+					if (block >= 64)
 					{
-						/* Update ReMem Vector table */
-						if (gReMemCounter & 0x01)
-							gReMemMap[block] = (gReMemMap[block] & 0x00FF) | (data << 8);
-						else
-							gReMemMap[block] = (gReMemMap[block] & 0xFF00) | data;
-
-						/* Check if new assignment maps the MMU bank to system memory */
-						map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
-						mmuBlock = (unsigned short) ((REMEM_MAP_OFFSET + map * REMEM_MAP_SIZE) >> 10);
-						
-						if ((gReMemMap[block] & REMEM_VCTR_ADDRESS) == mmuBlock)
-						{
-							gReMemMap[block] |= REMEM_VCTR_MMU_ACTIVE;
-							gReMemMapLower = (map & 0x02) * REMEM_MAP_SIZE;
-							gReMemMapUpper = ((map & 0x02) + 1) * REMEM_MAP_SIZE;
-						}
-
-						/* Copy new MMU data to system based on new vector */
-						remem_copy_mmu_to_block(block);
+						printf("Panic!  Error calculating ReMem block update, block = %d\n", block);
+						break;
 					}
+
+					/* Update ReMem Vector table */
+					if (gReMemCounter & 0x01)
+						gReMemMap[block] = (gReMemMap[block] & 0x00FF) | (data << 8);
+					else
+						gReMemMap[block] = (gReMemMap[block] & 0xFF00) | data;
+
+					/* Check if new assignment maps the MMU bank to system memory */
+					map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
+					mmuBlock = (unsigned short) ((REMEM_MAP_OFFSET + map * REMEM_MAP_SIZE) >> 10);
+					
+					if ((gReMemMap[block] & REMEM_VCTR_ADDRESS) == mmuBlock)
+					{
+						gReMemMap[block] |= REMEM_VCTR_MMU_ACTIVE;
+						gReMemMapLower = (map & 0x02) * REMEM_MAP_SIZE;
+						gReMemMapUpper = ((map & 0x02) + 1) * REMEM_MAP_SIZE;
+					}
+
+					/* Copy new MMU data to system based on new vector */
+					remem_copy_mmu_to_block(block);
 				}
 			}
-
-			/* Update ReMem MAP RAM with new value */
-			*gReMemSectPtr++ = data;
-
-			/* Update the ReMem Counter and Sector */
-			gReMemCounter++;				/* Increment Sector Counter */
-			if (gReMemCounter >= REMEM_BANK_SIZE)
-			{
-				/* Get the map number */
-				map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
-
-				gReMemSector++;				/* Increment to next sector */
-				if (gReMemSector >= REMEM_BLOCKS_PER_BANK)
-					gReMemSector = 0;
-				gReMemCounter = 0;			/* Clear sector counter */
-				gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
-						map * REMEM_MAP_SIZE + gReMemSector * REMEM_BANK_SIZE);
-			}
 		}
-		ret = 1;						/* Indicate Port I/O processed */
+
+		/* Update ReMem MAP RAM with new value */
+		*gReMemSectPtr++ = data;
+
+		/* Update the ReMem Counter and Sector */
+		gReMemCounter++;				/* Increment Sector Counter */
+		if (gReMemCounter >= REMEM_SECTOR_SIZE)
+		{
+			/* Get the map number */
+			map = (gReMemMode & REMEM_MODE_MAP_BITS) >> REMEM_MODE_MAP_SHIFT;
+
+			gReMemSector++;				/* Increment to next sector */
+			if (gReMemSector >= REMEM_TOTAL_SECTORS)
+				gReMemSector = 0;
+			gReMemCounter = 0;			/* Clear sector counter */
+			gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET + 
+					gReMemSector * REMEM_SECTOR_SIZE);
+		}
 		break;
 
-		/* RamPac Write Byte port */
+	case 0x85:
 	case RAMPAC_SECTOR_PORT:
 		/* Store new value for RampacSector & Clear counter */
 		gRampacSector = data;		/* Update Sector for Rampac */
@@ -1635,9 +1780,9 @@ void remem_update_vectors(unsigned char targetMode)
 		else
 			bank = gModel == MODEL_T200 ? gRamBank : 1;
 		mmuBlock = (unsigned short) ((REMEM_MAP_OFFSET + map * REMEM_MAP_SIZE + 
-			bank * REMEM_BANK_SIZE) >> 10);
+			bank * REMEM_SECTOR_SIZE) >> 10);
 		pMapPtr = (unsigned short *) (gReMemRam + REMEM_MAP_OFFSET + map * REMEM_MAP_SIZE + 
-			bank * REMEM_BANK_SIZE + (x ? REMEM_RAM_MAP_OFFSET : 0));
+			bank * REMEM_SECTOR_SIZE + (x ? REMEM_RAM_MAP_OFFSET : 0));
 
 		/* Update ReMem ROM/RAM blocks */
 		for (c = 0; c < (!x ? romBlocks : ramBlocks); c++)
@@ -1662,8 +1807,8 @@ void remem_update_vectors(unsigned char targetMode)
 			if (x && ((gReMemMap[block] & REMEM_VCTR_ADDRESS) == mmuBlock))
 			{
 				gReMemMap[block] |= REMEM_VCTR_MMU_ACTIVE;
-				gReMemMapLower = (map & 0x02) * REMEM_MAP_SIZE;
-				gReMemMapUpper = ((map & 0x02) + 1) * REMEM_MAP_SIZE;
+				gReMemMapLower = (map & 0x01) * REMEM_MAP_SIZE;
+				gReMemMapUpper = ((map & 0x01) + 1) * REMEM_MAP_SIZE;
 			}
 
 			/* Increment to next block */
@@ -1687,8 +1832,10 @@ void remem_copy_normal_to_system(void)
 
 	/* First copy ROM to system memory */
 	blocks = gModel == MODEL_T200 ? 40 : 32;
-	pSrc = (gReMemBoot ? gReMemFlash2 : gReMemFlash1) + 
-		0x10000 * gRomBank;
+	if (gModel != MODEL_T200)
+		pSrc = (gReMemBoot ? gReMemFlash2 : gReMemFlash1) + 0x8000 * gRomBank;
+	else
+		pSrc = (gReMemBoot ? gReMemFlash2 : gReMemFlash1) + (gRomBank == 0 ? 0 : 0x10000 + 0x8000 * (gRomBank - 1));
 	dest = 0;
 
 	/* Copy the ROM bytes */
@@ -1697,7 +1844,10 @@ void remem_copy_normal_to_system(void)
 
 	/* Now prepare to copy the RAM bytes */
 	blocks = gModel == MODEL_T200 ? 24 : 32;
-	pSrc = gReMemRam + 0x10000 * gRamBank + (gModel == MODEL_T200 ? 40960 : 32768);
+	if (gModel != MODEL_T200)
+		pSrc = gReMemRam;
+	else
+		pSrc = gReMemRam + 0x8000 * gRamBank;
 
 	/* Copy the RAM bytes */
 	for (c = 0; c < blocks; c++)

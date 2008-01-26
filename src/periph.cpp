@@ -56,7 +56,6 @@
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
-
 typedef struct periph_ctrl_struct	
 {
 	Fl_Menu_Bar*			pMenu;
@@ -133,7 +132,7 @@ Fl_Menu_Item gPeriph_menuitems[] = {
 	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
-	{ "Simulation Log Viewer", 0, 0 },
+//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, 0 },
 	{ 0 },
 

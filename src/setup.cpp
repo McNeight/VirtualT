@@ -52,9 +52,11 @@
 #include "setup.h"
 #include "memory.h"
 #include "memedit.h"
+#include "io.h"
 #include "file.h"
 
 extern	Fl_Preferences virtualt_prefs;
+void init_menus(void);
 
 typedef struct setup_ctrl_struct	
 {
@@ -110,10 +112,12 @@ typedef struct memory_ctrl_struct
 	Fl_Button*			pRampacBrowse;
 	Fl_Box*				pReMemText;
 	Fl_Check_Button*	pOptRomRW;
+	Fl_Check_Button*	pShowVersion;
 } memory_ctrl_t;
 
 extern "C" {
 extern int			gOptRomRW;
+extern int			gShowVersion;
 }
 
 
@@ -207,6 +211,7 @@ void cb_setup_cancel (Fl_Widget* w, void*)
 {
 	gpsw->hide();
 	delete gpsw;
+	gpsw = NULL;
 }
 
 void cb_setup_OK(Fl_Widget* w, void*)
@@ -307,12 +312,14 @@ void cb_setupwin (Fl_Widget* w, void*)
 {
 	gpsw->hide();
 	delete gpsw;
+	gpsw = NULL;
 }
 
 void cb_memorywin (Fl_Widget* w, void*)
 {
 	gmsw->hide();
 	delete gmsw;
+	gpsw = NULL;
 }
 
 /*
@@ -537,6 +544,10 @@ void save_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_OptRomRW");
 	virtualt_prefs.set(pref, gOptRomRW);
+
+	strcpy(pref, str);
+	strcat(pref, "_ShowVersion");
+	virtualt_prefs.set(pref, gShowVersion);
 }
 
 void load_memory_preferences(void)
@@ -574,6 +585,11 @@ void load_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_OptRomRW");
 	virtualt_prefs.get(pref, gOptRomRW, 0);
+
+	// Load Show Version on MENU option
+	strcpy(pref, str);
+	strcat(pref, "_ShowVersion");
+	virtualt_prefs.get(pref, gShowVersion, 1);
 }
 
 /*
@@ -633,8 +649,12 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	// Get OptRom R/W Enable setting
 	gOptRomRW = mem_ctrl.pOptRomRW->value();
 
+	// Get Show Version setting
+	gShowVersion = mem_ctrl.pShowVersion->value();
+
 	// Allocate ReMem and / or Rampac memory if not already
 	init_mem();
+	init_menus();
 
 	// If we are in ReMem or ReMem_Rampac mode, check if ReMem filename changed
 	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
@@ -690,9 +710,14 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	// Update Memory Editor
 	cb_MemoryEditorUpdate();
 
+	// Reload the SysROM in case the Show Verion changed
+	load_sys_rom();
+
 	/* Reset the CPU */
 	resetcpu();
 	gExitLoop = 1;
+
+	show_remem_mode();
 
 	// Destroy the window
 	gmsw->hide();
@@ -863,7 +888,7 @@ Routine to create the PeripheralSetup Window and tabs
 void cb_MemorySetup (Fl_Widget* w, void*)
 {
 	// Create Peripheral Setup window
-	gmsw = new Fl_Window(420, 280, "Memory Emulation Options");
+	gmsw = new Fl_Window(420, 310, "Memory Emulation Options");
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
@@ -928,11 +953,15 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 200, 210, 20, "Make Option ROM R/W");
 	mem_ctrl.pOptRomRW->value(gOptRomRW);
 
+	// Show Version Checkbox
+	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 230, 210, 20, "Patch ROM on load to show VirtualT version");
+	mem_ctrl.pShowVersion->value(gShowVersion);
+
 	// OK button
-    { Fl_Button* o = new Fl_Button(160, 240, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(160, 270, 60, 30, "Cancel");
       o->callback((Fl_Callback*)cb_memory_cancel);
     }
-    { Fl_Return_Button* o = new Fl_Return_Button(230, 240, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(230, 270, 60, 30, "OK");
       o->callback((Fl_Callback*)cb_memory_OK);
     }
 
