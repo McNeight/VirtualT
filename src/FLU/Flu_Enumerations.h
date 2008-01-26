@@ -65,7 +65,8 @@ enum {
   FLU_RIGHT_CLICK,
   FLU_WIDGET_CALLBACK,
   FLU_MOVED_NODE,
-  FLU_NEW_NODE
+  FLU_NEW_NODE,
+  FLU_DELETE
 };
 
 /* not done */
