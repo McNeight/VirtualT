@@ -4,6 +4,7 @@
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
+ * POSIX code Copyright 2008 John R. Hogerhuis
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,8 +29,23 @@
  */
 
 #if defined(WIN32)
+
 #include <windows.h>
+
+#else
+
+
+#include <unistd.h>  /* UNIX standard function definitions */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <termios.h>
+#include <stdio.h>
+#include <errno.h>   /* Error number definitions */
+
 #endif
+
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -41,6 +57,24 @@
 
 ser_params_t	sp;
 
+#ifndef WIN32
+/*
+===========================================================================
+ser_tx_remaining:	Get # bytes remaining to transmit
+
+===========================================================================
+*/
+unsigned ser_tx_remaining ()
+{
+
+	int bytes;
+	ioctl (sp.fd, TIOCOUTQ, &bytes);
+	return (unsigned) bytes;
+}
+
+#endif
+
+
 /*
 ===========================================================================
 ser_init:	Initialize serial structures
@@ -48,6 +82,7 @@ ser_init:	Initialize serial structures
 */
 int ser_init(void)
 {
+
 	// Initialize port name
 	if (setup.com_mode == SETUP_COM_HOST)
 		strcpy(sp.port_name, setup.com_port);
@@ -57,20 +92,21 @@ int ser_init(void)
 		strcpy(sp.port_name, setup.com_cmd);
 
 	sp.baud_rate = 9600;		// Default to 9600 baud rate
-	sp.open_flag = 0;			// Port not open
-	sp.bit_size = 8;			// Default to 8 bits
-	sp.parity = 'N';			// Initialize to no parity
+	sp.open_flag = 0;		// Port not open
+	sp.bit_size = 8;		// Default to 8 bits
+	sp.parity = 'N';		// Initialize to no parity
 	sp.pCallback = NULL;		// No callback funciton
 	sp.pMonCallback = NULL;		// No monitor callback function
-	sp.stop_bits = 1;			// Initialize to 1 stop bit
-	sp.pCmdFile = NULL;			// No open command file
-	sp.tx_empty = TRUE;			// Indicate no active TX
-	sp.rxIn = 0;				// Initialize Read buffer
-	sp.rxOut = 0;
-	sp.txIn = 0;				// Initialize TX buffer
-	sp.txOut = 0;
+	sp.stop_bits = 1;		// Initialize to 1 stop bit
+	sp.pCmdFile = NULL;		// No open command file
 
 #ifdef WIN32
+	sp.tx_empty = TRUE;		// Indicate no active TX
+	sp.rxIn = 0;			// Initialize Read buffer
+	sp.rxOut = 0;
+	sp.txIn = 0;			// Initialize TX buffer
+	sp.txOut = 0;
+
 	// Create overlapped read event. Must be closed before exiting
 	// to avoid a handle leak.
 	sp.osRead.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -104,18 +140,20 @@ int ser_init(void)
 	sp.dtrState = DTR_CONTROL_DISABLE;
 	sp.rtsState = RTS_CONTROL_DISABLE;
 	
+#else
+
+	// JRH -- I don't think any init is required.
+	// the line parameters will get set piecemeal as the emu
+	// calls in. The overlapped I/O stuff appearing in the
+	// windows emulation is unnecessary since the emulation
+	// is poll driven anyway.
+
+#endif
+
 	// If Serial port emulation, open the port
 	if (setup.com_mode != SETUP_COM_NONE)
 		ser_open_port();
 
-#else
-
-	// ============================================
-	// Add code here for POSIX initialization
-	// ============================================
-
-
-#endif
 
 	return SER_NO_ERROR;
 }
@@ -152,9 +190,7 @@ int ser_deinit(void)
 		CloseHandle(sp.hComm);
 #else
 
-	// ===============================================
-	// Add code here to deinitialize for POSIX systems
-	// ===============================================
+	ser_close_port();
 
 #endif
 
@@ -165,10 +201,10 @@ int ser_deinit(void)
 ===========================================================================
 ser_get_port_list:	Get a list of valid COM port names and count.
 
-					This function returns a comma seperated list of serial
-					port names valid for the host.  This list will be 
-					displayed in the Peripheral Setup dialog to allow the
-					user to select where emulation should be directed.
+		This function returns a comma seperated list of serial
+		port names valid for the host.  This list will be 
+		displayed in the Peripheral Setup dialog to allow the
+		user to select where emulation should be directed.
 ===========================================================================
 */
 int ser_get_port_list(char* port_list, int max, int *count)
@@ -232,6 +268,8 @@ int ser_get_port_list(char* port_list, int max, int *count)
 	// ============================================
 	// Add code here to get port list for POSIX
 	// ============================================
+
+	strcat (port_list, "/dev/ttyUSB0"); //$$ FIXME
 
 #endif
 
@@ -358,64 +396,64 @@ ReadProc:  Thread to read data from COM port
 */
 DWORD ReadProc(LPVOID lpv)
 {
-    HANDLE			hArray[3];
+	HANDLE			hArray[3];
 	OVERLAPPED		osStatus;
 
-    DWORD			dwStoredFlags = 0xFFFFFFFF;     // local copy of event flags
+	DWORD			dwStoredFlags = 0xFFFFFFFF;     // local copy of event flags
 	DWORD			dwFlags = EV_CTS | EV_DSR;
-    DWORD 			dwRead;							// bytes actually read
-    DWORD			dwRes;							// result from WaitForSingleObject
+	DWORD 			dwRead;							// bytes actually read
+	DWORD			dwRes;							// result from WaitForSingleObject
 	DWORD			dwOvRes;
 	DWORD			dwCommEvent;
 	COMSTAT			comStat;
 	DWORD			dwError;
-    BOOL			fWaitingOnStat = FALSE;
-    BOOL			fThreadDone = FALSE;
+	BOOL			fWaitingOnStat = FALSE;
+	BOOL			fThreadDone = FALSE;
 	char			buf[128];
 	ser_params_t	*sp;
 
 
-    sp = (ser_params_t *) lpv;
+	sp = (ser_params_t *) lpv;
 
 	osStatus.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 	ResetEvent(sp->osRead.hEvent);
 	ResetEvent(sp->osWrite.hEvent);
 
-    // Detect the following events:
-    //   Read events (from ReadFile)
-    //   Thread exit evetns (from our shutdown functions)
-    hArray[0] = sp->osRead.hEvent;
-    hArray[1] = sp->hThreadExitEvent;
+	// Detect the following events:
+	//   Read events (from ReadFile)
+	//   Thread exit evetns (from our shutdown functions)
+	hArray[0] = sp->osRead.hEvent;
+	hArray[1] = sp->hThreadExitEvent;
 	hArray[2] = osStatus.hEvent;
 
-    while ( !fThreadDone ) 
+	while ( !fThreadDone ) 
 	{
-        // if no read is outstanding, then issue another one
-        if (!fWaitingOnRead) 
+		// if no read is outstanding, then issue another one
+		if (!fWaitingOnRead) 
 		{
-            if (!ReadFile(sp->hComm, buf, 1, &dwRead, &sp->osRead))
+			if (!ReadFile(sp->hComm, buf, 1, &dwRead, &sp->osRead))
 			{
-                if (GetLastError() != ERROR_IO_PENDING)	  // read not delayed?
-                    ErrorReporter("ReadFile in ReaderAndStatusProc");
+				if (GetLastError() != ERROR_IO_PENDING)	  // read not delayed?
+					ErrorReporter("ReadFile in ReaderAndStatusProc");
 
-                fWaitingOnRead = TRUE;
-            }
-            else 
+				fWaitingOnRead = TRUE;
+			}
+			else 
 			{
 				// read completed immediately
-                if (dwRead)
+				if (dwRead)
 				{
 					process_read_byte(sp, buf[0]);
 				}
-            }
-        }
+			}
+		}
 
-        if (dwStoredFlags != dwFlags) 
+		if (dwStoredFlags != dwFlags) 
 		{
-            dwStoredFlags = dwFlags;
-            if (!SetCommMask(sp->hComm, dwStoredFlags))
-                ErrorReporter("SetCommMask");
-        }
+			dwStoredFlags = dwFlags;
+			if (!SetCommMask(sp->hComm, dwStoredFlags))
+				ErrorReporter("SetCommMask");
+		}
 
 		if (!fWaitingOnStat) {
 			if (!WaitCommEvent(sp->hComm, &dwCommEvent, &osStatus)) 
@@ -436,45 +474,45 @@ DWORD ReadProc(LPVOID lpv)
 		}
 
 
-        // wait for pending operations to complete
-        if ( fWaitingOnRead || fWaitingOnStat ) 
-//        if ( fWaitingOnRead) 
+		// wait for pending operations to complete
+		if ( fWaitingOnRead || fWaitingOnStat ) 
+			//        if ( fWaitingOnRead) 
 		{
-            dwRes = WaitForMultipleObjects(3, hArray, FALSE, INFINITE);
-            switch(dwRes)
-            {
-                // read completed
-                case WAIT_OBJECT_0:
-                    if (!GetOverlappedResult(sp->hComm, &sp->osRead, &dwRead, FALSE)) 
+			dwRes = WaitForMultipleObjects(3, hArray, FALSE, INFINITE);
+			switch(dwRes)
+			{
+				// read completed
+				case WAIT_OBJECT_0:
+					if (!GetOverlappedResult(sp->hComm, &sp->osRead, &dwRead, FALSE)) 
 					{
 						ClearCommError(sp->hComm, &dwError, &comStat);
-                        ErrorReporter("GetOverlappedResult (in Reader)");
+						ErrorReporter("GetOverlappedResult (in Reader)");
 						dwError = GetLastError();
 					}
-                    else 
+					else 
 					{      
 						// read completed successfully
-                        if (dwRead)
+						if (dwRead)
 						{
 							if (fWaitingOnRead)
 								process_read_byte(sp, buf[0]);
 						}
 						fWaitingOnRead = FALSE;
-                    }
+					}
 
-                    break;
+					break;
 
 				case WAIT_TIMEOUT:
 					break;
 
-                // thread exit event
-                case WAIT_OBJECT_0 + 1:
-                    fThreadDone = TRUE;
-                    break;
+					// thread exit event
+				case WAIT_OBJECT_0 + 1:
+					fThreadDone = TRUE;
+					break;
 
 				case WAIT_OBJECT_0 + 2:
 					if (!GetOverlappedResult(sp->hComm, &osStatus, &dwOvRes, FALSE))
-                        ErrorReporter("GetOverlappedResult Error (status read)");
+						ErrorReporter("GetOverlappedResult Error (status read)");
 					else
 						// Check for a monitor window and report change
 						if (sp->pMonCallback != NULL)
@@ -485,15 +523,15 @@ DWORD ReadProc(LPVOID lpv)
 					fWaitingOnStat = FALSE;
 					break;
 
-                default:
-                    ErrorReporter("WaitForMultipleObjects(Reader & Status handles)");
-                    break;
-            }
-        }
-    }
+				default:
+					ErrorReporter("WaitForMultipleObjects(Reader & Status handles)");
+					break;
+			}
+		}
+	}
 
 	sp->fReadThread = FALSE;
-    return 1;
+	return 1;
 }
 
 /*
@@ -503,35 +541,35 @@ WriteProc:  Thread to write data to COM port
 */
 DWORD WINAPI WriteProc(LPVOID lpv)
 {
-    HANDLE			hArray[2];
+	HANDLE			hArray[2];
 	HANDLE			hwArray[2];
-    DWORD			dwRes;
+	DWORD			dwRes;
 	DWORD			dwWritten;
-    BOOL			fDone = FALSE;
+	BOOL			fDone = FALSE;
 	ser_params_t	*sp;
 
 	sp = (ser_params_t*) lpv;
 
-    hArray[0] = sp->hWriteEvent;
-    hArray[1] = sp->hThreadExitEvent;
+	hArray[0] = sp->hWriteEvent;
+	hArray[1] = sp->hThreadExitEvent;
 
-    hwArray[0] = sp->osWrite.hEvent;
+	hwArray[0] = sp->osWrite.hEvent;
 	hwArray[1] = sp->hThreadExitEvent;
-   
-    while ( !fDone ) {
-        dwRes = WaitForMultipleObjects(2, hArray, FALSE, INFINITE);
-        switch(dwRes)
-        {
-            case WAIT_FAILED:
-                ErrorReporter("WaitForMultipleObjects( writer proc )");
-                break;
 
-            // write request event
-            case WAIT_OBJECT_0:
+	while ( !fDone ) {
+		dwRes = WaitForMultipleObjects(2, hArray, FALSE, INFINITE);
+		switch(dwRes)
+		{
+			case WAIT_FAILED:
+				ErrorReporter("WaitForMultipleObjects( writer proc )");
+				break;
+
+				// write request event
+			case WAIT_OBJECT_0:
 				// Read bytes from sp structure
-//				WaitForSingleObject(sp->hWriteMutex, 2000);
+				//				WaitForSingleObject(sp->hWriteMutex, 2000);
 
-//				ReleaseMutex(sp->hWriteMutex);
+				//				ReleaseMutex(sp->hWriteMutex);
 				// issue write
 				if (!WriteFile(sp->hComm, sp->tx_buf, 1, &dwWritten, &sp->osWrite)) 
 				{
@@ -547,14 +585,14 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 								if (!GetOverlappedResult(sp->hComm, &sp->osWrite, &dwWritten, FALSE)) {
 									ErrorReporter("GetOverlappedResult(in Writer)");
 								}
-                    
+
 								break;
 
-							// thread exit event set
+								// thread exit event set
 							case WAIT_OBJECT_0 + 1:
 								break;
 
-							// wait timed out
+								// wait timed out
 							case WAIT_TIMEOUT:
 								break;
 						}
@@ -562,18 +600,18 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 						sp->tx_empty = TRUE;
 					}
 				}
-    
-                break;
 
-            // thread exit event
-            case WAIT_OBJECT_0 + 1:
-                fDone = TRUE;
-                break;
-        }
-    }
+				break;
+
+				// thread exit event
+			case WAIT_OBJECT_0 + 1:
+				fDone = TRUE;
+				break;
+		}
+	}
 
 	sp->fWriteThread = FALSE;
-    return 1;
+	return 1;
 }
 
 
@@ -584,30 +622,30 @@ start_threads:: Creates the Reader/Status and Writer threads
 */
 int start_threads(void)
 {
-    DWORD dwReadStatId;
-    DWORD dwWriterId;
+	DWORD dwReadStatId;
+	DWORD dwWriterId;
 
 	// Create read thread
-    sp.hReadThread = CreateThread( NULL, 0,
-                      (LPTHREAD_START_ROUTINE) ReadProc,
-                      (LPVOID) &sp, 0, &dwReadStatId);
+	sp.hReadThread = CreateThread( NULL, 0,
+			(LPTHREAD_START_ROUTINE) ReadProc,
+			(LPVOID) &sp, 0, &dwReadStatId);
 
-    if (sp.hReadThread == NULL)
-        return SER_IO_ERROR;
+	if (sp.hReadThread == NULL)
+		return SER_IO_ERROR;
 
 	sp.fReadThread = TRUE;
 
 	// Create write thread
-    sp.hWriteThread = CreateThread( NULL, 0, 
-                      (LPTHREAD_START_ROUTINE) WriteProc, 
-                      (LPVOID) &sp, 0, &dwWriterId );
-                   
-    if (sp.hWriteThread == NULL)
-        return SER_IO_ERROR;
+	sp.hWriteThread = CreateThread( NULL, 0, 
+			(LPTHREAD_START_ROUTINE) WriteProc, 
+			(LPVOID) &sp, 0, &dwWriterId );
+
+	if (sp.hWriteThread == NULL)
+		return SER_IO_ERROR;
 
 	sp.fWriteThread = TRUE;
 
-    return SER_NO_ERROR;
+	return SER_NO_ERROR;
 }
 
 #endif
@@ -617,11 +655,12 @@ int start_threads(void)
 ===========================================================================
 ser_set_baud:	Set the baud rate to the numeric value passed.
 
-				The value will be in the range of 75 to 19200
+		The value will be in the range of 75 to 19200
 ===========================================================================
 */
 int ser_set_baud(int baud)
 {
+
 	// Update baud rate
 	sp.baud_rate = baud;
 
@@ -644,9 +683,31 @@ int ser_set_baud(int baud)
 			}
 		#else
 
-			// ==========================================
-			// Add code here for POSIX to set baud rate
-			// ==========================================
+		{	struct termios options;
+			unsigned baud_flag;
+
+			switch (sp.baud_rate) {
+			case 75   : baud_flag = B75   ; break;
+			case 110  : baud_flag = B110  ; break;
+			case 150  : baud_flag = B150  ; break;
+			case 200  : baud_flag = B200  ; break;
+			case 300  : baud_flag = B300  ; break;
+			case 600  : baud_flag = B600  ; break;
+			case 1200 : baud_flag = B1200 ; break;
+			case 1800 : baud_flag = B1800 ; break;
+			case 2400 : baud_flag = B2400 ; break;
+			case 4800 : baud_flag = B4800 ; break;
+			case 9600 : baud_flag = B9600 ; break;
+			case 19200: baud_flag = B19200; break;
+			default: return SER_IO_ERROR;
+			}
+
+			tcgetattr(sp.fd, &options);
+			cfsetispeed (&options, baud_flag);
+			cfsetospeed (&options, baud_flag);
+			options.c_cflag |= (CLOCAL | CREAD);
+			tcsetattr(sp.fd, TCSANOW, &options);
+		}
 
 		#endif
 	}
@@ -665,6 +726,7 @@ ser_close_port:	Close the opened serial port
 */
 int ser_close_port(void)
 {
+
 	// Test if port is open
 	if (sp.open_flag == 0)
 		return SER_PORT_NOT_OPEN;
@@ -688,9 +750,9 @@ int ser_close_port(void)
 			sp.hComm = NULL;
 		#else
 
-			// ============================================
-			// Add code here for POSIX to close port
-			// ============================================
+			int my_fd = sp.fd;
+			sp.fd = 0;
+			close (sp.fd);
 
 		#endif
 	}
@@ -723,84 +785,99 @@ ser_open_port:	Open the serial port specified by ser_set_port
 */
 int ser_open_port(void)
 {
+
 	// Test if port is already opened
 	if (sp.open_flag == 1)
 		ser_close_port();
 
 	// Check if using HOST port emulation
 	if ((setup.com_mode == SETUP_COM_HOST) ||
-		(setup.com_mode == SETUP_COM_OTHER))
+			(setup.com_mode == SETUP_COM_OTHER))
 	{
 		// =============
 		// Open the port
 		// =============
-		#ifdef WIN32
-			char msg[50];
+#ifdef WIN32
+		char msg[50];
 
-			// Attempt to open the port specified by sp.port_name
-			sp.hComm = CreateFile( sp.port_name,  
-						GENERIC_READ | GENERIC_WRITE, 
-						0, 
-						0, 
-						OPEN_EXISTING,
-						FILE_FLAG_OVERLAPPED,
-						//FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-						0);
-			// Check for error opening port
-			if (sp.hComm == INVALID_HANDLE_VALUE)
-			{
-				sprintf(msg, "Error opening port %s", sp.port_name);
-				show_error(msg);
-				return SER_IO_ERROR;
-			}
-		#else
-	
-			// ============================================
-			// Add code here for POSIX to open the port
-			// ============================================
+		// Attempt to open the port specified by sp.port_name
+		sp.hComm = CreateFile( sp.port_name,  
+				GENERIC_READ | GENERIC_WRITE, 
+				0, 
+				0, 
+				OPEN_EXISTING,
+				FILE_FLAG_OVERLAPPED,
+				//FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+				0);
+		// Check for error opening port
+		if (sp.hComm == INVALID_HANDLE_VALUE)
+		{
+			sprintf(msg, "Error opening port %s", sp.port_name);
+			show_error(msg);
+			return SER_IO_ERROR;
+		}
+#else
 
-		#endif
+		// open the port
+		sp.fd = open (sp.port_name, O_RDWR | O_NOCTTY | O_NDELAY);
+		if (sp.fd == -1) return SER_IO_ERROR;
+
+		// configure for non-blocking reads
+		fcntl(sp.fd, F_SETFL, FNDELAY);
+
+		{	struct termios options;
+
+			tcgetattr(sp.fd, &options);
+
+			// turn off any line editing (raw mode)
+			options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
+
+			// disable automatic flow control
+			options.c_iflag &= ~(IXON | IXOFF | IXANY);
+			options.c_cflag &= ~CRTSCTS;
+
+			tcsetattr(sp.fd, TCSANOW, &options);
+		}
+
+#endif
 
 		// ==========================================
 		// Configure port's baud rate, bit_size, etc.
 		// ==========================================
-		#ifdef WIN32
-			FillMemory(&sp.dcb, sizeof(sp.dcb), 0);
-			sp.dcb.DCBlength = sizeof(DCB);
-			if (!GetCommState(sp.hComm, &sp.dcb))
-			{
-				DWORD err = GetLastError();
+#ifdef WIN32
 
-				sprintf(msg,"I/O Error on %s", sp.port_name); 
-				show_error(msg);
-				// Error reading port state
-				return SER_IO_ERROR;
-			}
+		FillMemory(&sp.dcb, sizeof(sp.dcb), 0);
+		sp.dcb.DCBlength = sizeof(DCB);
+		if (!GetCommState(sp.hComm, &sp.dcb))
+		{
+			DWORD err = GetLastError();
 
-			// Initialize the DCB to set baud rate, etc.
-			initialize_dcb();
+			sprintf(msg,"I/O Error on %s", sp.port_name); 
+			show_error(msg);
+			// Error reading port state
+			return SER_IO_ERROR;
+		}
 
-			// Update DCB settings
-			if (!SetCommState(sp.hComm, &sp.dcb))
-			{
-				// Error updating port settings
-				CloseHandle(sp.hComm);
-				sp.hComm = 0;
-				return SER_IO_ERROR;
-			}
+		// Initialize the DCB to set baud rate, etc.
+		initialize_dcb();
 
-			// Start Read an Write Threads
-			start_threads();
+		// Update DCB settings
+		if (!SetCommState(sp.hComm, &sp.dcb))
+		{
+			// Error updating port settings
+			CloseHandle(sp.hComm);
+			sp.hComm = 0;
+			return SER_IO_ERROR;
+		}
 
-			// Update flag indicating port open
-			sp.open_flag = TRUE;
-		#else
+		// Start Read an Write Threads
+		start_threads();
 
-			// ============================================
-			// Add code here for POSIX to configure port
-			// ============================================
-
-		#endif
+		// Update flag indicating port open
+		sp.open_flag = TRUE;
+#else
+		sp.open_flag = TRUE;
+#endif
 	}
 	else if (setup.com_mode == SETUP_COM_SIMULATED)
 	{
@@ -824,16 +901,17 @@ int ser_open_port(void)
 ===========================================================================
 ser_set_port:	Set the active serial port for subsequent calls
 
-				Port is an OS specific string indicating the name of the
-				host serial port where all traffic will be directed.
+		Port is an OS specific string indicating the name of the
+		host serial port where all traffic will be directed.
 ===========================================================================
 */
 int ser_set_port(char* port)
 {
+
 	// Save name of port for later use
 	strcpy(sp.port_name, port);
 
-		// Check for a monitor window and report change
+	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_PORT_CHANGE, SER_MON_COM_CHANGE_NAME);
 
@@ -849,6 +927,7 @@ ser_get_port_settings:	Provides current port emulation settings for
 int ser_get_port_settings(char* port, int* open_state, int* baud, int* size, 
 						  int* stop_bits, char* parity)
 {
+
 	// Save name of port for later use
 	strcpy(port, sp.port_name);
 	*open_state = sp.open_flag;
@@ -864,11 +943,12 @@ int ser_get_port_settings(char* port, int* open_state, int* baud, int* size,
 ===========================================================================
 ser_set_parity:	Set parity for the emulated port 
 
-				Valid values for parity are 'O', 'E', 'N', or 'I'
+	Valid values for parity are 'O', 'E', 'N', or 'I'
 ===========================================================================
 */
 int ser_set_parity(char parity)
 {
+
 	// Check if parity changed
 	if (parity == sp.parity)
 		return SER_NO_ERROR;
@@ -881,25 +961,43 @@ int ser_set_parity(char parity)
 		return SER_NO_ERROR;
 
 	if ((setup.com_mode == SETUP_COM_HOST) || 
-		(setup.com_mode == SETUP_COM_OTHER))
+			(setup.com_mode == SETUP_COM_OTHER))
 	{
-		#ifdef WIN32
-			// Update DCB settings
-			initialize_dcb();
+	#ifdef WIN32
+		// Update DCB settings
+		initialize_dcb();
 
-			// Update Port settings with new DCB
-			if (!SetCommState(sp.hComm, &sp.dcb))
-			{
-				// Error updating port settings
-				return SER_IO_ERROR;
+		// Update Port settings with new DCB
+		if (!SetCommState(sp.hComm, &sp.dcb))
+		{
+			// Error updating port settings
+			return SER_IO_ERROR;
+		}
+	#else
+
+		{	struct termios options;
+
+			// enable or disable parity altogether
+			tcgetattr(sp.fd, &options);
+			if (sp.parity == 'O' || sp.parity == 'E') {
+				options.c_cflag |= PARENB;	
+				options.c_iflag |= (INPCK | ISTRIP);
+			} else {
+				options.c_cflag &= ~PARENB;
 			}
-		#else
 
-			// ============================================
-			// Add code here for POSIX to set parity
-			// ============================================
+			// set the type of parity
+			if (sp.parity == 'O') {
+				options.c_cflag |= PARODD;
+			} else {
+				options.c_cflag &= ~PARODD;
+			}
 
-		#endif
+			tcsetattr(sp.fd, TCSANOW, &options);
+
+		}
+
+	#endif
 	}
 
 	// Check for a monitor window and report change
@@ -913,11 +1011,12 @@ int ser_set_parity(char parity)
 ===========================================================================
 ser_set_bit_size:	Set the serial port's bit size
 
-					Valid values for bit_size are 6, 7, or 8
+			Valid values for bit_size are 6, 7, or 8
 ===========================================================================
 */
 int ser_set_bit_size(int bit_size)
 {
+
 	// Check if bit size changed
 	if (bit_size == sp.bit_size)
 		return SER_NO_ERROR;
@@ -943,10 +1042,24 @@ int ser_set_bit_size(int bit_size)
 				return SER_IO_ERROR;
 			}
 		#else
+		{	struct termios options;
+			unsigned flag;
+		
+			// map requested # bits to options flag	
+			switch (bit_size) {
+				case 5: flag = CS5; break;
+				case 6: flag = CS6; break;
+				case 7: flag = CS7; break;
+				case 8: flag = CS8; break;
+				default: return SER_IO_ERROR;
+			}
 
-			// ============================================
-			// Add code here for POSIX to set #bits
-			// ============================================
+			tcgetattr(sp.fd, &options);
+			options.c_cflag &= ~CSIZE;
+			options.c_cflag |= flag;
+
+			tcsetattr(sp.fd, TCSANOW, &options);
+		}
 
 		#endif
 	}
@@ -962,11 +1075,12 @@ int ser_set_bit_size(int bit_size)
 ===========================================================================
 ser_set_stop_bits:	Set the serial port's stop bits
 
-					Valid values for stop_bits are 1 or 2
+			Valid values for stop_bits are 1 or 2
 ===========================================================================
 */
 int ser_set_stop_bits(int stop_bits)
 {
+
 	// Check if stop bits changed
 	if (stop_bits == sp.stop_bits)
 		return SER_NO_ERROR;
@@ -993,9 +1107,18 @@ int ser_set_stop_bits(int stop_bits)
 			}
 		#else
 
-			// ============================================
-			// Add code here for POSIX to set #stop bits
-			// ============================================
+		{	struct termios options;
+
+			tcgetattr(sp.fd, &options);
+
+			switch (sp.stop_bits) {
+				case 1: options.c_cflag &= ~CSTOPB; break;
+				case 2: options.c_cflag |=  CSTOPB; break;
+				default: return SER_IO_ERROR;
+			}
+
+			tcsetattr(sp.fd, TCSANOW, &options);
+		}
 
 		#endif
 	}
@@ -1009,11 +1132,12 @@ int ser_set_stop_bits(int stop_bits)
 
 /*
 ===========================================================================
-ser_set_callback:	Set the callback routine for processing incomming data.
+ser_set_callback: Set the callback routine for processing incoming data.
 ===========================================================================
 */
 int ser_set_callback(ser_callback pCallback)
 {
+
 	// Save callback address
 	sp.pCallback = pCallback;
 
@@ -1022,12 +1146,13 @@ int ser_set_callback(ser_callback pCallback)
 
 /*
 ===========================================================================
-ser_set_monitor_callback:	Set the callback routine for reporting traffic
-							to a monitor window.
+ser_set_monitor_callback: Set the callback routine for reporting traffic
+			to a monitor window.
 ===========================================================================
 */
 int ser_set_monitor_callback(ser_monitor_cb pCallback)
 {
+
 	// Save callback address
 	sp.pMonCallback = pCallback;
 
@@ -1042,50 +1167,68 @@ ser_set_flags:	Set the serial port's RTS and DTR flags
 */
 int ser_set_signals(unsigned char flags)
 {
+
 	if ((setup.com_mode == SETUP_COM_HOST) || 
-		(setup.com_mode == SETUP_COM_OTHER))
+			(setup.com_mode == SETUP_COM_OTHER))
 	{
-		#ifdef WIN32
-			// Update DTR flag
-			if (flags & SER_SIGNAL_DTR)
-			{
-				sp.dtrState = DTR_CONTROL_ENABLE;
-				EscapeCommFunction(sp.hComm, SETDTR);
-			}
-			else
-			{
-				sp.dtrState = DTR_CONTROL_DISABLE;
-				EscapeCommFunction(sp.hComm, CLRDTR);
-			}
+	#ifdef WIN32
+		// Update DTR flag
+		if (flags & SER_SIGNAL_DTR)
+		{
+			sp.dtrState = DTR_CONTROL_ENABLE;
+			EscapeCommFunction(sp.hComm, SETDTR);
+		}
+		else
+		{
+			sp.dtrState = DTR_CONTROL_DISABLE;
+			EscapeCommFunction(sp.hComm, CLRDTR);
+		}
 
-			// Update RTS flag
-			if (flags & SER_SIGNAL_RTS)
-			{
-				sp.rtsState = RTS_CONTROL_ENABLE;
-				EscapeCommFunction(sp.hComm, SETRTS);
-			}
-			else
-			{
-				sp.rtsState = RTS_CONTROL_DISABLE;
-				EscapeCommFunction(sp.hComm, CLRRTS);
-			}
+		// Update RTS flag
+		if (flags & SER_SIGNAL_RTS)
+		{
+			sp.rtsState = RTS_CONTROL_ENABLE;
+			EscapeCommFunction(sp.hComm, SETRTS);
+		}
+		else
+		{
+			sp.rtsState = RTS_CONTROL_DISABLE;
+			EscapeCommFunction(sp.hComm, CLRRTS);
+		}
 
-		#else
+	#else
 
-			// ============================================
-			// Add code here for POSIX to set DTR/RTS
-			// ============================================
+	{	int status;
 
-		#endif
+		ioctl(sp.fd, TIOCMGET, &status);
+
+		if (flags & SER_SIGNAL_DTR) {
+			status |=  TIOCM_DTR;
+		} else {
+			status &= ~TIOCM_DTR;
+		}
+
+		if (flags & SER_SIGNAL_RTS) {
+			status |=  TIOCM_RTS;
+		} else {
+			status &= ~TIOCM_RTS;
+		}
+
+		ioctl(sp.fd, TIOCMSET, &status);
+	}
+
+	#endif
+
 	}
 
 	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_SIGNAL, (char)((flags>>8) | 
-		(flags & (SER_FLAG_DSR | SER_FLAG_CTS))));
+					(flags & (SER_FLAG_DSR | SER_FLAG_CTS))));
 
 	return SER_NO_ERROR;
 }
+
 
 /*
 ===========================================================================
@@ -1095,6 +1238,7 @@ ser_get_flags:	Get serial port's flags
 */
 int ser_get_flags(unsigned char *flags)
 {
+
 	long modem_status;
 
 	if ((setup.com_mode == SETUP_COM_HOST) || 
@@ -1146,11 +1290,26 @@ int ser_get_flags(unsigned char *flags)
 				}
 			}
 		#else
+		{
 
-			// ============================================
-			// Add code here for POSIX to read flags
-			// ============================================
+			int status;
+			ioctl(sp.fd, TIOCMGET, &status);
 
+			// interpret flags
+			if (!(status & TIOCM_CTS)) *flags |= SER_FLAG_CTS;
+			if (!(status & TIOCM_DSR)) *flags |= SER_FLAG_DSR;
+			if (  status & TIOCM_RNG ) *flags |= SER_FLAG_RING;
+
+			// synthesized flags
+			
+			// TX_EMPTY
+			if (!ser_tx_remaining()) *flags |= SER_FLAG_TX_EMPTY;
+
+			// OVERRUN flag $$ TBI
+
+			// FRAMING Error flag  $$ TBI
+
+		}
 		#endif
 	}
 	else if (setup.com_mode == SETUP_COM_NONE)
@@ -1167,6 +1326,7 @@ ser_get_signals:	Get serial port's CTS, RTS, DTR, and DSR signals
 */
 int ser_get_signals(unsigned char *flags)
 {
+
 	long modem_status;
 
 	if ((setup.com_mode == SETUP_COM_HOST) || 
@@ -1204,10 +1364,18 @@ int ser_get_signals(unsigned char *flags)
 				*flags |= SER_SIGNAL_DTR;
 
 		#else
+		{
 
-			// ============================================
-			// Add code here for POSIX to read flags
-			// ============================================
+			int status;
+			ioctl(sp.fd, TIOCMGET, &status);
+
+			// interpret flags
+			if (status & TIOCM_CTS) *flags |= SER_SIGNAL_CTS;
+			if (status & TIOCM_DSR) *flags |= SER_SIGNAL_DSR;
+			if (status & TIOCM_RTS) *flags |= SER_SIGNAL_RTS;
+			if (status & TIOCM_DTR) *flags |= SER_SIGNAL_DTR;
+
+		}
 
 		#endif
 	}
@@ -1223,6 +1391,7 @@ ser_read_byte:	Read byte from the serial port
 */
 int ser_read_byte(char* data)
 {
+
 	// Check if a port is open, return if not
 	if (sp.open_flag == FALSE)
 	{
@@ -1232,41 +1401,47 @@ int ser_read_byte(char* data)
 
 	// Check if COM emulation type is Host port
 	if ((setup.com_mode == SETUP_COM_HOST) || 
-		(setup.com_mode == SETUP_COM_OTHER))
+			(setup.com_mode == SETUP_COM_OTHER))
 	{
-		#ifdef WIN32
-			int new_rxOut;
+	#ifdef WIN32
+		int new_rxOut;
 
-			WaitForSingleObject(sp.hReadMutex, 2000);
-			// Check if any bytes in RX buffer
-			if (sp.rxIn == sp.rxOut)
-			{
-				ReleaseMutex(sp.hReadMutex);
-				// No data in buffer!
-				*data = 0;
-				// Check if there is a monitor window open and report the write
-				if (sp.pMonCallback != NULL)
-					sp.pMonCallback(SER_MON_COM_READ, *data);
-				return SER_NO_DATA;
-			}
-
-			*data = sp.rx_buf[sp.rxOut];
-
-			new_rxOut = sp.rxOut + 1;
-			if (new_rxOut >= sizeof(sp.rx_buf))
-				new_rxOut = 0;
-			sp.rxOut = new_rxOut;
-
+		WaitForSingleObject(sp.hReadMutex, 2000);
+		// Check if any bytes in RX buffer
+		if (sp.rxIn == sp.rxOut)
+		{
 			ReleaseMutex(sp.hReadMutex);
-			sp.fIntPending = FALSE;
+			// No data in buffer!
+			*data = 0;
+			// Check if there is a monitor window open and report the write
+			if (sp.pMonCallback != NULL)
+				sp.pMonCallback(SER_MON_COM_READ, *data);
+			return SER_NO_DATA;
+		}
 
-		#else
+		*data = sp.rx_buf[sp.rxOut];
 
-			// ============================================
-			// Add code here for POSIX to write data
-			// ============================================
+		new_rxOut = sp.rxOut + 1;
+		if (new_rxOut >= sizeof(sp.rx_buf))
+			new_rxOut = 0;
+		sp.rxOut = new_rxOut;
 
-		#endif
+		ReleaseMutex(sp.hReadMutex);
+		sp.fIntPending = FALSE;
+
+	#else
+	{
+
+		int n_bytes;
+		n_bytes = read (sp.fd, data, 1);
+
+		if (!n_bytes) {
+			*data = 0;
+			return SER_NO_DATA;
+		}
+
+	}
+	#endif
 	}
 
 	// Check if there is a monitor window open and report the write
@@ -1284,6 +1459,7 @@ ser_write_byte:	Write a byte to the serial port
 */
 int ser_write_byte(char data)
 {
+
 	// Check if a port is open, return if not
 	if (sp.open_flag == FALSE)
 		return SER_NO_ERROR;
@@ -1293,6 +1469,7 @@ int ser_write_byte(char data)
 		(setup.com_mode == SETUP_COM_OTHER))
 	{
 		#ifdef WIN32
+
 			// Store data in structure
 			WaitForSingleObject(sp.hWriteMutex, 2000);
 			sp.tx_buf[0] = data;
@@ -1304,13 +1481,8 @@ int ser_write_byte(char data)
 
 			// Trigger the thread to write the byte
 			SetEvent(sp.hWriteEvent);
-
 		#else
-
-			// =================================================
-			// Add code here for POSIX to write data (Host Mode)
-			// =================================================
-
+			write (sp.fd, &data, 1);
 		#endif
 	}
 
@@ -1319,5 +1491,31 @@ int ser_write_byte(char data)
 		sp.pMonCallback(SER_MON_COM_WRITE, data);
 
 	return SER_NO_ERROR;
+}
+
+/*
+===========================================================================
+ser_poll: opportunity to invoke INT6.5 callback
+
+===========================================================================
+*/
+
+int ser_poll ()
+{
+
+#ifndef WIN32
+	int bytes;
+
+	ioctl(sp.fd, FIONREAD, &bytes);
+
+	if (bytes && sp.pCallback) {
+		sp.pCallback();
+	}
+
+#else
+	return 0;
+
+#endif
+
 }
 
