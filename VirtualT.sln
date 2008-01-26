@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualT", "VirtualT.vcproj", "{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vt_client", "vt_client\vt_client.vcproj", "{2EE29331-FFC1-46AF-96AB-AA0643DF918E}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}.Debug|Win32.Build.0 = Debug|Win32
+		{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}.Release|Win32.ActiveCfg = Release|Win32
+		{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}.Release|Win32.Build.0 = Release|Win32
+		{2EE29331-FFC1-46AF-96AB-AA0643DF918E}.Debug|Win32.ActiveCfg = Debug|Win32
+		{2EE29331-FFC1-46AF-96AB-AA0643DF918E}.Debug|Win32.Build.0 = Debug|Win32
+		{2EE29331-FFC1-46AF-96AB-AA0643DF918E}.Release|Win32.ActiveCfg = Release|Win32
+		{2EE29331-FFC1-46AF-96AB-AA0643DF918E}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
