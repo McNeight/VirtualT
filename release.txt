@@ -1,0 +1,132 @@
+====================
+VirtualT Release.txt
+====================
+
+
+This file lists the changes and additions for each of the versions of VirtualT since v0.3
+
+=====================
+v1.0  January 17 2008
+=====================
+
+1.  Fixed ReMem emulation in both Normal and MMU modes.  Memory mapping now consistent with
+    an actual ReMem.  Emulation supports only the latest ReMem FW version (64, 65, 66).  In 
+    MMU mode, both sector access and direct memory access work properly.  Also fixed some bugs
+    with the the Rampac emulation.
+
+2.  Added configuration page for ReMem Map display and setup.
+
+3.  Added support for M10 Emulation.
+
+4.  Added breakpoint capability to CPURegs window.  Up to 4 breakpoints can be specified and
+    enabled or disabled.
+
+5.  Added Remote control interface via sockets.  The socket interface is enabled via a command
+    line switch to specify the socket port, such as "virtualt -p 20000".  The protocol is
+    simple text command and response with async text messages sent for breakpoint and otional
+    screen output messages.  See Help for full details.
+
+6.  Added serial I/O support under Linux.  The current implementation has a few "hard coded"
+    port names in the port list, but allows the user to specify an "Other Host Port" name to
+    specify the serial device.
+
+7.  Modified the main emulatin loop so it uses fewer CPU cycles.  Previous versions consumed
+    up to 100% CPU cycles causing heat issues and reduced battery life on laptops.  Added
+    new Speed menu selections to allow finer setting of emulation speed vs. CPU utilization.
+
+8.  Fixed a bug with the emulation of interrupts and with the extended opcode DSUB flags.
+
+9.  Added a vt_client project / application to communicate with VirtualT socket interface 
+    using a very simple command line interface.
+
+10. Added a "Cold Boot" option to the Emulation menu.
+
+11. Added content to the Help system.
+
+12. Transitioned the Windows development environment to Visual Studio 2005.  The project files
+    are no longer compatible with Visual Studio 6.
+
+13. Adds a feature to patch the ROM on load to show VirtualT version in the MENU. This can be
+    disabled in the "Memory Options" menu.
+
+
+===================
+v0.8  May 11 2006
+===================
+
+1.  Added the beginnings of an Integrated Development Environment.  The IDE included a project
+    manager that supports "Tree" browsing of source files and a project settings dialog for
+    specifying assember and linker options.  Also has a multi-window edit capability using a
+    very simple text editor.  The editor will be expanded in a future release and will also
+    include features for source level debugging, such as display of breakpoints and current
+    execution location.
+
+2.  Added an 8085 assembler, but no linker.  The assembler gernerates ELF format .obj output 
+    files for use with the linker to be released in a later version.  The assembler is 
+    basically useless without the assembler, but is included in the project.
+
+3.  Added the beginnings of the Help system, although no real help info available.
+
+4.  Maybe other bug fixes but I have forgotten because I am writing this 1 year after release.
+
+
+===================
+v0.7  April 20 2006
+===================
+
+1.  Fixed memory access issue in M100/M102 modes when not in ReMem emulation mode.
+
+
+===================
+v0.6  April 17 2006
+===================
+
+1.  Added CPU Registers window to the Tools menu.  This window allows viewing / modifying of
+    8085 CPU registers in addition to simple stop/step/run operations.  It is not intended as
+    a full blown debugger, but rather as a tool to be used along with a debugger to be added
+    later.
+
+2.  Completed ReMem emulation support.  VirtualT emulates rev 4 of the ReMem firmware.  All 
+    features of ReMem are emulated inclulding Rampac support.  See the ReMem documentation for
+    operation of the ReMem emulation.
+
+3.  Added Load and Save operations to the Memory Editor Window. 
+
+4.  Added MSPLAN to the T200 ROM and support for running option ROMs from T200 emulation mode.
+
+5.  Changed the name of this file from readme.txt to release.txt.
+
+
+===================
+v0.4  August 3 2005
+===================
+
+1.  Added a directory structure to deal with multiple emulation platforms.  Each model has its
+    own directory.  Each directory contains the ROM and RAM files for emulation of that specific
+    model.  This directory structure must be maintained since the emulator searches for the
+    ROM file using this tree structure.  The directories are:
+
+    <root>
+     |
+     +-- M100
+     +-- M102
+     +-- T200
+     +-- PC8201
+
+2.  Option ROMs are now loaded based on the model being emulated.  Old Option ROM selection
+    will be lost and must be re-selected.
+
+3.  Support for the M102, T200, and PC8201 have been added.  Loading and saving BASIC files
+    for the PC8201 will cause an error that will "crash" the emulation and dump the RAM contents.
+    The BASIC tokens for the NEC machines are different than the Tandy machines and the tokenizer
+    has not been updated yet.
+
+4.  Partial support for ReMem and Rampac have been added under the "Emulation,  Memory Options"
+    menu item.  Emulation is not fully supported yet and selecting anything but "Base Memory"
+    will cause unexpected results.
+
+5.  A HEX memory editor has been added in the "Tools,  Memory Editor" menu item.  The editor is
+    fully functional except the "Load" and "Save" options under the file menu.
+
+6.  The "Tools,  Disassembler" has been updated to disassemble the M102, T200, and PC8201 ROMS.
+
