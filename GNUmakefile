@@ -1,22 +1,37 @@
+# ===============================================
+# Makefile for VirtualT.  Notice that the order
+# of the fltk_images and fltk libraries in the
+# LIBFILES definition is order dependent.
+#
+# This Makefile builds silently except to echo
+# the current compile file.  To see the actual
+# build commands, comment out the .SILENT:
+# line below.
+# ===============================================
+.SILENT:
+
 -include $(shell uname).mk
+
 CFLAGS		+=	-I $(FLTKDIR) -I src/FLU
 CPPFLAGS	+=	-I $(FLTKDIR) 
 EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
 FLTKCONFIG	=	$(FLTKDIR)/fltk-config
+FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
 VPATH		=	src:obj
 
-#CFLAGS		+=	`$(FLTKCONFIG) --cflags --use-images`
-LDFLAGS		+=	-g `$(FLTKCONFIG) --ldstaticflags --use-images` -L /usr/X11R6/lib -L $(FLTKDIR)/lib
+LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
+LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
+
+MACLDFLAGS	=	-L$(FLTKDIR)/lib
+MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --ldstaticflags --use-images` --lm -lpthread
 
 OBJECTS		=	$(SOURCES:.c=.o)
 OBJECTSCPP	=	$(SOURCESCPP:.cpp=.o)
 CLIENT_OBJS	=	$(CLIENT_SRC:.cpp=.o)
-LIBFILES	=	-lstdc++ -lfltk -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lm -lc -lX11 -lpthread
-#LIBFILES	=	/$(FLTKDIR)/lib/libfltk.a ../$(FLTKDIR)/lib/libfltk_images.a ../$(FLTKDIR)/lib/libfltk_jpeg.a ../$(FLTKDIR)/lib/libfltk_png.a \
-#				/$(FLTKDIR)/lib/libfltk_z.a -lm -lc -lX11
 OBJDIR		=   obj
+POSTBUILD	=   $(FLTKCONFIG) --post
 
 
 # =============================
@@ -31,26 +46,53 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
-# ========================
-# Rule for all files below
-# ========================
-all:				virtualt vt_client
-virtualt:			$(SOURCES) $(SOURCESCPP)
-vt_client:		$(CLIENT_SRC)
+# ===============================
+# Rule for building 2 exectuables
+# ===============================
+all:			virtualt vt_client
 
+# ========================
+# Rule to build VirtualT
+# ========================
 $(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
 ifndef FLTKDIR
 	@echo "FLTKDIR environment variable must be set first!"
+	exit 1
 else
-	cd obj; gcc $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(LIBFILES) -o ../$@
+	# Test if FLTK libraries built
+	if ! test -f $(FLTKLIB); then \
+		echo "Please ensure the FLTK, JPEG, PNG and ZLIB libraries and run make again"; \
+		exit 1; \
+	fi;
+	@echo "Linking" $(EXECUTABLE)
+	if test -f /Developer/Tools/Rez; then \
+		cd obj; g++ $(MACLDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(MACLIBFILES) -o ../$@ ; \
+	else \
+		cd obj; gcc $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(LIBFILES) -o ../$@ ; \
+	fi;
 	cd ..
+
+	# If bulding on MacOS, post the resource file to the executable
+	if test -f /Developer/Tools/Rez; then \
+		$(POSTBUILD) $(EXECUTABLE); \
+	fi;
 endif
 
+# ========================
+# Rule to build vt_client
+# ========================
 $(CLIENT):		$(CLIENT_OBJS)
 ifndef FLTKDIR
 	@echo "FLTKDIR environment variable must be set first!"
+	exit 1
 else
-	cd obj; gcc $(LDFLAGS) $(CLIENT_OBJS) $(LIBFILES) -o ../$@
+	@echo "Linking" $(CLIENT)
+#	cd obj; gcc $(LDFLAGS) $(OBJECTS) $(OBJECTSCPP) $(LIBFILES) -o ../$@
+	if test -f /Developer/Tools/Rez; then \
+		cd obj; g++ $(MACLDFLAGS) $(CLIENT_OBJS) $(MACLIBFILES) -o ../$@ ; \
+	else \
+		cd obj; gcc $(LDFLAGS) $(CLIENT_OBJS) $(LIBFILES) -o ../$@ ; \
+	fi
 	cd ..
 endif
 
@@ -59,10 +101,22 @@ endif
 # Rule for compiling source files
 # ===============================
 .cpp.o:
+ifndef FLTKDIR
+	@echo "FLTKDIR environment variable must be set first!"
+	exit 1
+else
+	@echo "Compiling" $<
 	-mkdir -p obj; g++ $(CPPFLAGS) -c $< -o obj/$@
+endif
 
 .c.o:
+ifndef FLTKDIR
+	@echo "FLTKDIR environment variable must be set first!"
+	exit 1
+else
+	@echo "Compiling" $<
 	-mkdir -p obj; gcc $(CFLAGS) -c $< -o obj/$@
+endif
 
 
 # ==========================================
@@ -125,7 +179,10 @@ vt_client_main.o:		clientsocket.h socket.h
 # Rule to clean all build files
 # =============================
 clean:
-	cd obj; rm *.o; cd ..
-	rm virtualt
+	echo "=== cleaning ===";
+	cd obj; rm *.o; cd ..; \
+	rm virtualt 
 	rm vt_client
+
+
 
