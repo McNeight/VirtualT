@@ -1,6 +1,6 @@
 /* intelhex.c */
 
-/* $Id: intelhex.c,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: intelhex.c,v 1.5 2007/03/31 22:09:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -193,7 +193,7 @@ void save_hex_file_ext(int begin, int end, int region, FILE* fd)
 	while (count > 0)
 	{
 		// Read next buffer from memory
-		get_memory8_ext(region, addr, len, buffer);
+		get_memory8_ext(region, addr, len, (unsigned char*) buffer);
 
 		// Output all bytes in the buffer
 		for (x = 0; x < len; x++)

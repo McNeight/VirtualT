@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.2 2004/08/31 15:14:40 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.9 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -37,7 +37,7 @@
 #include <direct.h>
 #endif
 
-#ifdef __unix__
+#ifdef __unix__ 
 #include <signal.h>
 #include <unistd.h>
 #endif
@@ -114,6 +114,12 @@ char					gSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
 
 
+/*
+=============================================================================
+This routine supplies an OS independant high-resolution timer for use with
+emulation speed calculations and throttling.
+=============================================================================
+*/
 #ifdef _WIN32
 __inline double hirestimer(void)
 {
@@ -138,6 +144,12 @@ __inline double hirestimer(void)
 }
 #endif
 
+/*
+=============================================================================
+This routine "throttles" the emulation speed based on the instruction cycle
+count.  This is used for 2.4 Mhz emulation speed.
+=============================================================================
+*/
 double last_instruct=0;
 void throttle(int cy)
 {
@@ -167,12 +179,13 @@ void throttle(int cy)
 		last_instruct = 0;
 	cycles+=cy;
 	cycle_delta=0;
-//	instructs++;
-//	if (hires-last_instruct > 1)
-//		last_instruct = hires;
 }
-/* #define cpu_delay(x)	cycles+=x; instructs++ */
 
+/*
+=============================================================================
+This routine bails from the app in case of a panic.
+=============================================================================
+*/
 void bail(char *msg)
 {
 	int endtime;
@@ -186,6 +199,11 @@ void bail(char *msg)
 	exit(1);
 }
 
+/*
+=============================================================================
+This routine performs a quick "warm" reset with no re-initialization of mem.
+=============================================================================
+*/
 void jump_to_zero(void)
 {
 	int		i;
@@ -194,7 +212,6 @@ void jump_to_zero(void)
 	for (i = 0; i < sizeof(cpu); i++)
 		cpu[i] = 0;
 }
-
 
 /*
 =============================================================================
@@ -364,7 +381,7 @@ void get_rom_path(char* file, int model)
 		strcpy(file, "T200/T200rom.bin");
 		break;
 	case MODEL_M10:
-		strcpy(file, "M10/m10rom.bin");
+		strcpy(file, "M10/M10rom.bin");
 		break;
 	case MODEL_PC8201:
 		strcpy(file, "PC8201/PC8201rom.bin");
@@ -388,23 +405,104 @@ check_model_support:	This function checks for support for the specified
 int check_model_support(int model)
 {
 	char	file[256];
-	int		fd;
-
+	FILE*	fd;
 
 	/* Get the path for the model supplied */
 	get_rom_path(file, model);
 
 	/* Attempt to open the ROM file */
-	if ((fd = open(file, O_RDONLY)) == -1)
+	if ((fd = fopen(file, "r")) == NULL)
 		return FALSE;
 
 	/* Open successful, close the file and return */
-	close(fd);
+	fclose(fd);
 	return TRUE;
 }
+/*
+=============================================================================
+check_installation:	This routine checks that VirtualT is properly installed
+					with model directories and appropriate rom files.
+
+					If the files are not installed, it attempts to create
+					them using files in the ROMs directory.
+=============================================================================
+*/
+void check_installation(void)
+{
+	int 	model, len;
+	char	path[256];
+	char	roms_path[256];
+	char	errors[256];
+	FILE	*fd, *fd2;
+
+	errors[0] = 0;
+
+	/* Check each model */
+	for (model = MODEL_M100; model < MODEL_PC8300; model++)
+	{
+		/* Check if ROM file exists for this model */
+		if (check_model_support(model))
+			continue;
+
+		/* ROM file doesn't exist.  Try to open in ROMs dir */
+		get_rom_path(path, model);
+		sprintf(roms_path, "ROMs%s", strrchr(path, '/'));
+		if ((fd = fopen(roms_path, "rb")) == NULL)
+		{
+			/* Error - ROM file not in ROMs dir */
+			if (strlen(errors) != 0)
+				strcat(errors, ", ");
+			get_model_string(path, model);
+			strcat(errors, path);
+			continue;		
+		}
+
+		/* Create the emulation directory */
+		get_emulation_path(path, model);
+#ifdef WIN32
+		_mkdir(path);
+#else
+		mkdir(path, 0755);
+#endif
+		/* Create ROM in the emulation directory */
+		get_rom_path(path, model);
+		printf("%s\n", path);
+		fd2 = fopen(path, "wb");
+		if (fd2 == NULL)
+		{
+			if (strlen(errors) != 0)
+				strcat(errors, ", ");
+			get_model_string(path, model);
+			strcat(errors, path);
+			fclose(fd);
+			continue;
+		}
+
+		/* Copy the ROM file from ROMs dir */
+		while (1)
+		{
+			/* Read the ROM contents so we can save in Model directory */
+			len = fread(gOptROM, 1, 32768, fd);
+			if (len == 0)
+				break;
+			fwrite(gOptROM, 1, len, fd2);
+		}
+
+		/* Close both files */
+		fclose(fd);
+		fclose(fd2);
+	}
+
+	if (strlen(errors) > 0)
+	{
+		sprintf(path, "No ROM file for %s", errors);
+		show_error(path);
+	}
+}
+
 void model_8201_bug_workaround(int reason)
 {
-	// Remove debugging after 
+	// Remove debugging after we get the to main menu
 	if (PC == 0x6d91)
 	{
 		lock_remote();
@@ -467,6 +565,11 @@ void init_cpu(void)
 }
 
 
+/*
+========================================================================
+This routine peforms a CPU reset and reinitializes memory.
+========================================================================
+*/
 void resetcpu(void)
 {
 	int		i;
@@ -521,6 +624,11 @@ void cb_int65(void)
 }
 
 
+/*
+========================================================================
+This routine processes CPU interrupts.
+========================================================================
+*/
 __inline void check_interrupts(void)
 {
 	static UINT64	last_rst75=0;
@@ -597,6 +705,12 @@ void remote_switch_model(int model)
 	gRemoteSwitchModel = model;
 }
 
+/*
+========================================================================
+This routine performs periodic maintenance operations, such as checking
+interrupts and processing FLTK window events.
+========================================================================
+*/
 void maint(void)
 {
 	static time_t systime;
@@ -608,7 +722,6 @@ void maint(void)
 
 	hires = hirestimer();
 	if (hires > last_hires + .05)
-//	if (systime != (time_t) one_sec_time)
 	{
 		last_hires = hires;
 		one_sec_cycle_count = (DWORD) (cycles - one_sec_cycles) / 100;
@@ -653,6 +766,12 @@ void maint(void)
 }
 
 
+/*
+========================================================================
+This routine checks if there are any active debug monitors and calls
+each attached monitor so it can perform it's debug tasks.
+========================================================================
+*/
 void do_debug_stuff(void)
 {
 	int		i;
@@ -774,6 +893,12 @@ void emulate(void)
 	unlock_remote();
 }
 
+/*
+========================================================================
+handle_sig:	This routine handles unix signals and kills the app if there
+			is a panic.
+========================================================================
+*/
 #ifdef __unix__
 void handle_sig(int sig)
 {
@@ -781,6 +906,11 @@ void handle_sig(int sig)
 }
 #endif
 
+/*
+========================================================================
+process_args:	This routine processes the command-line arguments.
+========================================================================
+*/
 int process_args(int argc, char **argv)
 {
 	int i;
@@ -826,6 +956,11 @@ int process_args(int argc, char **argv)
 	return 0;
 }
 
+/*
+========================================================================
+This routine sets unix signals and links them to a 'bail' routine.
+========================================================================
+*/
 void setup_unix_signals(void)
 {
 #ifdef __unix__
@@ -836,9 +971,15 @@ void setup_unix_signals(void)
 #endif
 }
 
+/*
+========================================================================
+This routine sets the working path.  On Linus and MacOS platforms, this
+is done by looking at the argv[0] argument and removing the app name.
+========================================================================
+*/
 void setup_working_path(char **argv)
 {
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 	int		i;
 
 	getcwd(path, sizeof(path));
@@ -872,7 +1013,8 @@ int main(int argc, char **argv)
 {
 	if (process_args(argc, argv))	/* Parse command line args */
 		return;
-
+	
+	check_installation();		/* Test if install needs to be performed */
 	setup_unix_signals();		/* Setup Unix signal handling */
 	setup_working_path(argv);	/* Create a working dir path */
 

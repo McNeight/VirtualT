@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.2 2005/08/15 15:14:40 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.5 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-#include <malloc.h>
+#include <stdlib.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -42,7 +42,7 @@
 #include <process.h>
 #endif
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #include <signal.h>
 #include <unistd.h>
 #endif

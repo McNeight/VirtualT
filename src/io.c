@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: io.c,v 1.8 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1014,7 +1014,7 @@ int inport(uchar port)
 		case 0xCE:
 			if (gModel == MODEL_T200)
 			{
-				ser_read_byte(&ret);
+				ser_read_byte((char *) &ret);
 				return ret;
 			}
 		case 0xCF:
@@ -1034,7 +1034,7 @@ int inport(uchar port)
 				}
 			}
 			else
-				ser_read_byte(&ret);
+				ser_read_byte((char *) &ret);
 			return ret;
 
 		case 0xD0:	/* Status control register for UART, modem, and phone (6402)  */

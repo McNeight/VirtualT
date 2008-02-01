@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.7 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -190,11 +190,7 @@ void load_setup_preferences(void)
 		else 
 		{
 			strcpy(path,ret);
-			#ifdef __unix__
 			strcat(path,"/");
-			#else
-			strcat(path,"\\");
-			#endif 
 			virtualt_prefs.set("Path",path); // set pref path
 		}
 	}

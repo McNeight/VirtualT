@@ -113,8 +113,10 @@ bool Socket::accept ( Socket& new_socket ) const
 bool Socket::send ( const std::string s ) const
 {
 	int flags;
-#ifdef WIN32
+#if defined(WIN32)
 		flags = 0;
+#elif defined(__APPLE__)
+		flags = SO_NOSIGPIPE;
 #else
 		flags = MSG_NOSIGNAL;
 #endif

@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.2 2004/08/31 15:08:56 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.8 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -237,6 +237,9 @@ resize_window:	This function resizes the main window and repositions
 */
 void resize_window()
 {
+	if (gpDisp == NULL)
+		return;
+
 	if (gModel == MODEL_T200)
 	{
 		gpDisp->DispHeight = 128;
@@ -427,7 +430,8 @@ void cb_coldBoot (Fl_Widget* w, void*)
 
 		show_remem_mode();
 
-		gpDisp->Reset();
+		if (gpDisp != NULL)
+			gpDisp->Reset();
 		if (gpDebugMonitor != 0)
 			gpDebugMonitor->Reset();
 	}
@@ -763,7 +767,8 @@ void switch_model(int model)
 		gStdRomDesc = &gM100_Desc;
 
 	/* Clear the LCD */
-	gpDisp->Clear();
+	if (gpDisp != NULL)
+		gpDisp->Clear();
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->Clear();
 
@@ -1311,13 +1316,16 @@ void init_display(void)
 	if (gRectsize == 0)
 		gRectsize = 1;
 
-	gpDisp->DispHeight = DispHeight;
-	gpDisp->DisplayMode = DisplayMode;
-	gpDisp->MultFact = MultFact;
-	gpDisp->SolidChars = SolidChars;
-	gpDisp->gRectsize = gRectsize;
-	gpDisp->gXoffset = gXoffset;
-	gpDisp->gYoffset = gYoffset;
+	if (gpDisp != 0)
+	{
+		gpDisp->DispHeight = DispHeight;
+		gpDisp->DisplayMode = DisplayMode;
+		gpDisp->MultFact = MultFact;
+		gpDisp->SolidChars = SolidChars;
+		gpDisp->gRectsize = gRectsize;
+		gpDisp->gXoffset = gXoffset;
+		gpDisp->gYoffset = gYoffset;
+	}
 
 	/* End the Window and show it */
 	MainWin->end();
@@ -1373,7 +1381,8 @@ void display_map_mode(char *str)
 
 void drawbyte(int driver, int column, int value)
 {
-	gpDisp->SetByte(driver, column, value);
+	if (gpDisp != NULL)
+		gpDisp->SetByte(driver, column, value);
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->SetByte(driver, column, value);
 
@@ -1383,7 +1392,8 @@ void drawbyte(int driver, int column, int value)
 
 void lcdcommand(int driver, int value)
 {
-	gpDisp->Command(driver, value);
+	if (gpDisp != NULL)
+		gpDisp->Command(driver, value);
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->Command(driver, value);
 
@@ -1392,7 +1402,8 @@ void lcdcommand(int driver, int value)
 
 void power_down()
 {
-	gpDisp->PowerDown();
+	if (gpDisp != NULL)
+		gpDisp->PowerDown();
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->PowerDown();
 
@@ -1401,9 +1412,13 @@ void power_down()
 
 void process_windows_event()
 {
+        Fl::check();
+	return;
 	if (gOsDelay)
 #ifdef WIN32
 		Fl::wait(0.001);
+#elif defined(__APPLE__)
+        	Fl::check();
 #else
 		Fl::wait(0.00001);
 #endif
@@ -2569,7 +2584,8 @@ t200_command:	This function processes commands sent to
 */
 void t200_command(unsigned char ir, unsigned char data)
 {
-	gpDisp->Command(ir, data);
+	if (gpDisp != NULL)
+		gpDisp->Command(ir, data);
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->Command(ir, data);
 }
@@ -2582,6 +2598,8 @@ t200_readport:	This function returns the I/O port data
 */
 unsigned char t200_readport(unsigned char port)
 {
+	if (gpDisp == NULL)
+		return 0;
 	return ((T200_Disp*)gpDisp)->ReadPort(port);
 }
 

@@ -1,6 +1,6 @@
 /* vtobj.cpp */
 
-/* $Id: vtobj,cpp 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: vtobj.cpp,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -28,7 +28,7 @@
  */
 
 #include	<memory.h>
-#include	<malloc.h>
+#include	<stdlib.h>
 #include	"VirtualT.h"
 #include	"vtobj.h"
 

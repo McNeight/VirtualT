@@ -2,7 +2,7 @@
 
 /* General cross-platform development wrappers */
 
-/* $Id: genwrap.c,v 1.1 2004/08/05 07:19:02 deuce Exp $ */
+/* $Id: genwrap.c,v 1.5 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -43,7 +43,7 @@
 #include <errno.h>		/* errno */
 #include <ctype.h>		/* toupper/tolower */
 
-#if defined(__unix__)
+#if defined(__unix__) || (defined __APPLE__)
 	#include <sys/ioctl.h>		/* ioctl() */
 	#include <sys/utsname.h>	/* uname() */
 	/* KIOCSOUND */
@@ -329,7 +329,7 @@ char* DLLCALL os_version(char *str)
 			,winver.dwMajorVersion, winver.dwMinorVersion
 			,winver.dwBuildNumber,winver.szCSDVersion);
 
-#elif defined(__unix__)
+#elif defined(__unix__) || defined(__APPLE__)
 
 	struct utsname unixver;
 

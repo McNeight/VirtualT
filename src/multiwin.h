@@ -1,6 +1,6 @@
 /* multiwin.h */
 
-/* $Id: multiwin.h,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multiwin.h,v 1.2 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -48,7 +48,8 @@ public:
 	Fl_Multi_Window(int x=0, int y=0, int w=600, int h=500, const char *label = 0);
 	~Fl_Multi_Window();
 
-	Fl_Window*		ClientArea() { return m_pClientArea; };
+//	Fl_Window*		ClientArea() { return m_pClientArea; };
+	Fl_Window*		ClientArea() { return this; };
 
 	int				m_NoResize;
 

@@ -1,6 +1,6 @@
 /* multiwin.cpp */
 
-/* $Id: multiwin.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multiwin.cpp,v 1.2 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -74,8 +74,7 @@ Fl_Multi_Window::Fl_Multi_Window(int x, int y, int w, int h, const char* title)
 
 	m_pClientArea = new Fl_Window(MW_BORDER_WIDTH, MW_TITLE_HEIGHT, w - MW_BORDER_WIDTH*2,
 		h - MW_BORDER_WIDTH - MW_TITLE_HEIGHT);
-	m_pClientArea->color(FL_WHITE);
-//	resizable(m_pClientArea);
+	resizable(m_pClientArea);
 	m_pLabel = new char[strlen(title) + 1];
 	strcpy(m_pLabel, title);
 	label(m_pLabel);

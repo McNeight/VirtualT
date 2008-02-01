@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.2 2008/01/07 15:08:56 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.1 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -598,7 +598,7 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 	std::string format_str;
 	std::string format_str16;
 	std::string ret="";
-	char		reg_str[100];
+	char		reg_str[300];
 
 	// Lock the global access object so the registers are stable
 	lock_remote();
@@ -608,10 +608,10 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 	{
 		if (gRadix == 10)
 			sprintf(reg_str, "A=%d F=%d B=%d C=%d D=%d E=%d H=%d L=%d M=%d PC=%d SP=%d\nOk",
-				A, F, B, C, D, E, H, L, M, PC, SP);
+				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP);
 		else
 			sprintf(reg_str, "A=%02X F=%02X B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X M=%02X PC=%04X SP=%04X\nOk",
-				A, F, B, C, D, E, H, L, M, PC, SP);
+				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP);
 		unlock_remote();
 		return reg_str;
 	}
@@ -678,7 +678,7 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 			}
 			else if (next_arg == "m")
 			{
-				sprintf(reg_str, format_str.c_str(), M);
+				sprintf(reg_str, format_str.c_str(), get_memory8(HL));
 				ret += reg_str;
 			}
 			else if (next_arg == "bc")
@@ -774,7 +774,7 @@ std::string cmd_write_reg(ServerSocket& sock, std::string& args)
 		else if (regStr == "f")
 			F = value;
 		else if (regStr == "m")
-			M = value;
+			set_memory8(HL, value);
 		else if (regStr == "bc")
 		{
 			B = value >> 8;
@@ -2156,7 +2156,7 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 		ret = cmd_show_reg(sock, L, 1);
 
 	else if (cmd_word == "m")
-		ret = cmd_show_reg(sock, M, 1);
+		ret = cmd_show_reg(sock, get_memory8(HL), 1);
 
 	else if (cmd_word == "string")
 		ret = cmd_string(sock, args);

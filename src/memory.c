@@ -12,8 +12,8 @@ memory.c
 
 #include <string.h>
 #include <stdio.h>
-#include <malloc.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "VirtualT.h"
 #include "m100emu.h"
@@ -992,7 +992,8 @@ load_opt_rom:  This function loads option ROMS as specified by user settings.
 */
 void load_sys_rom(void)
 {
-	int					fd;
+	FILE*			fd;
+	//int					fd;
 	unsigned short		address;
 	char				oldString[15];
 	char				newString[40];
@@ -1002,8 +1003,9 @@ void load_sys_rom(void)
 	get_rom_path(file, gModel);
 
 	/* Open the ROM file */
-	fd = open(file,O_RDONLY | O_BINARY);
-	if (fd < 0)
+	fd = fopen(file, "rb");
+	//fd = open(file,O_RDONLY | O_BINARY);
+	if (fd == NULL)
 	{
 		show_error("Could not open ROM file");
 		return;
@@ -1012,17 +1014,17 @@ void load_sys_rom(void)
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
 
 	/* Read data from the ROM file */
-	if (read(fd, gSysROM, ROMSIZE)<ROMSIZE)
+	if (fread(gSysROM, 1, ROMSIZE, fd)<ROMSIZE)
 	{
 		show_error("Error reading ROM file: Bad Rom file");
 	}
 
 	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
 	if (gModel == MODEL_T200)
-		read(fd, gMsplanROM, 32768);
+		fread(gMsplanROM, 1, 32768, fd);
 	
 	/* Close the ROM file */
-	close(fd);
+	fclose(fd);
 
 	/* Set pointer to ROM Description */
 	if (gModel == MODEL_T200)
@@ -1055,7 +1057,7 @@ void load_sys_rom(void)
 		address = gStdRomDesc->sMSCopyright;
 
 		/* Check if the copyright string is where we expect it to be */
-		if (strncmp(&gSysROM[address], oldString, strlen(oldString)) != 0)
+		if (strncmp((char*) &gSysROM[address], oldString, strlen(oldString)) != 0)
 		{
 			/* Okay, the copyright string has been moved (by the user?)  Find it */
 			address = 0;
@@ -1064,7 +1066,7 @@ void load_sys_rom(void)
 
 			for (c = 0; c < srchLen; c++)
 			{
-				if (strncmp(&gSysROM[c], oldString, strLen) == 0)
+				if (strncmp((char*) &gSysROM[c], oldString, strLen) == 0)
 				{
 					address = (unsigned short) c;
 					break;
@@ -1074,7 +1076,7 @@ void load_sys_rom(void)
 
 		/* If the address is good, update the ROM */
 		if (address != 0)
-			strcpy(&gSysROM[address], newString);
+			strcpy((char*) &gSysROM[address], newString);
 	}
 
 	/* Copy ROM into system memory */
