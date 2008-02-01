@@ -46,8 +46,13 @@ v1.0  January 17 2008
 12. Transitioned the Windows development environment to Visual Studio 2005.  The project files
     are no longer compatible with Visual Studio 6.
 
-13. Adds a feature to patch the ROM on load to show VirtualT version in the MENU. This can be
+13. Added a feature to patch the ROM on load to show VirtualT version in the MENU. This can be
     disabled in the "Memory Options" menu.
+    
+14. Added auto detection and creation of missing emulation directories.  For new installations,
+    all emulation directories will be created and ROM images copied from the ROMs directory.
+    
+15. Patched all ROM images with Y2K fix.
 
 
 ===================
