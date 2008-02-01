@@ -6,7 +6,7 @@
 
 <FONT FACE="veranda,arial">
 
-<P> <H1 ALIGN="CENTER"><A NAME="basics">Chapter 1 - Model T Basics</A></H1>
+<P> <H1 ALIGN="CENTER"><A NAME="basics">Chapter 2 - Model T Basics</A></H1>
 
 <P>VirtualT is an emulator for the Tandy line of laptop computers, specifically
 the Model 100, Model 102 and Model 200.  The emulator has also been expanded to
@@ -18,6 +18,32 @@ support the Tandy's close relatives, the NEC PC-8201 and Ollivetti M10 models.
 <B><A HREF="help.html">Home</A></B>
 
 <HR>
+
+<H2>What is a Model T? </H2>
+<P>  In 1983, Tandy Corporation introduced a laptop computer (The Model 100) based on a CMOS 
+8085 processor running at 2.4 Mhz.  Since this was the world's first laptop, the Model 100 user
+group likes to call it the "Model T".  The laptop has an integrated monochrome LCD display that is 40
+characters by 8 lines, integrated 300 bps modem, serial and parallel ports, cassette interface port,
+and 32K RAM.  The operating software is ROM based and includes BASIC, a text editor, and telecom,
+schedule and address applications.  Also included is Menu program that allows the user to browse 
+files stored in the laptop's RAM.
+
+<H2>File Storage</H2>
+<P>Files in the Model T are saved in the battery backed RAM using a very simple file system with a
+fixed size File Directory Table.  On all emulated models except the T200, the directory table is
+24 files in size.  For the T200, the table is 48 files.  The File Directory Table defines the name
+of each file using an 8 character filename using a "6.2" format.  The File Directory Table also
+defines the file attributes and starting memory loacation.
+<P>
+Files in memory are organized as contiguous memory objects and files of similar type are grouped
+together in memory.  If a file size changes, then memory representing other files will be moved
+to maintain contiguous memory usage.
+
+<H2>MENU Program</H2>
+<P>When the Model T is first powered on, it presents a display for interfacing with the Laptop's
+ROM based applications and for selecting and using files stored in the the RAM filesystem.
+
+<H2>
 
 </BODY>
 </HTML>

@@ -1,0 +1,137 @@
+<html/>
+<head>
+	<TITLE>VirtualT Help - Build and Install</TITLE>
+</head>
+<body>
+
+<FONT FACE="veranda,arial">
+
+<p><H1 ALIGN="CENTER"><A NAME="build">Chapter 1 - Build and Install</A></H1>
+
+<p>This chapter describes the steps necessary to build and install the VirtualT application for
+Linux, Windows and MacOS platforms.</p>
+
+<OL>
+</OL>
+
+<b><A HREF="help.html">Home</A></B>
+
+<hr/>
+
+<h2>Building VirtualT </h2>
+<P>VirtualT is a freeware, open source software project that is provided under the terms of the
+BSD License (see <A href="license.html">Appendix C</A>).  As an open source project, the program
+is provided in source code format and can be built and/or modified by the user.  
+
+<P>To successfully build the application for a given <b>Linux</b> system or <b>MacOSX</b>, 
+perform the following steps:
+<OL>
+<LI>Download the FLTK distribution from the <A href="http://www.fltk.org">FLTK website</A>.  VirtualT
+version 1.0 was tested using FLTK release 1.1.7.
+<LI>Unpack / unzip the FLTK distribution and 'cd' to that directory.
+<LI>Run the FLTK configure script ("./configure"). This will configure the build environment for FLTK based on
+your environment and available tools and libraries.
+<LI>Build the FLTK libraries by typing "make" while in the FLTK directory.  
+<LI>On some distributions, the JPEG, PNG and ZLIB libraries are not built when
+building the FLTK libraries.  These libraries are provided in the FLTK distribution.  To build them
+manually, 'cd' into each of the FLTK subdirectories below and type "make".
+<p>
+<UL><pre>
+<LI>jpeg
+<LI>png
+<LI>zlib
+</pre></UL>
+<p>
+<LI>Set the FLTKDIR environment variable.  The VirtualT GNUMakefile relies on an environment
+variable to specify the location of the active FLTK library.  This environment variable must be
+set to the root directory of the FLTK distribution to be linked with VirtualT, such as:
+<p><pre>FLTKDIR=/users/myname/fltk-1.1.7</pre><p><p>
+<LI>Check the directory structure for the VirtualT source.  The root build directory should have the 
+following files and subdirectories:
+<p>
+<UL><pre>
+<LI>GNUMakefile  -  The makefile for the Linux make utility
+<LI>src          -  Subdirectory of all VirtualT source files
+<LI>doc          -  Subdirecotry with all help files and images
+<LI>ROMs         -  Subdirectory with ROM images
+<LI>vt_client    -  Subdirectory for the vt_client socket application for Windows builds
+</pre>
+</UL>
+<LI>Build VirtualT by changing to the root VirtualT directory and typing "make".
+</OL>
+
+<P>For <b>Windows</b> users, a binary distribution is provided, but if you wish to perform your own builds
+of intermediate version of VirtualT, the following process should be followed:
+<OL>
+<LI>Download the FLTK distribution from the <A href="http://www.fltk.org">FLTK website</A>.
+<LI>Unzip the FLTK source to a directory.
+<LI>Open the FLTK Project file using Visual Studio.  The Visual Studio projet file is
+located in the visualc subdirectory of the FLTK distribution.
+<LI>Select Release or Debug build.
+<LI>Build the FLTK libraries.
+<LI>From within Visual Studio, select and build each of the image libraries:
+<p>
+<UL><pre>
+<LI>jpeg
+<LI>png
+<LI>zlib
+<pre></UL>
+<p>
+<LI>Set the FLTKDIR environment variable.  For Windows XP / 2000, this environment variable is 
+set by Right-Clicking on "My Computer" and selecting "Preferences".  Browse to the "Advanced"
+tab and click "Environment Variables".  Add the FLTKDIR variable as a new User variable.
+<LI>Open the VirtualT Project file using Visual Studio.
+<LI>Select Release or Debug build.
+<LI>Perform the Build.  This should build both the VirtualT application and the vt_client app.
+If not, manually select the vt_client project and set it as the "Current" or "Startup" project,
+then perform the build.
+<p><pre>NOTE: With VirtualT 1.0, the Visual Studio 6 project files have not been updated to include
+the new files.  Instead, Visual Studio 2005 Solution and Project files (.sln, .vcproj) have been
+provided.  The main reason for the migration is temporary lack of access to Visual Studio 6
+environment.  A Visual Studio 6 project file will be provided later.</pre>
+</OL>
+
+<H2>Installing VirtualT</H2>
+<P>VirtualT uses a very specific directory structure to allow emulation of multiple laptop models
+while keeping program data separated (RAM storage files, ROM files, etc.).  Version 1.0 and later
+releases will automatically create the necessary directory structure using ROM image files located
+in the ROMs subdirectory.  This directory will be created the first time VirtualT is launched.  Below
+is the directory structure that will be created:
+
+<pre>
+   main_virtualt_dir
+       |
+       |----virtualt  (application)
+       |----M10       (Emulation directory)
+       |----M100      (Emulation directory)
+       |----M102      (Emulation directory)
+       |----PC8201    (Emulation directory)
+       |----T200      (Emulation directory)
+</pre>
+
+
+<H2>Launching and Using VirtualT</H2>
+<P>For the most part, VirtualT is a GUI driven application with all features configurable from
+within the GUI.  The only exception to this is the socket interface used for remote control and
+debugging.  To enable the socket interface, VirtualT must be envoked with a command-line option
+to specify the socket port as follows:
+
+<UL><PRE>virtualt -p port_number</PRE></UL>
+<p><UL><pre>NOTE:  On Windows platforms, the Windows firewall sometimes blocks unkown ports and may
+need to be configured.  Sometimes simply envoking VirtualT with the '-p' option a second time
+will "open" the port.</pre></UL>
+
+<P>This will cause VirtualT to launch a socket listener thread for remote control appliations as
+described in <A href="socket.html">Chapter 5</A>.  To connect to the socket interface using
+the vt_client application, from a command prompt perform the following:
+<p><pre>
+<OL>
+<LI>'cd' to the VirtualT directory
+<LI>type './vt_client port_number'
+</OL></pre>
+<p>The vt_client application will connect to the socket interface of VirtualT and present a
+command-line interface for control.  
+
+
+</BODY>
+</HTML>
