@@ -10,7 +10,9 @@
 
 <P>VirtualT is an emulator for the Tandy line of laptop computers, specifically
 the Model 100, Model 102 and Model 200.  The emulator has also been expanded to
-support the Tandy's close relatives, the NEC PC-8201 and Ollivetti M10 models.
+support the Tandy's close relatives, the NEC PC-8201 and Ollivetti M10 models. The
+purpose of this help system is primarly for use of the VirtualT, so only a brief 
+description of the Model T will be provided here.
 
 <OL>
 </OL>
@@ -27,23 +29,56 @@ characters by 8 lines, integrated 300 bps modem, serial and parallel ports, cass
 and 32K RAM.  The operating software is ROM based and includes BASIC, a text editor, and telecom,
 schedule and address applications.  Also included is Menu program that allows the user to browse 
 files stored in the laptop's RAM.
+<p><img src="model_100.jpg">
 
 <H2>File Storage</H2>
 <P>Files in the Model T are saved in the battery backed RAM using a very simple file system with a
-fixed size File Directory Table.  On all emulated models except the T200, the directory table is
-24 files in size.  For the T200, the table is 48 files.  The File Directory Table defines the name
+fixed size File Directory Table.  On all emulated models except the T200, the directory table can 
+store 24 file names.  For the T200, the table is 48 files.  The File Directory Table defines the name
 of each file using an 8 character filename using a "6.2" format.  The File Directory Table also
-defines the file attributes and starting memory loacation.
+defines the file attributes such as defining if the file is a ROM or RAM object, the file type
+and the file's starting memory loacation.
 <P>
-Files in memory are organized as contiguous memory objects and files of similar type are grouped
+Files in memory are organized as contiguous objects and files of similar type are grouped
 together in memory.  If a file size changes, then memory representing other files will be moved
-to maintain contiguous memory usage.
+to maintain contiguous memory usage.  When editing files on the Model T, all changes are made "in place"
+to reduce memory requirements.  There is also a sort-of "pseudo file" that represents the "unsaved"
+BASIC program.  This is a special storage location in memory without an associated filename or 
+File Directory Table entry.  It is a "pseudo file" only because it is persisted between successive
+calls to BASIC.
 
 <H2>MENU Program</H2>
 <P>When the Model T is first powered on, it presents a display for interfacing with the Laptop's
-ROM based applications and for selecting and using files stored in the the RAM filesystem.
+ROM based applications and for selecting and using files stored in the the RAM filesystem.  The MENU
+program displays the time and date, and presents a user interface for navigating each of the visible
+entries in the File Directory Table.
+<p><img src="menu.jpg">
 
-<H2>
+<H2>BASIC Program</H2>
+<P>The BASIC Program provides powerful, feature rich programming capability to the Model T.  The 
+BASIC implementation is a line number based interpreter with keyword tokenization at entry time.
+The tokenization saves memory and inreases program execution speed.  The language provides full
+support for different variable precision, text and graphic output to the LCD, file access to RAM,
+serial and cassette files, string manipulation, etc.
+
+<H2>TEXT Program</H2>
+<P>The TEXT program is a document editing application for writing / editing text documents.  It
+provides basic word processing features for seleting, copying and pasting text.
+
+<H2>TELCOM Program</H2>
+<P>The TELCOM Program provides terminal support for the built-in modem and for the serial port.
+
+<H2>ADDRSS Program</H2>
+<P>The ADDRSS Program is a basic address storage utility for saving address and phone number 
+information.  This program uses TEXT in conjunction with a specially named file, "ADDRSS.DO" to
+provide this functionality.  The ADDRSS.DO file does not exist as a default and must be created
+using TEXT prior to using the ADDRSS program.
+
+<H2>SCHEDL Program</H2>
+<P>The SCHEDL Program is a basic schedule management utility for keeping track of schedule items. 
+Like ADDRSS, this program also uses TEXT in conjunction with a specially named file, "SCHEDL.DO" to
+provide this functionality.  The SCHEDL.DO file does not exist as a default and must be created
+using TEXT prior to using the SCHEDL program.
 
 </BODY>
 </HTML>
