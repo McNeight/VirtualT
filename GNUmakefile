@@ -19,7 +19,7 @@ CLIENT		=	vt_client
 
 FLTKCONFIG	=	$(FLTKDIR)/fltk-config
 FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
-VPATH		=	src:obj
+VPATH		=	src:vt_client_src:obj
 
 LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
 LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
@@ -79,7 +79,7 @@ else
 endif
 
 # ========================
-# Rule to build vt_client
+# Rule to link vt_client
 # ========================
 $(CLIENT):		$(CLIENT_OBJS)
 ifndef FLTKDIR
