@@ -18,13 +18,76 @@ between Linux, Windows and MacOS and are detailed here.
 
 <HR>
 
-<P> <H1 ALIGN="LEFT"><A NAME="dirstruct">Directory Structure</A></H1>
+<P> <H2 ALIGN="LEFT"><A NAME="dirstruct">Directory Structure</A></H2>
+<P>VirtualT uses a very specific directory structure to allow emulation of multiple laptop models
+while keeping program data separated (RAM storage files, ROM files, etc.).  Version 1.0 and later
+releases will automatically create the necessary directory structure using ROM image files located
+in the ROMs subdirectory.  Below is the directory structure that will be created.  The src and
+vt_client directories will be present only if the source code was downloaded and unzipped.  
 
-<P> <H1 ALIGN="LEFT"><A NAME="ram">Loading / Saving RAM</A></H1>
+<p>Each of the emulation directories (M10, M100, T200, etc.) will contain machine specific files
+such as ROM images and RAM files for base memory and/or ReMem memory.  Additionally they provide
+a structure for keeping Model T files (.BA, .CO, etc.) separated when they are targeted for as 
+specific model.  While the IDE is not completed yet, it assumes a default project storage directory
+under the main VirtualT directory called "Projects".
+<p><pre>
+   main_virtualt_dir
+       |
+       |----virtualt  (application)  (virtualt.exe for windows)
+       |----doc       (Help Files directory)
+       |----src       (Source Code directory)
+       |----M10       (Emulation directory)
+       |----M100      (Emulation directory)
+       |----M102      (Emulation directory)
+       |----PC8201    (Emulation directory)
+       |----T200      (Emulation directory)
+       |----vt_client (Build directory for vt_client app)
+       |----Projects  (IDE Projects directory)
+</pre>
 
-<P> <H1 ALIGN="LEFT"><A NAME="snapshots">RAM Snapshots</A></H1>
+<P> <H2 ALIGN="LEFT"><A NAME="ram">RAM Files</A></H2>
+<p>VirtualT saves the emulation RAM into a file within active Emulation Directory.  File loading is
+done when the program starts and is saved just prior to The file
+that is used is dependant on the selected memory configuration (see <a href="emulation.html#memory">Memory Setup</a>.
+For Base Memory configurations, the RAM is saved in a file named RAM.bin.  The file is a binary 
+copy of the emulation RAM.  On models that contain multiple RAM banks such as the T200, each RAM
+bank is stored to the file in sequence followed by a single byte representing the active RAM bank.
+<p>
+For ReMem meory configuration, the RAM and FLASH contents are saved in a file named remem.bin.  This
+file contains three 2M binary sections.  The first section is the 2M RAM chip contents, the second
+section is the FLASH1 chip contents, and the third section is the FLASH2 chip contents. 
 
-<P> <H1 ALIGN="LEFT"><A NAME="files">Loading / Saving Files</A></H1>
+<P> <H2 ALIGN="LEFT"><A NAME="files">Loading / Saving Files</A></H2>
+<p>Model T files (.BA, .DO, etc.) can be loaded from and saved to the Host Operating System using
+the "Load from Host" and "Save to Host" menu items in the File menu.  When performing load and save
+operations, VirtualT manually reads and writes to system RAM during emulation.  The reads / writes
+include accessing the File Directory Table, the file storage areas, and system pointers and variables
+used for memory management and housekeeping.  For this reason, files should be loaded and saved only 
+when there is no file activity in the emulation.  After a Load from Host operation, Virtualt performs
+a warm reset of the emulation to force a redraw of the Menu screen.  This warm reset will occur
+regardless of the current emualtion state (running BASIC, TEXT, etc.).
+<p>
+During load operations, VirtualT will automatically determine if the file being loaded is too
+large for available memory, determine the type of file being loaded base on file extension,
+tokenize ASCII BASIC files, and determine the appropriate location in memory to store the file.
+Currently any file extension other than .BA, .DO or .CO are converted into .DO files and loaded
+as TEXT documents.  This functionality needs to be changed in future releases to detect 2 character
+extensions and load them with no conversion.
+
+<P> <H2 ALIGN="LEFT"><A NAME="preferences">Preferences</A></H2>
+Preferences for VirtualT settings, such as CPU emulation speed, Display size, etc., are saved to 
+the host when VirtualT is terminated and restored when it is launched again.  The preferences are
+saved by the FLKT library routines and the storage method are OS dependant.  The following are the 
+locations of the VirtualT preferences files for each OS:
+
+<p><pre>
+     Linux   -  $HOME/.fltk/virtualt./virtualt.prefs
+     MacOS   -  $HOME/Library/Preferences/virtualt./virtualt.prefs
+     Windows -  C:/Documents and Settings/UserName/Application Data/virtualt/virtualt.prefs
+</pre>
+
+<p>VirtualT saves general settings such as display characteristics on a global basis and emulation 
+preferences such as memory configuration and ROM / RAM filenames on a per model basis. 
 
 </BODY>
 </HTML>
