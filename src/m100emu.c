@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.9 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.10 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -443,6 +443,8 @@ void check_installation(void)
 		/* Check if ROM file exists for this model */
 		if (check_model_support(model))
 			continue;
+
+		printf("copying rom file\n");
 
 		/* ROM file doesn't exist.  Try to open in ROMs dir */
 		get_rom_path(path, model);
