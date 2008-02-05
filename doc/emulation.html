@@ -23,24 +23,24 @@ things such as display and speed settings, Peripherials, Option ROMs, etc.
 Because of this, all software written for the Model T will also work on VirtualT, even if they make
 direct access to the LCD hardware.
 <p>The LCD hardware implementation varies depending on the emulation model.  For the T200, the LCD
-uses a single single controller with 8K display RAM.  On the other models, the LCD consists of 10
+uses a single controller with 8K display RAM.  On the other models, the LCD consists of 10
 independant controllers, each responsibile for a specific region of the display.  With the exception
 of the T200 control chip's character generator ROM, the VirtualT emulation exactly matches the
 hardware at a register (I/O operation) level.
 <p>Several features provided by the LCD emulation and can be accessed using the "Emulation->Display"
 menu items.  These features are:
 <UL>
-<LI>Display Size:  Allows magnification of the LCD (1x, 2x, 3x and 4x).  This is direct pixel copying
+<LI><b>Display Size:</b>  Allows magnification of the LCD (1x, 2x, 3x and 4x).  This is direct pixel copying
 of each pixel on the LCD.
-<LI>Solid Chars:  Allows characters to be display with or without "spacing" between pixels.  On the real
+<LI><b>Solid Chars:</b>  Allows characters to be display with or without "spacing" between pixels.  On the real
 Model T, the old LCD techonology was coarse enough to see the spacing.  This allows the user to 
 choose between a "retro" look or a more readable look.
-<LI>Framed:  This feature allows the user to view the LCD with the familiar "black frame" as seen on the
+<LI><b>Framed:</b>  This feature allows the user to view the LCD with the familiar "black frame" as seen on the
 original Model T, complete with function key labels, or as a simple window.
 </UL>
 
 <h2>Keyboard</h2>
-<p>The Model T keyboard, while very easy to use, has a non-standard of special and punctuation compared
+<p>The Model T keyboard, while very easy to use, has a non-standard layout of special symbols and punctuation compared
 with modern day keyboards.  The keyboard is a simple scan matrix of keys with 8 scan rows and 9 scan
 columns.  Each model uses the same keyscan arragement, but each assigns the key mappings differently. 
 Plus the Model T has a few extra keys that are not present on today's keyboards, such as CODE and GRPH.
