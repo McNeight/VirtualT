@@ -2,8 +2,8 @@
 <HEAD>
 	<TITLE>VirtualT Help - Socket Interface</TITLE>
 </HEAD>
-<BODY>
 
+<BODY>
 <FONT FACE="veranda,arial">
 
 <P> <H1 ALIGN="CENTER"><A NAME="sockets">Chapter 6 - Socket Interface</A></H1>
@@ -18,6 +18,564 @@ functionality.  The interface also adds low-level debug control of the emulation
 <B><A HREF="help.html">Home</A></B>
 
 <HR>
+<h2><a name="invoking">Invoking</a></h2>
+<p>To enable the socket interface, VirtualT must be invoked with a command-line option
+to specify the socket port as follows:
+
+<UL><PRE>virtualt -p port_number</PRE></UL>
+<p><UL><pre>NOTE:  On Windows platforms, the Windows firewall sometimes blocks unkown ports and may
+need to be configured.  Sometimes simply envoking VirtualT with the '-p' option a second time
+will "open" the port.</pre></UL>
+
+<P>This will cause VirtualT to launch a socket listener thread for remote control appliations.
+To connect to the socket interface using the vt_client application, from a command prompt perform 
+the following:
+<p><pre>
+<OL>
+<LI>'cd' to the VirtualT directory
+<LI>type './vt_client port_number'
+</OL></pre>
+<p>The vt_client application will connect to the socket interface of VirtualT and present a
+command-line interface for control.  The socket interface can be used by any client to remotely
+control VirtualT, such as a Perl script, C++ test bench, or any other socket capable program.  
+The vt_client application is just a simple command line example application.
+
+<h2><a name="protocol">Protocol</A></h2>
+<p>The socket interface protocol is an ASCII based command / response type protocol.  Commands
+must be sent as independant socket messages.  Each command can have one or more arguments formatted
+appropriately per command.  Commands are not terminated with a NEWLINE character.  For each command, 
+VirtualT will respond with one or more messages depending on the command.  All responses 
+will end with the ASCII text "Ok".  Responses that report information will have one or more lines
+of data each followed with a NEWLINE (\n) character.   
+
+<p>Here is an example transaction of the socket interface protocol:
+<p><pre>
+   Client   sends "halt"
+   VirtualT sends "Ok"
+   Client   sends "pc"
+   VirtualT sends "27105\n"
+   VirtualT sends "Ok"
+   Client   sends "radix 16"
+   VirtualT sends "Ok"
+   Client   sends "wr pc=0x69e2"
+   VirtualT sends "Ok"
+   Client   sends "run"
+   VirtualT sends "Ok"
+</pre>
+
+<h2><a name="events">Async Events</A></h2>
+<p>Occasionally VirtualT needs to send a message to the client to indicate an event has occurred.
+Reporting of asynchronous events follows a standard format so they can be parsed by the client
+application and properly separated from the expected response messages.  The format for async
+event reporting is as follows:
+<p><pre>
+   event, event_name, event_data \n
+</pre>
+<p>The async events reported by VirtualT 1.0 are:
+<p><pre>
+   event, break, address        This indicates a breakpoint was encountered
+   event, lcdwrite, (r,c),data  This reports data written to the LCD at (r,c) 
+</pre>
+
+<h2><a name="debug">Debugger</A></h2>
+<p>The socket interface works with the integrated debugger to provide remote debug control
+over the VirtualT emulation.  Using this interface, the 8085 CPU can be halted, single
+stepped and resumed, breakpoints can be set and / or cleard, and all register and memory
+can be read and written.
+<p>The debugger allwos breakpoints to be set for any memory address in the CPU's 64K
+address range.  An unlimited number of breakpoints can be defined.  Each breakpoint can
+be defined to cause a break in CPU execution depending on the active ROM and/or RAM bank
+of the emulation.  Bank selection that should be monitored by the debugger is established
+during the <a href="#set_break">set_break</a> command.  
+<p>To perform debug operations, the integrated debugger must interogate the Program Counter (PC)
+before excution of every instruction to determine if an active breakpoint has been encountered.
+When a breakpoint is encountered, the debugger will halt the CPU execution and send an 
+<a href="#events">Async Event</a> to the socket interface.
+
+<h2><a name="lcd">LCD Monitor</A></h2>
+<p>The socket interface provides a feature to monitor data sent to the LCD.
+This feature was added to help accomodate automated regression testing of VirtualT features
+and applications developed using VirtualT as the develoment platform.  
+<p>During LCD monitoring, the inegrated debugger is used for monitoring program execution 
+to trap function calls made to the "Character Level 6 Plotting" routine.  When a call to 
+this routine is detected, VirtualT extracts the plotted character and the curent row and 
+column position.  This data is then used to build strings of data representing the data 
+written to the LCD.
+<p>The LCD monitoring feature can be turned on or off using the <a href="#lcd_mon">
+lcd_mon</a> command.  Sometimes during LCD monitoring, it is desireable to ignore portions
+of the LCD to eliminate excessive socket messages for data that is written repettitevly, 
+such as time and date updated to the MENU.  To accomodate this, the user can define up to
+10 "ignore regions" using the <a href="#lcd_ignore">lcd_ignore</a> command.  During
+LCD monitoring, the socket interface will discard any write operations when the
+curent row and column are bounded by one of the ignore regions.
+
+
+<h2><a name="commands">Commands</A></h2>
+<p>VirtualT accepts commands on the socket interface to control emulation options,
+access low-level hardware resources, and interface with the VirtualT debugger.  For
+commands that accept an address argument, address can be represented in decimal format
+or in hex format by pre-pending with the standard C "0x" syntax, such as 0xA31.  Addresses
+can also be specified by one of the 16 bit registers (pc, sp, bc, de, hl). 
+The commands that VirtualT supports are:
+
+<ul><h3>Emulation Control Commands:</h3>
+<ul>
+<a href="#cold_boot">cold_boot</a>, <a href="#load">load</a>,
+<a href="#model">model</a>, <a href="#radix">radix</a>, <a href="#reset">reset</a>, 
+<a href="#speed">speed</a>, <a href="status">status</a>, <a href="#terminate">terminate</a>
+</ul> 
+</ul>
+
+<ul><h3>Hardware Control Commands:</h3>
+<ul>
+<a href="#flags">flags</a>, <a href="#in">in</a>, <a href="#key">key</a>,
+<a href="#out">out</a>, <a href="#read_mem">read_mem</a>, <a href="#read_reg">read_reg</a>, 
+<a href="#string">string</a>, <a href="#write_mem">write_mem</a>, <a href="#write_reg">write_reg</a>
+<a href="#regs">a b c d e h l bc de hl pc sp</a>
+</ul>
+</ul>
+
+<ul><h3>Debug Commands:</h3>
+<ul>
+<a href="#clear_break">clear_break</a>, <a href="#dis">dis</a>, <a href="#halt">halt</a>, 
+<a href="#lcd_ignore">lcd_ignore</a>, <a href="#lcd_mon">lcd_mon</a>, 
+<a href="#list_break">list_break</a>, 
+<a href="#run">run</a>, <a href="#set_break">set_break</a>, 
+<a href="step">step</a>, 
+</ul>
+</ul>
+
+<hr>
+<h3><a name="clear_break">clear_break (cb)</a></h3>
+<ul><pre>
+parameters:  "all", address, "pc", "sp", "bc", "de", "hl"
+
+returns:     Ok
+             Parameter Error
+</pre>
+<p>This command clears the breakpoint specified by the argument.  If the argument
+is "all", then all breakpoints are cleared. 
+</ul>
+
+<hr>
+
+<h3><a name="cold_boot">cold_boot</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Ok
+</pre>
+<p>This command is used to cold boot the current emulation. 
+</ul>
+
+<hr>
+
+<h3><a name="dis">dis</a></h3>
+<ul><pre>
+parameters:  [address [lineCount]]
+
+returns:     Parameter error
+             Disassembled lines of code
+             Ok
+</pre>
+<p>Dissasemles object code using VirtualT's disassembler function.  Includes source code for
+the known addresses and variables.  The starting address can be supplied or ommited to 
+continue disassembly from the last disassembled address.  If the address is supplied, then 
+a line count can also be provided to specify the number of lines to disassemble.
+
+</ul>
+
+<hr>
+
+<h3><a name="flags">flags</a></h3>
+<ul><pre>
+parameters:  ["all", "s", "z", "c", "ac", "ts", "ov", "p"]
+             ["flag=1", "flag=0"]
+
+returns:     Parameter error
+             Current Flag status
+             Status of specified flags
+             Ok
+</pre>
+<p>Returns and/or sets specified flags.  If no parameters are specified, then the command
+will return a space delimeited list of flags that are currently set.  If one or more
+flag parameters are supplied, each parameter will be parsed and acted upon individually.
+Multiple flags can be read or set in the same command.  If the emulation is not halted,
+the value of each flag in a command my represent results from different CPU instructions.
+
+</ul>
+
+<hr>
+
+<h3><a name="halt">halt</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Ok
+</pre>
+<p>Halts exection of the 8085 CPU.  If the CPU is already halted, this command has no effect.
+
+</ul>
+
+<hr>
+
+<h3><a name="help">help</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Help information
+             Ok
+</pre>
+<p>Sends a formatted list of commands supported by the VirtualT socket interface.  Each
+help command is sent as a separate socket message and the list is terminated with the "Ok"
+response.
+
+</ul>
+
+<hr>
+
+<h3><a name="in">in</a></h3>
+<ul><pre>
+parameters:  portNumber
+
+returns:     Parameter error
+             Port read value
+             Ok
+</pre>
+<p>Reads the value of the specified port and returns the value using the current selected
+radix.
+
+</ul>
+
+<hr>
+
+<h3><a name="key">key</a></h3>
+<ul><pre>
+parameters:  keystroke list
+
+returns:     Parameter error
+             Ok
+</pre>
+<p>Simulates keystroke events on the keyboard.  The keystroke list can be any length
+and can consist of quoted string and/or special key symbols as described below.  The key
+stroke input will be timed and monitored based on emulation speed to 
+validate proper scanning by the keyboard ISR.  To specify the quote character as input in a
+quoted string precede the quote with the '\' character.  To specify the '\' character type '\\'. 
+<p><ul><pre>
+"  =  \"
+\  =  \\
+</pre></ul>
+
+Special key symbols are case insensitive.  The special key symbols are:
+<ul><p> enter, shift, code, graph, grph, esc, ctrl, tab, f1-f8, paste, label, print, pause,
+left, right, up, down, space, insert, ins, delete, del, bksp, back, backspace, home, end,
+pgup, pageup, pgdn, pagedown</ul>
+<p> Keystroke sequences can be specified using the "+" operator as shown below.  Keys in a 
+keystroke sequence will be pressed in a left-to-right order and depressed in a right-to-left
+order.
+<p><b>Examples</b>
+<ul><pre>
+key ctrl+c
+key graph+a
+key right enter "test.do" enter "This is data for \"TEXT\"" f8
+</pre></ul>
+
+</ul>
+
+<hr>
+
+<h3><a name="lcd_ignore">lcd_ignore (li)</a></h3>
+<ul><pre>
+parameters:  ["none", (row,col)-(row,col)] 
+
+returns:     Parameter error
+             List of active ignore regions
+             Ok
+</pre>
+<p>Specifies an ignore region on the LCD during LCD monitoring or returns a list
+of active ignore regions if no parameter is provided.  If the parameter is "none", 
+then all ignore regions are deleted.  If a parameter is specified, it must follow
+the format "(row, col)-(row, col)".  Up to 10 ignore regions can be defined.  During
+LCD monitoring, any data written to an ignore region will not be reported on the 
+socket interface.  This is useful when monitoring repetitive operations, such as
+time updates on the MENU, etc.
+</ul>
+
+<hr>
+
+<h3><a name="lcd_mon">lcd_mon (lm)</a></h3>
+<ul><pre>
+parameters:  ["on", "off"]
+
+returns:     Parameter error
+             Current state of LCD monitoring
+             Ok
+</pre>
+<p>Turns LCD monitoring on, off or reports the current activation state if no 
+parameer is provided.  During LCD monitoring, and data written to the LCD that is
+not part of an lcd_ignore region will be reported on the socket interface using
+an async event.  Data written to the LCD will be reported as strings as long as
+it is written to consecutive columns and the time between characters is less than 
+.75 seconds.
+<p>Turning LCD monitoring on and off does not affect the ignore regions.
+</ul>
+
+<hr>
+
+<h3><a name="list_break">list_break (lb)</a></h3>
+<ul><pre>
+parameters:  none 
+
+returns:     List of active breakpoints 
+             Ok
+</pre>
+<p>Returns a list of the breakpoints the debugger is actively monitoring, 
+one breakpoint per message.  Each breakpoint is reported using the current 
+radix in the following format:
+<ul><pre>
+address: validRegions
+</pre></ul>
+The validRegions field of the reported breakpoints reports the bank or banks in 
+which the breakpoint will be active.  This file will contain one or more of the
+following:
+<ul><pre>
+main mplan opt ram ram2 ram3
+</pre></ul>
+
+</ul>
+
+<hr>
+
+<h3><a name="load">load</a></h3>
+<ul><pre>
+parameters:  filename 
+
+returns:     Load Error
+             Ok
+</pre>
+<p>Loads the specified file from the Host OS into the emulated model's "filesystem".
+The file is loaded relative to the VirtualT working directory.  If the file cannot
+be loaded successfully, a "Load Error" message will be send to the socket interface.
+As with any "Load from Host" operation, this will force a system reset afte the 
+load is complete.
+
+</ul>
+
+<hr>
+
+<h3><a name="out">out</a></h3>
+<ul><pre>
+parameters:  address, value
+
+returns:     Parameter error
+             Ok
+</pre>
+<p>Performs a CPU 'out' instruction to the specified port, writing the specified data.  
+The out instruction is preformed asynchronously from the emulation.
+</ul>
+
+<hr>
+
+<h3><a name="radix">radix</a></h3>
+<ul><pre>
+parameters:  "10", "16"
+
+returns:     Parameter error
+             Ok
+</pre>
+<p>Specifies the radix that should be used when reporting address and data to the
+socket interface.  The radix parameter does not affect input data.  Input data will
+be parsed a standard C regardless of the radix setting. The default radix is 10 (decimal).  
+</ul>
+
+<hr>
+
+<h3><a name="read_mem">read_mem (rm)</a></h3>
+<ul><pre>
+parameters:  address [count]
+
+returns:     Data in current radix
+             Parameter error
+             Ok
+</pre>
+<p>Reads data from the CPU's 64K memory space and sends it to the socket interface formatted
+using the current radix.  If a count value is not specified, VirtualT returns a single byte
+of data.  Otherwise it will return 'count' bytes separated by spaces.  The data will be read 
+from the CPU's memory space at the time the command is received.  If an OptROM or ReMem 
+memory is mapped into the CPU address being requested, then that memory will be read.  
+</ul>
+
+<hr>
+
+<h3><a name="read_reg">read_reg (rr)</a></h3>
+<ul><pre>
+parameters:  "all", "a", "b", "c", "d", "e", "h", "l", "m"
+             "bc", "de", "hl", "pc", "sp"
+
+returns:     Data in current radix
+             xx
+             Ok
+</pre>
+<p>Reads one or more CPU register(s) as specified and sends the results to the socket 
+interface formatted using the current radix.  The parameters are case insensitive and
+must be separated with spaces.  If more than one input parameter is supplied,
+then the CPU values will be reported in the same order as the parameters, separated by
+spaces.  If the parameter "all" is given, all CPU registers will be read and reported
+in the following format:
+<ul><pre>
+A=## B=## C=## ...
+</pre></ul>
+<p><a name="regs"></a>As a shortcut, registers can also be read by sending a command with only the 
+name of the register and no arguments.  The register value will be returned, formatted
+using the current radix value.
+<p>This is a debug command and is intended to be used during a CPU halt condition.
+If multiple registers are requested while the CPU is running, no provisions are made to 
+ensure the registers are sampled during the same CPU cycle.
+
+<p><b>Examples</b>
+<ul><pre>
+read_reg bc
+rr HL m a sp PC
+</pre></ul>
+  
+</ul>
+
+<hr>
+
+<h3><a name="reset">reset</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Ok
+</pre>
+<p>Performs a emulation system reset.  Does not clear emulation memory.
+</ul>
+
+<hr>
+
+<h3><a name="run">run</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Ok
+</pre>
+<p>Resumes the CPU exectuion after a halt command or a breakpoint.  If the CPU is already
+running, this operation has no affect.
+</ul>
+
+<hr>
+
+<h3><a name="set_break">set_break (sb)</a></h3>
+<ul><pre>
+parameters:  address [validRegions]
+
+returns:     Parameter Error
+             Ok
+</pre>
+<p>Defines a new breakpoint for the integrated debugger.  Breakpoints can be defined for
+any address and can be valid for selected banks as determined by the optional validRegions
+paramter.  Valid values for this parameter are:
+<ul><pre>
+main opt mplan ram ram2 ram3
+</pre></ul>
+If no parameter is supplied for validRegions, then VirtualT will default the selection to 
+all banks that make sense for the specified address on the emulated model.  There is currently
+no provisions for saving breakpoint information between successive VirtualT sessions.
+
+</ul>
+
+<hr>
+
+<h3><a name="speed">speed</a></h3>
+<ul><pre>
+parameters:  "2.4", "friendly", "max"
+
+returns:     Parameter Error
+             Ok
+</pre>
+<p>Sets the emulation speed to the specified value.  Note that only one option is given for
+the CPU Friendly speed but the Speed menu item provides two seletions.  The friendly option
+in this command will set the speed to match the menu item "CPU Friendly". 
+
+</ul>
+
+<hr>
+
+<h3><a name="step">step</a></h3>
+<ul><pre>
+parameters:  [count]
+
+returns:     Parameter Error
+             Ok
+</pre>
+<p>Causes the CPU to execute one or more instruction beginning at the current Program 
+Counter (PC) location.  If no parameter is provided, a single instruction is executed, 
+otherwise 'count' instrutions will be executed.
+
+</ul>
+
+<hr>
+
+<h3><a name="string">string</a></h3>
+<ul><pre>
+parameters:  address
+
+returns:     String data
+             Ok
+</pre>
+<p>Reads data from the CPU's 64K memory space beginning at the address specified and 
+formats it as a NULL terminated string.  Data that is not ASCII text will be formatted
+using the current radix value and enclosed with '<>' characters. The resulting string 
+is written to the socket interface.
+
+</ul>
+
+<hr>
+
+<h3><a name="terminate">terminate</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Ok
+</pre>
+<p>Terminates the VirtualT session and forces a clean shutdown (RAM and Preferences
+will be saved).
+
+</ul>
+
+<hr>
+
+<h3><a name="write_mem">write_mem (wm)</a></h3>
+<ul><pre>
+parameters:  address data [data data ...]
+
+returns:     Ok
+</pre>
+<p>Writes data to the CPU's 64K memory space starting with the specified address.  For
+Base Memory emulation, write to the System ROM are allowed using this command.  For ReMem
+memory emulation, write operations will be dictated by the READ_ONLY bit for the address
+block being written.
+<p>No provisions are made by this command to halt the CPU while writing multiple memory locations.
+
+</ul>
+
+<hr>
+
+<h3><a name="write_reg">write_reg (wr)</a></h3>
+<ul><pre>
+parameters:  a=xx b=xx c=xx d=xx e=xx h=xx l=xx m=xx
+             bc=xx de=xx hl=xx sp=xx pc=xx
+
+returns:     Ok
+</pre>
+<p>Writes data to one or more CPU registers as specified by the parameters.  Register
+write parameters must be separated by spaces and must follow the syntax shown.  Input
+value will be parsed using standard C notation.
+<p>No provisions are made by this command to halt the CPU while writing multiple memory locations.
+
+</ul>
+
+<hr>
 
 </BODY>
 </HTML>
