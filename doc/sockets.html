@@ -80,9 +80,9 @@ event reporting is as follows:
 <h2><a name="debug">Debugger</A></h2>
 <p>The socket interface works with the integrated debugger to provide remote debug control
 over the VirtualT emulation.  Using this interface, the 8085 CPU can be halted, single
-stepped and resumed, breakpoints can be set and / or cleard, and all register and memory
+stepped and resumed, breakpoints can be set and / or cleared, and all register and memory
 can be read and written.
-<p>The debugger allwos breakpoints to be set for any memory address in the CPU's 64K
+<p>The debugger allows breakpoints to be set for any memory address in the CPU's 64K
 address range.  An unlimited number of breakpoints can be defined.  Each breakpoint can
 be defined to cause a break in CPU execution depending on the active ROM and/or RAM bank
 of the emulation.  Bank selection that should be monitored by the debugger is established
@@ -95,16 +95,16 @@ When a breakpoint is encountered, the debugger will halt the CPU execution and s
 <h2><a name="lcd">LCD Monitor</A></h2>
 <p>The socket interface provides a feature to monitor data sent to the LCD.
 This feature was added to help accomodate automated regression testing of VirtualT features
-and applications developed using VirtualT as the develoment platform.  
-<p>During LCD monitoring, the inegrated debugger is used for monitoring program execution 
+and applications developed using VirtualT as the development platform.  
+<p>During LCD monitoring, the integrated debugger is used for monitoring program execution 
 to trap function calls made to the "Character Level 6 Plotting" routine.  When a call to 
 this routine is detected, VirtualT extracts the plotted character and the curent row and 
 column position.  This data is then used to build strings of data representing the data 
 written to the LCD.
 <p>The LCD monitoring feature can be turned on or off using the <a href="#lcd_mon">
 lcd_mon</a> command.  Sometimes during LCD monitoring, it is desireable to ignore portions
-of the LCD to eliminate excessive socket messages for data that is written repettitevly, 
-such as time and date updated to the MENU.  To accomodate this, the user can define up to
+of the LCD to eliminate excessive socket messages for data that is written repetitively, 
+such as time and date updates on the MENU.  To accomodate this, the user can define up to
 10 "ignore regions" using the <a href="#lcd_ignore">lcd_ignore</a> command.  During
 LCD monitoring, the socket interface will discard any write operations when the
 curent row and column are bounded by one of the ignore regions.
@@ -113,7 +113,7 @@ curent row and column are bounded by one of the ignore regions.
 <h2><a name="commands">Commands</A></h2>
 <p>VirtualT accepts commands on the socket interface to control emulation options,
 access low-level hardware resources, and interface with the VirtualT debugger.  For
-commands that accept an address argument, address can be represented in decimal format
+commands that accept an address argument, addresses can be represented in decimal format
 or in hex format by pre-pending with the standard C "0x" syntax, such as 0xA31.  Addresses
 can also be specified by one of the 16 bit registers (pc, sp, bc, de, hl). 
 The commands that VirtualT supports are:
@@ -178,7 +178,7 @@ returns:     Parameter error
              Disassembled lines of code
              Ok
 </pre>
-<p>Dissasemles object code using VirtualT's disassembler function.  Includes source code for
+<p>Dissasemles object code using VirtualT's disassembler function.  Includes comments for
 the known addresses and variables.  The starting address can be supplied or ommited to 
 continue disassembly from the last disassembled address.  If the address is supplied, then 
 a line count can also be provided to specify the number of lines to disassemble.
@@ -199,7 +199,8 @@ returns:     Parameter error
 </pre>
 <p>Returns and/or sets specified flags.  If no parameters are specified, then the command
 will return a space delimeited list of flags that are currently set.  If one or more
-flag parameters are supplied, each parameter will be parsed and acted upon individually.
+flag parameters are supplied, each parameter will be parsed and acted upon individually,
+and the response data will be ordered to match the parameter order.
 Multiple flags can be read or set in the same command.  If the emulation is not halted,
 the value of each flag in a command my represent results from different CPU instructions.
 
@@ -251,7 +252,7 @@ radix.
 
 <h3><a name="key">key</a></h3>
 <ul><pre>
-parameters:  keystroke list
+parameters:  Keystroke list
 
 returns:     Parameter error
              Ok
@@ -260,7 +261,7 @@ returns:     Parameter error
 and can consist of quoted string and/or special key symbols as described below.  The key
 stroke input will be timed and monitored based on emulation speed to 
 validate proper scanning by the keyboard ISR.  To specify the quote character as input in a
-quoted string precede the quote with the '\' character.  To specify the '\' character type '\\'. 
+quoted string, precede the quote with the '\' character.  To specify the '\' character type '\\'. 
 <p><ul><pre>
 "  =  \"
 \  =  \\
@@ -312,7 +313,7 @@ returns:     Parameter error
              Ok
 </pre>
 <p>Turns LCD monitoring on, off or reports the current activation state if no 
-parameer is provided.  During LCD monitoring, and data written to the LCD that is
+parameter is provided.  During LCD monitoring, and data written to the LCD that is
 not part of an lcd_ignore region will be reported on the socket interface using
 an async event.  Data written to the LCD will be reported as strings as long as
 it is written to consecutive columns and the time between characters is less than 
@@ -336,7 +337,7 @@ radix in the following format:
 address: validRegions
 </pre></ul>
 The validRegions field of the reported breakpoints reports the bank or banks in 
-which the breakpoint will be active.  This file will contain one or more of the
+which the breakpoint will be active.  This field will contain one or more of the
 following:
 <ul><pre>
 main mplan opt ram ram2 ram3
@@ -355,8 +356,8 @@ returns:     Load Error
 </pre>
 <p>Loads the specified file from the Host OS into the emulated model's "filesystem".
 The file is loaded relative to the VirtualT working directory.  If the file cannot
-be loaded successfully, a "Load Error" message will be send to the socket interface.
-As with any "Load from Host" operation, this will force a system reset afte the 
+be loaded successfully, a "Load Error" message will be sent to the socket interface.
+As with any "Load from Host" operation, this will force a system reset after the 
 load is complete.
 
 </ul>
@@ -383,7 +384,7 @@ parameters:  "10", "16"
 returns:     Parameter error
              Ok
 </pre>
-<p>Specifies the radix that should be used when reporting address and data to the
+<p>Specifies the radix that should be used when reporting addresses and data to the
 socket interface.  The radix parameter does not affect input data.  Input data will
 be parsed a standard C regardless of the radix setting. The default radix is 10 (decimal).  
 </ul>
@@ -448,7 +449,7 @@ parameters:  none
 
 returns:     Ok
 </pre>
-<p>Performs a emulation system reset.  Does not clear emulation memory.
+<p>Performs an emulation system reset.  Does not clear emulation memory.
 </ul>
 
 <hr>
@@ -552,7 +553,7 @@ parameters:  address data [data data ...]
 returns:     Ok
 </pre>
 <p>Writes data to the CPU's 64K memory space starting with the specified address.  For
-Base Memory emulation, write to the System ROM are allowed using this command.  For ReMem
+Base Memory emulation, writes to the System ROM are allowed using this command.  For ReMem
 memory emulation, write operations will be dictated by the READ_ONLY bit for the address
 block being written.
 <p>No provisions are made by this command to halt the CPU while writing multiple memory locations.
@@ -570,7 +571,7 @@ returns:     Ok
 </pre>
 <p>Writes data to one or more CPU registers as specified by the parameters.  Register
 write parameters must be separated by spaces and must follow the syntax shown.  Input
-value will be parsed using standard C notation.
+values will be parsed using standard C notation.
 <p>No provisions are made by this command to halt the CPU while writing multiple memory locations.
 
 </ul>
