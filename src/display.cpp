@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.8 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.9 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1412,13 +1412,11 @@ void power_down()
 
 void process_windows_event()
 {
-        Fl::check();
-	return;
 	if (gOsDelay)
 #ifdef WIN32
 		Fl::wait(0.001);
 #elif defined(__APPLE__)
-        	Fl::check();
+        Fl::check();
 #else
 		Fl::wait(0.00001);
 #endif
