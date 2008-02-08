@@ -20,6 +20,17 @@ view / edit window, a memory editor, disassembler, etc.
 <HR>
 
 <h2><a name="cpu_reg">CPU Registers</a></h2>
+<p>The CPU Registers dialog shows the current status of the emulated 8085 CPU.  It provides
+display / edit fields for each of the register and flags.  The register fields are updated
+periodically during emulation to show CPU activity.  The periodic update can be disabled
+via the "Disable Real-time Trace" checkbox.  The register edit fields are read-only
+while the CPU is executing.  To enable editing of CPU registers, use the Stop pushbutton
+to halt the CPU emulation and activate the edit fields.
+
+<p>In addition to displaying CPU registers, the dialog provides limited debug capability 
+and a disassembly window.  The debug features consist of Stop, Step and Run buttons and
+four edit fields for specifying debug breakpoints and enabling and disabling them.
+<p>
 <img src="cpu_regs.jpg">
 
 <h2><a name="mem_edit">Memory Editor</a></h2>

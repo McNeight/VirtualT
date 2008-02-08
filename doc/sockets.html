@@ -73,8 +73,8 @@ event reporting is as follows:
 </pre>
 <p>The async events reported by VirtualT 1.0 are:
 <p><pre>
-   event, break, address        This indicates a breakpoint was encountered
-   event, lcdwrite, (r,c),data  This reports data written to the LCD at (r,c) 
+   event, break, PC=address     Indicates a breakpoint was encountered
+   event, lcdwrite, (r,c),data  Reports data written to the LCD at (r,c) 
 </pre>
 
 <h2><a name="debug">Debugger</A></h2>
@@ -87,6 +87,9 @@ address range.  An unlimited number of breakpoints can be defined.  Each breakpo
 be defined to cause a break in CPU execution depending on the active ROM and/or RAM bank
 of the emulation.  Bank selection that should be monitored by the debugger is established
 during the <a href="#set_break">set_break</a> command.  
+<p>Breakpoints can also be configured to monitor read and/or write access to specific addresses.
+To monitor an address for read or write operations, send a <a href="#set_break">set_break</a> command
+specifying the address with "read" and/or "write" parameters.
 <p>To perform debug operations, the integrated debugger must interogate the Program Counter (PC)
 before excution of every instruction to determine if an active breakpoint has been encountered.
 When a breakpoint is encountered, the debugger will halt the CPU execution and send an 
@@ -340,7 +343,7 @@ The validRegions field of the reported breakpoints reports the bank or banks in
 which the breakpoint will be active.  This field will contain one or more of the
 following:
 <ul><pre>
-main mplan opt ram ram2 ram3
+main mplan opt ram ram2 ram3 read write
 </pre></ul>
 
 </ul>
@@ -475,9 +478,10 @@ returns:     Parameter Error
 </pre>
 <p>Defines a new breakpoint for the integrated debugger.  Breakpoints can be defined for
 any address and can be valid for selected banks as determined by the optional validRegions
-paramter.  Valid values for this parameter are:
+paramter.  Additionally, breakpoints can be configured to halt CPU excution upon detection of
+a read and/or write to a specified address.  Valid values for this parameter are:
 <ul><pre>
-main opt mplan ram ram2 ram3
+main opt mplan ram ram2 ram3 read write
 </pre></ul>
 If no parameter is supplied for validRegions, then VirtualT will default the selection to 
 all banks that make sense for the specified address on the emulated model.  There is currently
