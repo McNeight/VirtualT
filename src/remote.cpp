@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.2 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.3 2008/02/08 13:32:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -252,7 +252,6 @@ int check_mem_access_break(void)
 	len = 1;
 	write = FALSE;
 	read = FALSE;
-
 	switch (ins)
 	{
 		case 0x02:	/* STAX B */
