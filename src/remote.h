@@ -1,6 +1,6 @@
 /* remote.h */
 
-/* $Id: remote.h,v 1.1.1.1 2008/01/07 06:46:11 kpettit1 Exp $ */
+/* $Id: remote.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -49,6 +49,8 @@ void	unlock_remote(void);
 #define	BPTYPE_RAM		0x08
 #define	BPTYPE_RAM2		0x10
 #define	BPTYPE_RAM3		0x20
+#define	BPTYPE_READ		0x40
+#define	BPTYPE_WRITE	0x80
 
 typedef struct
 {

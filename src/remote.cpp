@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.1 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.2 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -234,6 +234,167 @@ void handle_lcd_trap()
 
 /*
 =======================================================
+Test for memory read / write operations on monitored
+addresses and returns true if a breakpoint address 
+access is about to be executed.
+=======================================================
+*/
+int check_mem_access_break(void)
+{
+	unsigned char	ins;
+	int				address, len;
+	int				write, read;
+	int				mask;
+
+	// Get next instruction
+	ins = get_memory8(PC);
+	address = -1;		// Default to opcode that doesn't access memory
+	len = 1;
+	write = FALSE;
+	read = FALSE;
+
+	switch (ins)
+	{
+		case 0x02:	/* STAX B */
+			write = TRUE;
+		case 0x0A:	/* LDAX B */
+			read = !write;
+			address = BC;
+			break;
+
+		case 0x12:	/* STAX D */
+			write = TRUE;
+		case 0x1A:	/* LDAX D */
+			address = DE;
+			read = !write;
+			break;
+
+		case 0x32:	/* STA */
+			write = TRUE;
+		case 0x3A:	/* LDA */
+			address = (((int)get_memory8((unsigned short) (PC+1)))|(((int)get_memory8((unsigned short) (PC+2)))<<8));
+			read = !write;
+			break;
+
+		case 0x11:	/* LXI D */
+		case 0x21:	/* LXI H */
+		case 0x31:	/* LXI SP */
+			address = (int) (PC) | ((int) (PC) << 8);
+			read = TRUE;
+			len = 2;
+
+		case 0x22:	/* SHLD */
+			write = TRUE;
+		case 0x2A:	/* LHLD */
+			address = (((int)get_memory8((unsigned short) (PC+1)))|(((int)get_memory8((unsigned short) (PC+2)))<<8));
+			len = 2;
+			read = !write;
+			break;
+
+		case 0xD9:	/* SHLX */
+			address = DE;
+			write = TRUE;
+			read = FALSE;
+			len = 2;
+			break;
+
+		case 0xE3:	/* XTHL */
+			address = SP;
+			len = 2;
+			read = TRUE;
+			write = TRUE;
+			break;
+
+		case 0x34:	/* INR M */
+		case 0x35:	/* DCR M */
+			read = TRUE;
+			write = TRUE;
+			address = HL;
+			break;
+
+		case 0x36:	/* MVI M */
+		case 0x70:	/* MOV M,B */
+		case 0x71:	/* MOV M,C */
+		case 0x72:	/* MOV M,D */
+		case 0x73:	/* MOV M,E */
+		case 0x74:	/* MOV M,H */
+		case 0x75:	/* MOV M,L */
+		case 0x77:	/* MOV M,A */
+			write = TRUE;
+			address = HL;
+			break;
+
+		case 0x46:	/* MOV B,M */
+		case 0x4E:	/* MOV C,M */
+		case 0x56:	/* MOV D,M */
+		case 0x5E:	/* MOV E,M */
+		case 0x66:	/* MOV H,M */
+		case 0x6E:	/* MOV L,M */
+		case 0x7E:	/* MOV A,M */
+		case 0x86:	/* ADD M */
+		case 0x8E:	/* ADC M */
+		case 0x96:	/* SUB M */
+		case 0x9E:	/* SBB M */
+		case 0xA6:	/* ANA M */
+		case 0xAE:	/* XRA M */
+		case 0xB6:	/* ORA M */
+		case 0xBE:	/* CMP M */
+			read = true;
+			address = HL;
+			break;
+
+		case 0x38:	/* LDES */
+			read = TRUE;
+			address = PC + 1;
+			break;
+
+		case 0xC1:	/* POP B */
+		case 0xD1:	/* POP D */
+		case 0xE1:	/* POP H */
+		case 0xF1:	/* POP PSW */
+			address = SP;
+			len = 2;
+			read = TRUE;
+			break;
+
+		case 0xC5:	/* PUSH B */
+		case 0xD5:	/* PUSH D */
+		case 0xE5:	/* PUSH H */
+		case 0xF5:	/* PUSH PSW */
+			address = SP-2;
+			len = 2;
+			write = TRUE;
+			break;
+	}
+
+	// Test if opcode accesses memory.  If it does, test if the address accessed
+	// is monitored and if it is the proper read/write type
+	if (address != -1)
+	{
+		mask = 0;
+		if (read)
+			mask |= BPTYPE_READ;
+		if (write)
+			mask |= BPTYPE_WRITE;
+
+		// Test if the address is monitored for read / write
+		if (gRemoteBreak[address] & mask)
+		{
+			return TRUE;
+		}
+
+		if ((len == 2) && (address != 63353))
+		{
+			if (gRemoteBreak[address+1] & mask)
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+/*
+=======================================================
 Remote debug monitor routine.  This is called from the
 main execution thread and loop!
 =======================================================
@@ -292,6 +453,25 @@ void cb_remote_debug(int reason)
 			// Report break to client socket
 			if (gStopped)
 			{
+				if (gSocketOpened)
+				{
+					if (gRadix == 10)
+						sprintf(str, "event, break, PC=%d\n", PC);
+					else
+						sprintf(str, "event, break, PC=%04X\n", PC);
+					gOpenSock << str;
+				}
+			}
+		}
+		// Test for address read / write breakpoints
+		if (!gStopped)
+		{
+			if (check_mem_access_break())
+			{
+				// Stop the CPU
+				gStopped = 1;
+
+				// Report breakpoint to socket interface
 				if (gSocketOpened)
 				{
 					if (gRadix == 10)
@@ -1089,6 +1269,8 @@ std::string cmd_set_break(ServerSocket& sock, std::string& args)
 			if (next_arg == "opt") value |= BPTYPE_OPT;
 			if (next_arg == "mplan") value |= BPTYPE_MPLAN;
 			if (next_arg == "ram") value |= BPTYPE_RAM;
+			if (next_arg == "read") value |= BPTYPE_READ;
+			if (next_arg == "write") value |= BPTYPE_WRITE;
 		}
 		
 		if (value == 0)
@@ -1198,6 +1380,10 @@ std::string cmd_list_break(ServerSocket& sock, std::string& args)
 				strcat(str, "ram2 ");
 			if (gRemoteBreak[c] & BPTYPE_RAM3)
 				strcat(str, "ram3 ");
+			if (gRemoteBreak[c] & BPTYPE_READ)
+				strcat(str, "read ");
+			if (gRemoteBreak[c] & BPTYPE_WRITE)
+				strcat(str, "write ");
 			strcat(str, "\n");
 			sock << str;
 		}
