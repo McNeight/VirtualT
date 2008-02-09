@@ -34,14 +34,59 @@ four edit fields for specifying debug breakpoints and enabling and disabling the
 <img src="cpu_regs.jpg">
 
 <h2><a name="mem_edit">Memory Editor</a></h2>
+<p>The Memory Editor window allows the user to view and edit the Model T's memory space. 
+The dialog consists of a selection list to specify the memory region to be display, a panel
+to allow viewing and editing of the memory, and an edit field to show the address of the memory
+window cursor.  
+<p>The values in the list depend on the model being emulated and the selected memory configuration.
+When Base Memory emulation is enabled, the values will represent each of the banks for 
+the selected model.  When the ReMem or Rampac memory emulation is enabled, the list will contain
+options for RAM and Flash as needed.  When a particular bank is selected, the memory edit portion of the 
+dialog will be updated with the data for that bank.
+<p>The memory edit portion of the dialog shows the emulated memory in real-time and is not a
+copy of the memory.  This means changes are made "in-place" and are made immediately.  Their is
+no need to save or load.  Changes to the ROM space in Base Memory emulation mode will not be
+written to the ROM file.  As can be seen in the figure below, the edit window consist of an address
+field, a hex display field and an ASCII display field.  Data can be edited in either hex or ASCII
+formats.  Changes are always made in overwrite mode vs. insert mode.  Standard keyboard edit keys
+are supported such as left, right, pageup, etc.  The TAB key will move the cursor between the hex 
+and ASCII edit fields.  Additionally the cursor can be positioned anywhere in the edit window by
+clicking the mouse pointer in the desired location.
+<p>The address display field shows the absolute address of the current edit cursor.  There is
+currently no way to type an address and "move" to that location, but this feature will be added
+later.
+<p>
 <img src="mem_edit.jpg">
 
 <h2><a name="periph">Peripheral Devices</a></h2>
+<p>The Peripheral Devices dialog presents device monitor tabs for each of the Model T built-in
+peripherals.  Currently, only the COM peripheral is supported by VirtualT and therefore only
+the COM tab conatains monitor controls.  As emulation for additional peripheral is added, new
+functionality will be added to the appropriate monitor tab on this dialog.
+<p><h3>COM Peripheral Tab</h3>
+<p>This tab shows the current status of the integrated RS-232 Serial port and provides a serial
+port monitor window to display traffic on the port.  To enable this feature, select the 
+"Enable Capture" checkbox.  The HEX checkbox controls the data display format in the  port
+monitor window.
+<p>
 <img src="periph.jpg">
 
 <h2><a name="disassemble">Disassembler</a></h2>
+<p>The disassembler window provides a disassembly of the emulated model's System ROM.   Additional
+functionality will be added in a future release of VirtualT to extend this capability to
+disassemble user selected programs.
 
 <h2><a name="remem">ReMem Configuration</a></h2>
+<p>The ReMem Configuration Dialog provides edit controls for iewing and modifying the ReMem
+memory expansion emulation settings.  Controls are provided for both the current activation
+state and for editing the eight maps that control MMU operation.  Additionally, memory display
+windows are provided to indicate current RAM and Flash memory usage and mapping locations.
+<p>Maps are edtied by selecting the desired map, bank and vector updating the conrols provided.
+Vectors for a given map and bank can be updated sequentially with incrementing Map Data pointers
+to map consecutive 1K regions of RAM or Flash.  The Chip Select and Sector Lock bits will be
+copied.  To use this feature, select a starting vector and click "Copy Sequential".  All entries
+below the selected vector will be updated.
+<p>
 <img src="remem_cfg.jpg">
 
 <h2>
