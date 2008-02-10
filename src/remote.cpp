@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.3 2008/02/08 13:32:27 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.4 2008/02/08 19:16:30 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -51,7 +51,7 @@
 #include "roms.h"
 #include "romstrings.h"
 #include "disassemble.h"
-
+#include "file.h"
 
 #ifdef WIN32
 HANDLE				gRemoteThread;		// The remote control thread
@@ -129,6 +129,7 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "  list_break(lb)\n";
 	sock << "  load filename\n";
 	sock << "  model [m100 m102 t200 pc8201 m10]\n";
+	sock << "  optrom [unload, filename]\n";
 	sock << "  out port, value\n";
 	sock << "  radix [10 or 16]\n";
 	sock << "  read_mem(rm) address [count]\n";
@@ -996,6 +997,42 @@ std::string cmd_load(ServerSocket& sock, std::string& args)
 {
 	if (remote_load_from_host(args.c_str()))
 		return "Load Error\nOk";
+
+	return "Ok";
+}
+
+/*
+=======================================================
+Load command:  Loads a target file from the host
+=======================================================
+*/
+void cb_UnloadOptRom (Fl_Widget* w, void*);
+
+std::string cmd_optrom(ServerSocket& sock, std::string& args)
+{
+	int ret;
+
+	// 
+	if (args == "")
+	{
+		if (strlen(gsOptRomFile) == 0)
+			return "none\nOk";
+		sock << gsOptRomFile;
+		return "\nOk";
+	}
+
+	if (args == "unload")
+	{
+		cb_UnloadOptRom(NULL, NULL);
+		return "Ok";
+	}
+
+	// Load the optrom specified
+	ret = load_optrom_file(args.c_str());
+	if (ret == FILE_ERROR_INVALID_HEX)
+		return "Invalid hex file\nOk";
+	if (ret == FILE_ERROR_FILE_NOT_FOUND)
+		return "File not found\nOk";
 
 	return "Ok";
 }
@@ -2348,6 +2385,9 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 
 	else if (cmd_word == "trace")
 		ret = cmd_trace(sock, args);
+
+	else if (cmd_word == "optrom")
+		ret = cmd_optrom(sock, args);
 
 	return ret;
 }

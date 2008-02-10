@@ -1,6 +1,6 @@
 /* file.h */
 
-/* $Id: file.h,v 1.1 2004/08/21 06:46:11 kpettit1 Exp $ */
+/* $Id: file.h,v 1.4 2007/03/31 22:09:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -40,6 +40,10 @@ void cb_LoadOptRom (Fl_Widget* w, void*);
 void cb_UnloadOptRom (Fl_Widget* w, void*);
 void cb_LoadFromHost(Fl_Widget* w, void*);
 void cb_SaveToHost(Fl_Widget* w, void*);
+int  load_optrom_file(const char* filename);
+
+#define	FILE_ERROR_INVALID_HEX			1
+#define FILE_ERROR_FILE_NOT_FOUND		2
 
 extern int		BasicSaveMode;
 extern int		COSaveMode;

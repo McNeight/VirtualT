@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -50,7 +50,7 @@ extern "C"
 extern RomDescription_t *gStdRomDesc;
 void jump_to_zero(void);
 }
-
+#include "file.h"
 
 int		BasicSaveMode = 0;
 int		COSaveMode = 0;
@@ -77,16 +77,61 @@ void cb_SaveRam (Fl_Widget* w, void*)
 	FileWin->show();
 	
 }
+/*
+================================================================
+Load Option ROM using the specified filename.
+================================================================
+*/
+int load_optrom_file(const char* filename)
+{
+	int					len;
+	char				buffer[65536];
+	char				option_name[32];
+	unsigned short		start_addr;
+	FILE*				fd;
 
+	// Try to open file
+	if ((fd = fopen(filename, "r")) == NULL)
+	{
+		return FILE_ERROR_FILE_NOT_FOUND;
+	}
+	fclose(fd);
+
+	// Check for hex file
+	len = strlen(filename);
+	if (((filename[len-1] | 0x20) == 'x') &&
+		((filename[len-2] | 0x20) == 'e') &&
+		((filename[len=3] | 0x20) == 'h'))
+	{
+		// Check if hex file format is valid
+		len = load_hex_file((char *) filename, buffer, &start_addr);
+
+		if (len == 0)
+		{
+			return FILE_ERROR_INVALID_HEX;
+		}
+	}
+
+	// Save the selected file in the preferences
+	get_model_string(option_name, gModel);
+	strcat(option_name, "_OptRomFile");
+    virtualt_prefs.set(option_name, filename);
+
+	strcpy(gsOptRomFile, filename);
+
+	// Update menu
+	strcpy(gsMenuROM, fl_filename_name(gsOptRomFile));
+
+	load_opt_rom();
+
+	return 0;
+}
 
 void cb_LoadOptRom (Fl_Widget* w, void*)
 {
 	Fl_File_Chooser		*FileWin;
-	int					count, len;
-	char				buffer[65536];
-	char				option_name[32];
-	unsigned short		start_addr;
-
+	int					count;
+	int					ret;
 	const char			*filename;
 	
 	FileWin = new Fl_File_Chooser(".","*.{bin,hex}",1,"Load Optional ROM file");
@@ -111,33 +156,14 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 		return;
 	}
 
-	// Check for hex file
-	len = strlen(filename);
-	if (((filename[len-1] | 0x20) == 'x') &&
-		((filename[len-2] | 0x20) == 'e') &&
-		((filename[len=3] | 0x20) == 'h'))
-	{
-		// Check if hex file format is valid
-		len = load_hex_file((char *) filename, buffer, &start_addr);
+	ret = load_optrom_file((char*) filename);
 
-		if (len == 0)
-		{
-			fl_message("HEX file format invalid!");
-			return;
-		}
+	if (ret == FILE_ERROR_INVALID_HEX)
+	{
+		fl_message("HEX file format invalid!");
+		return;
 	}
 
-	// Save the selected file in the preferences
-	get_model_string(option_name, gModel);
-	strcat(option_name, "_OptRomFile");
-    virtualt_prefs.set(option_name, filename);
-
-	strcpy(gsOptRomFile, filename);
-
-	// Update menu
-	strcpy(gsMenuROM, fl_filename_name(gsOptRomFile));
-
-	load_opt_rom();
 	jump_to_zero();
 }
 

@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.9 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -460,7 +460,8 @@ void cb_UnloadOptRom (Fl_Widget* w, void*)
 	load_opt_rom();
 
 	// Reset the CPU
-	resetcpu();
+	if (w != NULL)
+		resetcpu();
 
 }
 
