@@ -5,9 +5,9 @@ VirtualT Release.txt
 
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
-=====================
-v1.0  January 17 2008
-=====================
+======================
+v1.0  February 10 2008
+======================
 
 1.  Fixed ReMem emulation in both Normal and MMU modes.  Memory mapping now consistent with
     an actual ReMem.  Emulation supports only the latest ReMem FW version (64, 65, 66).  In 
