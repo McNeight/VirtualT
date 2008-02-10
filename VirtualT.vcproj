@@ -1029,6 +1029,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\file.h"
+				>
+			</File>
+			<File
 				RelativePath=".\src\fl_usage_box.h"
 				>
 			</File>
