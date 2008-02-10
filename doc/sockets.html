@@ -124,8 +124,8 @@ The commands that VirtualT supports are:
 <ul><h3>Emulation Control Commands:</h3>
 <ul>
 <a href="#cold_boot">cold_boot</a>, <a href="#load">load</a>,
-<a href="#model">model</a>, <a href="#radix">radix</a>, <a href="#reset">reset</a>, 
-<a href="#speed">speed</a>, <a href="status">status</a>, <a href="#terminate">terminate</a>
+<a href="#model">model</a>, <a href="#optrom">optrom</a>, <a href="#radix">radix</a>, <a href="#reset">reset</a>, 
+<a href="#speed">speed</a>, <a href="#status">status</a>, <a href="#terminate">terminate</a>
 </ul> 
 </ul>
 
@@ -144,7 +144,7 @@ The commands that VirtualT supports are:
 <a href="#lcd_ignore">lcd_ignore</a>, <a href="#lcd_mon">lcd_mon</a>, 
 <a href="#list_break">list_break</a>, 
 <a href="#run">run</a>, <a href="#set_break">set_break</a>, 
-<a href="step">step</a>, 
+<a href="#step">step</a>, 
 </ul>
 </ul>
 
@@ -367,6 +367,27 @@ load is complete.
 
 <hr>
 
+<h3><a name="optrom">optrom</a></h3>
+<ul><pre>
+parameters:  ["unload", filename]
+
+returns:     none
+             Current option ROM filename
+             Invalid hex file
+             File not found
+             Ok
+</pre>
+<p>If the comand is sent with no parameters, VirtualT returns the name of the currently
+loaded option ROM or "none" if no option ROM is loaded.  If the parameter "unload" is 
+sent, VirtualT will unload the option ROM.  If a filename is provided, that file will
+be loaded into the Option ROM memory space, or an error will be returned if it cannot
+be loaded.
+<p>Unlike the menu item "Load / Unload option ROM", this command does not reset the CPU
+after loading or unloading a ROM.
+</ul>
+
+<hr>
+
 <h3><a name="out">out</a></h3>
 <ul><pre>
 parameters:  address, value
@@ -501,6 +522,24 @@ returns:     Parameter Error
 <p>Sets the emulation speed to the specified value.  Note that only one option is given for
 the CPU Friendly speed but the Speed menu item provides two seletions.  The friendly option
 in this command will set the speed to match the menu item "CPU Friendly". 
+
+</ul>
+
+<hr>
+
+<h3><a name="status">status</a></h3>
+<ul><pre>
+parameters:  none
+
+returns:     Current model and CPU status
+             Ok
+</pre>
+<p>Returns the current model and CPU running status in the following format:
+<ul><pre>
+Model=m100, CPU running
+Model=pc8201, CPU halted
+etc.
+</pre></ul>
 
 </ul>
 
