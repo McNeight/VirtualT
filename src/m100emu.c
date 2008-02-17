@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.10 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.11 2008/02/04 08:06:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,6 +56,7 @@
 #include "m100emu.h"
 #include "sound.h"
 #include "remote.h"
+#include "lpt.h"
 
 int		fullspeed=0;
 int		gModel = MODEL_M100;
@@ -78,6 +79,7 @@ FILE	*tracefile;
 DWORD	rst7cycles = 9830;
 DWORD	one_sec_cycle_count;
 DWORD	one_sec_time;
+DWORD	gLptTime;
 UINT64	one_sec_cycles;
 DWORD   update_secs = 0;
 float	cpu_speed;
@@ -765,6 +767,13 @@ void maint(void)
 	}
 	handle_simkey();
 	process_windows_event();
+
+	// Handle LPT Timeout Activity
+	if (one_sec_time != gLptTime)
+	{
+		gLptTime = one_sec_time;
+		handle_lpt_timeout(one_sec_time);
+	}
 }
 
 
@@ -1014,7 +1023,7 @@ main:	This is the main entry point for the VirtualT application.
 int main(int argc, char **argv)
 {
 	if (process_args(argc, argv))	/* Parse command line args */
-		return;
+		return 1;
 	
 	check_installation();		/* Test if install needs to be performed */
 	setup_unix_signals();		/* Setup Unix signal handling */
@@ -1032,6 +1041,7 @@ int main(int argc, char **argv)
 	init_display();				/* Initialize the Display */
 	init_cpu();					/* Initialize the CPU */
 	init_remote();				/* Initialize the remote control */
+	init_lpt();					/* Initialize the printer subsystem */
 
 	/* Perform Emulation */
 	emulate();					/* Main emulation loop */
@@ -1042,5 +1052,8 @@ int main(int argc, char **argv)
 	/* Cleanup */
 	deinit_io();				/* Deinitialize I/O */
 	deinit_sound();				/* Deinitialize sound */
+	deinit_lpt();				/* Deinitialize the printer */
 	free_mem();					/* Free memory used by ReMem and/or Rampac */
+
+	return 0;
 }

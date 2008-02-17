@@ -61,6 +61,7 @@ unsigned char	*gRampacSectPtr = 0;/* Pointer to current Sector memory */
 int				gRampacSaveSector = 0;	/* Rampac emulation Sector number */
 int				gRampacSaveCounter = 0;	/* Rampac emulation Counter */
 unsigned char	*gRampacSaveSectPtr = 0;/* Pointer to current Sector memory */
+int				gRampacEmulation = 0;/* ReMem's Rampac emulation active? */
 
 int				gIndex[65536];
 
@@ -486,6 +487,8 @@ void init_mem(void)
 	/* Set gReMem and gRampac based on preferences */
 	gReMem = (mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
 	gRampac = (mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
+	gRampacEmulation = 0;
+	gRampacSectPtr = NULL;
 
 	// Initialize ROM size base on current model
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
@@ -561,7 +564,6 @@ void init_mem(void)
 		gRampacSector = 0;
 		gRampacCounter = 0;
 		gRampacSectPtr = gRampacRam;
-
 	}
 }
 
@@ -1406,7 +1408,11 @@ int remem_in(unsigned char port, unsigned char *data)
 	int				ret = 0;	/* Indicate if port serviced or not */
 
 	/* Test if ReMem emulation is enabled */
-	if (!(gReMem | gRampac) || (gReMemRam == 0))
+	if (!(gReMem | gRampac))
+		return 0;
+
+	// Test if pointer for mode was allocated
+	if ((gReMem && !gReMemRam) || (gRampac && !gRampacRam))
 		return 0;
 
 	/* Process port number being accessed */
@@ -1468,10 +1474,12 @@ int remem_in(unsigned char port, unsigned char *data)
 				{
 					/* Past end of RAM, reset to start */
 					gRampacSector = 0;
-					if (gReMem && (gReMemMode & REMEM_MODE_RAMPAC))
+					if (gRampacEmulation)
 						gRampacSectPtr = gReMemRam + REMEM_RAMPAC_OFFSET;
-					else
+					else if (gRampac)
 						gRampacSectPtr = gRampacRam;
+					else
+						gRampacSectPtr = NULL;
 				}
 			}
 		}
@@ -1499,7 +1507,11 @@ int remem_out(unsigned char port, unsigned char data)
 	int				map;
 
 	/* Test if ReMem emulation is enabled */
-	if (!(gReMem | gRampac) || (gReMemRam == 0))
+	if (!(gReMem | gRampac))
+		return 0;
+
+	// Test if pointer for mode was allocated
+	if ((gReMem && !gReMemRam) || (gRampac && !gRampacRam))
 		return 0;
 
 	/* Process port number being accessed */
@@ -1552,34 +1564,42 @@ int remem_out(unsigned char port, unsigned char data)
 		*/
 		if ((data & REMEM_MODE_RAMPAC) && ((gReMemMode & REMEM_MODE_RAMPAC) == 0))
 		{
-			/* If Rampac is present, save global variables to restore later */
-			if (gRampac)
+			if (!gRampac || mem_setup.remem_override)
 			{
-				gRampacSaveSector = gRampacSector;
-				gRampacSaveCounter = gRampacCounter;
-				gRampacSaveSectPtr = gRampacSectPtr;
+				gRampacEmulation = TRUE;
+				/* If Rampac is present, save global variables to restore later */
+				if (gRampac)
+				{
+					gRampacSaveSector = gRampacSector;
+					gRampacSaveCounter = gRampacCounter;
+					gRampacSaveSectPtr = gRampacSectPtr;
+				}
+	
+				gRampacSector = 0;			/* Initialize sector number */
+				gRampacCounter = 0;			/* Initialize counter number */
+				gRampacSectPtr = gReMemRam + REMEM_RAMPAC_OFFSET;
 			}
-
-			gRampacSector = 0;			/* Initialize sector number */
-			gRampacCounter = 0;			/* Initialize counter number */
-			gRampacSectPtr = gReMemRam + REMEM_RAMPAC_OFFSET;
 		}
 		/* Check if we are disabling Rampac emulation */
 		else if (((data & REMEM_MODE_RAMPAC) == 0) && (gReMemMode & REMEM_MODE_RAMPAC))
 		{
-			/* If Rampac is present, restore registers from save variables */
-			if (gRampac)
+			gRampacEmulation = FALSE;
+			if (!gRampac || mem_setup.remem_override)
 			{
-				gRampacSector = gRampacSaveSector;
-				gRampacCounter = gRampacSaveCounter;
-				gRampacSectPtr = gRampacSaveSectPtr;
-			}
-			else
-			{
-				/* Clear all rampac variables */
-				gRampacSector = 0;			/* Initialize sector number */
-				gRampacCounter = 0;			/* Initialize counter number */
-				gRampacSectPtr = 0;
+				/* If Rampac is present, restore registers from save variables */
+				if (gRampac)
+				{
+					gRampacSector = gRampacSaveSector;
+					gRampacCounter = gRampacSaveCounter;
+					gRampacSectPtr = gRampacSaveSectPtr;
+				}
+				else
+				{
+					/* Clear all rampac variables */
+					gRampacSector = 0;			/* Initialize sector number */
+					gRampacCounter = 0;			/* Initialize counter number */
+					gRampacSectPtr = 0;
+				}
 			}
 		}
 
@@ -1704,11 +1724,13 @@ int remem_out(unsigned char port, unsigned char data)
 		gRampacCounter = 0;			/* Clear Rampac counter */
 
 		/* Initialize pointer to memory based on emulation mode */
-		if (gReMem && (gReMemMode & REMEM_MODE_RAMPAC))
+		if (gRampacEmulation)
 			gRampacSectPtr = gReMemRam + REMEM_RAMPAC_OFFSET + 
 				gRampacSector * RAMPAC_SECTOR_SIZE;
 		else if (gRampac)
 			gRampacSectPtr = gRampacRam + gRampacSector * RAMPAC_SECTOR_SIZE;
+		else
+			gRampacSectPtr = NULL;
 
 		ret = 1;						/* Indicate Port I/O processed */
 		break;
@@ -1729,10 +1751,13 @@ int remem_out(unsigned char port, unsigned char data)
 				{
 					/* Past end of RAM, reset to start */
 					gRampacSector = 0;
-					if (gReMem && (gReMemMode & REMEM_MODE_RAMPAC))
+			
+					if (gRampacEmulation)
 						gRampacSectPtr = gReMemRam + REMEM_RAMPAC_OFFSET;
-					else
+					else if (gRampac)
 						gRampacSectPtr = gRampacRam;
+					else
+						gRampacSectPtr = NULL;
 				}
 			}
 		}

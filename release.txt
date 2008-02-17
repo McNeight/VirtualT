@@ -6,6 +6,30 @@ VirtualT Release.txt
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
 ======================
+v1.1  Not Released Yet
+======================
+
+1.  Fixed a bug with Rampac Only emulation.  When this Memory Configuration was weleted, 
+    the I/O operations were returning without performing any action because they were 
+    checking for a NULL ReMem RAM pointer.
+
+2.  Fixed issue with Rampac and Base Memory file saving when switching the memory configurtion
+    from Rampac to ReMem + Rampac mode.
+
+3.  Added option to control whether ReMem's "Rampac Emulation" should override the Rampac
+    emulation mode.  When ReMem + Rampac mode is selected, ReMem can be configured to emulate 
+    the Rampac access method and write to ReMem memory space.  The Memory Setup dialog now
+    provides checkbox to control if Rampac accesses are directed to ReMem memory space or to
+    Rampac memory space during this condition.
+
+4.  Added LPT Device emulation support and configuration options on the Peripheral Setup dialog.
+
+5.  Added Emulated printer support for printing to Files and Host Port devices.
+
+6.  Added Beginnings of Epson FX-80 printer emulation.
+
+
+======================
 v1.0  February 10 2008
 ======================
 

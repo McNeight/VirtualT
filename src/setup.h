@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.3 2007/03/31 22:09:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -47,7 +47,7 @@ typedef struct peripheral_setup
 	int		com_mode;					// Mode for COM emulation
 	char	com_port[128];				// Port name of Host
 	char	com_cmd[128];				// Command file for simulation
-	char	com_other[128];				// Command file for simulation
+	char	com_other[256];				// Command file for simulation
 	int		com_throttle;				// Flag if serial I/O should be throttled
 
 	// LPT port emulation settings
@@ -67,6 +67,7 @@ extern peripheral_setup_t setup;
 typedef struct memory_setup
 {
 	int		mem_mode;					// Mode for Memory emulation
+	int		remem_override;				// Override setting for ReMem's Rampac
 	char	remem_file[256];			// Filename for ReMem storage
 	char	rampac_file[256];			// Filename for RamPac storage
 } memory_setup_t;

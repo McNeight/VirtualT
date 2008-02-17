@@ -1,0 +1,695 @@
+/* lpt.cpp */
+
+/* $Id: lpt.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+
+/*
+ * Copyright 2008 Ken Pettit
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ */
+
+#include <FL/Fl.H>
+#include <FL/fl_draw.H>
+#include <FL/Fl_Window.H>
+#include <FL/Fl_Round_Button.H>
+#include <FL/Fl_Check_Button.H>
+#include <FL/Fl_Return_Button.H>
+#include <FL/Fl_Input.H>
+#include <FL/Fl_Choice.H>
+#include <FL/Fl_Box.H>
+#include <FL/Fl_Preferences.H>
+#include <FL/fl_ask.H>
+
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#include "VirtualT.h"
+#include "lpt.h"
+#include "printer.h"
+#include "fileprint.h"
+#include "hostprint.h"
+#include "fx80print.h"
+
+extern Fl_Preferences	virtualt_prefs;
+typedef struct 
+{
+	Fl_Round_Button*	pNone;
+	Fl_Round_Button*	pEmul;
+	Fl_Choice*			pEmulPrint;
+	Fl_Check_Button*	pCRtoLF;
+	Fl_Check_Button*	pAutoFF;
+	Fl_Input*			pAFFtimeout;
+	Fl_Check_Button*	pAutoClose;
+	Fl_Input*			pCloseTimeout;
+} lptCtrl_t;
+
+extern "C" time_t one_sec_time;
+/*
+=======================================================
+Define global variables
+=======================================================
+*/
+VTLpt			*gLpt = NULL;
+lptCtrl_t		gLptCtrl;
+lpt_prefs_t		gLptPrefs;
+
+/*
+=======================================================
+Initialize the printer subsystem
+=======================================================
+*/
+void init_lpt(void)
+{
+	VTPrinter*	pPrint;
+
+	// If the LPT object doesn't exist, create it
+	if (gLpt == NULL)
+	{
+		gLpt = new VTLpt();
+		gLpt->UpdatePreferences(&virtualt_prefs);
+	}
+
+}
+
+/*
+=======================================================
+Deinitialize the printer subsystem
+=======================================================
+*/
+void deinit_lpt(void)
+{
+	// Deinitialize only if the object exists
+	if (gLpt != NULL)
+	{
+		gLpt->DeinitLpt();
+		delete gLpt;
+		gLpt = NULL;
+	}
+}
+
+/*
+=======================================================
+Send a byte to the printer subsystem.
+=======================================================
+*/
+void send_to_lpt(unsigned char byte)
+{
+	if (gLpt != NULL)
+	{
+		gLpt->SendToLpt(byte);
+	}
+}
+
+/*
+=======================================================
+Handle LPT device timeouts
+=======================================================
+*/
+void handle_lpt_timeout(unsigned long time)
+{
+	if (gLpt != NULL)
+		gLpt->HandleTimeouts(time);
+}
+
+/*
+=======================================================
+Callback routines for radio butons
+=======================================================
+*/
+void cb_lpt_radio_none(Fl_Widget* w, void*)
+{
+	gLptCtrl.pEmulPrint->deactivate();
+	gLptCtrl.pCRtoLF->deactivate();
+	gLptCtrl.pAutoFF->deactivate();
+	gLptCtrl.pAFFtimeout->deactivate();
+	gLptCtrl.pAutoClose->deactivate();
+	gLptCtrl.pCloseTimeout->deactivate();
+}
+
+void cb_lpt_radio_emul(Fl_Widget* w, void*)
+{
+	gLptCtrl.pEmulPrint->activate();
+	gLptCtrl.pCRtoLF->activate();
+	gLptCtrl.pAutoFF->activate();
+	gLptCtrl.pAFFtimeout->activate();
+	gLptCtrl.pAutoClose->activate();
+	gLptCtrl.pCloseTimeout->activate();
+}
+
+/*
+=======================================================
+Callback routine for Printer Properties menu item
+=======================================================
+*/
+void cb_printer_properties(Fl_Widget* w, void*)
+{
+	// Test if printer emulation is enabled
+
+	// Pass the Printer Properties task to the C++ obj
+	if (gLpt != NULL)
+		gLpt->PrinterProperties();
+}
+
+/*
+=======================================================
+Build the LPT tab on the Peripheral Setup dialog
+=======================================================
+*/
+void build_lpt_setup_tab(void)
+{
+	int 		c, count;
+	MString		name;
+	char		value[10];
+
+	// Create Radio button for "no emulation"
+	gLptCtrl.pNone = new Fl_Round_Button(20, 40, 110, 20, "No emulation");
+	gLptCtrl.pNone->type(FL_RADIO_BUTTON);
+	gLptCtrl.pNone->callback(cb_lpt_radio_none);
+
+	// Create Radio button for LPT emulation
+	gLptCtrl.pEmul = new Fl_Round_Button(20, 65, 160, 20, "Connect LPT to:");
+	gLptCtrl.pEmul->type(FL_RADIO_BUTTON);
+	gLptCtrl.pEmul->callback(cb_lpt_radio_emul);
+
+	// Create control to choose the printer emulation mode
+	gLptCtrl.pEmulPrint = new Fl_Choice(50, 90, 220, 20, "");
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pEmulPrint->deactivate();
+
+	gLptCtrl.pCRtoLF = new Fl_Check_Button(20, 120, 200, 20, "Convert lonely CR to LF");
+	gLptCtrl.pCRtoLF->value(gLptPrefs.lpt_cr2lf);
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pCRtoLF->deactivate();
+
+	gLptCtrl.pAutoFF = new Fl_Check_Button(20, 145, 240, 20, "Auto FormFeed after timeout (sec):");
+	gLptCtrl.pAutoFF->value(gLptPrefs.lpt_auto_ff);
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pAutoFF->deactivate();
+
+	gLptCtrl.pAFFtimeout = new Fl_Input(280, 145, 40, 20, "");
+	sprintf(value, "%d", gLptPrefs.lpt_aff_timeout);
+	gLptCtrl.pAFFtimeout->value(value);
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pAFFtimeout->deactivate();
+
+	gLptCtrl.pAutoClose = new Fl_Check_Button(20, 170, 240, 20, "Close Session after timeout (sec):");
+	gLptCtrl.pAutoClose->value(gLptPrefs.lpt_auto_close);
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pAutoClose->deactivate();
+
+	gLptCtrl.pCloseTimeout = new Fl_Input(280, 170, 40, 20, "");
+	sprintf(value, "%d", gLptPrefs.lpt_close_timeout);
+	gLptCtrl.pCloseTimeout->value(value);
+	if (gLptPrefs.lpt_mode != LPT_MODE_EMUL)
+		gLptCtrl.pCloseTimeout->deactivate();
+
+
+	// Add help text for setting up printer preferences
+	Fl_Box* o = new Fl_Box(20, 220, 300, 20, "Setup Printer Preferences from File menu");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Add items to the EmulPrint choice box
+	count = gLpt->GetPrinterCount();
+	for (c = 0; c < count; c++)
+	{
+		// Add name to the Choice list
+		name = gLpt->GetPrinter(c)->GetName();
+		gLptCtrl.pEmulPrint->add((const char *) name);
+
+		// Select the active printer in list
+		if (name == gLptPrefs.lpt_emul_name) 
+			gLptCtrl.pEmulPrint->value(c);
+	}
+
+	// Select the correct radio button base on preferences
+	if (gLptPrefs.lpt_mode == LPT_MODE_NONE)
+		gLptCtrl.pNone->value(1);
+	else if (gLptPrefs.lpt_mode == LPT_MODE_EMUL)
+		gLptCtrl.pEmul->value(1);
+}
+
+/*
+=============================================================================
+load_lpt_preferences:	Loads the emulated printer preferences from the Host.
+=============================================================================
+*/
+void load_lpt_preferences(Fl_Preferences* pPref)
+{
+	// Load the preferences
+	pPref->get("LptMode", gLptPrefs.lpt_mode, 0);
+	pPref->get("LptEmulName", gLptPrefs.lpt_emul_name, "", 64);
+	pPref->get("LptCRtoLF", gLptPrefs.lpt_cr2lf, 1);
+	pPref->get("LptAutoFF", gLptPrefs.lpt_auto_ff, 0);
+	pPref->get("LptAFFtimeout", gLptPrefs.lpt_aff_timeout, 10);
+	pPref->get("LptAutoClose", gLptPrefs.lpt_auto_close, 0);
+	pPref->get("LptCloseTimeout", gLptPrefs.lpt_close_timeout, 15);
+
+	if (gLpt != NULL)
+		gLpt->UpdatePreferences(pPref);
+}
+
+/*
+=============================================================================
+save_lpt_preferences:	Saves the emulated printer preferences to the Host.
+=============================================================================
+*/
+void save_lpt_preferences(Fl_Preferences* pPref)
+{
+	pPref->set("LptMode", gLptPrefs.lpt_mode);
+	pPref->set("LptEmulName", gLptPrefs.lpt_emul_name);
+	pPref->set("LptCRtoLF", gLptPrefs.lpt_cr2lf);
+	pPref->set("LptAutoFF", gLptPrefs.lpt_auto_ff);
+	pPref->set("LptAFFtimeout", gLptPrefs.lpt_aff_timeout);
+	pPref->set("LptAutoClose", gLptPrefs.lpt_auto_close);
+	pPref->set("LptCloseTimeout", gLptPrefs.lpt_close_timeout);
+
+	// Update the emulation properties in the Printer Class
+	if (gLpt != NULL)
+		gLpt->UpdatePreferences(pPref);
+}
+
+
+/*
+=============================================================================
+get_lpt_options:	Gets the LPT options from the Dialog Tab and saves them
+					to the preferences.  This routien is called when the
+					user selects "Ok".
+=============================================================================
+*/
+void get_lpt_options()
+{
+	// Check if "No Emulation" is selected
+	if (gLptCtrl.pNone->value())
+		gLptPrefs.lpt_mode = LPT_MODE_NONE;
+
+	// Check if "Emulated Printer" Emulation is selected
+	if (gLptCtrl.pEmul->value())
+		gLptPrefs.lpt_mode = LPT_MODE_EMUL;
+
+	// Get selection of the emulated printer
+	gLptPrefs.lpt_emul_name[0] = 0;
+	if (gLptCtrl.pEmulPrint->value() != -1)
+		strcpy(gLptPrefs.lpt_emul_name, gLptCtrl.pEmulPrint->text());
+
+	// Get the CRtoLF parameter
+	gLptPrefs.lpt_cr2lf = gLptCtrl.pCRtoLF->value();
+
+	// Get AutoFF parameter
+	gLptPrefs.lpt_auto_ff = gLptCtrl.pAutoFF->value();
+
+	// Get the AutoFFtimeout value
+	gLptPrefs.lpt_aff_timeout = atoi(gLptCtrl.pAFFtimeout->value());
+
+	// Get AutoClose parameter
+	gLptPrefs.lpt_auto_close = gLptCtrl.pAutoClose->value();
+
+	// Get the CloseTimeout value
+	gLptPrefs.lpt_close_timeout = atoi(gLptCtrl.pCloseTimeout->value());
+}
+
+/*
+================================================================================
+VTLpt:	This is the class construcor for the LPT Device emulation.
+================================================================================
+*/
+VTLpt::VTLpt(void)
+{
+	m_EmulationMode = 0;
+	m_ConvertCRtoLF = 0;
+	m_PortStatus = LPT_STATUS_IDLE;
+	m_PortTimeout = 0;
+	m_AFFSent = FALSE;
+
+	// Now create printers
+	VTPrinter *pPrint = new VTFilePrint();
+	m_Printers.Add(pPrint);
+
+	pPrint = new VTHostPrint();
+	m_Printers.Add(pPrint);
+
+	pPrint = new VTFX80Print();
+	m_Printers.Add(pPrint);
+
+	// Default to no active printer.  It will be selected later during
+	// Preferences update.
+	m_pActivePrinter = NULL;
+
+	m_pPref = NULL;
+}
+
+/*
+=======================================================
+SendToPrinter:	Sends a byte to the printer for further
+				emulation processing.
+=======================================================
+*/
+void VTLpt::SendToLpt(unsigned char byte)
+{
+	int		ret = PRINT_ERROR_NONE;
+
+	// Check if we are emulating a printer or not
+	if (!m_EmulationMode || (m_PortStatus == LPT_STATUS_ABORTED))
+		return;
+
+	if (m_pActivePrinter == NULL)
+		return;
+
+	// Test if byte is CR and to CRtoLF if needed
+	if (m_ConvertCRtoLF)
+	{
+		if (m_PrevChar == 0x0D)
+		{
+#ifndef WIN32
+			// Print the "reserved" 0x0D
+			ret = m_pActivePrinter->Print(0x0D);
+#endif
+
+			// If the current byte isn't 0x0A, send a 0x0A
+			if ((byte != 0x0A) && (ret == PRINT_ERROR_NONE))
+				ret = m_pActivePrinter->Print(0x0A);
+		}
+
+		// Test if this byte is 0x0D in case there are multiple in a row
+		if (byte == 0x0D)
+		{
+			m_PrevChar = 0x0D;
+			return;
+		}
+	}
+	
+	if (ret == PRINT_ERROR_NONE)
+	{
+		// Send byte to the active printer
+		ret = m_pActivePrinter->Print(byte);
+	}
+
+	// Check if printer operation cancelled
+	if (ret == PRINT_ERROR_ABORTED)
+	{
+		m_PortStatus = LPT_STATUS_ABORTED;
+		time(&m_PortTimeout);
+		return;
+	}
+
+	time(&m_PortActivity);
+	m_PortStatus = LPT_STATUS_READY;
+	m_AFFSent = FALSE;
+	m_PrevChar = byte;
+}
+
+/*
+=======================================================
+Handle LPT device timeouts.
+=======================================================
+*/
+void VTLpt::HandleTimeouts(unsigned long time)
+{
+	unsigned long		timeout;
+
+	// Check if port is IDLE
+	if (m_PortStatus == LPT_STATUS_IDLE)
+		return;
+
+	// Check if we are emulating a printer
+	if (m_EmulationMode == LPT_MODE_NONE)
+		return;
+
+	// Check for aborted print timeout
+	if (m_PortStatus == LPT_STATUS_ABORTED)
+	{
+		if ((gLptPrefs.lpt_close_timeout > 0) && (gLptPrefs.lpt_close_timeout < 60))
+			timeout = gLptPrefs.lpt_close_timeout;
+		else
+			timeout = 15;
+
+		// Check if we have timed out or not
+		if (m_PortTimeout + timeout <= time)
+			m_PortStatus = LPT_STATUS_IDLE;
+
+		// Nothing else to do...port is in timeout mode
+		return;
+	}
+
+	// Check for Auto FormFeed timeout
+	if ((gLptPrefs.lpt_auto_ff) && (!m_AFFSent))
+	{
+		// Get AFF Timeout value and check for bounds
+		if ((gLptPrefs.lpt_aff_timeout > 0) && (gLptPrefs.lpt_aff_timeout < 60))
+			timeout = gLptPrefs.lpt_aff_timeout;
+		else
+			timeout = 15;
+
+		// Check if timeout has expired
+		if (m_PortActivity + timeout <= time)
+		{
+			// Mark AFF as sent so we only send one
+			m_AFFSent = TRUE;
+			if (m_pActivePrinter != NULL)
+				m_pActivePrinter->SendAutoFF();
+		}
+	}
+
+	// Check for session close timeout
+	if (gLptPrefs.lpt_auto_close)
+	{
+		// Get Auto Close Timeout value and check for bounds
+		if ((gLptPrefs.lpt_close_timeout > 0) && (gLptPrefs.lpt_close_timeout < 60))
+			timeout = gLptPrefs.lpt_close_timeout;
+		else
+			timeout = 15;
+
+		// Test if the auto session close timeout has expired
+		if (m_PortActivity + timeout <= time)
+		{
+			// Ensure we have an valid printer pointer
+			if (m_pActivePrinter != NULL)
+				m_pActivePrinter->EndPrintSession();
+
+			// Change the port status
+			m_PortStatus = LPT_STATUS_IDLE;
+			m_PrevChar = 0;
+		}
+	}
+}
+
+/*
+=======================================================
+DeinitPrinter:	Deinitialized the printer subsystem
+				and cleans up all memory, etc.
+=======================================================
+*/
+void VTLpt::DeinitLpt(void)
+{
+	int 		count, c;
+	VTPrinter*	pPrint;
+
+	// Delete all registered printer objects
+	count = m_Printers.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pPrint = (VTPrinter*) m_Printers.GetAt(c);
+		delete pPrint;
+	}
+
+	m_Printers.RemoveAll();
+}
+
+
+/*
+=========================================================================
+Callback routines for the PrinterProperties dialog
+=========================================================================
+*/
+void cb_PrintProp_Ok(Fl_Widget*w, void*)
+{
+	gLpt->PrinterPropOk();
+}
+
+void cb_PrintProp_Cancel(Fl_Widget*w, void*)
+{
+	gLpt->PrinterPropCancel();
+}
+
+/*
+=========================================================================
+Generates a Printer Properties dialog box based on the current emulation
+mode with parameters appropriate for the "printer" needs.
+=========================================================================
+*/
+void VTLpt::PrinterProperties(void)
+{
+	Fl_Box*	o;
+
+	// Test if printer emulation is enabled
+	if (m_EmulationMode == LPT_MODE_NONE)
+	{
+		fl_message("Printer emulation not enabled");
+		return;
+	}
+
+	// Create a dialog box first
+	m_pProp = new Fl_Window(400, 350, "Printer Properties");
+	
+	// Test if emulation is Host mode
+	if (m_EmulationMode == LPT_MODE_EMUL)
+	{
+		if (m_pActivePrinter != NULL)
+			m_pActivePrinter->BuildPropertyDialog();
+	}
+
+	// Create Ok and Cancel button
+	m_pCancel = new Fl_Button(235, 310, 60, 30, "Cancel");
+	m_pCancel->callback(cb_PrintProp_Cancel);
+
+	m_pOk = new Fl_Return_Button(310, 310, 60, 30, "Ok");
+	m_pOk->callback(cb_PrintProp_Ok);
+
+	// Show the dialog box
+	m_pProp->end();
+	m_pProp->show();
+}
+
+/*
+=========================================================================
+Updates the Preferences from the global gLptPrefs object and sets up any
+necessary variables for emulation if the modes change.
+=========================================================================
+*/
+void VTLpt::UpdatePreferences(Fl_Preferences* pPref)
+{
+	int			count, c;
+	VTPrinter*	pPrint;
+
+	// Save the preferences pointer
+	if (pPref != NULL)
+		m_pPref = pPref;
+
+	// Test if the emulation mode is being changed
+	if (m_EmulationMode != gLptPrefs.lpt_mode)
+	{
+		// Test if an active print job is still pending completion
+		if (m_pActivePrinter != NULL)
+		{
+			// Test if the printer is changing
+			if (m_pActivePrinter->GetName() != gLptPrefs.lpt_emul_name)
+				m_pActivePrinter->EndPrintSession();
+			m_pActivePrinter->Deinit();
+		}
+	}
+
+	// Set the new emulation mode
+	m_EmulationMode = gLptPrefs.lpt_mode;
+	m_ConvertCRtoLF = gLptPrefs.lpt_cr2lf;
+
+	// If emulation is enabled, get pointer to the Priner Class 
+	m_pActivePrinter = NULL;
+	if (m_EmulationMode == LPT_MODE_EMUL)
+	{
+		count = GetPrinterCount();
+		for (c = 0; c < count; c++)
+		{
+			// Get pointer to next printer
+			pPrint = GetPrinter(c);
+			if (strcmp(gLptPrefs.lpt_emul_name, (const char *) 
+				pPrint->GetName()) == 0)
+			{
+				m_pActivePrinter = pPrint;
+				break;
+			}
+		}
+	}
+
+	// Initialize the active printer
+	if (m_pActivePrinter != NULL)
+		m_pActivePrinter->Init(m_pPref);
+}
+
+/*
+=========================================================================
+Returns the number of printers registered with the Lpt object
+=========================================================================
+*/
+int VTLpt::GetPrinterCount(void)
+{
+	return m_Printers.GetSize();
+}
+
+/*
+=========================================================================
+Returns a pointer to a specific printer
+=========================================================================
+*/
+VTPrinter* VTLpt::GetPrinter(int index)
+{
+	if (index >= m_Printers.GetSize())
+		return NULL;
+
+	return (VTPrinter*) m_Printers.GetAt(index);
+}
+
+/*
+=========================================================================
+Handles the "Ok" button of the Printer Properties Dialog.
+=========================================================================
+*/
+void VTLpt::PrinterPropOk(void)
+{
+	int		err;
+
+	// Ensure the dialog exists
+	if (m_pProp == NULL)
+		return;
+
+	// Tell the active printer to update and validate preferences
+	if (m_pActivePrinter != NULL)
+	{
+		if ((err = m_pActivePrinter->GetProperties()))
+		{
+			// Handle error
+
+			return;
+		}
+	}
+
+	// Hide and destroy the dialog
+	m_pProp->hide();
+	delete m_pProp;
+}
+
+/*
+=========================================================================
+Handles the "Cancel" button of the Printer Properties Dialog.
+=========================================================================
+*/
+void VTLpt::PrinterPropCancel(void)
+{
+	// Kill the dialog box if it exists
+	if (m_pProp != NULL)
+	{
+		m_pProp->hide();
+		delete m_pProp;
+		m_pProp = NULL;
+	}
+}
+

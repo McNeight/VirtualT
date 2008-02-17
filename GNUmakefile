@@ -19,7 +19,7 @@ CLIENT		=	vt_client
 
 FLTKCONFIG	=	$(FLTKDIR)/fltk-config
 FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
-VPATH		=	src:vt_client_src:obj
+VPATH		=	src:obj
 
 LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
 LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
@@ -43,7 +43,8 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				a85parse.cpp assemble.cpp MString.cpp MStringArray.cpp rpn_eqn.cpp vtobj.cpp \
 				Flu_DND.cpp flu_pixmaps.cpp Flu_Tree_Browser.cpp FluSimpleString.cpp ide.cpp \
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
-				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp
+				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
+				fileprint.cpp hostprint.cpp fx80print.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -79,7 +80,7 @@ else
 endif
 
 # ========================
-# Rule to link vt_client
+# Rule to build vt_client
 # ========================
 $(CLIENT):		$(CLIENT_OBJS)
 ifndef FLTKDIR
@@ -126,25 +127,30 @@ $(OBJECTS) $(OBJECTSCPP): m100emu.h GNUmakefile VirtualT.h
 $(CLIENT_OBJS):	socket.h
 
 disassemble.o:	disassemble.h io.h cpu.h periph.h memedit.h romstrings.h
-display.o:		display.h io.h file.h setup.h periph.h memory.h memedit.h
+display.o:		display.h io.h file.h setup.h periph.h memory.h memedit.h lpt.h
 doins.o:		cpu.h io.h
 file.o:			memory.h roms.h intelhex.h
-io.o:			cpu.h gen_defs.h io.h serial.h display.h setup.h memory.h
+io.o:			cpu.h gen_defs.h io.h serial.h display.h setup.h memory.h lpt.h
 intelhex.o:		intelhex.h
 m100emu.o:		io.h cpu.h doins.h display.h genwrap.h filewrap.h roms.h \
-				intelhex.h setup.h memory.h do_instruct.h
+				intelhex.h setup.h memory.h do_instruct.h lpt.h
 memedit.o:		memedit.h disassemble.h memory.h cpu.h
 memory.o:		memory.h cpu.h io.h intelhex.h setup.h
-periph.o:		periph.h serial.h setup.h display.h disassemble.h
+periph.o:		periph.h serial.h setup.h display.h disassemble.h lpt.h
 serial.o:		serial.h setup.h display.h
 rememcfg.o:		rememcfg.h setup.h display.h
 fl_usage_box.o: fl_usage_box.h
-setup.o:		setup.h io.h serial.h memory.h memedit.h
+setup.o:		setup.h io.h serial.h memory.h memedit.h lpt.h
 sound.c:		sound.h
 m100rom.o m102rom.o m200rom.o n8201rom.o romstrings.o m10rom.o: roms.h romstrings.h
 remote.o:		remote.cpp m100emu.h socket.h serversocket.h socketexception.h
 socket.o:		socket.h
 serversocket.o:	serversocket.h
+lpt.o:			lpt.h printer.h fileprint.h hostprint.h fx80print.h
+printer.o:		printer.h
+fileprint.o:	printer.h fileprint.h vtobj.h MString.h
+hostprint.o:	printer.h hostprint.h vtobj.h MString.h
+fx80print.o:	printer.h fx80print.h vtobj.h MString.h
 
 # ==========
 # asm files

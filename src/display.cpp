@@ -56,6 +56,7 @@
 #include "memedit.h"
 #include "cpuregs.h"
 #include "rememcfg.h"
+#include "lpt.h"
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
@@ -606,6 +607,7 @@ Fl_Menu_Item menuitems[] = {
 		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
 		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
 		{ 0 },
+	{ "Printer Properties...",  0, cb_printer_properties, 0, FL_MENU_DIVIDER },
 //	{ "Load RAM...",      0,      cb_LoadRam, 0 },
 //	{ "Save RAM...",      0,      cb_SaveRam, 0, 0 },
 //	{ "RAM Snapshots...", 0,      0, 0, FL_MENU_DIVIDER },

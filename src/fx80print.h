@@ -1,9 +1,9 @@
-/* VirtualT.h */
+/* fx80print.h */
 
-/* $Id: VirtualT.h,v 1.8 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: fx80print.h,v 1.0 2008/02/15 14:42:51 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2008 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,23 +28,36 @@
  */
 
 
-#ifndef _VIRTUALT_H_
-#define _VIRTUALT_H_
+#ifndef _FX80PRINT_H_
+#define _FX80PRINT_H_
 
-#define VERSION	"1.1"
+#include "printer.h"
 
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-	,MODEL_PC8201
-	,MODEL_M10
-	,MODEL_PC8300
+/*
+==========================================================================
+Define the VTFX80Print class.  This is an implementation of a printer 
+that emulates an Epson FX-80 impact printer and send the output to PNG
+or Postscript.  It can also write directly to a host printer.
+==========================================================================
+*/
+class VTFX80Print : public VTPrinter
+{
+public:
+	VTFX80Print();
+
+	virtual MString		GetName();					// Get name of the printer
+	virtual void		BuildPropertyDialog();		// Build dialog for FX80
+	virtual int			GetProperties(void);		// Get dialog properties and save
+	virtual int			GetBusyStatus(void);
+	virtual void		SendAutoFF(void);			// Send FormFeed if needed
+	virtual void		Deinit(void);				// Deinit routine
+
+protected:
+	virtual void		PrintByte(unsigned char byte);	// Send byte to FX80 emulation
+	virtual void		Init(void);					// Init routine
+	virtual int			OpenSession(void);			// Open a new print session
+	virtual int			CloseSession(void);			// Closes the active print session
 };
 
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
 #endif
 
-#endif

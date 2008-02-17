@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.7 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.8 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,6 +54,7 @@
 #include "memedit.h"
 #include "io.h"
 #include "file.h"
+#include "lpt.h"
 
 extern	Fl_Preferences virtualt_prefs;
 void init_menus(void);
@@ -76,6 +77,7 @@ typedef struct setup_ctrl_struct
 	struct 
 	{
 		Fl_Group*			g;
+		Fl_Box*				pText;
 	} lpt;
 	struct 
 	{
@@ -106,6 +108,7 @@ typedef struct memory_ctrl_struct
 	Fl_Round_Button*	pReMem;
 	Fl_Round_Button*	pRampac;
 	Fl_Round_Button*	pReMem_Rampac;
+	Fl_Check_Button*	pReMemOverride;
 	Fl_Input*			pReMemFile;
 	Fl_Input*			pRampacFile;
 	Fl_Button*			pReMemBrowse;
@@ -143,6 +146,7 @@ void save_setup_preferences(void)
 	virtualt_prefs.set("ComOther", setup.com_other);
 
 	// Save LPT emulation settings
+	save_lpt_preferences(&virtualt_prefs);
 
 	// Save MDM emulation settings
 
@@ -169,6 +173,7 @@ void load_setup_preferences(void)
 	virtualt_prefs.get("ComOther", setup.com_other,"", 128);
 
 	// Load LPT emulation settings
+	load_lpt_preferences(&virtualt_prefs);
 
 	// Load MDM emulation settings
 
@@ -279,14 +284,17 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// ===========================
 	// Get LPT options
 	// ===========================
+	get_lpt_options();
 
 	// ===========================
 	// Get MDM options
 	// ===========================
+//	get_mdm_options();
 
 	// ===========================
 	// Get CAS options
 	// ===========================
+//	get_cas_options();
 
 	// ===========================
 	// Get BCR options
@@ -295,6 +303,7 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// ===========================
 	// Get Sound options
 	// ===========================
+//	get_sound_options();
 
 	// Save setup preferences to file
 	save_setup_preferences();
@@ -441,7 +450,8 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 			setup_ctrl.lpt.g = new Fl_Group(10, 30, 350, 260, " LPT ");
 
 			// Create controls
-			setup_ctrl.mdm.pText = new Fl_Box(120, 60, 60, 80, "Parallel Port not supported yet");
+//			setup_ctrl.lpt.pText = new Fl_Box(120, 60, 60, 80, "Parallel Port not supported yet");
+			build_lpt_setup_tab();
 
 			// End of control for this tab
 			setup_ctrl.lpt.g->end();
@@ -523,10 +533,14 @@ void save_memory_preferences(void)
 
 	get_model_string(str, gModel);
 
-	// Save COM emulation settings
+	// Save Memory emulation settings
 	strcpy(pref, str);
 	strcat(pref, "_MemMode");
 	virtualt_prefs.set(pref, mem_setup.mem_mode);
+
+	strcpy(pref, str);
+	strcat(pref, "_ReMemOverride");
+	virtualt_prefs.set(pref, mem_setup.remem_override);
 
 	strcpy(pref, str);
 	strcat(pref, "_ReMemFile");
@@ -558,6 +572,11 @@ void load_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_MemMode");
 	virtualt_prefs.get(pref, mem_setup.mem_mode,0);
+
+	// Load ReMemOverride setting
+	strcpy(pref, str);
+	strcat(pref, "_ReMemOverride");
+	virtualt_prefs.get(pref, mem_setup.remem_override,1);
 
 	// Load ReMem filename base on Model
 	strcpy(pref, str);
@@ -599,6 +618,14 @@ void cb_memory_OK(Fl_Widget* w, void*)
 
 	/* 
 	===================================================
+	Save Base memory if needed
+	===================================================
+	*/
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE))
+		save_ram();
+
+	/* 
+	===================================================
 	First check if ReMem memory needs to be deallocated
 	===================================================
 	*/
@@ -620,7 +647,7 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
 	{
 		// Check if we are turning Host port emulation off
-		if (mem_ctrl.pRampac->value() != 1)
+		if ((mem_ctrl.pRampac->value() != 1) && (mem_ctrl.pReMem_Rampac->value() != 1))
 		{
 			save_rampac_ram();		// Write Rampac memory to file
 			free_rampac_mem();		// Deallocate Rampac memory
@@ -648,9 +675,20 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	// Get Show Version setting
 	gShowVersion = mem_ctrl.pShowVersion->value();
 
+	// Get ReMemOverride settin
+	mem_setup.remem_override = mem_ctrl.pReMemOverride->value();
+
 	// Allocate ReMem and / or Rampac memory if not already
 	init_mem();
 	init_menus();
+
+	/* 
+	===================================================
+	Load Base memory if needed
+	===================================================
+	*/
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE))
+		load_ram();
 
 	// If we are in ReMem or ReMem_Rampac mode, check if ReMem filename changed
 	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
@@ -781,6 +819,7 @@ void cb_radio_base_memory (Fl_Widget* w, void*)
 {
 	mem_ctrl.pRampacFile->deactivate();
 	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemOverride->deactivate();
 	mem_ctrl.pReMemFile->deactivate();
 	mem_ctrl.pReMemBrowse->deactivate();
 	mem_ctrl.pReMemText->hide();
@@ -790,6 +829,7 @@ void cb_radio_remem (Fl_Widget* w, void*)
 {
 	mem_ctrl.pReMemFile->activate();
 	mem_ctrl.pReMemBrowse->activate();
+	mem_ctrl.pReMemOverride->deactivate();
 	mem_ctrl.pRampacFile->deactivate();
 	mem_ctrl.pRampacBrowse->deactivate();
 	mem_ctrl.pReMemText->show();
@@ -799,6 +839,7 @@ void cb_radio_rampac (Fl_Widget* w, void*)
 {
 	mem_ctrl.pRampacFile->activate();
 	mem_ctrl.pRampacBrowse->activate();
+	mem_ctrl.pReMemOverride->deactivate();
 	mem_ctrl.pReMemFile->deactivate();
 	mem_ctrl.pReMemBrowse->deactivate();
 	mem_ctrl.pReMemText->hide();
@@ -808,6 +849,7 @@ void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
 {
 	mem_ctrl.pReMemFile->activate();
 	mem_ctrl.pReMemBrowse->activate();
+	mem_ctrl.pReMemOverride->activate();
 	mem_ctrl.pRampacFile->activate();
 	mem_ctrl.pRampacBrowse->activate();
 	mem_ctrl.pReMemText->show();
@@ -912,13 +954,19 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	if (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC)
 		mem_ctrl.pReMem_Rampac->value(1);
 
+	mem_ctrl.pReMemOverride = new Fl_Check_Button(210, 95, 210, 20, "ReMem overrides Rampac");
+	if (mem_setup.remem_override)
+		mem_ctrl.pReMemOverride->value(1);
+	if (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC)
+		mem_ctrl.pReMemOverride->deactivate();
+
 	// ===============================================
 	// Setup Rampac File Edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRampacFile = new Fl_Input(105, 120, 210, 20, "RamPac File");
+	mem_ctrl.pRampacFile = new Fl_Input(105, 130, 210, 20, "RamPac File");
 	mem_ctrl.pRampacFile->value(mem_setup.rampac_file);
 
-	mem_ctrl.pRampacBrowse =	new Fl_Button(330, 115, 60, 30, "Browse");
+	mem_ctrl.pRampacBrowse =	new Fl_Button(330, 125, 60, 30, "Browse");
     mem_ctrl.pRampacBrowse->callback((Fl_Callback*)cb_rampac_browse);
 
 	if ((mem_setup.mem_mode != SETUP_MEM_RAMPAC) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
@@ -930,12 +978,12 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	// ===============================================
 	// Setup ReMem File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pReMemFile = new Fl_Input(105, 160, 210, 20, "ReMem  File");
+	mem_ctrl.pReMemFile = new Fl_Input(105, 170, 210, 20, "ReMem  File");
 	mem_ctrl.pReMemFile->value(mem_setup.remem_file);
-    mem_ctrl.pReMemText = new Fl_Box(45, 180, 325, 20, "(Use Memory Editor to load FLASH)");
+    mem_ctrl.pReMemText = new Fl_Box(45, 190, 325, 20, "(Use Memory Editor to load FLASH)");
     mem_ctrl.pReMemText->labelsize(12);
 
-	mem_ctrl.pReMemBrowse = new Fl_Button(330, 155, 60, 30, "Browse");
+	mem_ctrl.pReMemBrowse = new Fl_Button(330, 165, 60, 30, "Browse");
     mem_ctrl.pReMemBrowse->callback((Fl_Callback*)cb_remem_browse);
 
 	if ((mem_setup.mem_mode != SETUP_MEM_REMEM) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
@@ -946,18 +994,18 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	}
 
 	// Option ROM RW Enable
-	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 200, 210, 20, "Make Option ROM R/W");
+	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 210, 210, 20, "Make Option ROM R/W");
 	mem_ctrl.pOptRomRW->value(gOptRomRW);
 
 	// Show Version Checkbox
-	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 230, 210, 20, "Patch ROM on load to show VirtualT version");
+	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 240, 210, 20, "Patch ROM on load to show VirtualT version");
 	mem_ctrl.pShowVersion->value(gShowVersion);
 
 	// OK button
-    { Fl_Button* o = new Fl_Button(160, 270, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(140, 270, 60, 30, "Cancel");
       o->callback((Fl_Callback*)cb_memory_cancel);
     }
-    { Fl_Return_Button* o = new Fl_Return_Button(230, 270, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(220, 270, 60, 30, "OK");
       o->callback((Fl_Callback*)cb_memory_OK);
     }
 
