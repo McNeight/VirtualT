@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.11 2008/02/04 08:06:44 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.12 2008/02/17 13:25:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,6 +56,7 @@
 #include "m100emu.h"
 #include "sound.h"
 #include "remote.h"
+#include "serial.h"
 #include "lpt.h"
 
 int		fullspeed=0;
@@ -855,6 +856,7 @@ void emulate(void)
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
 					maint();
+					ser_poll();
 					check_interrupts();
 					if (gOsDelay)
 						nxtmaint=gMaintCount;
