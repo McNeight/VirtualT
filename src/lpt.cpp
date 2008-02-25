@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -33,10 +33,12 @@
 #include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Return_Button.H>
+#include <FL/Fl_Menu_Button.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Preferences.H>
+#include <FL/Fl_Pixmap.H>
 #include <FL/fl_ask.H>
 
 #include <string.h>
@@ -50,8 +52,10 @@
 #include "fileprint.h"
 #include "hostprint.h"
 #include "fx80print.h"
+#include "fl_action_icon.h"
 
 extern Fl_Preferences	virtualt_prefs;
+extern Fl_Action_Icon*	gpPrint;
 typedef struct 
 {
 	Fl_Round_Button*	pNone;
@@ -64,7 +68,87 @@ typedef struct
 	Fl_Input*			pCloseTimeout;
 } lptCtrl_t;
 
+// Define a Printer bitmap
+char* print_xpm[] = {
+"18 18 14 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"                  ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pwwwwp      ",
+"    ghpwwwwphg    ",
+"    g#pwwwwp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeegew. ",
+" .gggllllllllggg. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pwbbnp..... ",
+"      pwbbnp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"                  ",
+};
+
+
+// Define a Cancel Printer bitmap
+char* cancel_print_xpm[] = {
+"18 18 15 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"r	c #d00000",
+"                  ",
+" r    pppppp    r ",
+"  r   pwwwwp   r  ",
+"   r  pwwwwp  r   ",
+"    rhpwwwwphr    ",
+"    grpwwwwprg    ",
+" .....r....r..... ",
+" .wwgeereereegww. ",
+" .wegeeerreeegew. ",
+" .ggglllrrlllggg. ",
+" .mmgllrllrllgmm. ",
+" .mmvvr####rvvmm. ",
+" .ggvrpnnnnprvgg. ",
+" ...r.pwbbnp.r... ",
+"   r  pwbbnp  r   ",
+"  r   pwwwwp   r  ",
+" r    pppppp    r ",
+"                  ",
+};
+
+Fl_Pixmap	gPrinterIcon(print_xpm);
+Fl_Pixmap	gCancelPrinterIcon(cancel_print_xpm);
+
 extern "C" time_t one_sec_time;
+
 /*
 =======================================================
 Define global variables
@@ -168,8 +252,44 @@ void cb_printer_properties(Fl_Widget* w, void*)
 
 	// Pass the Printer Properties task to the C++ obj
 	if (gLpt != NULL)
-		gLpt->PrinterProperties();
+		gLpt->PrinterProperties(FALSE);
 }
+
+void cb_LptPrintSetup(Fl_Widget* w, void*)
+{
+	if (gLpt != NULL)
+		gLpt->PrinterProperties(TRUE);
+}
+
+void cb_LptCancelPrint(Fl_Widget* w, void*)
+{
+	if (gLpt != NULL)
+		gLpt->CancelPrintJob();
+}
+
+void cb_LptPrintNow(Fl_Widget* w, void*)
+{
+	if (gLpt != NULL)
+		gLpt->EndPrintSession();
+}
+
+void cb_LptResetPrint(Fl_Widget* w, void*)
+{
+	if (gLpt != NULL)
+		gLpt->ResetPrinter();
+}
+
+/*
+====================================================================
+Define a menu for printer icon popup
+====================================================================
+*/
+Fl_Menu_Item	gPrintMenu[] = {
+	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0},
+	{ "Reset Printer",   0,     cb_LptResetPrint,    0,   FL_MENU_INVISIBLE},
+	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INACTIVE},
+	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INACTIVE}
+};
 
 /*
 =======================================================
@@ -226,8 +346,10 @@ void build_lpt_setup_tab(void)
 
 
 	// Add help text for setting up printer preferences
-	Fl_Box* o = new Fl_Box(20, 220, 300, 20, "Setup Printer Preferences from File menu");
-	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	Fl_Button* b = new Fl_Button(20, 210, 120, 30, "Printer Setup");
+	b->callback(cb_printer_properties);
+	//Fl_Box* o = new Fl_Box(20, 220, 300, 20, "Setup Printer Preferences from File menu");
+	//o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
 	// Add items to the EmulPrint choice box
 	count = gLpt->GetPrinterCount();
@@ -408,11 +530,21 @@ void VTLpt::SendToLpt(unsigned char byte)
 	if (ret == PRINT_ERROR_ABORTED)
 	{
 		m_PortStatus = LPT_STATUS_ABORTED;
+		gpPrint->label("Abrt");
+		gpPrint->set_image(&gCancelPrinterIcon);
+		gPrintMenu[1].flags = 0;
+		//gpPrint->redraw();
 		time(&m_PortTimeout);
 		return;
 	}
 
 	time(&m_PortActivity);
+	if (m_PortStatus != LPT_STATUS_READY)
+	{
+		gpPrint->label("Pend");
+		gPrintMenu[2].flags = 0;
+		gPrintMenu[3].flags = 0;
+	}
 	m_PortStatus = LPT_STATUS_READY;
 	m_AFFSent = FALSE;
 	m_PrevChar = byte;
@@ -445,7 +577,17 @@ void VTLpt::HandleTimeouts(unsigned long time)
 
 		// Check if we have timed out or not
 		if (m_PortTimeout + timeout <= time)
+		{
 			m_PortStatus = LPT_STATUS_IDLE;
+			gpPrint->set_image(&gPrinterIcon);
+			gpPrint->label("Idle");
+		}
+		else
+		{
+			sprintf(m_TimeStr, "%d", m_PortTimeout + timeout - time);
+			gpPrint->label(m_TimeStr);
+		}
+
 
 		// Nothing else to do...port is in timeout mode
 		return;
@@ -489,6 +631,14 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			// Change the port status
 			m_PortStatus = LPT_STATUS_IDLE;
 			m_PrevChar = 0;
+			gpPrint->label("Idle");
+			gPrintMenu[2].flags = FL_MENU_INACTIVE;
+			gPrintMenu[3].flags = FL_MENU_INACTIVE;
+		}
+		else
+		{
+			sprintf(m_TimeStr, "%d", m_PortActivity + timeout - time);
+			gpPrint->label(m_TimeStr);
 		}
 	}
 }
@@ -521,9 +671,9 @@ void VTLpt::DeinitLpt(void)
 Callback routines for the PrinterProperties dialog
 =========================================================================
 */
-void cb_PrintProp_Ok(Fl_Widget*w, void*)
+void cb_PrintProp_Ok(Fl_Widget*w, void* printer)
 {
-	gLpt->PrinterPropOk();
+	gLpt->PrinterPropOk((VTPrinter*) printer);
 }
 
 void cb_PrintProp_Cancel(Fl_Widget*w, void*)
@@ -537,25 +687,72 @@ Generates a Printer Properties dialog box based on the current emulation
 mode with parameters appropriate for the "printer" needs.
 =========================================================================
 */
-void VTLpt::PrinterProperties(void)
+void VTLpt::PrinterProperties(int useActivePrinter)
 {
-	Fl_Box*	o;
+	Fl_Box*		o;
+	int			count, c;
+	int			found;
+	VTPrinter*	pPrint = NULL;
 
 	// Test if printer emulation is enabled
-	if (m_EmulationMode == LPT_MODE_NONE)
+	if (useActivePrinter)
 	{
-		fl_message("Printer emulation not enabled");
-		return;
+		if (m_EmulationMode == LPT_MODE_NONE)
+		{
+			fl_message("Printer emulation not enabled");
+			return;
+		}
+		if (m_pActivePrinter == NULL)
+		{
+			fl_message("Printer not selected");
+			return;
+		}
+	}
+	else
+	{
+		if (!gLptCtrl.pEmul->value())
+		{
+			fl_message("Printer emulation not enabled");
+			return;
+		}
+		if (m_pActivePrinter == NULL)
+		{
+			fl_message("Printer not selected");
+			return;
+		}
 	}
 
 	// Create a dialog box first
 	m_pProp = new Fl_Window(400, 350, "Printer Properties");
 	
-	// Test if emulation is Host mode
-	if (m_EmulationMode == LPT_MODE_EMUL)
+	// Create property page from selected printer
+	count = GetPrinterCount();
+	for (c = 0; c < count; c++)
 	{
-		if (m_pActivePrinter != NULL)
-			m_pActivePrinter->BuildPropertyDialog();
+		// Get pointer to next printer
+		pPrint = GetPrinter(c);
+
+		found = 0;
+		if (useActivePrinter)
+		{
+			if (pPrint == m_pActivePrinter)
+				found = 1;
+		}
+		else
+		{
+			if (strcmp(gLptCtrl.pEmulPrint->text(), (const char *) 
+				pPrint->GetName()) == 0)
+					found = 1;
+		}
+		if (found)
+		{
+			if (pPrint != m_pActivePrinter)
+				pPrint->Init(m_pPref);
+			pPrint->BuildPropertyDialog();
+			if (pPrint != m_pActivePrinter)
+				pPrint->Deinit();
+			break;
+		}
 	}
 
 	// Create Ok and Cancel button
@@ -563,7 +760,7 @@ void VTLpt::PrinterProperties(void)
 	m_pCancel->callback(cb_PrintProp_Cancel);
 
 	m_pOk = new Fl_Return_Button(310, 310, 60, 30, "Ok");
-	m_pOk->callback(cb_PrintProp_Ok);
+	m_pOk->callback(cb_PrintProp_Ok, pPrint);
 
 	// Show the dialog box
 	m_pProp->end();
@@ -653,7 +850,7 @@ VTPrinter* VTLpt::GetPrinter(int index)
 Handles the "Ok" button of the Printer Properties Dialog.
 =========================================================================
 */
-void VTLpt::PrinterPropOk(void)
+void VTLpt::PrinterPropOk(VTPrinter* pPrint)
 {
 	int		err;
 
@@ -662,14 +859,16 @@ void VTLpt::PrinterPropOk(void)
 		return;
 
 	// Tell the active printer to update and validate preferences
-	if (m_pActivePrinter != NULL)
+	if (pPrint != NULL)
 	{
-		if ((err = m_pActivePrinter->GetProperties()))
+		if ((err = pPrint->GetProperties()))
 		{
 			// Handle error
 
 			return;
 		}
+		if (pPrint != m_pActivePrinter)
+			pPrint->Deinit();
 	}
 
 	// Hide and destroy the dialog
@@ -691,5 +890,54 @@ void VTLpt::PrinterPropCancel(void)
 		delete m_pProp;
 		m_pProp = NULL;
 	}
+}
+
+/*
+=========================================================================
+End the current print session and send to the "printer".
+=========================================================================
+*/
+void VTLpt::EndPrintSession(void)
+{
+	if (m_pActivePrinter != NULL)
+	{
+		m_pActivePrinter->EndPrintSession();
+		gpPrint->label("Idle");
+		gPrintMenu[2].flags = FL_MENU_INACTIVE;
+		gPrintMenu[3].flags = FL_MENU_INACTIVE;
+		m_PortStatus = LPT_STATUS_IDLE;
+		m_PrevChar = 0;
+	}
+}
+
+/*
+=========================================================================
+Reset the ABORT status of the printer
+=========================================================================
+*/
+void VTLpt::ResetPrinter(void)
+{
+	gpPrint->set_image(&gPrinterIcon);
+	gpPrint->label("Idle");
+	m_PortStatus = LPT_STATUS_IDLE;
+	m_PrevChar = 0;
+	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
+}
+
+/*
+=========================================================================
+Cancel the current rint job.
+=========================================================================
+*/
+void VTLpt::CancelPrintJob(void)
+{
+	if (m_pActivePrinter != NULL)
+		m_pActivePrinter->CancelPrintJob();
+
+	gpPrint->label("Idle");
+	m_PortStatus = LPT_STATUS_IDLE;
+	m_PrevChar = 0;
+	gPrintMenu[2].flags = FL_MENU_INACTIVE;
+	gPrintMenu[3].flags = FL_MENU_INACTIVE;
 }
 

@@ -1,6 +1,6 @@
 /* fileprint.h */
 
-/* $Id: fileprint.h,v 1.0 2008/02/15 14:42:51 kpettit1 Exp $ */
+/* $Id: fileprint.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -51,6 +51,7 @@ public:
 	virtual void		SendAutoFF(void);			// Send a FF to printer
 	void				UpdateFormatForPage(void);
 	virtual void		Deinit(void);				// Deinit routine
+	virtual int			CancelPrintJob(void);
 
 protected:
 	virtual void		Init(void);					// Initialization routine

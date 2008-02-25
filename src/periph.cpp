@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.6 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -420,6 +420,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			strcpy(periph_ctrl.com.sDeltaTime, "");
 
 			ser_get_signals(&periph_ctrl.com.cSignal);
+			printf("cSignal = %x\n", periph_ctrl.com.cSignal);
 
 			periph_ctrl.com.pRTS = new Fl_Box(FL_OVAL_BOX, 490, 47+MENU_HEIGHT, 12, 12, "");
 			periph_ctrl.com.pRTS->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);

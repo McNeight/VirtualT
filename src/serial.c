@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.9 2008/01/26 14:38:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1202,16 +1202,23 @@ int ser_set_signals(unsigned char flags)
 
 		ioctl(sp.fd, TIOCMGET, &status);
 
-		if (flags & SER_SIGNAL_DTR) {
+		if (flags & SER_SIGNAL_DTR) 
+		{
 			status |=  TIOCM_DTR;
-		} else {
+			sp.dtrState = 1;	
+		} else 
+		{
 			status &= ~TIOCM_DTR;
+			sp.dtrState = 0;
 		}
 
-		if (flags & SER_SIGNAL_RTS) {
+		if (flags & SER_SIGNAL_RTS) 
+		{
 			status |=  TIOCM_RTS;
+			sp.rtsState = 1;
 		} else {
 			status &= ~TIOCM_RTS;
+			sp.rtsState = 0;
 		}
 
 		ioctl(sp.fd, TIOCMSET, &status);
@@ -1261,13 +1268,22 @@ int ser_get_flags(unsigned char *flags)
 			
 			*flags = 0;
 
-			// Set CTS flag
-			if ((modem_status & MS_CTS_ON) == 0)
-				*flags |= SER_FLAG_CTS;
+	`		if (setup.com_ignore_flow)
+			{
+				if (sp.dtrState == DTR_CONTROL_ENABLE);
+					*flags |= SER_FLAG_CTS;
+				if (sp.rtsState == RTS_CONTROL_ENABLE)
+					*flags |= SER_FLAG_CTS;
+			}
+			{
+				// Set CTS flag
+				if ((modem_status & MS_CTS_ON) == 0)
+					*flags |= SER_FLAG_CTS;
 
-			// Set DSR flag
-			if ((modem_status & MS_DSR_ON) == 0)
-				*flags |= SER_FLAG_DSR;
+				// Set DSR flag
+				if ((modem_status & MS_DSR_ON) == 0)
+					*flags |= SER_FLAG_DSR;
+			}
 
 			// RING flag
 			if (modem_status & MS_RING_ON)
@@ -1295,9 +1311,20 @@ int ser_get_flags(unsigned char *flags)
 			int status;
 			ioctl(sp.fd, TIOCMGET, &status);
 
+			if (setup.com_ignore_flow)
+			{
+				if (sp.dtrState);
+					*flags |= SER_FLAG_DSR;
+				if (sp.rtsState)
+					*flags |= SER_FLAG_CTS;
+			}
+			else
+			{
+				// interpret flags
+				if (!(status & TIOCM_CTS)) *flags |= SER_FLAG_CTS;
+				if (!(status & TIOCM_DSR)) *flags |= SER_FLAG_DSR;
+			}
 			// interpret flags
-			if (!(status & TIOCM_CTS)) *flags |= SER_FLAG_CTS;
-			if (!(status & TIOCM_DSR)) *flags |= SER_FLAG_DSR;
 			if (  status & TIOCM_RNG ) *flags |= SER_FLAG_RING;
 
 			// synthesized flags
@@ -1347,13 +1374,24 @@ int ser_get_signals(unsigned char *flags)
 			
 			*flags = 0;
 
-			// Set CTS flag
-			if (modem_status & MS_CTS_ON)
-				*flags |= SER_SIGNAL_CTS;
+			if (setup.com_ignore_flow)
+			{
+				// Set RTS flag
+				if (sp.rtsState == RTS_CONTROL_ENABLE)
+					*flags |= SER_SIGNAL_CTS;
+				if (sp.dtrState == DTR_CONTROL_ENABLE)
+					*flags |= SER_SIGNAL_DSR;
+			}
+			else
+			{
+				// Set CTS flag
+				if (modem_status & MS_CTS_ON)
+					*flags |= SER_SIGNAL_CTS;
 
-			// Set DSR flag
-			if (modem_status & MS_DSR_ON)
-				*flags |= SER_SIGNAL_DSR;
+				// Set DSR flag
+				if (modem_status & MS_DSR_ON)
+					*flags |= SER_SIGNAL_DSR;
+			}
 
 			// Set RTS flag
 			if (sp.rtsState == RTS_CONTROL_ENABLE)
@@ -1363,18 +1401,28 @@ int ser_get_signals(unsigned char *flags)
 			if (sp.dtrState == DTR_CONTROL_ENABLE)
 				*flags |= SER_SIGNAL_DTR;
 
+
 		#else
 		{
 
 			int status;
 			ioctl(sp.fd, TIOCMGET, &status);
 
+			*flags = 0;
+
 			// interpret flags
-			if (status & TIOCM_CTS) *flags |= SER_SIGNAL_CTS;
-			if (status & TIOCM_DSR) *flags |= SER_SIGNAL_DSR;
+			if (setup.com_ignore_flow)
+			{
+				if (status & TIOCM_RTS) *flags |= SER_SIGNAL_CTS;
+				if (status & TIOCM_DTR) *flags |= SER_SIGNAL_DSR;
+			}
+			else
+			{
+				if (status & TIOCM_CTS) *flags |= SER_SIGNAL_CTS;
+				if (status & TIOCM_DSR) *flags |= SER_SIGNAL_DSR;
+			}
 			if (status & TIOCM_RTS) *flags |= SER_SIGNAL_RTS;
 			if (status & TIOCM_DTR) *flags |= SER_SIGNAL_DTR;
-
 		}
 
 		#endif

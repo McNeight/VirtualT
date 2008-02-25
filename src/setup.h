@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.3 2007/03/31 22:09:17 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.4 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -49,6 +49,7 @@ typedef struct peripheral_setup
 	char	com_cmd[128];				// Command file for simulation
 	char	com_other[256];				// Command file for simulation
 	int		com_throttle;				// Flag if serial I/O should be throttled
+	int		com_ignore_flow;			// Set if flow control is ignored
 
 	// LPT port emulation settings
 

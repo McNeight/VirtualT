@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.8 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.9 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -73,6 +73,7 @@ typedef struct setup_ctrl_struct
 		Fl_Choice*			pPort;
 		Fl_Round_Button*	pOther;
 		Fl_Input*			pOtherName;
+		Fl_Check_Button*	pIgnoreFlow;
 	} com;
 	struct 
 	{
@@ -144,6 +145,7 @@ void save_setup_preferences(void)
 	virtualt_prefs.set("ComCmd", setup.com_cmd);
 	virtualt_prefs.set("ComPort", setup.com_port);
 	virtualt_prefs.set("ComOther", setup.com_other);
+	virtualt_prefs.set("ComIgnoreFlow", setup.com_ignore_flow);
 
 	// Save LPT emulation settings
 	save_lpt_preferences(&virtualt_prefs);
@@ -171,6 +173,7 @@ void load_setup_preferences(void)
 	virtualt_prefs.get("ComCmd",  setup.com_cmd,"", 128);
 	virtualt_prefs.get("ComPort", setup.com_port,"", 128);
 	virtualt_prefs.get("ComOther", setup.com_other,"", 128);
+	virtualt_prefs.get("ComIgnoreFlow", setup.com_ignore_flow, 0);
 
 	// Load LPT emulation settings
 	load_lpt_preferences(&virtualt_prefs);
@@ -280,6 +283,8 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		ser_set_port(setup.com_other);
 		ser_open_port();
 	}
+
+	setup.com_ignore_flow = setup_ctrl.com.pIgnoreFlow->value();
 
 	// ===========================
 	// Get LPT options
@@ -402,18 +407,21 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 			setup_ctrl.com.pHost->type(FL_RADIO_BUTTON);
 			setup_ctrl.com.pHost->callback(cb_com_radio_host);
 
-			setup_ctrl.com.pPort = new Fl_Choice(50, 140, 240, 20, "");
+			setup_ctrl.com.pPort = new Fl_Choice(50, 137, 240, 20, "");
 			if (setup.com_mode != SETUP_COM_HOST)
 				setup_ctrl.com.pPort->deactivate();
 
-			setup_ctrl.com.pOther = new Fl_Round_Button(20, 170, 180, 20, "Other Host Port");
+			setup_ctrl.com.pOther = new Fl_Round_Button(20, 165, 180, 20, "Other Host Port");
 			setup_ctrl.com.pOther->type(FL_RADIO_BUTTON);
 			setup_ctrl.com.pOther->callback(cb_com_radio_other);
 
-			setup_ctrl.com.pOtherName = new Fl_Input(50, 195, 240, 20, "");
+			setup_ctrl.com.pOtherName = new Fl_Input(50, 185, 240, 20, "");
 			if (setup.com_mode != SETUP_COM_OTHER)
 				setup_ctrl.com.pOtherName->deactivate();
 			setup_ctrl.com.pOtherName->value(setup.com_other);
+
+			setup_ctrl.com.pIgnoreFlow = new Fl_Check_Button(20, 210, 180, 20, "Ignore Flow Control");
+			setup_ctrl.com.pIgnoreFlow->value(setup.com_ignore_flow);
 
 
 			// Get list of COM ports on the host

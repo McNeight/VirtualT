@@ -1,6 +1,6 @@
 /* lpt.h */
 
-/* $Id: lpt.h,v 1.6 2008/02/15 14:42:51 kpettit1 Exp $ */
+/* $Id: lpt.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -88,10 +88,14 @@ public:
 	void			SendToLpt(unsigned char byte);		// Deals with bytes printed
 	void			DeinitLpt(void);
 	void			HandleTimeouts(unsigned long time);	// Handles all timeouts
-	void			PrinterProperties(void);			// Creates preferences dialog
+	void			PrinterProperties(int useActivePrinter);			// Creates preferences dialog
 	void 			UpdatePreferences(Fl_Preferences* pPref);
-	void			PrinterPropOk(void);
+	void			PrinterPropOk(VTPrinter* pPrint);
 	void			PrinterPropCancel(void);
+	void			EndPrintSession(void);
+	void			CancelPrintSession(void);
+	void			ResetPrinter(void);					// Reset printer
+	void			CancelPrintJob(void);				// Cancel the current print job
 
 	int				GetPrinterCount(void);				// Returns # printers registered
 	VTPrinter*		GetPrinter(int index);				// Returns pointer to a specific printer
@@ -114,8 +118,11 @@ protected:
 	int					m_AFFSent;						// True if an Auto FormFeed sent
 	unsigned char		m_PrevChar;						// Previous byte sent
 
+	char				m_TimeStr[10];
+
 };
 
 #endif
 
+ 
 #endif

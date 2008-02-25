@@ -1,6 +1,6 @@
 /* printer.h */
 
-/* $Id: printer.h,v 1.0 2008/02/15 14:42:51 kpettit1 Exp $ */
+/* $Id: printer.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -58,6 +58,7 @@ public:
 	virtual int			GetBusyStatus() = 0;			// Read BUSY from printer
 	virtual void		SendAutoFF(void) = 0;			// Send a FormFeed if needed
 	virtual void		Deinit(void) = 0;				// Deiniatalizes the printer
+	virtual int			CancelPrintJob(void) = 0;		// Cancels the current print job
 
 	// Common printer setup functions
 	virtual void		Init(Fl_Preferences* pPref);	// Initialization routine

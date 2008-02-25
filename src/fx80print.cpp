@@ -1,6 +1,6 @@
 /* fx80print.cpp */
 
-/* $Id: fx80print.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: fx80print.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -29,7 +29,7 @@
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
-#include <FL/Fl_Window.H>
+#include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Return_Button.H>
@@ -45,6 +45,7 @@
 
 #include "VirtualT.h"
 #include "fx80print.h"
+#include "chargen.h"
 
 /*
 ================================================================================
@@ -84,6 +85,9 @@ void VTFX80Print::BuildPropertyDialog(void)
 	Fl_Box*		o;
 
 	o = new Fl_Box(20, 20, 360, 20, "Emulated Epson FX-80 Printer");
+
+	Fl_Button *b = new Fl_Button(20, 300, 120, 30, "Char Generator");
+	b->callback(cb_CreateNewCharGen);
 }
 
 /*
@@ -154,5 +158,15 @@ Deinit the printer
 void VTFX80Print::Deinit(void)
 {
 	return;
+}
+
+/*
+=======================================================
+Cancels the current print job.
+=======================================================
+*/
+int VTFX80Print::CancelPrintJob(void)
+{
+	return PRINT_ERROR_NONE;
 }
 

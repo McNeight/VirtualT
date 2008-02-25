@@ -1,6 +1,6 @@
-/* fx80print.h */
+/* fl_action_icon.h */
 
-/* $Id: fx80print.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: fl_action_icon.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -28,37 +28,33 @@
  */
 
 
-#ifndef _FX80PRINT_H_
-#define _FX80PRINT_H_
+#ifndef _FL_ACTION_ICON_H_
+#define _FL_ACTION_ICON_H_
 
-#include "printer.h"
+#include <FL/Fl.H>
+#include <FL/Fl_Box.H>
+#include <FL/Fl_Image.H>
 
-/*
-==========================================================================
-Define the VTFX80Print class.  This is an implementation of a printer 
-that emulates an Epson FX-80 impact printer and send the output to PNG
-or Postscript.  It can also write directly to a host printer.
-==========================================================================
-*/
-class VTFX80Print : public VTPrinter
+#ifdef __cplusplus
+
+class Fl_Action_Icon : public Fl_Box
 {
 public:
-	VTFX80Print();
+	Fl_Action_Icon(int x, int y, int w, int h, const char *title);
 
-	virtual MString		GetName();					// Get name of the printer
-	virtual void		BuildPropertyDialog();		// Build dialog for FX80
-	virtual int			GetProperties(void);		// Get dialog properties and save
-	virtual int			GetBusyStatus(void);
-	virtual void		SendAutoFF(void);			// Send FormFeed if needed
-	virtual void		Deinit(void);				// Deinit routine
-	virtual int			CancelPrintJob(void);		// Cancels the current print job
+	void			set_image(Fl_Image*);			// Sets the image's icon
+	void			menu(Fl_Menu_Item* menu);		// Sets a popup menu
 
 protected:
-	virtual void		PrintByte(unsigned char byte);	// Send byte to FX80 emulation
-	virtual void		Init(void);					// Init routine
-	virtual int			OpenSession(void);			// Open a new print session
-	virtual int			CloseSession(void);			// Closes the active print session
+	virtual int		handle(int event);				// Handle events
+	virtual void	draw(void);
+
+	Fl_Image*		m_pImage;
+	Fl_Menu_Button*	m_pPopup;
+	Fl_Menu_Item*	m_pMenu;
 };
 
+
+#endif
 #endif
 

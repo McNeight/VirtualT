@@ -1,6 +1,6 @@
 /* fileprint.cpp */
 
-/* $Id: fileprint.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: fileprint.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -333,7 +333,7 @@ void VTFilePrint::Init(void)
 	char	modelDir[256];
 
 	strcpy(modelDir, path);
-	strcat(modelDir, "/print");
+	strcat(modelDir, "print");
 
 	// Load specific printer preferences
 	m_pPref->get("FilePrint_DirName", m_DirName, modelDir, 256);
@@ -655,5 +655,28 @@ void VTFilePrint::Deinit(void)
 		m_OutFd = NULL;
 	}
 	return;
+}
+
+/*
+=======================================================
+Cancel the print job & delete the file
+=======================================================
+*/
+int VTFilePrint::CancelPrintJob(void)
+{
+	// Ensure there is an active session first
+	if (!m_SessionActive)
+		return PRINT_ERROR_NONE;
+
+	// Close the file
+	if (m_OutFd != NULL)
+		fclose(m_OutFd);
+
+	m_OutFd = NULL;
+
+	// Remove the file
+	std::remove((const char *) m_Filename);
+	
+	return PRINT_ERROR_NONE;
 }
 

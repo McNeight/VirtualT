@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.12 2008/02/17 13:25:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -36,6 +36,7 @@
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Help_Dialog.H>
 #include <FL/Fl_File_Chooser.H>
+#include <FL/Fl_Pixmap.H>
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
 #include <FL/Fl_Preferences.H>
@@ -57,6 +58,7 @@
 #include "cpuregs.h"
 #include "rememcfg.h"
 #include "lpt.h"
+#include "fl_action_icon.h"
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
@@ -75,6 +77,7 @@ Fl_Window		*MainWin = NULL;
 T100_Disp		*gpDisp;
 T100_Disp		*gpDebugMonitor;
 Fl_Box			*gpCode, *gpGraph, *gpKey, *gpSpeed, *gpCaps, *gpKeyInfo;
+Fl_Action_Icon	*gpPrint;
 Fl_Box			*gpMap = NULL;
 Fl_Menu_Bar		*Menu;
 Fl_Preferences	virtualt_prefs(Fl_Preferences::USER, "virtualt.", "virtualt" ); 
@@ -88,6 +91,10 @@ int				gRectsize = 2;
 int				gXoffset;
 int				gYoffset;
 int				gSimKey = 0;
+extern char*	print_xpm[];
+extern Fl_Menu_Item	gPrintMenu[];
+
+extern Fl_Pixmap	gPrinterIcon;
 
 void switch_model(int model);
 
@@ -270,8 +277,20 @@ void resize_window()
 		50*gpDisp->DisplayMode+2, 60, 20);
 	gpMap->resize(360, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
 		50*gpDisp->DisplayMode+2, 60, 20);
-	gpKeyInfo->resize(420, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, MainWin->w()-420, 20);
+	gpPrint->resize(420, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, 60, 20);
+	gpKeyInfo->resize(480, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
+		50*gpDisp->DisplayMode+2, MainWin->w()-480, 20);
+	if (gpDisp->MultFact < 3)
+	{
+		gpKeyInfo->label("F Keys");
+		gpKeyInfo->tooltip("F9:Label  F10:Print  F11:Paste  F12:Pause");
+	}
+	else
+	{
+		gpKeyInfo->tooltip("");
+		gpKeyInfo->label("F9:Label  F10:Print  F11:Paste  F12:Pause");
+	}
 
 	gRectsize = MultFact - (1 - SolidChars);
 	if (gRectsize == 0)
@@ -607,7 +626,6 @@ Fl_Menu_Item menuitems[] = {
 		{ "Save Basic as ASCII",  0, cb_save_basic, (void *) 1, FL_MENU_TOGGLE },
 		{ "Save CO as HEX",       0, cb_save_co,    (void *) 2, FL_MENU_TOGGLE },
 		{ 0 },
-	{ "Printer Properties...",  0, cb_printer_properties, 0, FL_MENU_DIVIDER },
 //	{ "Load RAM...",      0,      cb_LoadRam, 0 },
 //	{ "Save RAM...",      0,      cb_SaveRam, 0, 0 },
 //	{ "RAM Snapshots...", 0,      0, 0, FL_MENU_DIVIDER },
@@ -996,6 +1014,9 @@ void T100_Disp::draw_static()
 		}
 	}
 
+	// Draw printer icon
+	//printIcon.draw(420, gpGraph->y());
+
 }
 
 /*
@@ -1307,9 +1328,23 @@ void init_display(void)
 	gpMap = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+DispHeight*MultFact +
 		50*DisplayMode+2, 60, 20,"");
 	gpMap->labelsize(10);
-	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,420, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, MainWin->w()-420, 20,
-		"F9:Label  F10:Print  F11:Paste  F12:Pause");
+	gpPrint = new Fl_Action_Icon(420, MENU_HEIGHT+DispHeight*MultFact + 
+		50*DisplayMode+2, 60, 20, "");
+	gpPrint->set_image(&gPrinterIcon);
+	gpPrint->align(FL_ALIGN_TOP | FL_ALIGN_INSIDE | FL_ALIGN_LEFT);
+	gpPrint->menu(gPrintMenu);
+	gpPrint->label("Idle");
+	if (MultFact < 3)
+	{
+		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, MENU_HEIGHT+DispHeight*MultFact +
+			50*DisplayMode+2, MainWin->w()-480, 20,
+			"F Keys");
+		gpKeyInfo->tooltip("F9:Label  F10:Print  F11:Paste  F12:Pause");
+	}
+	else
+		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, MENU_HEIGHT+DispHeight*MultFact +
+			50*DisplayMode+2, MainWin->w()-480, 20,
+			"F9:Label  F10:Print  F11:Paste  F12:Pause");
 	gpKeyInfo->labelsize(10);
 	gSimKey = 0;
 
@@ -1617,6 +1652,7 @@ int T100_Disp::handle(int event)
 	int		simulated;
 	get_key_t	get_key;
 	event_key_t	event_key;
+	int		xp, yp;
 
 	unsigned int key;
 
@@ -2528,6 +2564,7 @@ int T100_Disp::handle(int event)
 		}
 		update_keys();
 		break;
+
 	}
 
 	// Display keystroke info on status line of display

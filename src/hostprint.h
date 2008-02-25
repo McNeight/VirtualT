@@ -1,6 +1,6 @@
 /* hostprint.h */
 
-/* $Id: hostprint.h,v 1.0 2008/02/15 14:42:51 kpettit1 Exp $ */
+/* $Id: hostprint.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -50,6 +50,7 @@ public:
 	virtual int			GetBusyStatus();			// Read BUSY from host
 	virtual void		SendAutoFF(void);			// Send a FF if needed
 	virtual void		Deinit(void);				// Deini routine
+	virtual int			CancelPrintJob(void);		// Cancels a print job
 
 protected:
 	virtual void 		PrintByte(unsigned char byte);	// Print to host

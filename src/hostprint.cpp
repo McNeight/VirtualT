@@ -1,6 +1,6 @@
 /* hostprint.cpp */
 
-/* $Id: hostprint.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: hostprint.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -246,4 +246,15 @@ void VTHostPrint::Deinit(void)
 	#endif
 }
 
+/*
+=======================================================
+Cancel the current print job
+=======================================================
+*/
+int VTHostPrint::CancelPrintJob(void)
+{
+	CloseSession();
+
+	return PRINT_ERROR_NONE;
+}
 

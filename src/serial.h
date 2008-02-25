@@ -1,6 +1,6 @@
 /* serial.h */
 
-/* $Id: serial.h,v 1.0 2004/08/05 06:46:12 kpetti1 Exp $ */
+/* $Id: serial.h,v 1.5 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -112,45 +112,47 @@ int ser_write_byte(char data);
 typedef struct ser_params
 {
 	char			port_name[256];		// Host port name for emulation
-	char			parity;			// Current parity setting
-	int			baud_rate;		// Current baud rate
-	int			bit_size;		// Bit size for theport
-	int			stop_bits;		// Number of stop bits
-	int			open_flag;		// Set to 1 when the port is open
+	char			parity;				// Current parity setting
+	int				baud_rate;			// Current baud rate
+	int				bit_size;			// Bit size for theport
+	int				stop_bits;			// Number of stop bits
+	int				open_flag;			// Set to 1 when the port is open
 
 	ser_callback	pCallback;			// Callback function for RX data
 	ser_monitor_cb	pMonCallback;
 
-	FILE*			pCmdFile;		// Command file for Simulated I/O
+	FILE*			pCmdFile;			// Command file for Simulated I/O
 
 	// Host COM port control structures
 
 #ifdef WIN32
-	HANDLE			hComm;			// Handle to the serial port
-	OVERLAPPED		osRead;			// Overlapped I/O structure for reading
-	OVERLAPPED		osWrite;		// Overlapped I/O structure for writing
-	DCB			dcb;			// Device control block
+	HANDLE			hComm;				// Handle to the serial port
+	OVERLAPPED		osRead;				// Overlapped I/O structure for reading
+	OVERLAPPED		osWrite;			// Overlapped I/O structure for writing
+	DCB				dcb;				// Device control block
 	HANDLE			hReadThread;		// Read COM thread
 	HANDLE			hWriteThread;		// Write COM thread
 	HANDLE			hThreadExitEvent;	// Event to trigger thread exiting
 	HANDLE			hWriteEvent;		// Event to trigger a write operation
 	HANDLE			hWriteMutex;
 	HANDLE			hReadMutex;
-	int			fReadThread;		// Flag indicating if Read Thread active
-	int			fWriteThread;		// Flag indicating if Write Tread active
-	int			fIntPending;
-	int			dtrState;		// Current state of DTR
-	int			rtsState;		// Current state of RTS
+	int				fReadThread;		// Flag indicating if Read Thread active
+	int				fWriteThread;		// Flag indicating if Write Tread active
+	int				fIntPending;
+	int				dtrState;			// Current state of DTR
+	int				rtsState;			// Current state of RTS
 	char			rx_buf[128];		// Read buffer
-	int			rxIn;			// Read buffer input location
-	int			rxOut;			// Read buffer output location
-	char			tx_buf[32];		// Read buffer
-	int			txIn;			// Read buffer input location
-	int			txOut;			// Read buffer output location
-	int			tx_empty;		// Flag to indicate when TX is done
+	int				rxIn;				// Read buffer input location
+	int				rxOut;				// Read buffer output location
+	char			tx_buf[32];			// Read buffer
+	int				txIn;				// Read buffer input location
+	int				txOut;				// Read buffer output location
+	int				tx_empty;			// Flag to indicate when TX is done
 
 #else
-	int			fd;			// fd of open serial port
+	int				fd;					// fd of open serial port
+	int				dtrState;			// Current state of DTR
+	int				rtsState;			// Current state of RTS
 
 #endif
 
