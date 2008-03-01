@@ -1,6 +1,6 @@
 /* m100rom.c */
 
-/* $Id: m100rom.c,v 1.1 2004/08/05 06:46:11 kpettit1 Exp $ */
+/* $Id: m200rom.c,v 1.3 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -985,6 +985,7 @@ RomDescription_t gM200_Desc = {
 	0xF505,						/* BASIC size */
 	0xFD0E,						/* Keyscan array */
 	0x9063,						/* Character generator array */
+	0x0000,						/* Location of Year - not used for T200 */
 
 	52,							/* Number of directory entries */
 	9,							/* Index of first dir entry */

@@ -80,6 +80,8 @@ public:
 	void			PastePixmap(void);						// Paste the current pixmap
 	void			Load(void);								// Loads data from file
 	void			Save(int format);						// Saves data using specified format
+	int				CheckForSave(void);
+	void			SaveActiveChar(void);					// Save active pixmap to chartable
 
 private:
 	Fl_Box*			m_pDots[11][9];
@@ -90,13 +92,29 @@ private:
 	int				m_PasteValid;
 	int				m_ActiveChar;
 	int				m_Modified;
-	void			SaveActiveChar(void);					// Save active pixmap to chartable
 	void			ChangeActiveChar(int index);
+	void			UpdatePreviews(void);
+	void			UpdatePicaView(void);
+	void			UpdateExpandView(void);
+	void			UpdateEnhanceView(void);
+	void			UpdateDblStrikeView(void);
+	void			UpdateDblEnhanceView(void);
 
 	// Buttons
 	Fl_Button*		m_pClose;						// Close the window
 	Fl_Box*			m_pCharText;
+	Fl_Box*			m_pExPica;						// Example of Pica
+	Fl_Box*			m_pExExpand;					// Example of Expanded
+	Fl_Box*			m_pExEnhance;					// Example of Enhanced
+	Fl_Box*			m_pExDblStrike;					// Example of Double Strike
+	Fl_Box*			m_pExDblEnhance;				// Example of Double Strike Enhanced
 	char			m_CharText[6];
+
+	char			m_PicaPixelData[3*18];			// Data for Pica preview
+	char			m_ExpandPixelData[3*18];			// Data for Pica preview
+	char			m_EnhancePixelData[3*18];			// Data for Pica preview
+	char			m_DblStrikePixelData[3*18];			// Data for Pica preview
+	char			m_DblEnhancePixelData[3*18];			// Data for Pica preview
 };
 
 #endif

@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.9 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: io.c,v 1.10 2008/02/17 13:25:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -325,10 +325,21 @@ void clock_chip_cmd(void)
 
 		clock_sr_index = 0;
 
-		if ((get_memory8(0xF92E) == 0) && (get_memory8(0xF92D) == 0))
+		if (gModel == MODEL_PC8201)
 		{
-			set_memory8(0xF92D, (unsigned char) (mytime->tm_year % 10));
-			set_memory8(0xF92E, (unsigned char) ((mytime->tm_year % 100) / 10));
+			if ((get_memory8(gStdRomDesc->sYear+1) == '8') && (get_memory8(gStdRomDesc->sYear) == '3'))
+			{
+				set_memory8(gStdRomDesc->sYear, (unsigned char) (mytime->tm_year % 10) + '0');
+				set_memory8(gStdRomDesc->sYear+1, (unsigned char) ((mytime->tm_year % 100) / 10) + '0');
+			}
+		}
+		else
+		{
+			if ((get_memory8(gStdRomDesc->sYear+1) == 0) && (get_memory8(gStdRomDesc->sYear) == 0))
+			{
+				set_memory8(gStdRomDesc->sYear, (unsigned char) (mytime->tm_year % 10));
+				set_memory8(gStdRomDesc->sYear+1, (unsigned char) ((mytime->tm_year % 100) / 10));
+			}
 		}
 	}
 }
@@ -942,7 +953,7 @@ int inport(uchar port)
 
 		case 0xA0:	/* Modem control port */
 			if ((gModel == MODEL_PC8201) || (gModel == MODEL_PC8300))
-				return ioA1;
+				return (ioA1 & 0x3F) | (io90 & 0xC0);
 			else
 				return 0xA0;
 

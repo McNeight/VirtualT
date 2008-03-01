@@ -1,6 +1,6 @@
 /* m10rom.c */
 
-/* $Id: m100rom.c,v 1.1 2007/12/10 06:46:11 kpettit1 Exp $ */
+/* $Id: m10rom.c,v 1.1 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -982,6 +982,7 @@ RomDescription_t gM10_Desc = {
 	0xFADE,						/* BASIC Size */
 	0xFF5C,						/* Keyscan array */
 	0x742B,						/* Character generator table */
+	0xF934,						/* Location of Year storage */
 
 	24,							/* Number of directory entries */
 	8,							/* Index of first Dir entry */

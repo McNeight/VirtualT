@@ -1,6 +1,6 @@
 /* n8201rom.c */
 
-/* $Id: n8201rom.c,v 1.1 2004/08/05 06:46:11 kpettit1 Exp $ */
+/* $Id: n8201rom.c,v 1.3 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -911,6 +911,7 @@ RomDescription_t gN8201_Desc = {
 	0xF9CA,						/* BASIC Size */
 	0xFE58,						/* Keyscan array */
 	0x78B7,						/* Character generator array */
+	0xF83C,						/* Location of Year storage */
 
 	24,							/* Number of directory entries */
 	8,							/* Index of first Dir entry */

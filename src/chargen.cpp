@@ -39,6 +39,7 @@
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Preferences.H>
 #include <FL/Fl_File_Chooser.H>
+#include <FL/Fl_Bitmap.H>
 #include <FL/fl_ask.H>
 
 #include <string.h>
@@ -63,8 +64,17 @@ Callback routine for character generator window.
 */
 void cb_CloseCharGen(Fl_Widget* w, void *)
 {
-	// Test if modified
+	// Ensure pointer isn't null
+	if (gpCharGen == NULL)
+		return;
+	
+	gpCharGen->SaveActiveChar();
 
+	// Test if modified
+	if (gpCharGen->CheckForSave())
+		return;
+
+	// Okay to close
 	gpCharGen->hide();
 	delete gpCharGen;
 	gpCharGen = NULL;
@@ -136,8 +146,6 @@ VTCharacterGen::VTCharacterGen(int w, int h, const char* title) :
 	b->callback(cb_Paste);
 	b = new Fl_Button(20, 80, 60, 25, "Clear");
 	b->callback(cb_Clear);
-	b = new Fl_Button(20, 115, 120, 25, "Copy from ROM");
-	b->callback(cb_Clear);
 
 	for (c = 0; c < 6; c++)
 		for (r = 0; r < 9; r++)
@@ -156,8 +164,30 @@ VTCharacterGen::VTCharacterGen(int w, int h, const char* title) :
 			m_Dots[c][r] = 0;
 		}
 
+	// Create text for the sample output displays
+	o = new Fl_Box(EDIT_FIELD_X + GRID_SIZE * 7, 10, 80, 20, "Pica:");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	m_pExPica = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 10, 35, 35, "");
+	o = new Fl_Box(EDIT_FIELD_X + GRID_SIZE * 7, 50, 80, 20, "Expanded:");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	m_pExPica = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 10, 35, 35, "");
+	m_pExExpand = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 50, 35, 35, "");
+	o = new Fl_Box(EDIT_FIELD_X + GRID_SIZE * 7, 90, 80, 20, "Enhanced:");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	m_pExPica = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 10, 35, 35, "");
+	m_pExEnhance = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 90, 35, 35, "");
+	o = new Fl_Box(EDIT_FIELD_X + GRID_SIZE * 7, 130, 80, 20, "Dbl-Strike:");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	m_pExPica = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 10, 35, 35, "");
+	m_pExDblStrike = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 130, 35, 35, "");
+	o = new Fl_Box(EDIT_FIELD_X + GRID_SIZE * 7, 170, 80, 20, "Dbl-Enhance:");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	m_pExPica = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 10, 35, 35, "");
+	m_pExDblEnhance = new Fl_Box(FL_NO_BOX, EDIT_FIELD_X + GRID_SIZE * 7 + 100, 170, 35, 35, "");
+
 	// Create a character table
 	m_pCharTable = new VTCharTable(40, EDIT_FIELD_Y + GRID_SIZE * 11, 15*32, 22*8,"");
+	m_pCharTable->callback(cb_CloseCharGen);
 
 	// Text for the Char Table
 	o = new Fl_Box(FL_NO_BOX, 10, EDIT_FIELD_Y+GRID_SIZE*11+5, 25, 15,"00h");
@@ -345,6 +375,8 @@ void VTCharacterGen::ChangeActiveChar(int index)
 		for (c = 0; c < 6; c++)
 			m_pBoxes[c][0]->label("x");
 	}
+
+	UpdatePreviews();
 }
 
 /*
@@ -383,6 +415,7 @@ void VTCharacterGen::HandlePixelEdit(int xp, int yp)
 		// Turning it off.  Hide the pixel
 		m_Dots[col][row] = 0;
 		m_pDots[col][row]->hide();
+		UpdatePreviews();
 
 		// Test if we need to enable top or bottom row
 		if ((row == 0) || (row == 8))
@@ -438,6 +471,8 @@ void VTCharacterGen::HandlePixelEdit(int xp, int yp)
 				m_pBoxes[i][0]->label("X");
 		
 	}
+
+	UpdatePreviews();
 	return;
 }
 
@@ -501,6 +536,9 @@ void VTCharacterGen::PastePixmap(void)
 			else
 				m_pDots[c][r]->hide();
 		}
+
+	UpdatePreviews();
+	m_Modified = 1;
 }
 
 /*
@@ -526,6 +564,9 @@ void VTCharacterGen::ClearPixmap(void)
 			m_pDots[c][r]->hide();
 			m_Dots[c][r] = 0;
 		}
+
+	UpdatePreviews();
+	m_Modified = 1;
 }
 
 /*
@@ -599,6 +640,33 @@ int VTCharacterGen::handle(int event)
 
 /*
 ================================================================================
+Check the m_Modified bit to see if changes were made
+================================================================================
+*/
+int VTCharacterGen::CheckForSave(void)
+{
+	int		ret;
+
+	// If not modified, just return
+	if (!m_Modified)
+		return 0;
+
+	// Ask if the file should be saved
+	ret = fl_choice("Save changes?", "Cancel", "Yes", "No");
+
+	// Test for cancel
+	if (ret == 0)
+		return 1;
+
+	// Test for Yes
+	if (ret == 1)
+		Save(CHARGEN_FORMAT_BINARY);
+
+	return 0;
+}
+
+/*
+================================================================================
 Load data from a file
 ================================================================================
 */
@@ -609,8 +677,8 @@ void VTCharacterGen::Load(void)
 	int					index;
 
 	// Check for edits to the pixmap
-	//if (CheckForSave())
-		//return;
+	if (CheckForSave())
+		return;
 
 	// Create a file chooser
 	fc = new Fl_File_Chooser(".", "*.fcr", 1, "Load FX-80 Character ROM");
@@ -656,6 +724,7 @@ void VTCharacterGen::Load(void)
 	// Close the file
 	delete fc;
 	fclose(fd);
+	m_Modified = 0;
 }
 
 /*
@@ -667,10 +736,13 @@ void VTCharacterGen::Save(int format)
 {
 	Fl_File_Chooser*	fc;
 	unsigned char		data[12];
-	int					index, len, c;
+	int					index, len, c, i;
 	char				ch;
 	char				ext[5];
 	MString				filename;
+	char				line[20];
+	const char*			pLineStr;
+	int					lineNo;
 
 	// Save any edits to the Pixmap
 	SaveActiveChar();
@@ -758,6 +830,20 @@ void VTCharacterGen::Save(int format)
 		return;
 	}
 	
+	// If output is C, write C variable name to file
+	if (format == CHARGEN_FORMAT_C)
+	{
+		fprintf(fd, "fx80_rom[256][] = {\n");
+	}
+	else if (format == CHARGEN_FORMAT_BASIC)
+	{
+		pLineStr = fl_input("Please specify starting BASIC line", "");
+		if (pLineStr != NULL)
+			lineNo = atoi(pLineStr);
+		else
+			lineNo = 1000;
+	}
+
 	// Loop through all character in the chartable
 	for (index = 0; index < 256; index++)
 	{
@@ -769,17 +855,224 @@ void VTCharacterGen::Save(int format)
 		{
 			fwrite(data, 1, sizeof(data), fd);
 		}
+		
+		// Output C formatted data
 		else if (format == CHARGEN_FORMAT_C)
 		{
+			fprintf(fd, "\t{ ");
+			for (c = 0; c < 12; c++)
+			{
+				fprintf(fd, "0x%02X", data[c]);
+				if (c != 11)
+					fprintf(fd, ", ");
+			}
+			fprintf(fd, " }");
+
+			// Print line ending
+			if (index != 255)
+				fprintf(fd, ",\t// Char 0x%02X\n", index);
+			else
+				fprintf(fd, "\t// Char 0x%02X\n", index);
 		}
+
+		// Output BASIC formatted data
 		else if (format == CHARGEN_FORMAT_BASIC)
 		{
+			fprintf(fd, "%d DATA ", lineNo++);
+			for (c = 0; c < 12; c++)
+			{
+				fprintf(fd, "%d", data[c]);
+				if (c != 11)
+					fprintf(fd, ", ");
+			}
+			fprintf(fd, "\n");
 		}
+	}
+
+	if (format == CHARGEN_FORMAT_C)
+	{
+		fprintf(fd, "};\n");
 	}
 
 	// Close the file
 	delete fc;
 	fclose(fd);
+	m_Modified = 0;
+}
+
+char	pixelData[24*18/8];
+/*
+================================================================================
+Updates the Pica view
+================================================================================
+*/
+void VTCharacterGen::UpdatePicaView(void)
+{
+	int		c, i;
+	char	byte;
+	
+	// Clear the pixelData map
+	for (c = 0; c < sizeof(m_PicaPixelData); c++)
+		m_PicaPixelData[c] = 0;
+
+	// Fill in pixel
+	for (i = 0; i < 9; i++)
+		for (c = 0; c < 11; c++)
+		{
+			byte = 0;
+			if (m_Dots[c][i])
+				byte = 1 << (c % 8);
+			m_PicaPixelData[i * 6 + (c / 8)] |= byte;
+		}
+	if (m_pExPica->image() != NULL)
+		delete m_pExPica->image();
+	m_pExPica->image(new Fl_Bitmap(m_PicaPixelData, 24, 18));
+	m_pExPica->redraw();
+}
+
+/*
+================================================================================
+Updates the Expanded view
+================================================================================
+*/
+void VTCharacterGen::UpdateExpandView(void)
+{
+	int		c, i;
+	char	byte;
+	
+	// Clear the pixelData map
+	for (c = 0; c < sizeof(m_ExpandPixelData); c++)
+		m_ExpandPixelData[c] = 0;
+
+	// Fill in pixel
+	for (i = 0; i < 9; i++)
+		for (c = 0; c < 11; c++)
+		{
+			byte = 0;
+			if (m_Dots[c][i])
+				byte = 3 << ((c % 4) * 2);
+			m_ExpandPixelData[i * 6 + (c / 4)] |= byte;
+		}
+	if (m_pExExpand->image() != NULL)
+		delete m_pExExpand->image();
+	m_pExExpand->image(new Fl_Bitmap(m_ExpandPixelData, 24, 18));
+	m_pExExpand->redraw();
+}
+
+/*
+================================================================================
+Updates the Enahanced view
+================================================================================
+*/
+void VTCharacterGen::UpdateEnhanceView(void)
+{
+	int		c, i;
+	char	byte;
+	
+	// Clear the pixelData map
+	for (c = 0; c < sizeof(m_EnhancePixelData); c++)
+		m_EnhancePixelData[c] = 0;
+
+	// Fill in pixel
+	for (i = 0; i < 9; i++)
+		for (c = 0; c < 11; c++)
+		{
+			byte = 0;
+			if (m_Dots[c][i])
+				byte = 3 << (c % 8);
+			m_EnhancePixelData[i * 6 + (c / 8)] |= byte;
+
+			// Check if pixel crossed a byte boundry
+			if (byte && (c % 8) == 7)
+			{
+				m_EnhancePixelData[i * 6 + (c / 8) + 1] |= 1;
+			}
+		}
+	if (m_pExEnhance->image() != NULL)
+		delete m_pExEnhance->image();
+	m_pExEnhance->image(new Fl_Bitmap(m_EnhancePixelData, 24, 18));
+	m_pExEnhance->redraw();
+}
+
+/*
+================================================================================
+Updates the DblStrike view
+================================================================================
+*/
+void VTCharacterGen::UpdateDblStrikeView(void)
+{
+	int		c, i;
+	char	byte;
+	
+	// Clear the pixelData map
+	for (c = 0; c < sizeof(m_DblStrikePixelData); c++)
+		m_DblStrikePixelData[c] = 0;
+
+	// Fill in pixel
+	for (i = 0; i < 9; i++)
+		for (c = 0; c < 11; c++)
+		{
+			byte = 0;
+			if (m_Dots[c][i])
+				byte = 1 << (c % 8);
+			m_DblStrikePixelData[i * 6 + (c / 8)] |= byte;
+			m_DblStrikePixelData[i * 6 + (c / 8) + 3] |= byte;
+		}
+	if (m_pExDblStrike->image() != NULL)
+		delete m_pExDblStrike->image();
+	m_pExDblStrike->image(new Fl_Bitmap(m_DblStrikePixelData, 24, 18));
+	m_pExDblStrike->redraw();
+}
+
+/*
+================================================================================
+Updates the Double Strike Enahanced view
+================================================================================
+*/
+void VTCharacterGen::UpdateDblEnhanceView(void)
+{
+	int		c, i;
+	char	byte;
+	
+	// Clear the pixelData map
+	for (c = 0; c < sizeof(m_DblEnhancePixelData); c++)
+		m_DblEnhancePixelData[c] = 0;
+
+	// Fill in pixel
+	for (i = 0; i < 9; i++)
+		for (c = 0; c < 11; c++)
+		{
+			byte = 0;
+			if (m_Dots[c][i])
+				byte = 3 << (c % 8);
+			m_DblEnhancePixelData[i * 6 + (c / 8)] |= byte;
+			m_DblEnhancePixelData[i * 6 + (c / 8)+3] |= byte;
+
+			// Check if pixel crossed a byte boundry
+			if (byte && (c % 8) == 7)
+			{
+				m_DblEnhancePixelData[i * 6 + (c / 8) + 1] |= 1;
+				m_DblEnhancePixelData[i * 6 + (c / 8) + 4] |= 1;
+			}
+		}
+	if (m_pExDblEnhance->image() != NULL)
+		delete m_pExDblEnhance->image();
+	m_pExDblEnhance->image(new Fl_Bitmap(m_DblEnhancePixelData, 24, 18));
+	m_pExDblEnhance->redraw();
+}
+
+/*
+================================================================================
+Updates all previews with current data in m_Dots.
+================================================================================
+*/
+void VTCharacterGen::UpdatePreviews(void)
+{
+	UpdatePicaView();
+	UpdateExpandView();
+	UpdateEnhanceView();
+	UpdateDblStrikeView();
+	UpdateDblEnhanceView();
 }
 
 /*

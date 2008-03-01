@@ -1,6 +1,6 @@
 /* roms.h */
 
-/* $Id: roms.h,v 1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: roms.h,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -77,6 +77,7 @@ typedef struct RomDescription {
 	unsigned short		sBasicSize;	       /* Size of all BASIC programs */
 	unsigned short		sKeyscan;	       /* Location of Keyscan array */
 	unsigned short		sCharTable;        /* Location of Charater generator table */
+	unsigned short		sYear;             /* Location of Year storage */
 
 	unsigned short		sDirCount;         /* Number of entries in Directory */
 	unsigned short		sFirstDirEntry;    /* Index of first available enry */

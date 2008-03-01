@@ -420,7 +420,6 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			strcpy(periph_ctrl.com.sDeltaTime, "");
 
 			ser_get_signals(&periph_ctrl.com.cSignal);
-			printf("cSignal = %x\n", periph_ctrl.com.cSignal);
 
 			periph_ctrl.com.pRTS = new Fl_Box(FL_OVAL_BOX, 490, 47+MENU_HEIGHT, 12, 12, "");
 			periph_ctrl.com.pRTS->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);

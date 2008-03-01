@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.12 2008/02/17 13:25:26 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.13 2008/02/23 23:48:19 jhoger Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -893,6 +893,7 @@ void emulate(void)
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
 					maint();
+					ser_poll();
 					check_interrupts();
 					if (gOsDelay)
 						nxtmaint=gMaintCount;
