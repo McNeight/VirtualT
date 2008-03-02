@@ -44,7 +44,7 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				Flu_DND.cpp flu_pixmaps.cpp Flu_Tree_Browser.cpp FluSimpleString.cpp ide.cpp \
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
-				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp
+				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -153,6 +153,7 @@ hostprint.o:	printer.h hostprint.h vtobj.h MString.h
 fx80print.o:	printer.h fx80print.h vtobj.h MString.h
 chargen.o:		chargen.h
 fl_action_icon.o:fl_action_icon.h
+fx80rom.o:		
 
 # ==========
 # asm files

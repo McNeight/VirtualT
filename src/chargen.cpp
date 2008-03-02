@@ -833,7 +833,7 @@ void VTCharacterGen::Save(int format)
 	// If output is C, write C variable name to file
 	if (format == CHARGEN_FORMAT_C)
 	{
-		fprintf(fd, "fx80_rom[256][] = {\n");
+		fprintf(fd, "unsigned char fx80_rom[256][12] = {\n");
 	}
 	else if (format == CHARGEN_FORMAT_BASIC)
 	{
