@@ -42,6 +42,11 @@
 #define	ASCII_LF			0x0A
 #define	ASCII_FF			0x0C
 
+#define	FX80_8PIN_MODE		1
+#define	FX80_9PIN_MODE		2
+
+class	VTPaper;			// The printer prints on the "Paper" class
+
 /*
 ==========================================================================
 Define the VTFX80Print class.  This is an implementation of a printer 
@@ -94,12 +99,24 @@ protected:
 	virtual void		ResetPrinter(void);			// Resets the FX-80 "printer" settings
 	virtual void		ResetMode(void);			// Resets the FX-80 "printer" settings
 	virtual void		RenderChar(unsigned char ch);// Render character to page
+	virtual void		RenderGraphic(unsigned char ch);// Render graphics to page
 	void				TrimForProportional(unsigned char *pData, int& first, int& last);
 	void				PlotPixel(int xpos, int ypos);	// Plot specified pixel
 	int					ProcessAsCmd(unsigned char byte);
 	int					ProcessDirectControl(unsigned char byte);
 	void				NewPage(void);				// Start a new page
+	void				CreatePaper(void);			// Create a paper object
 	unsigned char		MapIntlChar(unsigned char byte);
+	void				SetLeftMargin(unsigned char byte);
+	void				SetRightMargin(unsigned char byte);
+	int					SetVertChannelTabs(unsigned char byte);
+	int					MasterSelect(unsigned char byte);
+	int					DefineUserChar(unsigned char byte);
+	int					GraphicsCommand(unsigned char byte);
+	int					VarGraphicsCommand(unsigned char byte);
+	int					ReassignGraphicsCmd(unsigned char byte);
+	void				ResetTabStops(void);		// Reset to factory default tabs
+	void				ResetVertTabs(void);		// Reset to factory default Vertical tabs
 
 	// Define variables used for controling the ESCP/2 printing
 protected:
@@ -107,17 +124,19 @@ protected:
 	double				m_height;					// Height of printable region
 	int					m_curX;						// Current pin X location (dots)
 	int					m_curY;						// Current pin Y loacation (top dot)
-	int					m_escSeen;					// True if processing ESC sequence
+	char				m_escSeen;					// True if processing ESC sequence
 	int					m_escCmd;					// Current ESC command being processed
-	int					m_escParamsNeeded;			// Number of ESC parameters needed
+	int					m_escParamsRcvd;			// Number of ESC parameters received
+	char				m_escTabChannel;			// Actively updated Tab Channel
 	double				m_topMargin;				// Top margin, in inches
 	double				m_leftMargin;				// Left margin, in inches
+	int					m_leftMarginX;				// Left margin, in dots
 	double				m_rightMargin;				// Right margin, in inches
+	int					m_rightMarginX;				// Right margin, in dots
 	double				m_bottomMargin;				// Bottom margin, in inches
 	int					m_bottomMarginY;			// Bottom margin in dots
 	double				m_cpi;						// Characters per inch setting
 	double				m_lineSpacing;				// Current line spacing setting
-	char				m_graphicsMode;				// Indicates if graphics mode is on
 	char				m_fontSource;				// Selects "ROM" or "RAM" character font
 	char				m_compressed;				// Indicates if compressed mode is on
 	char				m_elite;					// Indicates if elite mode is on
@@ -126,6 +145,8 @@ protected:
 	char				m_dblStrike;				// Indicates if double strike mode is on
 	char				m_expanded;					// Indicates if expanded mode is on
 	char				m_expandedOneLine;			// Indicates if expanded mode is on
+	char				m_highCodesPrinted;			// Indicates if high codes are printed
+	char				m_lowCodesPrinted;			// Indicates if low codes are printed
 	char				m_italic;					// Indicates if italic mode is on
 	char				m_subscript;				// Indicates if subscript mode is on
 	char				m_superscript;				// Indicates if superscript mode is on
@@ -135,15 +156,33 @@ protected:
 	int					m_vertDpi;					// Vertical DPI
 	int					m_horizDpi;					// Horizontal DPI
 	int					m_bytesPerLine;				// Number of bytes per line on page
-	int					m_intlSelect;				// Internatinal character select
+	unsigned char		m_intlSelect;				// Internatinal character select
+	int					m_tabs[32];					// Up to 32 tabs supported on FX80
+	int					m_vertTabs[8][16];			// Eight channels of 16 tabs
+	unsigned char		m_tabChannel;				// Currently selected tab channel
+	unsigned char		m_userCharSet;
+	unsigned char		m_userFirstChar;
+	unsigned char		m_userLastChar;
+	unsigned char		m_userUpdateChar;
+
+	// Graphics mode variables
+	char				m_graphicsMode;				// Indicates if graphics mode is on
+	int					m_graphicsLength;			// Length of graphics command
+	int					m_graphicsRcvd;				// Number of bytes received
+	int					m_graphicsStartX;			// Start X location - preserves precision
+	double				m_graphicsDpi;				// DPI of graphics mode
+	char				m_escKmode;					// Graphics mode for ESC K
+	char				m_escLmode;					// Graphics mode for ESC L
+	char				m_escYmode;					// Graphics mode for ESC Y
+	char				m_escZmode;					// Graphics mode for ESC Z
+	char				m_graphicsReassign;			// Graphics command being reassigned
 	
 	unsigned char		m_charRom[256][12];			// Character ROM
 	unsigned char		m_charRam[256][12];			// Character RAM
 
 	unsigned char*		m_pPage;					// Pointer to "Page" memory
+	VTPaper*			m_pPaper;					// Pointer to the Paper
 
-public:
-	Fl_Window*			m_pOut;
 };
 
 #endif

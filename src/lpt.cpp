@@ -429,6 +429,11 @@ void get_lpt_options()
 	if (gLptCtrl.pEmul->value())
 		gLptPrefs.lpt_mode = LPT_MODE_EMUL;
 
+	if (gLptPrefs.lpt_mode == LPT_MODE_NONE)
+		gpPrint->label("None");
+	else
+		gpPrint->label("Idle");
+
 	// Get selection of the emulated printer
 	gLptPrefs.lpt_emul_name[0] = 0;
 	if (gLptCtrl.pEmulPrint->value() != -1)
@@ -715,7 +720,7 @@ void VTLpt::PrinterProperties(int useActivePrinter)
 			fl_message("Printer emulation not enabled");
 			return;
 		}
-		if (m_pActivePrinter == NULL)
+		if (gLptCtrl.pEmulPrint->value() == -1)
 		{
 			fl_message("Printer not selected");
 			return;

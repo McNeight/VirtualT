@@ -44,7 +44,8 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				Flu_DND.cpp flu_pixmaps.cpp Flu_Tree_Browser.cpp FluSimpleString.cpp ide.cpp \
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
-				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp
+				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp \
+				vtpaper.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -146,14 +147,15 @@ m100rom.o m102rom.o m200rom.o n8201rom.o romstrings.o m10rom.o: roms.h romstring
 remote.o:		remote.cpp m100emu.h socket.h serversocket.h socketexception.h
 socket.o:		socket.h
 serversocket.o:	serversocket.h
-lpt.o:			lpt.h printer.h fileprint.h hostprint.h fx80print.h
+lpt.o:			lpt.h printer.h fileprint.h hostprint.h fx80print.h vtpaper.h
 printer.o:		printer.h
 fileprint.o:	printer.h fileprint.h vtobj.h MString.h
 hostprint.o:	printer.h hostprint.h vtobj.h MString.h
-fx80print.o:	printer.h fx80print.h vtobj.h MString.h
+fx80print.o:	printer.h fx80print.h vtpaper.h vtobj.h MString.h
 chargen.o:		chargen.h
 fl_action_icon.o:fl_action_icon.h
 fx80rom.o:		
+vtpaper.o:		printer.h vtpaper.h
 
 # ==========
 # asm files

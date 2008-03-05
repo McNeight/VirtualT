@@ -39,6 +39,7 @@ class Fl_Preferences;
 #define	PRINT_ERROR_NONE		0
 #define PRINT_ERROR_ABORTED		1
 #define	PRINT_ERROR_IO_ERROR	2
+#define PRINT_ERROR_NOMEM		3
 
 /*
 ==========================================================================

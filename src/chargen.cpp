@@ -255,7 +255,7 @@ void VTCharacterGen::SaveActiveChar(void)
 {
 	unsigned char	data[12], old_data[12];
 	int				r, c;
-	int				shift;
+	int				shift, start;
 
 	// Check if we need to save map data
 	if (m_ActiveChar != -1)
@@ -263,9 +263,9 @@ void VTCharacterGen::SaveActiveChar(void)
 		data[0] = 0;
 		// Save pixmap to CharTable
 		for (c = 0; c < 11; c++)
-			if (m_Dots[c][8])
+			if (m_Dots[c][0])
 			{
-				data[0] = 1;
+				data[0] = 0x80;
 				break;
 			}
 
@@ -274,7 +274,8 @@ void VTCharacterGen::SaveActiveChar(void)
 		{
 			data[c+1] = 0;
 			shift = 0x80;
-			for (r = data[0]; r < 8+data[0]; r++)
+			start = data[0] ? 0 : 1;
+			for (r = start; r < 8+start; r++)
 			{
 				if (m_Dots[c][r])
 					data[c+1] |= shift;
@@ -352,7 +353,7 @@ void VTCharacterGen::ChangeActiveChar(int index)
 		for (r = 0; r < 9; r++)
 		{
 			// Check if the bottom pins are being used
-			if ((data[0] && (r == 0)) || (!data[0] && (r == 8)))
+			if ((!data[0] && (r == 0)) || (data[0] && (r == 8)))
 				continue;
 
 			// Hide or show the pixel base on table data
@@ -365,12 +366,12 @@ void VTCharacterGen::ChangeActiveChar(int index)
 	}
 
 	// Update 'x' in top and bottom row
-	if (!data[0] && (ored & 0x80))
+	if (data[0] && (ored & 0x80))
 	{
 		for (c = 0; c < 6; c++)
 			m_pBoxes[c][8]->label("x");
 	}
-	else if (data[0] && (ored & 0x01))
+	else if (!data[0] && (ored & 0x01))
 	{
 		for (c = 0; c < 6; c++)
 			m_pBoxes[c][0]->label("x");
@@ -718,6 +719,10 @@ void VTCharacterGen::Load(void)
 	for (index = 0; index < 256; index++)
 	{
 		fread(data, 1, sizeof(data), fd);
+	/*	if (data[0] == 0)
+			data[0] = 0x80;
+		else
+			data[0] = 0; */
 		m_pCharTable->PutCharData(index, data);
 	}
 	
@@ -1115,7 +1120,7 @@ void VTCharTable::DrawChar(int index)
 		yp = y() + (index / 32) * 22 + 3;
 		
 		// If lower 8 "pins" are used, then increment y
-		if (m_Data[index][0])
+		if (!m_Data[index][0])
 		{
 			fl_color(bk_color);
 			fl_point(xp, yp++);
@@ -1134,7 +1139,7 @@ void VTCharTable::DrawChar(int index)
 			fl_point(xp, yp++);
 		}
 
-		if (!m_Data[index][0])
+		if (m_Data[index][0])
 		{
 			fl_color(bk_color);
 			fl_point(xp, yp++);
