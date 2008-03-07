@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.10 2008/02/25 03:20:16 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.11 2008/03/01 06:45:56 jhoger Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1546,6 +1546,11 @@ ser_poll: opportunity to invoke INT6.5 callback
 
 int ser_poll ()
 {
+
+	if (	   setup.com_mode != SETUP_COM_HOST
+		&& setup.com_mode != SETUP_COM_OTHER
+	) return;
+	if (sp.fd < 0) return;
 
 #ifndef WIN32
 	int bytes;
