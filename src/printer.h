@@ -65,6 +65,7 @@ public:
 	virtual void		Init(Fl_Preferences* pPref);	// Initialization routine
 	virtual int			Print(unsigned char byte);		// This is the main "Print" routine
 	virtual void		EndPrintSession(void);			// Called by LPT device to end printing
+	virtual void		ResetPrinter(void) {}			// Resets the printer
 
 protected:
 	virtual void		PrintByte(unsigned char byte) = 0;	// Print a byte

@@ -71,6 +71,8 @@ public:
 	void				CharRomBrowse(Fl_Widget* w);// Call back for ROM file browsing
 	void				UseRomCheck(Fl_Widget* w);	// Call back for use ROM checkbox
 
+	virtual void		ResetPrinter(void);			// Resets the FX-80 "printer" settings
+
 protected:
 	virtual void		PrintByte(unsigned char byte);	// Send byte to FX80 emulation
 	virtual void		Init(void);					// Init routine
@@ -84,19 +86,18 @@ protected:
 	Fl_Check_Button*	m_pUseRamFile;				// Checkbox to use RAM initialization
 	Fl_Button*			m_pRomBrowse;				// Browse button for ROM file
 	Fl_Button*			m_pRamBrowse;				// Browse button for RAM file
-	Fl_Check_Button*	m_pVirtualPaper;			// Checkbox to use Virtual Paper
+	Fl_Choice*			m_pPaperChoice;				// Control to select the paper source
 
 	char				m_romFileStr[256];
 	char				m_ramFileStr[256];
 	int					m_useRomFile;				// TRUE if ROM should be initialized
 	int					m_useRamFile;				// TRUE if RAM should be initialized
-	int					m_virtualPaper;				// TRUE if RAM should be initialized
 
 	MString				m_sRomFile;					// File to load Char ROM
 	MString				m_sRamFile;					// File to load Char RAM
+	MString				m_paperName;				// Name of seleted paper
 
 	// Define functions used for handling the FX-80 protocol
-	virtual void		ResetPrinter(void);			// Resets the FX-80 "printer" settings
 	virtual void		ResetMode(void);			// Resets the FX-80 "printer" settings
 	virtual void		RenderChar(unsigned char ch);// Render character to page
 	virtual void		RenderGraphic(unsigned char ch);// Render graphics to page
@@ -138,6 +139,7 @@ protected:
 	double				m_cpi;						// Characters per inch setting
 	double				m_lineSpacing;				// Current line spacing setting
 	char				m_fontSource;				// Selects "ROM" or "RAM" character font
+	char				m_marksMade;				// Indicates if any marks made during session
 	char				m_compressed;				// Indicates if compressed mode is on
 	char				m_elite;					// Indicates if elite mode is on
 	char				m_proportional;				// Indicates if proportional mode is on
@@ -163,7 +165,8 @@ protected:
 	unsigned char		m_userCharSet;
 	unsigned char		m_userFirstChar;
 	unsigned char		m_userLastChar;
-	unsigned char		m_userUpdateChar;
+	int					m_userUpdateChar;
+	unsigned char		m_lastChar;
 
 	// Graphics mode variables
 	char				m_graphicsMode;				// Indicates if graphics mode is on
@@ -182,6 +185,7 @@ protected:
 
 	unsigned char*		m_pPage;					// Pointer to "Page" memory
 	VTPaper*			m_pPaper;					// Pointer to the Paper
+	VTObArray			m_papers;					// Array of Papers 
 
 };
 

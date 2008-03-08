@@ -87,10 +87,10 @@ VTFX80Print::VTFX80Print(void)
 	m_pRamFile = NULL;			// No RAM file control
 	m_pUseRomFile = NULL;
 	m_pUseRamFile = NULL;
+	m_pPaperChoice = NULL;
 
 	m_useRamFile = FALSE;
-	m_pVirtualPaper = FALSE;
-	m_virtualPaper = FALSE;
+	m_marksMade = FALSE;
 
 	ResetPrinter();
 }
@@ -102,13 +102,23 @@ VTFX80Print::VTFX80Print(void)
 */
 VTFX80Print::~VTFX80Print(void)
 {
+	int			c, count;
+	VTPaper*	pPaper;
+
 	// Delete the page memory
 	if (m_pPage != NULL)
 		delete m_pPage;
 
-	if (m_pPaper != NULL)
-		delete m_pPaper;
+	// Delete all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pPaper = (VTPaper*) m_papers[c];
+		delete pPaper;
+	}	
+	m_papers.RemoveAll();
 
+	// Zero out the pointers, just in case	
 	m_pPage = NULL;
 	m_pPaper = NULL;
 }
@@ -133,6 +143,29 @@ void VTFX80Print::PrintByte(unsigned char byte)
 	// Validate we have page memory
 	if (m_pPage == NULL)
 		return;
+	
+	if ((byte == 0x1C) && (m_lastChar == 0x1D))
+	{
+		printf("Printer Status\n");
+		printf("  ESC Start = %d\n", m_escSeen);
+		printf("  ESC Cmd = %d\n", m_escCmd);
+		printf("  ESC Params = %d\n", m_escParamsRcvd);
+		printf("  Char Set = %d\n", m_fontSource);
+		printf("  User First = %d\n", m_userFirstChar);
+		printf("  User Last = %d\n", m_userLastChar);
+		printf("  User Update = %d\n", m_userUpdateChar);
+		printf("  Print High Codes = %d\n", m_highCodesPrinted);
+		printf("  Print Low Codes = %d\n", m_lowCodesPrinted);
+		printf("  Graphics Mode = %d\n", m_graphicsMode);
+		printf("  Graphics Length = %d\n", m_graphicsLength);
+		printf("  Graphics Received = %d\n", m_graphicsRcvd);
+		printf("  Graphics DPI = %f\n", (float) m_graphicsDpi);
+		printf("  CurX = %d\n", m_curX);
+		printf("  CurY = %d\n", m_curY);
+		printf("  Line Spacing = %f\n",(float) m_lineSpacing);
+		printf("  CPI = %f\n",(float) m_cpi);
+	}
+	m_lastChar = byte;
 
 	// Check if in Graphics Mode
 	if (m_graphicsMode)
@@ -277,6 +310,8 @@ void VTFX80Print::BuildPropertyDialog(void)
 {
 	Fl_Box*		o;
 	Fl_Button*	b;
+	int			c, count;
+	MString		name;
 
 	o = new Fl_Box(20, 20, 360, 20, "Emulated Epson FX-80 Printer");
 
@@ -324,9 +359,27 @@ void VTFX80Print::BuildPropertyDialog(void)
 		m_pRamBrowse->deactivate();
 	}
 
-	m_pVirtualPaper = new Fl_Check_Button(20, 200, 230, 20, "Print to Virtual Paper");
-	m_pVirtualPaper->value(m_virtualPaper);
+	// Create control to selet the paper
+	o = new Fl_Box(20, 155, 260, 20, "Output Paper");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pPaperChoice = new Fl_Choice(40, 180, 260, 20, "");
 
+	// Populate the Paper Choice with options
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		name = ((VTPaper*) m_papers[c])->GetName();
+		m_pPaperChoice->add((const char *) name);
+		if (name == (const char *) m_paperName)
+			m_pPaperChoice->value(c);
+	}
+
+	// Ensure a paper is selected
+	if (m_pPaperChoice->value() == -1)
+		m_pPaperChoice->value(0);
+
+	// Create controls for setting DIP switch default settings
+	
 	b = new Fl_Button(20, 310, 120, 30, "Char Generator");
 	b->callback(cb_CreateNewCharGen);
 }
@@ -357,7 +410,12 @@ void VTFX80Print::Init(void)
 	m_pPref->get("FX80Print_UseRamFile", m_useRamFile, 0);
 	m_pPref->get("FX80Print_RamFile", temp, "", 512);
 	m_sRamFile = temp;
-	m_pPref->get("FX80Print_VirtualPaper", m_virtualPaper, 0);
+	m_pPref->get("FX80Print_PaperName", temp, "", 512);
+	m_paperName = temp;
+
+	// Add all papers to the m_paper object
+	m_papers.Add(new VTPSPaper(m_pPref));
+	m_papers.Add(new VTVirtualPaper(m_pPref));
 
 	// Reset printer
 	ResetPrinter();
@@ -376,6 +434,9 @@ int VTFX80Print::OpenSession(void)
 	if (m_pPaper != NULL)
 		m_pPaper->LoadPaper();
 
+	// Indicate no marks made on paper
+	m_marksMade = FALSE;
+
 	return PRINT_ERROR_NONE;
 }
 
@@ -386,15 +447,24 @@ Creates a new Paper object for printing
 */
 void VTFX80Print::CreatePaper(void)
 {
-	// Create paper if not already created
-	if ((m_pPaper == NULL) && m_virtualPaper)
+	int			c, count;
+	VTPaper*	pPaper = NULL;
+
+	// Find the selected paper
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
 	{
-		m_pPaper = new VTVirtualPaper(m_pPref);
-		if (m_pPaper != NULL)
-		{
-			m_pPaper->Init();
-			m_pPaper->LoadPaper();
-		}
+		pPaper = (VTPaper*) m_papers[c];
+		if (pPaper->GetName() == (const char *) m_paperName)
+			break;
+	}
+	
+	// Create paper if not already created
+	if (pPaper != NULL)
+	{
+		m_pPaper = pPaper;
+		m_pPaper->Init();
+		m_pPaper->LoadPaper();
 	}
 }
 
@@ -416,7 +486,7 @@ int VTFX80Print::CloseSession(void)
 			CreatePaper();
 
 		// Print the current page and close the session
-		if (m_pPaper != NULL)
+		if ((m_pPaper != NULL) && m_marksMade)
 		{
 			m_pPaper->PrintPage(m_pPage, m_horizDots, m_vertDots);
 			m_pPaper->Print();
@@ -440,6 +510,8 @@ Get Printer Properties from dialog and save.
 */
 int VTFX80Print::GetProperties(void)
 {
+	int		index;
+
 	if (m_pUseRomFile == NULL)
 		return PRINT_ERROR_NONE;
 
@@ -452,16 +524,23 @@ int VTFX80Print::GetProperties(void)
 	if (m_pRamFile->value() != 0)
 		m_sRamFile = m_pRamFile->value();
 
-	m_virtualPaper = m_pVirtualPaper->value();
+	m_paperName = ((VTPaper*) m_papers[m_pPaperChoice->value()])->GetName();
 
 	// Now save values to the preferences
 	m_pPref->set("FX80Print_UseRomFile", m_useRomFile);
 	m_pPref->set("FX80Print_RomFile", (const char *) m_sRomFile);
 	m_pPref->set("FX80Print_UseRamFile", m_useRamFile);
 	m_pPref->set("FX80Print_RamFile", (const char *) m_sRamFile);
-	m_pPref->set("FX80Print_VirtualPaper", m_virtualPaper);
+	m_pPref->set("FX80Print_PaperName", (const char *) m_paperName);
+
+	// Close active session if one is open
+	if (m_SessionActive)
+		CloseSession();
 
 	ResetPrinter();
+
+	// Clear paper type because it may have changed
+	m_pPaper = NULL;
 
 	return PRINT_ERROR_NONE;
 }
@@ -483,13 +562,13 @@ Deinit the printer
 */
 void VTFX80Print::Deinit(void)
 {
+	// Delete page memory
 	if (m_pPage != NULL)
 		delete m_pPage;
 	m_pPage = NULL;
 
-	if (m_pPaper != NULL)
-		delete m_pPaper;
 	m_pPaper = NULL; 
+
 	return;
 }
 
@@ -788,6 +867,9 @@ void VTFX80Print::RenderChar(unsigned char byte)
 	int				xpos2;			// Used for locating enhanced dots
 	double			scalar, expandScale;
 	int				proportionAdjust;
+
+	// Indicate marks made on the page
+	m_marksMade = TRUE;
 
 	// Perform interntional character mapping
 	if (m_intlSelect != 0)
@@ -1182,7 +1264,7 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 			m_curY += (int) (((double) byte / 216.0) * m_vertDpi + 0.25);
 
 			// Check for new page
-			if (m_curY > m_vertDots)
+			if (m_curY+9 > m_vertDots)
 				NewPage();
 			return TRUE;
 
@@ -1356,7 +1438,7 @@ int VTFX80Print::ProcessDirectControl(unsigned char byte)
 		m_curY += (int) (m_lineSpacing * m_vertDpi + 0.25);
 
 		// Check for new page
-		if (m_curY > m_vertDots)
+		if (m_curY+9 > m_vertDots)
 			NewPage();
 		return TRUE;
 
@@ -1764,6 +1846,9 @@ void VTFX80Print::RenderGraphic(unsigned char byte)
 	int		advance;
 	int		colsRcvd;
 	int		c, mask;
+
+	// Indicated marks made on the page
+	m_marksMade = TRUE;
 
 	// Plot dots at current x,y location.  Test if full byte plotted
 	if ((m_graphicsMode == FX80_8PIN_MODE) || !(m_graphicsRcvd & 1))

@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.7 2008/02/10 06:52:31 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -924,6 +924,7 @@ void cb_save (Fl_Widget* w, void*)
 
 void cb_cancel (Fl_Widget* w, void*)
 {
+	gSave = 0;
 	gSaveToHost->hide();
 }
 
@@ -964,6 +965,11 @@ void save_file(model_t_files_t *pFile)
 
 
 	// Check if a file was selected
+	if (fc->value() == 0)
+	{
+		delete fc;
+		return;
+	}
 	if (strlen(fc->value()) == 0)
 	{
 		delete fc;

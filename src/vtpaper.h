@@ -39,7 +39,7 @@
 Define the class to represent the "Paper" used for printer emulation.
 =====================================================================
 */
-class VTPaper
+class VTPaper : public VTObject
 {
 public:
 	VTPaper(Fl_Preferences* pPref) { m_pPref = pPref; }
@@ -106,6 +106,43 @@ protected:
 	int					m_topPixel;					// Top pixel on window
 
 	Fl_Scrollbar*		m_pScroll;
+};
+
+/*
+===========================================================
+Define Postscript paper.  This prints to a Postscript file.
+===========================================================
+*/
+class VTPSPaper : public VTPaper
+{
+public:
+	VTPSPaper(Fl_Preferences* pPref);
+	~VTPSPaper();
+
+	virtual MString		GetName(void);				// Name of the paper
+	virtual void		Init(void);					// Initializes with perferences
+	virtual void		GetPrefs(void);				// Get prefs from controls & save
+	virtual void		BuildControls(void);		// Build paper specific controls
+	virtual void		HideControls(void);			// Hide paper specific controls
+	virtual void		ShowControls(void);			// Show paper specific controls
+
+	// PrintPage sends data to the active page, it does not send data to a printer
+	virtual int			PrintPage(unsigned char* pData, int x, int y);
+	virtual int			LoadPaper(void);			// Called when session is opened
+	virtual	int			NewPage(void);				// Creates a new page
+	virtual int			CancelJob(void);			// Cancels printing
+	virtual int			Print(void);				// Send pages to the printer
+
+protected:
+	void				WriteHeader();				// Writes a Postscript header to the file
+	void				WritePageHeader();			// Writes a Postscript page header
+	void				WriteTrailer();				// Writes a Postscript trailer
+	int					WriteFChars(int& cnt);		// Writes reserved 'f' chars to the file
+	int					WriteHChars(int& cnt);		// Writes reserved 'h' chars to the file
+	int					m_pageNum;					// Active page number
+	FILE*				m_pFd;						// The output file handle
+	MString				m_filename;					// The output filename
+	MString				m_dir;						// The directory for storing PS files
 };
 
 #endif

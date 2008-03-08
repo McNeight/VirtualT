@@ -103,6 +103,7 @@ VTVirtualPaper::~VTVirtualPaper(void)
 	// Delete line counts
 	if (m_pLineCnts != NULL)
 		delete m_pLineCnts;
+
 	m_pLineCnts = NULL;
 }
 
@@ -346,7 +347,7 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 	int					totalBytes;
 	int					lineOff;
 	int					r, c, cnt, b;
-	unsigned short		src, srcMask;
+	unsigned short		src, srcMask,psMask;
 	unsigned char		mask, data;
 	unsigned char		*pPage, *pPtr;
 
@@ -397,7 +398,6 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 	}
 	// Add bytes for the terminating -1 line number
 	totalBytes += 2;
-	fflush(stdout);
 
 	// Allocate page memory
 	pPage = new unsigned char[totalBytes];
@@ -449,7 +449,7 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 
 	// Save "Page" to page object array
 	m_pPages.Add((VTObject*)pPage);
-	
+
 	m_pScroll->value(0, this->h(), 0, (m_height + 80) * m_pPages.GetSize());
 	m_topPixel = 0;
 
@@ -485,5 +485,513 @@ void VTVirtualPaper::Scroll(void)
 	m_topPixel = m_pScroll->value();
 
 	redraw();
+}
+
+/*
+==============================================================
+Define Postscript paper Class below
+
+The Postscript paper provides automatic filename generation
+for postscript files and multiple page support.  It creates
+the necessary Postscript comments for a Print Manager to 
+print individual pages, etc.
+==============================================================
+*/
+
+/*
+================================================================================
+VTPSPaper:	This is the class construcor for the Postscript Paper class
+================================================================================
+*/
+VTPSPaper::VTPSPaper(Fl_Preferences* pPref) :
+	VTPaper(pPref)
+{
+	// Initialize pointers
+	m_pageNum = 0;					// Clear active page number
+	m_pFd = NULL;					// Clear file pointer
+}
+
+/*
+================================================================================
+This is the class destrucor for the Postscript paper class
+================================================================================
+*/
+VTPSPaper::~VTPSPaper(void)
+{
+}
+
+/*
+=======================================================
+GetName:	Returns the name of the printer.
+=======================================================
+*/
+MString VTPSPaper::GetName()
+{
+	return "Postscript File";
+}
+
+/*
+=======================================================
+Initialize the page with preferences.
+=======================================================
+*/
+void VTPSPaper::Init()
+{
+}
+
+/*
+=======================================================
+Build the page properties dialog controls.
+=======================================================
+*/
+void VTPSPaper::BuildControls()
+{
+}
+
+/*
+=======================================================
+Hide the controls on the property dialog.  This is 
+called when the paper is not seleted to make room for
+other "papers".
+=======================================================
+*/
+void VTPSPaper::HideControls()
+{
+}
+
+/*
+=======================================================
+Show the controls on the property dialog.  This is 
+called when the paper is seleted to show the specific
+controls for this paper.
+=======================================================
+*/
+void VTPSPaper::ShowControls()
+{
+}
+
+/*
+=======================================================
+Get Page Preferences from dialog and save.
+=======================================================
+*/
+void VTPSPaper::GetPrefs(void)
+{
+}
+
+/*
+=======================================================
+Cancels the current print job.
+=======================================================
+*/
+int VTPSPaper::CancelJob(void)
+{
+	// Test if file is open
+	if (m_pFd != NULL)
+	{
+		// Close the file
+		fclose(m_pFd);
+		m_pFd = NULL;
+	}
+
+	// Delete the file
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Prints the current print job.
+=======================================================
+*/
+int VTPSPaper::Print(void)
+{
+	// Add trailer to Postscript file and close
+	if (m_pFd != NULL)
+	{
+		// Write a trailer to the file
+		WriteTrailer();
+
+		// Now close the file
+		fclose(m_pFd);
+		m_pFd = NULL;
+	}
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Creates a new page for printing.
+=======================================================
+*/
+int VTPSPaper::NewPage(void)
+{
+	m_pageNum++;				// Increment page num
+
+	// Write header for new page to Postscript file
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Loads a new sheet of paper.  Basicaly starts a new
+print job from scratch and dumps all old pages.
+=======================================================
+*/
+int VTPSPaper::LoadPaper(void)
+{
+	int c;
+
+	// Check if a file is open and close if it is
+	if (m_pFd != NULL)
+	{
+		fclose(m_pFd);
+		m_pFd = NULL;
+	}
+
+	// Clear page number
+	m_pageNum = 0;
+
+	// Get next filename for Postscript file
+	m_filename = "test.ps";
+	
+	// Open the file
+	m_pFd = fopen((const char *) m_filename, "w+");
+
+	// Write the Postscript header
+	WriteHeader();
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Prints data to the current page.
+=======================================================
+*/
+int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
+{
+	int					lineOff, numBytes;
+	int					bytesPerLine;
+	int					r, c, b;
+	unsigned char		src;
+	unsigned char		mask;
+	int					lastX, xp, e;
+	int					fCnt, hCnt;
+	char				dotChar, lastDotChar;
+	float				val;
+	int					intVal;
+
+	// Validate the file is open
+	if (m_pFd == NULL)
+		return PRINT_ERROR_IO_ERROR;
+
+	// Some calculations
+	bytesPerLine = (w+7)/8;
+	fCnt = 0;
+	hCnt = 0;
+
+	// Write a Page header
+	WritePageHeader();
+
+	// Calculate the number of bytes needed for each line and the total
+	for (r = 0; r < h; r++)
+	{
+		// Calculate byte offset for this line
+		lineOff = r * bytesPerLine;
+		numBytes = 0;
+
+		// Loop through all data for this line looking for non-zero
+		for (c = bytesPerLine-1; c >= 0; c--)
+		{
+			if (*(pData + lineOff + c) != 0)
+			{
+				// Calculate number of bytes for this line
+				numBytes = c+1;
+				break;
+			}
+		}
+
+		// If the line is empty, then nothing to do
+		if (numBytes == 0)
+			continue;
+
+		// If not already on a new line, terminate the previous line
+		WriteFChars(fCnt);
+		WriteHChars(hCnt);
+		if (e != 0)
+			fprintf(m_pFd, "\n");
+		e = 0;
+
+		// Write the new row number to the Postscript file
+		fprintf(m_pFd, "%.1f r\n", 774.0 - (float) r/2.0);
+		lastX = -99;
+		fCnt = 0;
+		hCnt = 0;
+
+		// Loop for all bytes on this line
+		for (c = 0; c < numBytes; c++)
+		{
+			// Get source data
+			src = *(pData + lineOff + c);
+			mask = 0x01;				// Set 1 bit at a time on page
+
+			// Loop for 8 bits
+			for (b = 0; b < 8; b++)
+			{
+				// output to PS file
+				xp = c*8+b;
+
+				// If this bit is on, mark on the page
+				if (src & mask)
+				{
+					if (lastX + 9 >= xp)
+					{
+						// Calculate the dotChar to be written
+						dotChar = 'd'+xp-lastX;
+
+						// Look for repeated 'f' operators
+						if (dotChar == 'f')
+							++fCnt;
+						else if (dotChar == 'h')
+							++hCnt;
+						else
+						{
+							// Check if we had reserved 'f' chars not printed
+							if (fCnt > 0)
+								e += WriteFChars(fCnt);
+							if (hCnt > 0)
+								e += WriteHChars(hCnt);
+
+							// Print the dot to the Postscript File
+							fprintf(m_pFd, "%c ", dotChar);
+							e++;
+						}
+					}
+					else
+					{
+						e += WriteFChars(fCnt);
+						e += WriteHChars(hCnt);
+						if (xp - lastX == 11)
+							fprintf(m_pFd, "x ");
+						else if (xp - lastX == 12)
+							fprintf(m_pFd, "y ");
+						else if (xp - lastX == 13)
+							fprintf(m_pFd, "z ");
+						else if (xp - lastX == 14)
+							fprintf(m_pFd, "c ");
+						else if (xp - lastX == 16)
+							fprintf(m_pFd, "d ");
+						else if (lastX != -99)
+						{
+							val = (float)(xp - lastX) * .3;
+							intVal = (int) val;
+							if (val == (float) intVal)
+								fprintf(m_pFd, "%d b ", intVal);
+							else
+								fprintf(m_pFd, "%.1f b ", val);
+						}
+						else
+						{
+							val = (float)xp * .3;
+							intVal = (int) val;
+							if (val == (float) intVal)
+								fprintf(m_pFd, "%d a ", 18 + intVal);
+							else
+								fprintf(m_pFd, "%.1f a ", 18.0+val);
+						}
+						e++;
+					}
+					lastX = xp;
+				}
+				mask <<= 1;
+			}
+
+			// Output 16 symbols per Postscript line
+			if (e >= 16)
+			{
+				fprintf(m_pFd, "\n");
+				e =0;
+			}
+		}
+	}
+	// Print any reserved 'f' chars
+	WriteFChars(fCnt);
+	WriteHChars(hCnt);
+
+	fprintf(m_pFd, "\n\nshowpage\n");
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Writes a Postscript header to the file
+=======================================================
+*/
+void VTPSPaper::WriteHeader(void)
+{
+	if (m_pFd == NULL)
+		return;
+
+	fprintf(m_pFd, "%%!PS-Adobe-3.0\n");
+	fprintf(m_pFd, "%%%%Pages: (atend)\n");
+	fprintf(m_pFd, "%%%%BoundingBox: 0 0 612 792\n");
+	fprintf(m_pFd, "%%%%Creator:  VirtualT %s\n", VERSION);
+	fprintf(m_pFd, "%%%%Title:  FX-80 Emulation Print\n", VERSION);
+	fprintf(m_pFd, "%%%%DocumentData: Clean7Bit\n");
+	fprintf(m_pFd, "%%%%LanguageLevel: 2\n");
+	fprintf(m_pFd, "%%%%EndComments\n");
+	fprintf(m_pFd, "/a { newpath dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/b { newpath xp add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/c { newpath xp 4.2 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/d { newpath xp 4.8 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/e { newpath xp .3 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/f { newpath xp .6 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/g { newpath xp .9 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/h { newpath xp 1.2 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/i { newpath xp 1.5 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/j { newpath xp 1.8 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/k { newpath xp 2.1 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/l { newpath xp 2.4 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/m { newpath xp 2.7 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/n { 0 1 2 { f } for} def\n");
+	fprintf(m_pFd, "/o { 0 1 4 { f } for} def\n");
+	fprintf(m_pFd, "/p { 0 1 6 { f } for} def\n");
+	fprintf(m_pFd, "/q { 0 1 3 -1 roll { f } for} def\n");
+	fprintf(m_pFd, "/r { /yp exch def } def\n");
+	fprintf(m_pFd, "/s { 0 1 1 { h } for} def\n");
+	fprintf(m_pFd, "/t { 0 1 2 { h } for} def\n");
+	fprintf(m_pFd, "/u { 0 1 3 { h } for} def\n");
+	fprintf(m_pFd, "/v { 0 1 3 -1 roll { h } for} def\n");
+	fprintf(m_pFd, "/x { newpath xp 3.3 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/y { newpath xp 3.6 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/z { newpath xp 3.9 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+}
+
+/*
+=======================================================
+Writes a Postscript Page Header to the file
+=======================================================
+*/
+void VTPSPaper::WritePageHeader(void)
+{
+	if (m_pFd == NULL)
+		return;
+
+	fprintf(m_pFd, "%%%%Page: %d %d\n", m_pageNum, m_pageNum );
+}
+
+/*
+=======================================================
+Writes a Postscript trailer to the file
+=======================================================
+*/
+void VTPSPaper::WriteTrailer(void)
+{
+	if (m_pFd == NULL)
+		return;
+
+	fprintf(m_pFd, "%%%%Pages: %d\n", m_pageNum + 1);
+	fprintf(m_pFd, "%%%%EOF\n");
+}
+
+/*
+=======================================================
+Prints reserved 'f' characters to the Output file
+=======================================================
+*/
+int VTPSPaper::WriteFChars(int &cnt)
+{
+	int		symbols = 0;
+
+	if ((m_pFd == NULL) || (cnt == 0))
+		return 0;
+
+	// We have f3, f5 and f7 symbols, so write the highest
+	// f9 is handled during PrintPage
+	if (cnt > 7)
+	{
+		fprintf(m_pFd, "%d q ", cnt-1);
+		cnt = 0;
+		symbols++;
+	}
+	else if (cnt == 7)
+	{
+		fprintf(m_pFd, "p ");
+		cnt -= 7;
+		symbols++;
+	}
+	else if (cnt >= 5)
+	{
+		fprintf(m_pFd, "o ");
+		cnt -= 5;
+		symbols++;
+	}
+	else if (cnt >= 3)
+	{
+		fprintf(m_pFd, "n ");
+		cnt -= 3;
+		symbols++;
+	}
+
+	while (cnt != 0)
+	{
+		fprintf(m_pFd, "f ");
+		cnt--;
+		symbols++;
+	}
+
+	return symbols;
+}
+
+/*
+=======================================================
+Prints reserved 'h' characters to the Output file
+=======================================================
+*/
+int VTPSPaper::WriteHChars(int &cnt)
+{
+	int		symbols = 0;
+
+	if ((m_pFd == NULL) || (cnt == 0))
+		return 0;
+
+	// We have f3, f5 and f7 symbols, so write the highest
+	// f9 is handled during PrintPage
+	if (cnt > 4)
+	{
+		fprintf(m_pFd, "%d v ", cnt-1);
+		cnt = 0;
+		symbols++;
+	}
+	else if (cnt == 4)
+	{
+		fprintf(m_pFd, "u ");
+		cnt -= 4;
+		symbols++;
+	}
+	else if (cnt == 3)
+	{
+		fprintf(m_pFd, "t ");
+		cnt -= 3;
+		symbols++;
+	}
+	else if (cnt == 2)
+	{
+		fprintf(m_pFd, "s ");
+		cnt -= 2;
+		symbols++;
+	}
+
+	while (cnt != 0)
+	{
+		fprintf(m_pFd, "h ");
+		cnt--;
+		symbols++;
+	}
+
+	return symbols;
 }
 

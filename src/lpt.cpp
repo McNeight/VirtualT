@@ -285,10 +285,10 @@ Define a menu for printer icon popup
 ====================================================================
 */
 Fl_Menu_Item	gPrintMenu[] = {
-	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0},
-	{ "Reset Printer",   0,     cb_LptResetPrint,    0,   FL_MENU_INVISIBLE},
-	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INACTIVE},
-	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INACTIVE}
+	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INVISIBLE},
+	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INVISIBLE},
+	{ "Reset Printer",   0,     cb_LptResetPrint,    0,   0},
+	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0}
 };
 
 /*
@@ -537,7 +537,6 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ABORTED;
 		gpPrint->label("Abrt");
 		gpPrint->set_image(&gCancelPrinterIcon);
-		gPrintMenu[1].flags = 0;
 		//gpPrint->redraw();
 		time(&m_PortTimeout);
 		return;
@@ -547,8 +546,8 @@ void VTLpt::SendToLpt(unsigned char byte)
 	if (m_PortStatus != LPT_STATUS_READY)
 	{
 		gpPrint->label("Pend");
-		gPrintMenu[2].flags = 0;
-		gPrintMenu[3].flags = 0;
+		gPrintMenu[0].flags = 0;
+		gPrintMenu[1].flags = 0;
 	}
 	m_PortStatus = LPT_STATUS_READY;
 	m_AFFSent = FALSE;
@@ -637,8 +636,8 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			m_PortStatus = LPT_STATUS_IDLE;
 			m_PrevChar = 0;
 			gpPrint->label("Idle");
-			gPrintMenu[2].flags = FL_MENU_INACTIVE;
-			gPrintMenu[3].flags = FL_MENU_INACTIVE;
+			gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+			gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 		}
 		else
 		{
@@ -664,6 +663,7 @@ void VTLpt::DeinitLpt(void)
 	for (c = 0; c < count; c++)
 	{
 		pPrint = (VTPrinter*) m_Printers.GetAt(c);
+		pPrint->Deinit();
 		delete pPrint;
 	}
 
@@ -908,8 +908,8 @@ void VTLpt::EndPrintSession(void)
 	{
 		m_pActivePrinter->EndPrintSession();
 		gpPrint->label("Idle");
-		gPrintMenu[2].flags = FL_MENU_INACTIVE;
-		gPrintMenu[3].flags = FL_MENU_INACTIVE;
+		gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+		gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 		m_PortStatus = LPT_STATUS_IDLE;
 		m_PrevChar = 0;
 	}
@@ -922,11 +922,15 @@ Reset the ABORT status of the printer
 */
 void VTLpt::ResetPrinter(void)
 {
+	// Reset the printer
+	if (m_pActivePrinter != NULL)
+		m_pActivePrinter->ResetPrinter();
+
+	// Reset the LPT emulation too
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
-	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 }
 
 /*
@@ -942,7 +946,7 @@ void VTLpt::CancelPrintJob(void)
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
-	gPrintMenu[2].flags = FL_MENU_INACTIVE;
-	gPrintMenu[3].flags = FL_MENU_INACTIVE;
+	gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 }
 

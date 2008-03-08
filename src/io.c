@@ -383,6 +383,17 @@ void out(uchar port, uchar val)
 				show_remem_mode();	/* Update ReMem mode */
 			break;
 
+			/*
+			I/O Port 0x90 PC-8201a Output Port
+			Bit:
+			    0 - 
+			    1 - 
+				2 -
+				3 -
+			    4 - Clock Chip Data strobe
+			    5 - Printer Data Strobe
+			6 & 7 - Active Serial Port
+			*/
 		case 0x90:	/* T200 Clock/Timer chip */
 			if (gModel == MODEL_PC8201)
 			{
@@ -392,6 +403,11 @@ void out(uchar port, uchar val)
 					break;
 				}
 
+				/* Check for data to the printer */
+				if ((val & 0x20) && !(io90 & 0x20))
+					send_to_lpt(ioB9);
+
+				/* Save value of this port */
 				io90 = val;
 				break;
 			}
@@ -760,10 +776,17 @@ void out(uchar port, uchar val)
 					clock_chip_cmd();
 //					break;
 				}
+
+				/* Check for data to the printer */
+				if ((val & 0x02) && !(ioE8 & 0x02))
+					send_to_lpt(ioB9);
 			}
-			/* Check for data to the printer */
-			if ((val & 0x02) && !(ioE8 & 0x02))
-				send_to_lpt(ioB9);
+			else
+			{
+				// T200 Printer port is on Bit 0, not Bit 1
+				if ((val & 0x01) && !(ioE8 & 0x01))
+					send_to_lpt(ioB9);
+			}
 
 			ioE8 = val;
 
@@ -1002,6 +1025,8 @@ int inport(uchar port)
 				flags |= 0x01;				/* Low Power Sense (not) */
 			else
 				flags |= clock_serial_out;
+
+			// OR the Printer Not Busy bit
 			return flags | 0x02;
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
