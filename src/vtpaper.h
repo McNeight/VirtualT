@@ -33,6 +33,7 @@
 
 #include "printer.h"
 #include "vtobj.h"
+#include "autofile.h"
 
 /*
 =====================================================================
@@ -139,10 +140,21 @@ protected:
 	void				WriteTrailer();				// Writes a Postscript trailer
 	int					WriteFChars(int& cnt);		// Writes reserved 'f' chars to the file
 	int					WriteHChars(int& cnt);		// Writes reserved 'h' chars to the file
+	int					GetFilename(void);			// Get new filename for print
 	int					m_pageNum;					// Active page number
 	FILE*				m_pFd;						// The output file handle
 	MString				m_filename;					// The output filename
 	MString				m_dir;						// The directory for storing PS files
+
+	// Define Perferences below
+	Fl_Check_Button*	m_pPrompt;					// Prompt for Filename checkbox
+	Fl_Check_Button*	m_pAutoFilename;			// Checkbox to create auto filenames
+	Fl_Input*			m_pFileFormat;				// Edit field for filename format
+
+	int					m_prompt;					// Flag to prompt for filename
+	int					m_autoFilename;				// Flag to generate auto filename
+	MString				m_fileFormat;				// String indicating file format
+	VTAutoFile			m_autoFile;					// Generates auto filenames
 };
 
 #endif

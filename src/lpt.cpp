@@ -288,7 +288,8 @@ Fl_Menu_Item	gPrintMenu[] = {
 	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INVISIBLE},
 	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INVISIBLE},
 	{ "Reset Printer",   0,     cb_LptResetPrint,    0,   0},
-	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0}
+	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0},
+	{ 0 }
 };
 
 /*

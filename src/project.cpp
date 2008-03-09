@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.1.1.1 2007/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -237,7 +237,9 @@ VT_NewProject::VT_NewProject()
 	m_pT200->type(FL_RADIO_BUTTON);
 	m_pPC8201 = new Fl_Round_Button(200, 110, 100, 20, "Model PC-8201");
 	m_pPC8201->type(FL_RADIO_BUTTON);
-
+    //JV
+	m_pKC85 = new Fl_Round_Button(200, 125, 100, 20, "Model KC85");
+	m_pKC85->type(FL_RADIO_BUTTON);
 	// Create an Ok button
 	m_pOk = new Fl_Button(60, 265, 90, 30, "OK");
 	m_pOk->callback(cb_okNewProject);
@@ -316,6 +318,8 @@ int VT_NewProject::getTargetModel()
 		return MODEL_T200;
 	else if (m_pPC8201->value() == 1)
 		return MODEL_PC8201;
+	else if (m_pKC85->value() == 1)
+		return MODEL_KC85;
 
 	return -1;
 }
@@ -443,6 +447,11 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pPC8201->type(FL_RADIO_BUTTON);
 	if (m_pProject->m_TargetModel == MODEL_PC8201)
 		m_pPC8201->value(1);
+	m_pKC85 = new Fl_Round_Button(210, 175, 100, 20, "Model KC85");
+	m_pKC85->type(FL_RADIO_BUTTON);
+	if (m_pProject->m_TargetModel == MODEL_KC85)
+		m_pKC85->value(1);
+
 
 	// Create checkbox for AutoLoad
 	m_pAutoLoad  = new Fl_Check_Button(24, 200, 250, 20, "Load to Emulation after assembly");
@@ -581,6 +590,8 @@ int VT_ProjectSettings::getTargetModel()
 		return MODEL_T200;
 	else if (m_pPC8201->value() == 1)
 		return MODEL_PC8201;
+	else if (m_pKC85->value() == 1)
+		return MODEL_KC85;
 
 	return -1;
 }

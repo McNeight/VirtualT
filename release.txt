@@ -26,7 +26,21 @@ v1.1  Not Released Yet
 
 5.  Added Emulated printer support for printing to Files and Host Port devices.
 
-6.  Added Beginnings of Epson FX-80 printer emulation.
+6.  Added Epson FX-80 printer emulation with output to different "Papers".  Current papers
+    include Postscript files and "Virtual Paper" (FLTK Window).
+
+7.  Fixed issue with default (cold boot) year setting on M10 and PC-8201a models.
+
+8.  Added an option to the COM emulation to loop back DTR to DSR and CTS to RTS to emulate a
+    "loopback" cable connected to the serial port.  This option can be enabled from the COM
+    setup tab.
+
+9.  Fixed issue with Serial emulation on Linux in Base Memory emulation mode.  Received bytes
+    were not trigginering the INT6.5 interrupt.
+
+10. Fixed bug when cancelling file save operation that caused the program to crash.
+
+11. Added support for Kyocera KC85 emulation.  ROM Disassembly is only 50% complete.
 
 
 ======================

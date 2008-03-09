@@ -1,6 +1,6 @@
 /* VirtualT.h */
 
-/* $Id: VirtualT.h,v 1.8 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: VirtualT.h,v 1.9 2008/02/17 13:25:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -39,6 +39,7 @@ enum {
 	,MODEL_T200
 	,MODEL_PC8201
 	,MODEL_M10
+	,MODEL_KC85
 	,MODEL_PC8300
 };
 

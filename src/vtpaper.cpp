@@ -509,6 +509,7 @@ VTPSPaper::VTPSPaper(Fl_Preferences* pPref) :
 	// Initialize pointers
 	m_pageNum = 0;					// Clear active page number
 	m_pFd = NULL;					// Clear file pointer
+	m_autoFile.ChooserTitle("Specify Output Postscript File");
 }
 
 /*
@@ -537,6 +538,29 @@ Initialize the page with preferences.
 */
 void VTPSPaper::Init()
 {
+	char		temp[512];
+
+	// Load preferences
+	if (m_pPref == NULL)
+		return;
+
+	m_pPref->get("PSPaper_PromptFilename", m_prompt, 1);
+	m_pPref->get("PSPaper_GenAutoFilename", m_autoFilename, 0);
+	m_pPref->get("PSPaper_FileFormat", temp, "fx_print_%s.ps", 512);
+	m_fileFormat = temp;
+
+	m_autoFile.Format(m_fileFormat);
+}
+
+void cb_PSAutoFilenameCheck(Fl_Widget* w, void *ptr)
+{
+	if (ptr != NULL)
+	{
+		if (((Fl_Check_Button*) w)->value())
+			((Fl_Widget*) ptr)->activate();
+		else
+			((Fl_Widget*) ptr)->deactivate();
+	}
 }
 
 /*
@@ -546,6 +570,20 @@ Build the page properties dialog controls.
 */
 void VTPSPaper::BuildControls()
 {
+	m_pPrompt = new Fl_Check_Button(60, 210, 155, 20, "Prompt for Filename");
+	m_pPrompt->hide();
+	m_pPrompt->value(m_prompt);
+	m_pAutoFilename = new Fl_Check_Button(60, 235, 210, 20, "Generate Automatic filename");
+	m_pAutoFilename->hide();
+	m_pAutoFilename->value(m_autoFilename);
+	m_pFileFormat = new Fl_Input(80, 260, 240, 20, "");
+	m_pFileFormat->hide();
+	m_pFileFormat->value((const char *) m_fileFormat);
+	if (!m_autoFilename)
+		m_pFileFormat->deactivate();
+
+	// Set callback for checkbox
+	m_pAutoFilename->callback(cb_PSAutoFilenameCheck, m_pFileFormat);
 }
 
 /*
@@ -557,6 +595,9 @@ other "papers".
 */
 void VTPSPaper::HideControls()
 {
+	m_pPrompt->hide();
+	m_pAutoFilename->hide();
+	m_pFileFormat->hide();
 }
 
 /*
@@ -568,6 +609,9 @@ controls for this paper.
 */
 void VTPSPaper::ShowControls()
 {
+	m_pPrompt->show();
+	m_pAutoFilename->show();
+	m_pFileFormat->show();
 }
 
 /*
@@ -577,6 +621,22 @@ Get Page Preferences from dialog and save.
 */
 void VTPSPaper::GetPrefs(void)
 {
+	char		temp[512];
+
+	// Read preferences from controls
+
+	m_prompt = m_pPrompt->value();
+	m_autoFilename = m_pAutoFilename->value();
+	m_fileFormat = m_pFileFormat->value();
+
+	// Now save the properties to the preferences
+	m_pPref->set("PSPaper_PromptFilename", m_prompt);
+	m_pPref->set("PSPaper_GenAutoFilename", m_autoFilename);
+	strcpy(temp, (const char *) m_fileFormat);
+	m_pPref->set("PSPaper_FileFormat", temp);
+
+	// Update the filename autoformatter
+	m_autoFile.Format(m_fileFormat);
 }
 
 /*
@@ -628,7 +688,7 @@ int VTPSPaper::NewPage(void)
 {
 	m_pageNum++;				// Increment page num
 
-	// Write header for new page to Postscript file
+	m_autoFile.NextPage();
 
 	return PRINT_ERROR_NONE;
 }
@@ -652,10 +712,12 @@ int VTPSPaper::LoadPaper(void)
 
 	// Clear page number
 	m_pageNum = 0;
+	m_autoFile.FirstPage();
 
-	// Get next filename for Postscript file
-	m_filename = "test.ps";
-	
+	// Get a new filename
+	if (!GetFilename())
+		return PRINT_ERROR_ABORTED;
+
 	// Open the file
 	m_pFd = fopen((const char *) m_filename, "w+");
 
@@ -665,6 +727,31 @@ int VTPSPaper::LoadPaper(void)
 	return PRINT_ERROR_NONE;
 }
 
+/*
+==============================================================
+Get a new filename based on prompt and auto geneate settings.
+==============================================================
+*/
+int VTPSPaper::GetFilename()
+{
+	Fl_File_Chooser*	fc;
+
+	// Check if an automatic filename needs to be generated
+	if (m_autoFilename)
+		m_filename = m_autoFile.GenFilename();
+
+	// Check if we need to prompt for the filename
+	if (m_prompt)
+	{
+		if (m_autoFile.PromptFilename())
+			return 0;
+	}
+
+	m_filename = m_autoFile.m_Filename;
+
+	return 1;
+}
+	
 /*
 =======================================================
 Prints data to the current page.
@@ -809,7 +896,7 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 			}
 
 			// Output 16 symbols per Postscript line
-			if (e >= 16)
+			if (e >= 40)
 			{
 				fprintf(m_pFd, "\n");
 				e =0;

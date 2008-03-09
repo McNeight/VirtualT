@@ -1,6 +1,6 @@
 /* project.h */
 
-/* $Id: project.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: project.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -123,6 +123,7 @@ protected:
 	Fl_Round_Button*	m_pM102;
 	Fl_Round_Button*	m_pT200;
 	Fl_Round_Button*	m_pPC8201;
+	Fl_Round_Button*	m_pKC85;
 };
 
 class VT_ProjectSettings
@@ -174,6 +175,7 @@ protected:
 	Fl_Round_Button*	m_pM102;
 	Fl_Round_Button*	m_pT200;
 	Fl_Round_Button*	m_pPC8201;
+	Fl_Round_Button*	m_pKC85;
 	Fl_Check_Button*	m_pAutoLoad;
 	Fl_Check_Button*	m_pUpdateHIMEM;
 

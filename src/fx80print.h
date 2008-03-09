@@ -72,6 +72,7 @@ public:
 	void				UseRomCheck(Fl_Widget* w);	// Call back for use ROM checkbox
 
 	virtual void		ResetPrinter(void);			// Resets the FX-80 "printer" settings
+	void				PaperSelect(void);
 
 protected:
 	virtual void		PrintByte(unsigned char byte);	// Send byte to FX80 emulation
@@ -96,6 +97,7 @@ protected:
 	MString				m_sRomFile;					// File to load Char ROM
 	MString				m_sRamFile;					// File to load Char RAM
 	MString				m_paperName;				// Name of seleted paper
+	int					m_selectedPaper;
 
 	// Define functions used for handling the FX-80 protocol
 	virtual void		ResetMode(void);			// Resets the FX-80 "printer" settings

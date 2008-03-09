@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.12 2008/02/17 13:25:26 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.13 2008/02/25 03:20:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -65,6 +65,10 @@ extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
 extern RomDescription_t		gM10_Desc;
+//JV
+//extern RomDescription_t		gN8300_Desc;
+extern RomDescription_t		gKC85_Desc;
+
 extern RomDescription_t		*gStdRomDesc;
 extern int					gRomSize;
 extern int					gMaintCount;
@@ -516,6 +520,13 @@ void cb_PC8300(Fl_Widget* w, void*)
 	switch_model(MODEL_PC8300);
 }
 
+void cb_KC85(Fl_Widget* w, void*)
+{
+	/* Switch to new model */
+	switch_model(MODEL_KC85);
+}
+
+
 #ifdef	__APPLE__
 //JV 08/10/05: add an action to choose the working directory
 void cb_choosewkdir(Fl_Widget* w, void*)
@@ -529,11 +540,11 @@ void cb_choosewkdir(Fl_Widget* w, void*)
 			else 
 			{
 				strcpy(path,ret);
-				#ifdef __unix__
-				strcat(path,"/");
-				#else
-				strcat(path,"\\");
-				#endif
+				//#ifdef __unix__
+				//strcat(path,"/");
+				//#else
+				//strcat(path,"\\");
+				//#endif
 				virtualt_prefs.set("Path",path);
 			}
         	
@@ -550,10 +561,20 @@ void cb_help (Fl_Widget* w, void*)
 {
 
     Fl_Help_Dialog *HelpWin;
+	//JV 02/02/2008
+	
 	
 	HelpWin = new Fl_Help_Dialog();
 	HelpWin->resize(HelpWin->x(), HelpWin->y(), 760, 550);
+	
+	#ifdef	__APPLE__
+	char helppath[255];
+	strcpy(helppath,path); strcat(helppath,"/doc/help.html");
+	HelpWin->load(helppath);
+	#else
 	HelpWin->load("doc/help.html");
+	#endif
+	
 	HelpWin->show();
 
 }
@@ -640,7 +661,9 @@ Fl_Menu_Item menuitems[] = {
 		{ "M102",   0, cb_M102,   (void *) 2, FL_MENU_RADIO },
 		{ "T200",   0, cb_M200,   (void *) 3, FL_MENU_RADIO },
 		{ "PC-8201",  0, cb_PC8201, (void *) 4, FL_MENU_RADIO },
+//		{ "PC-8300",  0, cb_PC8300, (void *) 5, FL_MENU_RADIO },
 		{ "M10",    0, cb_M10, (void *) 5, FL_MENU_RADIO },
+		{ "KC85",    0, cb_KC85, (void *) 6, FL_MENU_RADIO },
 		{ 0 },
 	{ "Speed", 0, 0, 0, FL_SUBMENU },
 		{ "2.4 MHz",     0, rspeed, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
@@ -784,7 +807,16 @@ void switch_model(int model)
 	{
 		gStdRomDesc = &gM10_Desc;
 	}
-	else
+	else if (gModel == MODEL_KC85)
+	{
+		gStdRomDesc = &gKC85_Desc;
+	} 
+//	else if (gModel == MODEL_PC8300)
+//	{
+//		gStdRomDesc = &gN8300_Desc;
+//	} 
+	else 
+	      
 		gStdRomDesc = &gM100_Desc;
 
 	/* Clear the LCD */
@@ -1236,11 +1268,11 @@ void init_display(void)
 	// Update Model selection
 	//==================================================
 	mIndex = 0;
-	// Find first display size menu item
+	// Find first model menu item
 	while (menuitems[mIndex].callback_ != cb_M100)
 		mIndex++;
 
-    for(i=MODEL_M100;i<=MODEL_M10;i++)
+    for(i=MODEL_M100;i<=MODEL_PC8300;i++)
     {
         if(i==gModel) 
             if(i==MODEL_PC8300) 

@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -866,6 +866,7 @@ void T100_MemEditor::SetRegionOptions(void)
 		switch (gModel)
 		{
 		case MODEL_M100:
+		case MODEL_KC85:
 		case MODEL_M102:
 		case MODEL_M10:
 			memedit_ctrl.pRegion->add("RAM");
@@ -917,6 +918,7 @@ void T100_MemEditor::SetScrollSize(void)
 		switch (gModel)
 		{
 		case MODEL_M100:
+		case MODEL_KC85:
 		case MODEL_M10:
 		case MODEL_M102:
 		case MODEL_PC8201:

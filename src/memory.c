@@ -69,6 +69,9 @@ extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
 extern RomDescription_t		gM10_Desc;
+//JV
+extern RomDescription_t		gKC85_Desc;
+
 extern int					gShowVersion;
 
 unsigned char get_memory8(unsigned short address)
@@ -745,6 +748,7 @@ void save_ram(void)
 			{
 			case MODEL_M100:				/* M100 & M102 have single bank */
 			case MODEL_M10:					/* M100 & M102 have single bank */
+			case MODEL_KC85:				// JV
 			case MODEL_M102:
 				fwrite(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 				break;
@@ -925,6 +929,7 @@ void load_ram(void)
 		{
 		case MODEL_M100:				/* M100 & M102 have single bank */
 		case MODEL_M10:					/* M100 & M102 have single bank */
+		case MODEL_KC85:
 		case MODEL_M102:
 			fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 			break;
@@ -1035,7 +1040,11 @@ void load_sys_rom(void)
 		gStdRomDesc = &gN8201_Desc;
 	else if (gModel == MODEL_M10)
 		gStdRomDesc = &gM10_Desc;
-	else
+	else if (gModel == MODEL_KC85)
+		gStdRomDesc = &gKC85_Desc;
+//	else if (gModel == MODEL_PC8300)
+//		gStdRomDesc = &gN8300_Desc;
+	else 
 		gStdRomDesc = &gM100_Desc;
 
 	/* Test if VirtulalT version should replace (C) Micro***t text */
@@ -1240,6 +1249,7 @@ void set_rom_bank(unsigned char bank)
 		{
 		case MODEL_M100:	/* Model 100 / 102 emulation */
 		case MODEL_M102:
+		case MODEL_KC85:
 			gRomBank = bank;
 			if (bank & 0x01) 
 			{

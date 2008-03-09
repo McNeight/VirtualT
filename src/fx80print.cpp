@@ -301,6 +301,12 @@ void VTFX80Print::CharRomBrowse(Fl_Widget* w)
 	delete fc;
 }
 
+void cb_PaperSelect(Fl_Widget* w, void *ptr)
+{
+	if (ptr != NULL)
+		((VTFX80Print*) ptr)->PaperSelect();
+}
+
 /*
 =======================================================
 Build the Property Dialog for the FX-80
@@ -365,23 +371,49 @@ void VTFX80Print::BuildPropertyDialog(void)
 	m_pPaperChoice = new Fl_Choice(40, 180, 260, 20, "");
 
 	// Populate the Paper Choice with options
+	m_selectedPaper = 0;
 	count = m_papers.GetSize();
 	for (c = 0; c < count; c++)
 	{
 		name = ((VTPaper*) m_papers[c])->GetName();
 		m_pPaperChoice->add((const char *) name);
 		if (name == (const char *) m_paperName)
+		{
 			m_pPaperChoice->value(c);
+			m_selectedPaper = c;
+		}
 	}
+	m_pPaperChoice->callback(cb_PaperSelect, this);
 
 	// Ensure a paper is selected
 	if (m_pPaperChoice->value() == -1)
 		m_pPaperChoice->value(0);
 
+	// Build properties for each paper
+	for (c = 0; c < count; c++)
+	{
+		((VTPaper*) m_papers[c])->BuildControls();
+		if (c == m_pPaperChoice->value())
+			((VTPaper*) m_papers[c])->ShowControls();
+	}
+
 	// Create controls for setting DIP switch default settings
 	
 	b = new Fl_Button(20, 310, 120, 30, "Char Generator");
 	b->callback(cb_CreateNewCharGen);
+}
+
+/*
+=======================================================
+Process the Paper Select callback and hide / show the
+controls when paper selection changes
+=======================================================
+*/
+void VTFX80Print::PaperSelect(void)
+{
+	((VTPaper*) m_papers[m_selectedPaper])->HideControls();
+	m_selectedPaper = m_pPaperChoice->value();
+	((VTPaper*) m_papers[m_selectedPaper])->ShowControls();
 }
 
 /*
@@ -402,6 +434,7 @@ Init routine for reading prefs, setting up, etc.
 void VTFX80Print::Init(void)
 {
 	char		temp[512];
+	int			c, count;
 
 	// Load preferences
 	m_pPref->get("FX80Print_UseRomFile", m_useRomFile, 0);
@@ -416,6 +449,12 @@ void VTFX80Print::Init(void)
 	// Add all papers to the m_paper object
 	m_papers.Add(new VTPSPaper(m_pPref));
 	m_papers.Add(new VTVirtualPaper(m_pPref));
+
+
+	// Initialize Get preferences for all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+		((VTPaper*) m_papers[c])->Init();
 
 	// Reset printer
 	ResetPrinter();
@@ -432,7 +471,8 @@ int VTFX80Print::OpenSession(void)
 {
 	// If we have paper loaded, force a reload
 	if (m_pPaper != NULL)
-		m_pPaper->LoadPaper();
+		if (m_pPaper->LoadPaper() != PRINT_ERROR_NONE)
+			return PRINT_ERROR_ABORTED;
 
 	// Indicate no marks made on paper
 	m_marksMade = FALSE;
@@ -464,7 +504,11 @@ void VTFX80Print::CreatePaper(void)
 	{
 		m_pPaper = pPaper;
 		m_pPaper->Init();
-		m_pPaper->LoadPaper();
+		if (m_pPaper->LoadPaper() != PRINT_ERROR_NONE)
+		{
+			// Paper not loaded - cancel the print
+			m_pPaper = NULL;
+		}
 	}
 }
 
@@ -510,7 +554,7 @@ Get Printer Properties from dialog and save.
 */
 int VTFX80Print::GetProperties(void)
 {
-	int		index;
+	int		index, count, c;
 
 	if (m_pUseRomFile == NULL)
 		return PRINT_ERROR_NONE;
@@ -525,6 +569,11 @@ int VTFX80Print::GetProperties(void)
 		m_sRamFile = m_pRamFile->value();
 
 	m_paperName = ((VTPaper*) m_papers[m_pPaperChoice->value()])->GetName();
+
+	// Get preferences for all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+		((VTPaper*) m_papers[c])->GetPrefs();
 
 	// Now save values to the preferences
 	m_pPref->set("FX80Print_UseRomFile", m_useRomFile);

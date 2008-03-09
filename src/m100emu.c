@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.13 2008/02/23 23:48:19 jhoger Exp $ */
+/* $Id: m100emu.c,v 1.14 2008/03/01 15:41:11 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -104,6 +104,11 @@ extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
 extern RomDescription_t		gM10_Desc;
+//JV
+//extern RomDescription_t		gN8300_Desc;
+extern RomDescription_t		gKC85_Desc;
+
+
 extern uchar				gReMem;
 extern int					cROM;
 extern unsigned char		ioD0;
@@ -300,6 +305,9 @@ void get_model_string(char* str, int model)
 	case MODEL_PC8201:
 		strcpy(str, "pc8201");
 		break;
+	case MODEL_KC85:
+		strcpy(str, "kc85");
+		break;
 	case MODEL_PC8300:
 		strcpy(str, "pc8300");
 		break;
@@ -325,7 +333,9 @@ int get_model_from_string(char* str)
 	else if (strcmp("pc8300", str) == 0)
 		return MODEL_PC8300;
 	else if (strcmp("m10", str) == 0)
-		return MODEL_M10;
+	   return MODEL_M10;
+	else if (strcmp("kc85", str) == 0)
+		return MODEL_KC85;
 
 	return -1;
 }
@@ -356,10 +366,14 @@ void get_emulation_path(char* emu, int model)
 	case MODEL_PC8201:
 		strcat(emu, "PC8201/");
 		break;
+	case MODEL_KC85:
+		strcat(emu, "KC85/");
+		break;	
 	case MODEL_PC8300:
 		strcat(emu, "PC8300/");
 		break;
 	}
+	//printf("emu_path:%s\n",emu);
 }
 
 /*
@@ -372,27 +386,33 @@ get_rom_path:	This function returns the path of the ROM file for the
 void get_rom_path(char* file, int model)
 {
 	strcpy(file, path);			/* Copy VirtualT path */
+	//printf("Path:%s\n",path);
+	
 	switch (model)
 	{
 	case MODEL_M100:
-		strcpy(file, "M100/M100rom.bin");
+		strcat(file, "M100/M100rom.bin");
 		break;
 	case MODEL_M102:
-		strcpy(file, "M102/M102rom.bin");
+		strcat(file, "M102/M102rom.bin");
 		break;
 	case MODEL_T200:
-		strcpy(file, "T200/T200rom.bin");
+		strcat(file, "T200/T200rom.bin");
 		break;
 	case MODEL_M10:
-		strcpy(file, "M10/M10rom.bin");
+		strcat(file, "M10/M10rom.bin");
 		break;
 	case MODEL_PC8201:
-		strcpy(file, "PC8201/PC8201rom.bin");
+		strcat(file, "PC8201/PC8201rom.bin");
+		break;
+	case MODEL_KC85:
+		strcat(file, "KC85/KC85rom.bin");
 		break;
 	case MODEL_PC8300:
-		strcpy(file, "PC8300/PC8300rom.bin");
+		strcat(file, "PC8300/PC8300rom.bin");
 		break;
 	}
+	//printf("Rom_path:%s\n",file);
 }
 
 /*
@@ -447,11 +467,10 @@ void check_installation(void)
 		if (check_model_support(model))
 			continue;
 
-		printf("copying rom file\n");
-
 		/* ROM file doesn't exist.  Try to open in ROMs dir */
 		get_rom_path(path, model);
 		sprintf(roms_path, "ROMs%s", strrchr(path, '/'));
+		
 		if ((fd = fopen(roms_path, "rb")) == NULL)
 		{
 			/* Error - ROM file not in ROMs dir */
@@ -471,7 +490,6 @@ void check_installation(void)
 #endif
 		/* Create ROM in the emulation directory */
 		get_rom_path(path, model);
-		printf("%s\n", path);
 		fd2 = fopen(path, "wb");
 		if (fd2 == NULL)
 		{
