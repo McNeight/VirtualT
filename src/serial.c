@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.11 2008/03/01 06:45:56 jhoger Exp $ */
+/* $Id: serial.c,v 1.12 2008/03/07 09:24:37 jhoger Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1550,15 +1550,24 @@ int ser_poll ()
 	if (	   setup.com_mode != SETUP_COM_HOST
 		&& setup.com_mode != SETUP_COM_OTHER
 	) return;
-	if (sp.fd < 0) return;
+//	if (sp.fd < 0) return;
 
 #ifndef WIN32
-	int bytes;
+	{
+		int bytes;
+		int s;
 
-	ioctl(sp.fd, FIONREAD, &bytes);
+		s = ioctl(sp.fd, FIONREAD, &bytes);
+		if (s < 0) {
 
-	if (bytes && sp.pCallback) {
-		sp.pCallback();
+			/* attempt to close, reopen port */
+			ser_open_port();
+			return;
+		}
+
+		if (bytes && sp.pCallback) {
+			sp.pCallback();
+		}
 	}
 
 #else
