@@ -1130,8 +1130,12 @@ void VTPSPaper::WriteHeader(void)
 	fprintf(m_pFd, "/x { 6.6 dot } def ");
 	fprintf(m_pFd, "/y { 6.9 dot } def ");
 	fprintf(m_pFd, "/z { 7.2 dot } def\n");
-	fprintf(m_pFd, "/dot { newpath xp add dup /xp exch def yp %.2f 0 360 arc closepath %.2f setgray fill} def\n",
-		size, gray);
+	if (gray == 1.0)
+		fprintf(m_pFd, "/dot { newpath xp add dup /xp exch def yp %.2f 0 360 arc closepath fill} def\n",
+			size);
+	else
+		fprintf(m_pFd, "/dot { newpath xp add dup /xp exch def yp %.2f 0 360 arc closepath %.2f setgray fill} def\n",
+			size, gray);
 	fprintf(m_pFd, "/A { 7.8 dot } def\n");
 	fprintf(m_pFd, "/B { 8.4 dot } def ");
 	fprintf(m_pFd, "/C { 9 dot } def ");
