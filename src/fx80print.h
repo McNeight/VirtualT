@@ -34,8 +34,8 @@
 #include "printer.h"
 
 #define	FX80_PAGE_WIDTH		8.0
-#define	FX80_PAGE_HEIGHT	10.5
-#define	FX80_VERT_DPI		144
+#define	FX80_PAGE_HEIGHT	11
+#define	FX80_VERT_DPI		216
 #define FX80_HORIZ_DPI		240
 
 #define	ASCII_CR			0x0D
@@ -61,18 +61,21 @@ public:
 	~VTFX80Print();
 
 	virtual MString		GetName();					// Get name of the printer
-	virtual void		BuildPropertyDialog();		// Build dialog for FX80
+	virtual void		BuildPropertyDialog(Fl_Window* pParent);		// Build dialog for FX80
 	virtual int			GetProperties(void);		// Get dialog properties and save
 	virtual int			GetBusyStatus(void);
 	virtual void		SendAutoFF(void);			// Send FormFeed if needed
 	virtual void		Deinit(void);				// Deinit routine
 	virtual int			CancelPrintJob(void);		// Cancels the current print job
+	virtual int			GetErrorCount(void);		// Get count of print errors
 
+	int					IntlDipChanged(void);		// Called when a change made to DIP setting
 	void				CharRomBrowse(Fl_Widget* w);// Call back for ROM file browsing
 	void				UseRomCheck(Fl_Widget* w);	// Call back for use ROM checkbox
 
 	virtual void		ResetPrinter(void);			// Resets the FX-80 "printer" settings
 	void				PaperSelect(void);
+	void				SkipPerfSwitch(void);
 
 protected:
 	virtual void		PrintByte(unsigned char byte);	// Send byte to FX80 emulation
@@ -88,6 +91,26 @@ protected:
 	Fl_Button*			m_pRomBrowse;				// Browse button for ROM file
 	Fl_Button*			m_pRamBrowse;				// Browse button for RAM file
 	Fl_Choice*			m_pPaperChoice;				// Control to select the paper source
+	Fl_Round_Button*	m_pIntlChar4off;			// Bit 4 of Intl Char Set DIP
+	Fl_Round_Button*	m_pIntlChar4on;				// Bit 4 of Intl Char Set DIP
+	Fl_Round_Button*	m_pIntlChar2off;			// Bit 2 of Intl Char Set DIP
+	Fl_Round_Button*	m_pIntlChar2on;				// Bit 2 of Intl Char Set DIP
+	Fl_Round_Button*	m_pIntlChar1off;			// Bit 1 of Intl Char Set DIP
+	Fl_Round_Button*	m_pIntlChar1on;				// Bit 1 of Intl Char Set DIP
+	Fl_Box*				m_pIntlCharText;			// Text for International Char
+	Fl_Round_Button*	m_pPrintWeightOn;			// Print Weight switch
+	Fl_Round_Button*	m_pPrintWeightOff;			// Print Weight switch
+	Fl_Round_Button*	m_pZeroSlashOn;				// Zero slashed switch
+	Fl_Round_Button*	m_pZeroSlashOff;			// Zero slashed switch
+	Fl_Round_Button*	m_pPitchOn;					// Pitch switch
+	Fl_Round_Button*	m_pPitchOff;				// Pitch switch
+	Fl_Round_Button*	m_pAutoCROn;				// AutoCR switch
+	Fl_Round_Button*	m_pAutoCROff;				// AutoCR switch
+	Fl_Round_Button*	m_pSkipPerfOn;				// Skip Perforation switch
+	Fl_Round_Button*	m_pSkipPerfOff;				// Skip Perforation switch
+	Fl_Input*			m_pTopOfForm;				// Top of Form location in inches
+
+	void				SetIntlDipText(char set);	// Set Dialog box text based on code
 
 	char				m_romFileStr[256];
 	char				m_ramFileStr[256];
@@ -108,7 +131,7 @@ protected:
 	int					ProcessAsCmd(unsigned char byte);
 	int					ProcessDirectControl(unsigned char byte);
 	void				NewPage(void);				// Start a new page
-	void				CreatePaper(void);			// Create a paper object
+	int					CreatePaper(void);			// Create a paper object
 	unsigned char		MapIntlChar(unsigned char byte);
 	void				SetLeftMargin(unsigned char byte);
 	void				SetRightMargin(unsigned char byte);
@@ -120,22 +143,25 @@ protected:
 	int					ReassignGraphicsCmd(unsigned char byte);
 	void				ResetTabStops(void);		// Reset to factory default tabs
 	void				ResetVertTabs(void);		// Reset to factory default Vertical tabs
+	int					FormHeightCmd(unsigned char byte);
+	void				SetNewFormHeight(double newHeight);
+	void				ProcessLineFeed(void);
 
 	// Define variables used for controling the ESCP/2 printing
 protected:
 	double				m_width;					// Width of printable region
-	double				m_height;					// Height of printable region
 	int					m_curX;						// Current pin X location (dots)
 	int					m_curY;						// Current pin Y loacation (top dot)
 	char				m_escSeen;					// True if processing ESC sequence
 	int					m_escCmd;					// Current ESC command being processed
 	int					m_escParamsRcvd;			// Number of ESC parameters received
 	char				m_escTabChannel;			// Actively updated Tab Channel
-	double				m_topMargin;				// Top margin, in inches
 	double				m_leftMargin;				// Left margin, in inches
 	int					m_leftMarginX;				// Left margin, in dots
 	double				m_rightMargin;				// Right margin, in inches
 	int					m_rightMarginX;				// Right margin, in dots
+	double				m_formHeight;				// Height of Form (11 inch default)
+	double				m_allocHeight;				// Height of Form allocation
 	double				m_bottomMargin;				// Bottom margin, in inches
 	int					m_bottomMarginY;			// Bottom margin in dots
 	double				m_cpi;						// Characters per inch setting
@@ -155,6 +181,10 @@ protected:
 	char				m_subscript;				// Indicates if subscript mode is on
 	char				m_superscript;				// Indicates if superscript mode is on
 	char				m_underline;				// Indicates if underline mode is on
+	char				m_skipPerf;					// Indicates if skip Perforation is on
+	char				m_formsInchMode;			// Determines the mode form height being set
+	char				m_highOrderBitMode;			// Determines if High-Order bit processing on
+	char				m_zeroRedefined;			// Indicates if zero redefined 
 	int					m_vertDots;					// Number of vertical "dots"
 	int					m_horizDots;				// Number of horizontal "dots"
 	int					m_vertDpi;					// Vertical DPI
@@ -169,6 +199,17 @@ protected:
 	unsigned char		m_userLastChar;
 	int					m_userUpdateChar;
 	unsigned char		m_lastChar;
+
+	// Dip switch preferences
+	char				m_autoCR;					// Generate CR when LF received?
+	char				m_zeroSlashed;				// Indicates if the zero is slashed
+	char				m_defCharSet;				// Default international char set
+	char				m_defCompressed;			// Default compressed pitch
+	char				m_defEnhance;				// Default print weight
+	char				m_beep;						// Turns the beeper on / off
+	char				m_defSkipPerf;				// Default skip perforation
+	double				m_topOfForm;				// Distance to TOF from Page top
+	char				m_topOfFormStr[10];			// String version of TOF
 
 	// Graphics mode variables
 	char				m_graphicsMode;				// Indicates if graphics mode is on

@@ -67,8 +67,10 @@ SetUsageRange:	This function sets the range of the usage
 */
 void Fl_Action_Icon::set_image(Fl_Image* image)
 {
-	m_pImage = image->copy();
+	m_pImage = image;
+	//m_pImage = image->copy();
 	Fl_Box::image(m_pImage);
+	redraw();
 }
 
 /*

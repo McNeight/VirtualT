@@ -101,7 +101,7 @@ void VTHostPrint::PrintByte(unsigned char byte)
 Print a byte to the Host device.
 =======================================================
 */
-void VTHostPrint::BuildPropertyDialog(void)
+void VTHostPrint::BuildPropertyDialog(Fl_Window* pParent)
 {
 	// Create controls for Host Port emulation mode
 	Fl_Box* o = new Fl_Box(20, 20, 360, 20, "Host Port / Device Printer");
@@ -157,6 +157,7 @@ int VTHostPrint::OpenSession(void)
 	#ifdef WIN32
 
 	#else
+	return PRINT_ERROR_NONE;
 		// Open file in Read/Write mode
 		m_OutFd = open(m_HostPort, O_RDWR);
 		if (m_OutFd == -1)

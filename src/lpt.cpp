@@ -34,6 +34,8 @@
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Return_Button.H>
 #include <FL/Fl_Menu_Button.H>
+#include <FL/Fl_Text_Display.H>
+#include <FL/Fl_Text_Buffer.H>
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Box.H>
@@ -144,8 +146,47 @@ char* cancel_print_xpm[] = {
 "                  ",
 };
 
+// Define a Printer Error bitmap
+char* error_print_xpm[] = {
+"18 18 15 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"r	c #FF0000",
+"                  ",
+"      pprrpp      ",
+"      rrrrrr      ",
+"    rrrrrrrrrr    ",
+"   rrrrrrrrrrrr   ",
+"   rrrrrrrrrrrr   ",
+" ..rrrrrrrrrrrr.. ",
+" .wwrrrrrrrrrrww. ",
+" .wegrrrrrrrrgew. ",
+" .ggglrrrrrrlggg. ",
+" .mmgllrrrrllgmm. ",
+" .mmvv#rrrr#vvmm. ",
+" .ggvvpnrrnpvvgg. ",
+" .....pwbbnp..... ",
+"      pwrrnp      ",
+"      rrrrrr      ",
+"      rrrrrr      ",
+"        rr        ",
+};
+
 Fl_Pixmap	gPrinterIcon(print_xpm);
 Fl_Pixmap	gCancelPrinterIcon(cancel_print_xpm);
+Fl_Pixmap	gErrorPrinterIcon(error_print_xpm);
 
 extern "C" time_t one_sec_time;
 
@@ -202,6 +243,19 @@ void send_to_lpt(unsigned char byte)
 	if (gLpt != NULL)
 	{
 		gLpt->SendToLpt(byte);
+	}
+}
+
+/*
+=======================================================
+Check for errors in the LPT system
+=======================================================
+*/
+void lpt_check_errors()
+{
+	if (gLpt != NULL)
+	{
+		gLpt->CheckErrors();
 	}
 }
 
@@ -279,6 +333,12 @@ void cb_LptResetPrint(Fl_Widget* w, void*)
 		gLpt->ResetPrinter();
 }
 
+void cb_LptShowErrors(Fl_Widget* w, void*)
+{
+	if (gLpt != NULL)
+		gLpt->ShowErrors();
+}
+
 /*
 ====================================================================
 Define a menu for printer icon popup
@@ -287,6 +347,7 @@ Define a menu for printer icon popup
 Fl_Menu_Item	gPrintMenu[] = {
 	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INVISIBLE},
 	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INVISIBLE},
+	{ "Show Errors",     0,     cb_LptShowErrors,    0,   FL_MENU_INVISIBLE},
 	{ "Reset Printer",   0,     cb_LptResetPrint,    0,   0},
 	{ "Printer Setup",   0,     cb_LptPrintSetup,    0,   0},
 	{ 0 }
@@ -497,8 +558,9 @@ void VTLpt::SendToLpt(unsigned char byte)
 	int		ret = PRINT_ERROR_NONE;
 
 	// Check if we are emulating a printer or not
-	if (!m_EmulationMode || (m_PortStatus == LPT_STATUS_ABORTED))
-		return;
+	if (!m_EmulationMode || (m_PortStatus == LPT_STATUS_ABORTED) ||
+		(m_PortStatus == LPT_STATUS_ERROR))
+			return;
 
 	if (m_pActivePrinter == NULL)
 		return;
@@ -538,8 +600,16 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ABORTED;
 		gpPrint->label("Abrt");
 		gpPrint->set_image(&gCancelPrinterIcon);
-		//gpPrint->redraw();
 		time(&m_PortTimeout);
+		return;
+	}
+
+	// Check if printer reported an error
+	if (ret == PRINT_ERROR_IO_ERROR)
+	{
+		m_PortStatus = LPT_STATUS_ERROR;
+		gpPrint->label("Err");
+		gpPrint->set_image(&gErrorPrinterIcon);
 		return;
 	}
 
@@ -565,8 +635,9 @@ void VTLpt::HandleTimeouts(unsigned long time)
 	unsigned long		timeout;
 
 	// Check if port is IDLE
-	if (m_PortStatus == LPT_STATUS_IDLE)
-		return;
+	if ((m_PortStatus == LPT_STATUS_IDLE) || 
+		(m_PortStatus == LPT_STATUS_ERROR))
+			return;
 
 	// Check if we are emulating a printer
 	if (m_EmulationMode == LPT_MODE_NONE)
@@ -658,6 +729,11 @@ void VTLpt::DeinitLpt(void)
 {
 	int 		count, c;
 	VTPrinter*	pPrint;
+
+	// Close any active print session
+	if (m_PortStatus == LPT_STATUS_READY)
+		if (m_pActivePrinter != NULL)
+			m_pActivePrinter->EndPrintSession();
 
 	// Delete all registered printer objects
 	count = m_Printers.GetSize();
@@ -754,7 +830,7 @@ void VTLpt::PrinterProperties(int useActivePrinter)
 		{
 			if (pPrint != m_pActivePrinter)
 				pPrint->Init(m_pPref);
-			pPrint->BuildPropertyDialog();
+			pPrint->BuildPropertyDialog(m_pProp);
 			if (pPrint != m_pActivePrinter)
 				pPrint->Deinit();
 			break;
@@ -762,14 +838,15 @@ void VTLpt::PrinterProperties(int useActivePrinter)
 	}
 
 	// Create Ok and Cancel button
-	m_pCancel = new Fl_Button(235, 310, 60, 30, "Cancel");
+	m_pCancel = new Fl_Button(m_pProp->w() - 165, m_pProp->h()-40, 60, 30, "Cancel");
 	m_pCancel->callback(cb_PrintProp_Cancel);
 
-	m_pOk = new Fl_Return_Button(310, 310, 60, 30, "Ok");
+	m_pOk = new Fl_Return_Button(m_pProp->w()-90, m_pProp->h()-40, 60, 30, "Ok");
 	m_pOk->callback(cb_PrintProp_Ok, pPrint);
 
 	// Show the dialog box
 	m_pProp->end();
+	m_pProp->show();
 	m_pProp->show();
 }
 
@@ -930,6 +1007,7 @@ void VTLpt::ResetPrinter(void)
 	// Reset the LPT emulation too
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->label("Idle");
+	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
 }
@@ -949,5 +1027,78 @@ void VTLpt::CancelPrintJob(void)
 	m_PrevChar = 0;
 	gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
+}
+
+/*
+=========================================================================
+Checks for errors and updates icon.
+=========================================================================
+*/
+int VTLpt::CheckErrors(void)
+{
+	int		errs = 0;
+
+	// If we have an active printer, get error count from printer
+	if (m_pActivePrinter != NULL)
+		errs = m_pActivePrinter->GetErrorCount();
+
+	// If there are errors, change the icon
+	if (errs > 0)
+	{
+		if (gpPrint->get_image() != &gErrorPrinterIcon)
+		{
+			gpPrint->set_image(&gErrorPrinterIcon);
+			gpPrint->label("Err");
+
+			// Enable the errors menu
+			gPrintMenu[2].flags = 0;
+		}
+	
+		m_PortStatus = LPT_STATUS_ERROR;
+	}
+
+	return errs;
+}
+
+/*
+=========================================================================
+Checks for errors and updates icon.
+=========================================================================
+*/
+void VTLpt::ShowErrors(void)
+{
+	int		c, count;
+
+	if (m_pActivePrinter == NULL)
+		return;
+
+	count = m_pActivePrinter->GetErrorCount();
+
+	if (count == 1)
+	{
+		fl_message((const char *) m_pActivePrinter->GetError(0));
+	}
+	else
+	{
+		Fl_Text_Buffer* tb = new Fl_Text_Buffer();
+		for (c = 0; c < count; c++)
+		{
+			tb->append(m_pActivePrinter->GetError(c));
+			tb->append("\n");
+		}
+		Fl_Window*	o = new Fl_Window(500, 300, "Printer Errors");
+		Fl_Text_Display* td = new Fl_Text_Display(0, 0, 500, 300, "");
+		td->buffer(tb);
+		o->show();
+	}
+
+	// Clear the errors
+	m_pActivePrinter->ClearErrors();
+
+	// Set the icon back to normal
+	gpPrint->set_image(&gPrinterIcon);
+	gpPrint->label("Idle");
+	m_PortStatus = LPT_STATUS_IDLE;
+	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 }
 

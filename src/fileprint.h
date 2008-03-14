@@ -45,7 +45,7 @@ public:
 	VTFilePrint();
 
 	virtual MString		GetName();					// Get name of the printer
-	virtual void		BuildPropertyDialog();		// Specific dialog for File I/O
+	virtual void		BuildPropertyDialog(Fl_Window *pParent);		// Specific dialog for File I/O
 	virtual int			GetProperties(void);		// Get dialog properties and save
 	virtual int 		GetBusyStatus();			// Does nothing for file I/O
 	virtual void		SendAutoFF(void);			// Send a FF to printer

@@ -84,6 +84,7 @@ Closes the current file and opens a new page.
 void VTFilePrint::OpenNextPage()
 {
 	MString filename;
+	char		str[512];
 
 	// Check if file is open
 	if (m_OutFd != NULL)
@@ -115,6 +116,11 @@ void VTFilePrint::OpenNextPage()
 		// Open the file
 		m_Filename = filename;
 		m_OutFd = fopen((const char *) filename, "wb+");
+		if (m_OutFd == NULL)
+		{
+			sprintf(str, "Unable to open file %s", (const char *) filename);
+			AddError(str);
+		}
 
 		return;
 	}
@@ -275,7 +281,7 @@ void VTFilePrint::UpdateFormatForPage(void)
 Build the Property Dialog for the FilePrint Printer
 =======================================================
 */
-void VTFilePrint::BuildPropertyDialog(void)
+void VTFilePrint::BuildPropertyDialog(Fl_Window* pParent)
 {
 	// Create controls for File Output emulaiton mode
 	Fl_Box* o = new Fl_Box(20, 20, 360, 20, "File Output Printer");
@@ -519,6 +525,7 @@ int VTFilePrint::OpenSession(void)
 {
 	MString		filename;
 	int			ret;
+	char		str[512];
 
 	// Reset page number
 	m_PageNum = 1;
@@ -546,7 +553,11 @@ int VTFilePrint::OpenSession(void)
 
 	// Try to open the file
 	if ((m_OutFd = fopen((const char *) filename, "wb+")) == NULL)
+	{
+		sprintf(str, "Unable to open file %s", (const char *) filename);
+		m_errors.Add(str);
 		return PRINT_ERROR_IO_ERROR;
+	}
 
 	// Save the filename
 	m_Filename = filename;

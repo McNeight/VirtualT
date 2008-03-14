@@ -63,6 +63,10 @@ unsigned char	gIntlTable[9][12] = {
 	{ 35, 36, 64, 91, 31, 93, 94, 96, 123, 124, 125, 126 }			// JAPAN
 };   
 
+const char* gIntlCharDesc[] = {
+	"USA", "France", "Germany", "U.K", "Denmark", "Sweden", "Italy", "Spain"
+};
+
 double gGraphicsDpis[7] = {
 	60.0,				// Mode 0 - Single density
 	120.0,				// Mode 1 - Low speed Double density
@@ -307,19 +311,35 @@ void cb_PaperSelect(Fl_Widget* w, void *ptr)
 		((VTFX80Print*) ptr)->PaperSelect();
 }
 
+void cb_IntlCharDip(Fl_Widget* w, void *ptr)
+{
+	if (ptr != NULL)
+		((VTFX80Print*) ptr)->IntlDipChanged();
+}
+
+void cb_SkipPerf(Fl_Widget* w, void *ptr)
+{
+	if (ptr != NULL)
+		((VTFX80Print*) ptr)->SkipPerfSwitch();
+}
+
 /*
 =======================================================
 Build the Property Dialog for the FX-80
 =======================================================
 */
-void VTFX80Print::BuildPropertyDialog(void)
+void VTFX80Print::BuildPropertyDialog(Fl_Window* pParent)
 {
 	Fl_Box*		o;
 	Fl_Button*	b;
+	Fl_Group*	g;
 	int			c, count;
 	MString		name;
 
-	o = new Fl_Box(20, 20, 360, 20, "Emulated Epson FX-80 Printer");
+	// Resize the parent
+	pParent->resize(pParent->x(), pParent->y(), pParent->w()+300, pParent->h());
+
+	o = new Fl_Box(20, 15, 660, 20, "Emulated Epson FX-80 Printer");
 
 	// Create checkbox for use of external ROM file
 	m_pUseRomFile = new Fl_Check_Button(20, 50, 230, 20, "Use External Character ROM");
@@ -398,9 +418,197 @@ void VTFX80Print::BuildPropertyDialog(void)
 	}
 
 	// Create controls for setting DIP switch default settings
+	o = new Fl_Box(470, 50, 280, 20, "DIP Switch Settings");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	o = new Fl_Box(FL_BORDER_BOX, 510, 75, 50, 170, "");
+
+	// Create buttons for International Char Set
+	o = new Fl_Box(440, 85, 60, 20, "Intl Char");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(440, 107, 60, 20, "Set");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	g = new Fl_Group(510,78, 60, 25);
+		m_pIntlChar4off = new Fl_Round_Button(515, 80, 20, 20, "");
+		m_pIntlChar4off->type(102);
+		m_pIntlChar4off->callback(cb_IntlCharDip, this);
+		if (!(m_defCharSet & 0x04))
+			m_pIntlChar4off->value(1);
+		m_pIntlChar4on = new Fl_Round_Button(538, 80, 20, 20, "");
+		m_pIntlChar4on->type(102);
+		m_pIntlChar4on->callback(cb_IntlCharDip, this);
+		if (m_defCharSet & 0x04)
+			m_pIntlChar4on->value(1);
+	g->end();
+	g = new Fl_Group(510,100, 60, 25);
+		m_pIntlChar2off = new Fl_Round_Button(515, 100, 20, 20, "");
+		m_pIntlChar2off->type(102);
+		m_pIntlChar2off->callback(cb_IntlCharDip, this);
+		if (!(m_defCharSet & 0x02))
+			m_pIntlChar2off->value(1);
+		m_pIntlChar2on = new Fl_Round_Button(538, 100, 20, 20, "");
+		m_pIntlChar2on->type(102);
+		m_pIntlChar2on->callback(cb_IntlCharDip, this);
+		if (m_defCharSet & 0x02)
+			m_pIntlChar2on->value(1);
+	g->end();
+	g = new Fl_Group(510,120, 60, 25);
+		m_pIntlChar1off = new Fl_Round_Button(515, 120, 20, 20, "");
+		m_pIntlChar1off->type(102);
+		m_pIntlChar1off->callback(cb_IntlCharDip, this);
+		if (!(m_defCharSet & 0x01))
+			m_pIntlChar1off->value(1);
+		m_pIntlChar1on = new Fl_Round_Button(538, 120, 20, 20, "");
+		m_pIntlChar1on->type(102);
+		m_pIntlChar1on->callback(cb_IntlCharDip, this);
+		if (m_defCharSet & 0x01)
+			m_pIntlChar1on->value(1);
+	g->end();
+	m_pIntlCharText = new Fl_Box(580, 95, 80, 20, "");
+	m_pIntlCharText->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Set the international character set text
+	SetIntlDipText(m_defCharSet);
 	
-	b = new Fl_Button(20, 310, 120, 30, "Char Generator");
+	// Create switch for Print Weight
+	o = new Fl_Box(440, 140, 60, 20, "Emphasized");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(570, 140, 60, 20, "Single Strike");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create switches for Print Weight
+	g = new Fl_Group(510,140, 60, 25);
+		m_pPrintWeightOff = new Fl_Round_Button(515, 140, 20, 20, "");
+		m_pPrintWeightOff->type(102);
+		if (m_defEnhance)
+			m_pPrintWeightOff->value(1);
+		m_pPrintWeightOn = new Fl_Round_Button(538, 140, 20, 20, "");
+		m_pPrintWeightOn->type(102);
+		if (!m_defEnhance)
+			m_pPrintWeightOn->value(1);
+	g->end();
+
+	// Create switch for Zero slash
+	o = new Fl_Box(440, 160, 60, 20, "Zero Slashed");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(570, 160, 60, 20, "Zero Normal");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create switches for Print Weight
+	g = new Fl_Group(510,160, 60, 25);
+		m_pZeroSlashOff = new Fl_Round_Button(515, 160, 20, 20, "");
+		m_pZeroSlashOff->type(102);
+		if (m_zeroSlashed)
+			m_pZeroSlashOff->value(1);
+		m_pZeroSlashOn = new Fl_Round_Button(538, 160, 20, 20, "");
+		m_pZeroSlashOn->type(102);
+		if (!m_zeroSlashed)
+			m_pZeroSlashOn->value(1);
+	g->end();
+
+	// Create switch for Print Pitch
+	o = new Fl_Box(440, 180, 60, 20, "Compressed");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(570, 180, 60, 20, "Pica");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create switches for Print Pitch
+	g = new Fl_Group(510,180, 60, 25);
+		m_pPitchOff = new Fl_Round_Button(515, 180, 20, 20, "");
+		m_pPitchOff->type(102);
+		if (m_defCompressed)
+			m_pPitchOff->value(1);
+		m_pPitchOn = new Fl_Round_Button(538, 180, 20, 20, "");
+		m_pPitchOn->type(102);
+		if (!m_defCompressed)
+			m_pPitchOn->value(1);
+	g->end();
+
+	// Create switch for Auto CR
+	o = new Fl_Box(440, 200, 60, 20, "CR + LF");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(570, 200, 60, 20, "CR Only");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create switches for Auto CR
+	g = new Fl_Group(510,200, 60, 25);
+		m_pAutoCROff = new Fl_Round_Button(515, 200, 20, 20, "");
+		m_pAutoCROff->type(102);
+		if (m_autoCR)
+			m_pAutoCROff->value(1);
+		m_pAutoCROn = new Fl_Round_Button(538, 200, 20, 20, "");
+		m_pAutoCROn->type(102);
+		if (!m_autoCR)
+			m_pAutoCROn->value(1);
+	g->end();
+
+	// Create switch for Skip Perforation
+	o = new Fl_Box(440, 220, 60, 20, "Skip Perforation");
+	o->align(FL_ALIGN_RIGHT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(570, 220, 60, 20, "No Skip");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create switches for Skip Perforation
+	g = new Fl_Group(510,220, 60, 25);
+		m_pSkipPerfOff = new Fl_Round_Button(515, 220, 20, 20, "");
+		m_pSkipPerfOff->type(102);
+		m_pSkipPerfOff->callback(cb_SkipPerf, this);
+		if (m_defSkipPerf)
+			m_pSkipPerfOff->value(1);
+		m_pSkipPerfOn = new Fl_Round_Button(538, 220, 20, 20, "");
+		m_pSkipPerfOn->type(102);
+		m_pSkipPerfOn->callback(cb_SkipPerf, this);
+		if (!m_defSkipPerf)
+			m_pSkipPerfOn->value(1);
+	g->end();
+
+	// Create control for setting the Top of Form
+	o = new Fl_Box(400, 270, 60, 20, "Top of Form");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pTopOfForm = new Fl_Input(510, 270, 60, 20, "");
+	m_pTopOfForm->value(m_topOfFormStr);
+	o = new Fl_Box(575, 270, 60, 20, "inches from top");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	b = new Fl_Button(360, 310, 120, 30, "Char Generator");
 	b->callback(cb_CreateNewCharGen);
+}
+
+/*
+=======================================================
+Process changes to Intl Code Dip switches
+=======================================================
+*/
+int VTFX80Print::IntlDipChanged(void)
+{
+	char		intlCode;
+
+	intlCode = 0;
+	
+	if (m_pIntlChar4on->value())
+		intlCode |= 0x04;
+	if (m_pIntlChar2on->value())
+		intlCode |= 0x02;
+	if (m_pIntlChar1on->value())
+		intlCode |= 0x01;
+
+	SetIntlDipText(intlCode);
+	
+	return intlCode;
+}
+
+/*
+=======================================================
+Change he Intl Char Set text on the Dialog Box.
+=======================================================
+*/
+void VTFX80Print::SetIntlDipText(char intlCode)
+{
+	if (intlCode > 8)
+		return;
+
+	m_pIntlCharText->label(gIntlCharDesc[intlCode]);
 }
 
 /*
@@ -446,9 +654,27 @@ void VTFX80Print::Init(void)
 	m_pPref->get("FX80Print_PaperName", temp, "", 512);
 	m_paperName = temp;
 
+	// Get DIP switch settings
+	m_pPref->get("FX80Print_AutoCR", c, 0);
+	m_autoCR = c;
+	m_pPref->get("FX80Print_ZeroSlashed", c, 0);
+	m_zeroSlashed = c;
+	m_pPref->get("FX80Print_IntlCharSet", c, 0);
+	m_defCharSet = c;
+	m_pPref->get("FX80Print_Pitch", c, 0);
+	m_defCompressed = c;
+	m_pPref->get("FX80Print_PrintWeight", c, 0);
+	m_defEnhance = c;
+	m_pPref->get("FX80Print_SkipPerforation", c, 1);
+	m_defSkipPerf = c;
+	m_pPref->get("FX80Print_TopOfForm", m_topOfForm, 0.5);
+	sprintf(m_topOfFormStr, "%.3f", m_topOfForm);
+	m_beep = FALSE;
+
 	// Add all papers to the m_paper object
-	m_papers.Add(new VTPSPaper(m_pPref));
 	m_papers.Add(new VTVirtualPaper(m_pPref));
+	m_papers.Add(new VTPSPaper(m_pPref));
+	m_papers.Add(new VTlprPaper(m_pPref));
 
 
 	// Initialize Get preferences for all papers
@@ -469,10 +695,16 @@ Opens a new Print Session
 */
 int VTFX80Print::OpenSession(void)
 {
+	int			err;
+
 	// If we have paper loaded, force a reload
 	if (m_pPaper != NULL)
-		if (m_pPaper->LoadPaper() != PRINT_ERROR_NONE)
-			return PRINT_ERROR_ABORTED;
+	{
+		m_pPaper->SetFormHeight(m_formHeight);
+		m_pPaper->SetTopOfForm(m_topOfForm);
+		if ((err = m_pPaper->LoadPaper()) != PRINT_ERROR_NONE)
+			return err;
+	}
 
 	// Indicate no marks made on paper
 	m_marksMade = FALSE;
@@ -485,10 +717,11 @@ int VTFX80Print::OpenSession(void)
 Creates a new Paper object for printing
 =======================================================
 */
-void VTFX80Print::CreatePaper(void)
+int VTFX80Print::CreatePaper(void)
 {
 	int			c, count;
 	VTPaper*	pPaper = NULL;
+	int			err;
 
 	// Find the selected paper
 	count = m_papers.GetSize();
@@ -504,12 +737,19 @@ void VTFX80Print::CreatePaper(void)
 	{
 		m_pPaper = pPaper;
 		m_pPaper->Init();
-		if (m_pPaper->LoadPaper() != PRINT_ERROR_NONE)
+		m_pPaper->SetFormHeight(m_formHeight);
+		m_pPaper->SetTopOfForm(m_topOfForm);
+		if ((err = m_pPaper->LoadPaper()) != PRINT_ERROR_NONE)
 		{
 			// Paper not loaded - cancel the print
-			m_pPaper = NULL;
+			//m_pPaper = NULL;
+			return err;
 		}
 	}
+	else
+		return PRINT_ERROR_IO_ERROR;
+
+	return PRINT_ERROR_NONE;
 }
 
 /*
@@ -521,18 +761,20 @@ int VTFX80Print::CloseSession(void)
 {
 	int		r, c, b;
 	int		data, mask;
+	int		err;
 
 	// Print to the paper
 	if (m_pPage != NULL)
 	{
 		// Create paper if not already created
 		if (m_pPaper == NULL)
-			CreatePaper();
+			if ((err = CreatePaper()) != PRINT_ERROR_NONE)
+				return err;
 
 		// Print the current page and close the session
 		if ((m_pPaper != NULL) && m_marksMade)
 		{
-			m_pPaper->PrintPage(m_pPage, m_horizDots, m_vertDots);
+			m_pPaper->PrintPage(m_pPage, m_horizDots, m_bottomMarginY);
 			m_pPaper->Print();
 		}
 
@@ -570,6 +812,16 @@ int VTFX80Print::GetProperties(void)
 
 	m_paperName = ((VTPaper*) m_papers[m_pPaperChoice->value()])->GetName();
 
+	// Get DIP switch settings
+	m_defCharSet = IntlDipChanged();		// Get current settings
+	m_autoCR = m_pAutoCROff->value();
+	m_zeroSlashed = m_pZeroSlashOff->value();
+	m_defCompressed = m_pPitchOff->value();
+	m_defEnhance = m_pPrintWeightOff->value();
+	m_defSkipPerf = m_pSkipPerfOff->value();
+	m_topOfForm = atof(m_pTopOfForm->value());
+	sprintf(m_topOfFormStr, "%.3f", m_topOfForm);
+
 	// Get preferences for all papers
 	count = m_papers.GetSize();
 	for (c = 0; c < count; c++)
@@ -581,6 +833,19 @@ int VTFX80Print::GetProperties(void)
 	m_pPref->set("FX80Print_UseRamFile", m_useRamFile);
 	m_pPref->set("FX80Print_RamFile", (const char *) m_sRamFile);
 	m_pPref->set("FX80Print_PaperName", (const char *) m_paperName);
+	c = m_defCharSet;
+	m_pPref->set("FX80Print_IntlCharSet", c);
+	c = m_autoCR;
+	m_pPref->set("FX80Print_AutoCR", c);
+	c = m_defCompressed;
+	m_pPref->set("FX80Print_Pitch", c);
+	c = m_defEnhance;
+	m_pPref->set("FX80Print_PrintWeight", c);
+	c = m_defSkipPerf;
+	m_pPref->set("FX80Print_SkipPerforation", c);
+	c = m_zeroSlashed;
+	m_pPref->set("FX80Print_ZeroSlashed", c);
+	m_pPref->set("FX80Print_TopOfForm", m_topOfForm);
 
 	// Close active session if one is open
 	if (m_SessionActive)
@@ -589,6 +854,8 @@ int VTFX80Print::GetProperties(void)
 	ResetPrinter();
 
 	// Clear paper type because it may have changed
+	if (m_pPaper != NULL)
+		m_pPaper->Deinit();
 	m_pPaper = NULL;
 
 	return PRINT_ERROR_NONE;
@@ -616,6 +883,9 @@ void VTFX80Print::Deinit(void)
 		delete m_pPage;
 	m_pPage = NULL;
 
+	// Deinitialize the paper
+	if (m_pPaper != NULL)
+		m_pPaper->Deinit();
 	m_pPaper = NULL; 
 
 	return;
@@ -643,22 +913,35 @@ void VTFX80Print::ResetMode(void)
 	// Reset protocol settings
 	m_escSeen = m_escCmd = 0;					// No active ESC commands
 	m_escParamsRcvd = 0;						// No ESC parameters needed
-	m_topMargin = m_leftMargin = 0.0;			// Default to .5" margin
+	m_leftMargin = 0.0;							// Default to no margin
 	m_leftMarginX = 0;							// Left margin in dots
 	m_rightMarginX = 0;							// Right margin in dots
-	m_cpi = 10.0;								// Default to Pica (10 cpi) font
+
+	// Set form height and bottom margin
+	m_formHeight = FX80_PAGE_HEIGHT;			// Default to 11 inches
+	if (m_defSkipPerf)
+		m_bottomMargin = 1.0;					// One inch margin when skip perf on
+	else
+		m_bottomMargin = 0.0;
+	m_bottomMarginY = (int) ((m_formHeight - m_bottomMargin) * m_vertDpi);
+
 	m_elite = FALSE;							// Turn off elite print mode
-	m_compressed = FALSE;						// Turn off compressed print mode
+	m_compressed = m_defCompressed;				// Set compressed to DIP switch setting
+	if (m_compressed)
+		m_cpi = 17.125;							// Smaller print if compressed
+	else
+		m_cpi = 10.0;							// Default to Pica (10 cpi) font
 	m_lineSpacing = 1.0 / 6.0;					// Default to 1/6" line spacing
 	m_fontSource = 0;							// Default to ROM font
+	m_zeroRedefined = FALSE;						// Indicate we can do slashed zero
 	m_proportional = FALSE;						// Default to non-proportional
-	m_enhanced = FALSE;							// Default to non-enhanced
+	m_enhanced = m_defEnhance;					// Set enhanced to DIP switch setting
 	m_dblStrike = FALSE;						// Default to non-dbl strike
 	m_expanded = FALSE;							// Default to non-expanded
 	m_italic = FALSE;
 	m_underline = FALSE;
 	m_superscript = m_subscript = FALSE;
-	m_intlSelect = 0;							// Select USA char set
+	m_intlSelect = m_defCharSet;				// Select Intl char set from DIP switch
 	m_userUpdateChar = 0;						// Reset user define char vars
 	m_userFirstChar = 0;
 	m_userLastChar = 0;
@@ -672,6 +955,9 @@ void VTFX80Print::ResetMode(void)
 	m_escZmode = 3;								// Default ESC Z to mode 3
 	m_graphicsDpi = 60.0;						// Default graphics mode to 60
 	m_graphicsRcvd = 0;
+	m_skipPerf = m_defSkipPerf;					// Set skip perforation to DIP setting
+	m_formsInchMode = FALSE;					// Clear the Forms Inch mode flag
+	m_highOrderBitMode = 0;						// No high-order bit processing
 
 	ResetTabStops();							// Reset to factory tabs
 	ResetVertTabs();							// Reset to factory vert tabs
@@ -730,17 +1016,16 @@ void VTFX80Print::ResetPrinter(void)
 	int		fileLoaded;
 	FILE*	fd;
 
-	// Reset margins, cpi and pin posiitons
-	m_width = FX80_PAGE_WIDTH;					// Default to 8" printable
-	m_height = FX80_PAGE_HEIGHT;				// Default to 10.5" printable
-	m_vertDpi = FX80_VERT_DPI;					// The number of "Dots" on the page
-	m_horizDpi = FX80_HORIZ_DPI;				// The number of "Dots" on the page
-	m_vertDots = (int) (m_vertDpi * m_height);	// Calculate number of vertical dots
-	m_horizDots = (int) (m_horizDpi * m_width);	// Calculate number of horizontal dots
-	m_bytesPerLine = (m_horizDots + 7 ) / 8;	
-
 	// Reset the print and protocol mode
 	ResetMode();
+
+	// Reset margins, cpi and pin posiitons
+	m_width = FX80_PAGE_WIDTH;					// Default to 8" printable
+	m_vertDpi = FX80_VERT_DPI;					// The number of "Dots" on the page
+	m_horizDpi = FX80_HORIZ_DPI;				// The number of "Dots" on the page
+	m_vertDots = (int) (m_vertDpi * m_formHeight);	// Calculate number of vertical dots
+	m_horizDots = (int) (m_horizDpi * m_width);	// Calculate number of horizontal dots
+	m_bytesPerLine = (m_horizDots + 7 ) / 8;	
 
 	m_curX = m_leftMarginX;
 	m_curY = 0;
@@ -805,13 +1090,15 @@ void VTFX80Print::ResetPrinter(void)
 	// Ensure memory is allocated for the "page"
 	if (m_pPage == NULL)
 	{
-		m_pPage = new unsigned char[m_vertDots * m_bytesPerLine];
+		m_pPage = new unsigned char[(m_vertDots+27) * m_bytesPerLine];
+		m_allocHeight = m_formHeight;
 	}
 
 	// Zero the page memory
 	for (c = 0; c < m_vertDots * m_bytesPerLine; c++)
 		*(m_pPage + c) = 0;
 
+	m_errors.RemoveAll();
 }
 
 /*
@@ -924,6 +1211,18 @@ void VTFX80Print::RenderChar(unsigned char byte)
 	if (m_intlSelect != 0)
 		byte = MapIntlChar(byte);
 
+	// Check for zeroSlash
+	if (m_zeroSlashed && !m_zeroRedefined && (byte == '0'))
+		byte = 127;
+
+	if (m_highOrderBitMode)
+	{
+		if (m_highOrderBitMode == 1)
+			byte |= 0x80;
+		else
+			byte &= 0x7F;
+	}
+
 	// Check if printing in italic
 	if (m_italic)
 		byte |= 0x80;
@@ -935,7 +1234,7 @@ void VTFX80Print::RenderChar(unsigned char byte)
 		pData = m_charRom[byte];
 
 	// Check if font uses upper 8 pins or lower 8 pins
-	topRow = (*pData & 0x80) ? 0 : 2;
+	topRow = (*pData & 0x80) ? 0 : 3;
 
 	// Trim the character for proportional mode printing
 	TrimForProportional(pData, first, last);
@@ -969,9 +1268,10 @@ void VTFX80Print::RenderChar(unsigned char byte)
 				continue;
 			}
 
+			int ssOff = (bits * 3 + 1) >> 1;
 			// Okay, we have to render some "dots" on the page
 			// Calculate the y location based on superscript, subscript, which pins to use
-			ypos = m_curY + (m_superscript ? bits : m_subscript ? 9 + bits : topRow + bits * 2);
+			ypos = m_curY + (m_superscript ? ssOff : m_subscript ? 15 + ssOff : topRow + bits * 3);
 
 			// For expanded mode, we loop on each "pin" twice and create double dots
 			for (i = 0; i < dotsPerPin; i++)
@@ -1011,9 +1311,9 @@ void VTFX80Print::RenderChar(unsigned char byte)
 			for (i = 0; i < dotsPerPin; i++)
 			{
 				xpos = m_curX + (int) ((double) ((c - first)*dotsPerPin + i) * scalar);
-				PlotPixel(xpos, m_curY + 18);
+				PlotPixel(xpos, m_curY + 27);
 				if (m_enhanced)
-					PlotPixel(xpos+1, m_curY + 18);
+					PlotPixel(xpos+1, m_curY + 27);
 			}
 		} 
 	}
@@ -1036,7 +1336,7 @@ inline void VTFX80Print::PlotPixel(int xpos, int ypos)
 	int				offset;
 
 	// Test if printing "off the page"
-	if ((xpos >= m_horizDots) || (ypos >= m_vertDots))
+	if ((xpos >= m_horizDots) || (ypos >= m_vertDots+27))
 		return;
 
 	offset = xpos / 8 + ypos * m_bytesPerLine;
@@ -1071,8 +1371,20 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 			ResetMode();	// Reset mode settings
 			return TRUE;
 
-		case '<':			// Carriage return
+		case '<':			// Carriage return with no line feed
 			m_curX = m_leftMarginX;
+			return TRUE;
+
+		case '>':			// High-order-bit on.  Old support for 7-bit systems
+			m_highOrderBitMode = 1;
+			return TRUE;
+
+		case '=':			// High-order-bit off.  Old support for 7-bit systems
+			m_highOrderBitMode = 2;
+			return TRUE;
+
+		case '#':			// High-order-bit as sent from host
+			m_highOrderBitMode = 0;
 			return TRUE;
 
 		case 0x0e:			// ESC 0x0e same as just 0x0e
@@ -1129,6 +1441,10 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 			m_cpi = 12.0;	// Elite has highest priority
 			return TRUE;
 
+		case 'O':			// Turn off skip perforations
+			m_skipPerf = FALSE;
+			return TRUE;
+
 		case 'P':			// Turn off Elite printing
 			m_elite = FALSE;
 			if (m_compressed)		// Compressed take priority over Pica
@@ -1179,10 +1495,8 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 			return TRUE;
 
 		// ESC Codes that don't mean anything for the emulation, but need to be processed
-		case '>':			// High-order-bit.  Old support for 7-bit systems
 		case '8':			// Turn off paper sensor
 		case '9':			// Turn on paper sensor
-		case 'O':			// Turn off skip perforations
 			return TRUE;
 
 		default:			// Unknown ESC code - terminate ESC mode
@@ -1273,18 +1587,14 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 
 			// Set next tab stop base on current cpi
 			if (m_escParamsRcvd < 16)
-				m_vertTabs[0][m_escParamsRcvd++] = (int) (m_vertDpi  * (double) byte * m_lineSpacing);
+				m_vertTabs[0][m_escParamsRcvd++] = (int) (m_vertDpi  * 
+					(double) byte * m_lineSpacing);
 			if (m_escParamsRcvd == 16)
 				m_escCmd = m_escParamsRcvd = 0;
 			return TRUE;
 
 		case 'C':			// Set form length
-			// Check if using inches mode.  If inches, need to wait for next byte
-			if (byte == 0)
-				return TRUE;
-			// Setting form length doesn't mean anything for emulation - do nothing
-			m_escCmd = 0;
-			return TRUE;
+			return FormHeightCmd(byte);
 
 		case 'D':			// Set Tab Stops
 			// Check if done setting tab stops
@@ -1312,9 +1622,9 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 			m_escCmd = 0;
 			m_curY += (int) (((double) byte / 216.0) * m_vertDpi + 0.25);
 
-			// Check for new page
-			if (m_curY+9 > m_vertDots)
-				NewPage();
+			// Process addition to curY
+			ProcessLineFeed();
+
 			return TRUE;
 
 		case 'j':			// Reverse line feed n/216", no CR
@@ -1330,7 +1640,15 @@ int VTFX80Print::ProcessAsCmd(unsigned char byte)
 		case 'Z':			// Quad density graphics mode
 			return GraphicsCommand(byte);
 
-		case 'N':			// Turn on Skip Perforation - No operation
+		case 'N':			// Turn on Skip Perforation
+			// Ignore values greater than the form length
+			if ((double) byte * m_lineSpacing < m_formHeight)
+			{
+				// Update bottom margin
+				m_bottomMargin = (double) byte * m_lineSpacing;
+				m_bottomMarginY = (int) ((m_formHeight - m_bottomMargin) * m_vertDpi);
+				m_skipPerf = TRUE;
+			}
 			m_escCmd = 0;
 			return TRUE;
 
@@ -1435,6 +1753,8 @@ int VTFX80Print::ProcessDirectControl(unsigned char byte)
 	switch (byte & 0x7F)
 	{
 	case 0x07:					// Beep
+		if (m_beep)
+			fl_beep(FL_BEEP_MESSAGE);
 		return TRUE;
 
 	case 0x08:					// Backspace character
@@ -1460,6 +1780,16 @@ int VTFX80Print::ProcessDirectControl(unsigned char byte)
 		// Turn off Expanded One Line
 		m_expandedOneLine = FALSE;
 		m_curX = m_leftMarginX;
+
+		// Test if automatic CR generation is enabled
+		if (m_autoCR)
+		{
+			// Check if auto CRLF is on
+			m_curY += (int) (m_lineSpacing * m_vertDpi + 0.25);
+
+			// Check for new page
+			ProcessLineFeed();
+		}
 		return TRUE;
 
 	case 0x0b:					// Vertical tab
@@ -1487,8 +1817,7 @@ int VTFX80Print::ProcessDirectControl(unsigned char byte)
 		m_curY += (int) (m_lineSpacing * m_vertDpi + 0.25);
 
 		// Check for new page
-		if (m_curY+9 > m_vertDots)
-			NewPage();
+		ProcessLineFeed();
 		return TRUE;
 
 	case ASCII_FF:				// FF character
@@ -1557,7 +1886,6 @@ void VTFX80Print::NewPage(void)
 	for (c = 0; c < m_vertDots * m_bytesPerLine; c++)
 		if (*(m_pPage + c) != 0)
 		{
-
 			// Create paper if we don't already have it
 			if (m_pPaper == NULL)
 				CreatePaper();
@@ -1565,7 +1893,7 @@ void VTFX80Print::NewPage(void)
 			// Print page to the paper and create a new page
 			if (m_pPaper != NULL)
 			{
-				m_pPaper->PrintPage(m_pPage, m_horizDots, m_vertDots);
+				m_pPaper->PrintPage(m_pPage, m_horizDots, m_bottomMarginY);
 				m_pPaper->NewPage();
 			}
 
@@ -1754,6 +2082,8 @@ int VTFX80Print::DefineUserChar(unsigned char byte)
 	{
 		index = (m_escParamsRcvd - 3) % 12;
 		m_charRam[m_userUpdateChar][index] = byte;
+		if (m_userUpdateChar == '0')
+			m_zeroRedefined = TRUE;
 
 		// Check if we need to move to the next character
 		if (index == 11)
@@ -1923,7 +2253,7 @@ void VTFX80Print::RenderGraphic(unsigned char byte)
 		{
 			// Bit is set...fire the "bottom pin"
 			// NOTE: this really should use m_vertDpi to calc the location
-			PlotPixel(m_curX, m_curY + 16);		// 16 is pin 9 (value 8) times 2
+			PlotPixel(m_curX, m_curY + 24);		// 16 is pin 9 (value 8) times 2
 		}
 		
 		// Advance the x position
@@ -1939,5 +2269,196 @@ void VTFX80Print::RenderGraphic(unsigned char byte)
 	// Check if we received all bytes
 	if (colsRcvd >= m_graphicsLength)
 		m_graphicsMode = FALSE;
+}
+
+/*
+=======================================================
+Processes a Set Form Height argument
+=======================================================
+*/
+int VTFX80Print::FormHeightCmd(unsigned char byte)
+{
+	double		newHeight;
+
+	// Check if using inches mode.  If inches, need to wait for next byte
+	if (byte == 0)
+	{
+		m_formsInchMode = 1;
+		return TRUE;
+	}
+	// Check if settting mode with lines or inches
+	if (m_formsInchMode)
+	{
+		// Inches mode - update botomMarginY
+		if (byte <= 22)
+			newHeight = (double) byte;
+	}
+	else
+	{
+		// Setting in lines mode - check for bounds
+		if (byte <= 127)
+			newHeight = (double) byte * m_lineSpacing;	// Use current line spacing
+	}
+		
+	// Set the new form height
+	SetNewFormHeight(newHeight);
+
+	// Reset Mode variables
+	m_formsInchMode = 0;
+	m_escCmd = 0;
+	return TRUE;
+}
+
+/*
+=======================================================
+Sets a new form height and takes care of memory 
+allocation size, etc.
+=======================================================
+*/
+void VTFX80Print::SetNewFormHeight(double newHeight)
+{
+	unsigned char*	newPage;
+	int				newVertDots;
+	int				newSize, c;
+
+	// Set new height if it is different
+	if (newHeight == m_formHeight)
+		return;
+
+	// Check if memory needs to be reallocated
+	if (newHeight > m_allocHeight)
+	{
+		newVertDots = (int) (newHeight * m_vertDpi);
+		newSize = m_bytesPerLine * (newVertDots + 27);
+		newPage = new unsigned char[newSize];
+
+		if (newPage == NULL)
+		{
+			// Error updating form length!!  Process error
+
+			// Don't update the form length - no enough memory
+			return;
+		}
+
+		// Zero the new page memory
+		for (c = 0; c < newSize; c++)
+			*(newPage+c) = 0;
+
+		// If marks made on the page, copy them
+		if (m_marksMade)
+		{
+			int oldSize = m_vertDots * m_bytesPerLine;
+			for (c = 0; c < oldSize; c++)
+				*(newPage+c) = *(m_pPage + c);
+		}
+
+		// Deallocate old page memory
+		delete m_pPage;
+		m_pPage = newPage;
+		m_allocHeight = newHeight;
+		m_vertDots = newVertDots;
+	}
+
+	// Update the new height
+	m_formHeight = newHeight;
+	m_bottomMarginY = (int) ((m_formHeight - m_bottomMargin) * m_vertDpi);
+
+	// Update Form Height on the Paper
+	if (m_pPaper != NULL)
+		m_pPaper->SetFormHeight(m_formHeight);
+}
+
+/*
+=======================================================
+Process a Line Feed by checking if the new Y location 
+is beyond the bottom margin and checking if dots were
+rendered over the margin.
+=======================================================
+*/
+void VTFX80Print::ProcessLineFeed(void)
+{
+	int		ySave, r, c;
+	int		srcOff, destOff;
+
+	// Check for new page
+	if (m_skipPerf)
+	{
+		// For Perforation Skip, we want to skip if a full line doesn't fit
+		if (m_curY + 25 > m_bottomMarginY)
+			NewPage();
+	}
+	else
+	{
+		// Test if rendering occurred over the "perforation"
+		if (m_curY >= m_bottomMarginY)
+		{
+			// Save the CurY so we can test for perf crossing
+			ySave = m_curY;
+
+			// Process page and create a new on
+			NewPage();
+
+			// Now we must set m_curY to reflect partial printing 
+			m_curY = ySave - m_bottomMarginY;
+			
+			// Copy m_curY rows from the overflow area
+			for (r = 0; r <= m_curY; r++)
+			{
+				// Calculate offset for source and dest rows
+				srcOff = (m_bottomMarginY + r) * m_bytesPerLine;
+				destOff = r * m_bytesPerLine;
+				for (c = 0; c < m_bytesPerLine; c++)
+					*(m_pPage + destOff + c) = *(m_pPage + srcOff + c);
+			}
+
+			// Now zero the overflow area
+			for (r = m_bottomMarginY; r < m_bottomMarginY + 27; r++)
+				for (c = 0; c < m_bytesPerLine; c++)
+					*(m_pPage + r * m_bytesPerLine + c) = 0;
+		}
+	}
+}
+
+/*
+=======================================================
+Processes a Skip Perforation radio button press.  
+Updates the top of form edit field.
+=======================================================
+*/
+void VTFX80Print::SkipPerfSwitch(void)
+{
+	if (m_pSkipPerfOn->value())
+		strcpy(m_topOfFormStr, "0.000");
+	else
+		strcpy(m_topOfFormStr, "0.500");
+
+	m_pTopOfForm->value(m_topOfFormStr);
+}
+
+/*
+=======================================================
+Get the count of errors associated with the printer
+=======================================================
+*/
+int VTFX80Print::GetErrorCount(void)
+{
+	int		c, count;
+
+	// Check if the paper has any errors to report
+	if (m_pPaper != NULL)
+	{
+		count = m_pPaper->GetErrorCount();
+		if (count > 0)
+		{
+			// Add paper errors to printer errors
+			for (c = 0; c < count; c++)
+				m_errors.Add(m_pPaper->GetError(c));
+
+			// Clear all errors from paper
+			m_pPaper->ClearErrors();
+		}
+	}
+
+	return m_errors.GetSize();
 }
 

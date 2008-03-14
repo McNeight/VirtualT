@@ -1,6 +1,6 @@
 /* printer.cpp */
 
-/* $Id: printer.cpp,v 1.10 2008/02/07 05:46:22 kpettit1 Exp $ */
+/* $Id: printer.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -109,5 +109,20 @@ void VTPrinter::EndPrintSession(void)
 		CloseSession();
 		m_SessionActive = FALSE;
 	}
+}
+
+/*
+================================================================================
+Get the text for a specified error number
+================================================================================
+*/
+MString VTPrinter::GetError(int index)
+{
+	MString		none;
+
+	if (index < m_errors.GetSize())
+		return m_errors[index];
+
+	return	none;
 }
 

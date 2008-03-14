@@ -43,6 +43,7 @@ public:
 	Fl_Action_Icon(int x, int y, int w, int h, const char *title);
 
 	void			set_image(Fl_Image*);			// Sets the image's icon
+	Fl_Image*		get_image(void) { return m_pImage; }
 	void			menu(Fl_Menu_Item* menu);		// Sets a popup menu
 
 protected:

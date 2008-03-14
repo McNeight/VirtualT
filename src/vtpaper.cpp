@@ -128,6 +128,16 @@ void VTVirtualPaper::Init()
 
 /*
 =======================================================
+Deinitialize the page and frees memory
+=======================================================
+*/
+void VTVirtualPaper::Deinit()
+{
+	DeletePageMemory();
+}
+
+/*
+=======================================================
 Build the page properties dialog controls.
 =======================================================
 */
@@ -171,15 +181,19 @@ void VTVirtualPaper::DrawPage(int pageNum)
 	int				page, count;
 	int				pageOffset;
 	int				xpos, ypos;
+	VTVirtualPage*	pVPage;
 
 	// Print to the paper
 	count = m_pPages.GetSize();
 	if (pageNum >= count)
 		return;
 
-	pageOffset = pageNum * (m_height + 80)+30;
+	// Calculate page offset based on TopOfForm setting
+	pVPage = (VTVirtualPage*) m_pPages[pageNum];
+	pageOffset = (int) ((pVPage->m_topOffset + pVPage->m_tof) * 144.0);
+	pPage = pVPage->m_pPage;
 
-	pPage = (unsigned char *) m_pPages[pageNum];
+	// Validate the page memory is not NULL
 	if (pPage != NULL)
 	{
 		// Use temporary pointer
@@ -194,7 +208,7 @@ void VTVirtualPaper::DrawPage(int pageNum)
 		while (r != 65535)
 		{
 			bytes = *pPtr++;			// Get number of bytes
-			ypos = pageOffset + r - m_topPixel;
+			ypos = pageOffset + ((r*2+1)/3) - m_topPixel;
 
 			for (c = 0; c < bytes; c++)
 			{
@@ -229,26 +243,64 @@ Draws the window using paper output data.
 */
 void VTVirtualPaper::draw(void)
 {
-	int		pages, page;
+	int				pages, page;
+	double			offset;
+	VTVirtualPage*	pVPage;
+	int				pageBottom;
 
 	// Draw child objects, etc
 	Fl_Double_Window::draw();
 
-	// Check which page we need to draw
-	page = m_topPixel / (m_height + 80);
-	DrawPage(page);
-
-	// Check if page separator needs to be drawn
-	if ((page+1) * (m_height+80)-20 < m_topPixel + h())
+	// Check if page separator needs to be drawn at top
+	if (m_topPixel < 9)
 	{
 		fl_color(FL_GRAY);
-		fl_rectf(0, (page+1) * (m_height+80)-20 - m_topPixel,
-			w()-15, 20);
+		fl_rectf(0, -m_topPixel, w()-15, 9);
 	}
 
-	// Check if next page needs to be drawn
-	if ((page+1) * (m_height+80) < m_topPixel + h())
-		DrawPage(page+1);
+	// Determine in which page m_topPixel falls
+	offset = (double) m_topPixel / 144.0;
+	pages = m_pPages.GetSize();
+	for (page = 0; page < pages; page++)
+	{
+		pVPage = ((VTVirtualPage*) m_pPages[page]);
+		if (offset < pVPage->m_topOffset + pVPage->m_pageHeight)
+			break;
+	}
+
+	// Draw the top page
+	DrawPage(page);
+
+	// Draw pages until window is full
+	while (TRUE)
+	{
+		pageBottom = (int) ((pVPage->m_topOffset + pVPage->m_pageHeight) * 144.0);
+
+		// Check if page separator needs to be drawn
+		if (pageBottom < m_topPixel + h())
+		{
+			fl_color(FL_GRAY);
+			fl_rectf(0,  pageBottom- m_topPixel, w()-15, 18);
+			fl_color(FL_DARK3);
+			fl_rectf(4,  pageBottom- m_topPixel+1, w()-19, 5);
+		}
+
+		// Check if next page needs to be drawn
+		if (page + 1 < m_pPages.GetSize())
+		{
+			pVPage = (VTVirtualPage*) m_pPages[page+1];
+			int pageTop = (int) (pVPage->m_topOffset * 144);
+			if (pageTop < m_topPixel + h())
+			{
+				DrawPage(page+1);
+				page++;
+			}
+			else
+				break;
+		}
+		else
+			break;
+	}
 
 	return;
 }
@@ -260,23 +312,6 @@ Get Page Preferences from dialog and save.
 */
 void VTVirtualPaper::GetPrefs(void)
 {
-/*	if (m_pUseRomFile == NULL)
-		return PRINT_ERROR_NONE;
-
-	// Get values from the dialog controls
-	m_useRomFile = m_pUseRomFile->value();
-	m_useRamFile = m_pUseRamFile->value();
-	if (m_pRomFile->value() != 0)
-		m_sRomFile = m_pRomFile->value();
-
-	if (m_pRamFile->value() != 0)
-		m_sRamFile = m_pRamFile->value();
-
-	m_virtualPaper = m_pVirtualPaper->value();
-
-	// Now save values to the preferences
-	m_pPref->set("VirtualPaper_UseRomFile", m_useRomFile);
-*/
 }
 
 /*
@@ -350,6 +385,7 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 	unsigned short		src, srcMask,psMask;
 	unsigned char		mask, data;
 	unsigned char		*pPage, *pPtr;
+	int					everyThird;
 
 	// Validate height and width didn't change
 	if ((m_height != 0) && (h != m_height))
@@ -361,19 +397,20 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 			m_pLineCnts = NULL;
 		}
 	}
-	m_height = h;
+	m_height = (h << 1)/3;
 	m_width = w;
 	m_bytes = (w+7)/8 * h;
 	m_bytesPerLine = (w+7)/8;
 
 	// Allocate line counts if it doesn't exist
 	if (m_pLineCnts == NULL)
-		m_pLineCnts = new char[m_height];
+		m_pLineCnts = new char[h];
 	if (m_pLineCnts == NULL)
 		return PRINT_ERROR_NOMEM;
 
 	// Calculate the number of bytes needed for each line and the total
 	totalBytes = 0;
+	everyThird = 0;
 	for (r = 0; r < h; r++)
 	{
 		lineOff = r * m_bytesPerLine;
@@ -384,7 +421,13 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 		// Loop through all data for this line looking for non-zero
 		for (c = m_bytesPerLine-1; c >= 0; c--)
 		{
-			if (*(pData + lineOff + c) != 0)
+			data = *(pData + lineOff + c);
+			// Check the 2 1/3 pixel rows together to keep aspect ratio correct
+			if (everyThird > 0)
+				data |= *(pData + lineOff + c + m_bytesPerLine);
+
+			// Check data
+			if (data != 0)
 			{
 				// Calculate number of bytes for this line
 				// We only save half the data because of screen resolution
@@ -395,6 +438,11 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 				break;
 			}
 		}
+		if (everyThird++ > 0)
+		{
+			everyThird = 0;
+			r++;
+		}
 	}
 	// Add bytes for the terminating -1 line number
 	totalBytes += 2;
@@ -403,12 +451,20 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 	pPage = new unsigned char[totalBytes];
 	pPtr = pPage;
 
+	everyThird = 0;
 	// Loop through lines with data and copy to page memory
 	for (r = 0; r < h; r++)
 	{
 		// Skip blank lines
 		if (*(m_pLineCnts + r) == 0)
+		{
+			if (everyThird++ > 0)
+			{
+				everyThird = 0;
+				r++;
+			}
 			continue;
+		}
 
 		// Calculate line offset
 		lineOff = r * m_bytesPerLine;
@@ -425,6 +481,11 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 			// Get source data
 			src = (unsigned short) *(pData + lineOff + c) | 
 				((unsigned short) *(pData + lineOff + c + 1) << 8);
+			if (everyThird > 0)
+			{
+				src |= (unsigned short) *(pData + lineOff + c + m_bytesPerLine) |
+					((unsigned short) *(pData + lineOff + c + 1 + m_bytesPerLine) << 8);
+			}
 			srcMask = 0x0003;			// Test 2 bits at a time
 			mask = 0x01;				// Set 1 bit at a time on page
 			data = 0;
@@ -441,16 +502,41 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 			// Save byte in page memory
 			*pPtr++ = data;
 		}
+		if (everyThird++ > 0)
+		{
+			everyThird = 0;
+			r++;
+		}
 	}
 
 	// Add terminating -1 line number
 	*pPtr++ = 0xFF;
 	*pPtr++ = 0xFF;
 
-	// Save "Page" to page object array
-	m_pPages.Add((VTObject*)pPage);
+	VTVirtualPage* pVPage = new VTVirtualPage;
+	pVPage->m_pPage = pPage;
+	pVPage->m_pageHeight = m_formHeight;
+	pVPage->m_tof = m_tof;
 
-	m_pScroll->value(0, this->h(), 0, (m_height + 80) * m_pPages.GetSize());
+	// Calculate page top 
+	if (m_pPages.GetSize() == 0)
+		pVPage->m_topOffset = 1.0 / 16.0;	// 1/16" at top
+	else
+	{
+		VTVirtualPage* pTmp = ((VTVirtualPage*) m_pPages[m_pPages.GetSize()-1]);
+		pVPage->m_topOffset = pTmp->m_topOffset + pTmp->m_pageHeight + 0.125;
+	}
+
+	// Save "Page" to page object array
+	m_pPages.Add(pVPage);
+
+	// Calculate total size of scroll based on individual page sizes
+	int count = m_pPages.GetSize();
+	double totalHeight = 0.0;
+	for (c = 0; c < count; c++)
+		totalHeight += ((VTVirtualPage*) m_pPages[c])->m_pageHeight;
+
+	m_pScroll->value(0, this->h(), 0, (int) (totalHeight * 144.0) + 18 * count);
 	m_topPixel = 0;
 
 	return PRINT_ERROR_NONE;
@@ -469,7 +555,7 @@ void VTVirtualPaper::DeletePageMemory(void)
 	count = m_pPages.GetSize();
 	for (c = 0; c < count; c++)
 	{
-		delete (unsigned char *) m_pPages[c];
+		delete (VTVirtualPage*) m_pPages[c];
 	}
 
 	m_pPages.RemoveAll();
@@ -547,9 +633,19 @@ void VTPSPaper::Init()
 	m_pPref->get("PSPaper_PromptFilename", m_prompt, 1);
 	m_pPref->get("PSPaper_GenAutoFilename", m_autoFilename, 0);
 	m_pPref->get("PSPaper_FileFormat", temp, "fx_print_%s.ps", 512);
+	m_pPref->get("PSPaper_InkDarkness", m_darkness, 45);
 	m_fileFormat = temp;
 
 	m_autoFile.Format(m_fileFormat);
+}
+
+/*
+=======================================================
+Deinitialize the page and frees memory
+=======================================================
+*/
+void VTPSPaper::Deinit()
+{
 }
 
 void cb_PSAutoFilenameCheck(Fl_Widget* w, void *ptr)
@@ -570,17 +666,43 @@ Build the page properties dialog controls.
 */
 void VTPSPaper::BuildControls()
 {
-	m_pPrompt = new Fl_Check_Button(60, 210, 155, 20, "Prompt for Filename");
+	// Control to enable filename prompting
+	m_pPrompt = new Fl_Check_Button(45, 210, 155, 20, "Prompt for Filename");
 	m_pPrompt->hide();
 	m_pPrompt->value(m_prompt);
-	m_pAutoFilename = new Fl_Check_Button(60, 235, 210, 20, "Generate Automatic filename");
+
+	// Control to enable auto file generation
+	m_pAutoFilename = new Fl_Check_Button(45, 235, 210, 20, "Generate Automatic filename");
 	m_pAutoFilename->hide();
 	m_pAutoFilename->value(m_autoFilename);
-	m_pFileFormat = new Fl_Input(80, 260, 240, 20, "");
+
+	// Control to edit the output file generator format
+	m_pFileFormat = new Fl_Input(65, 260, 240, 20, "");
 	m_pFileFormat->hide();
 	m_pFileFormat->value((const char *) m_fileFormat);
 	if (!m_autoFilename)
 		m_pFileFormat->deactivate();
+
+	// Control to show the format specifiers
+	m_pFormatText = new Fl_Box(75, 280, 230, 20, "%d = Date   %s = Seq");
+	m_pFormatText->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pFormatText->hide();
+
+	// Create control for ink darkness
+	m_pDarkness = new Fl_Slider(90, 305, 140, 20, "Ink Density");
+	m_pDarkness->type(5);
+	m_pDarkness->box(FL_FLAT_BOX);
+	m_pDarkness->precision(0);
+	m_pDarkness->range(20, 60);
+	m_pDarkness->value(m_darkness);
+	m_pDarkness->hide();
+	
+	m_pLight = new Fl_Box(45, 305, 40, 20, "Light");
+	m_pLight->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pLight->hide();
+	m_pDark = new Fl_Box(240, 305, 40, 20, "Dark");
+	m_pDark->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pDark->hide();
 
 	// Set callback for checkbox
 	m_pAutoFilename->callback(cb_PSAutoFilenameCheck, m_pFileFormat);
@@ -598,6 +720,10 @@ void VTPSPaper::HideControls()
 	m_pPrompt->hide();
 	m_pAutoFilename->hide();
 	m_pFileFormat->hide();
+	m_pFormatText->hide();
+	m_pDarkness->hide();
+	m_pDark->hide();
+	m_pLight->hide();
 }
 
 /*
@@ -612,6 +738,10 @@ void VTPSPaper::ShowControls()
 	m_pPrompt->show();
 	m_pAutoFilename->show();
 	m_pFileFormat->show();
+	m_pFormatText->show();
+	m_pDarkness->show();
+	m_pDark->show();
+	m_pLight->show();
 }
 
 /*
@@ -628,15 +758,18 @@ void VTPSPaper::GetPrefs(void)
 	m_prompt = m_pPrompt->value();
 	m_autoFilename = m_pAutoFilename->value();
 	m_fileFormat = m_pFileFormat->value();
+	m_darkness = (int) (m_pDarkness->value());
 
 	// Now save the properties to the preferences
 	m_pPref->set("PSPaper_PromptFilename", m_prompt);
 	m_pPref->set("PSPaper_GenAutoFilename", m_autoFilename);
 	strcpy(temp, (const char *) m_fileFormat);
 	m_pPref->set("PSPaper_FileFormat", temp);
+	m_pPref->set("PSPaper_InkDarkness", m_darkness);
 
 	// Update the filename autoformatter
 	m_autoFile.Format(m_fileFormat);
+
 }
 
 /*
@@ -676,6 +809,9 @@ int VTPSPaper::Print(void)
 		fclose(m_pFd);
 		m_pFd = NULL;
 	}
+	else
+		return PRINT_ERROR_IO_ERROR;
+
 	return PRINT_ERROR_NONE;
 }
 
@@ -701,7 +837,8 @@ print job from scratch and dumps all old pages.
 */
 int VTPSPaper::LoadPaper(void)
 {
-	int c;
+	int 		c;
+	char		str[512];
 
 	// Check if a file is open and close if it is
 	if (m_pFd != NULL)
@@ -720,6 +857,12 @@ int VTPSPaper::LoadPaper(void)
 
 	// Open the file
 	m_pFd = fopen((const char *) m_filename, "w+");
+	if (m_pFd == NULL)
+	{
+		sprintf(str, "Error creating file %s", (const char *) m_filename);
+		AddError(str);
+		return PRINT_ERROR_IO_ERROR;
+	}
 
 	// Write the Postscript header
 	WriteHeader();
@@ -764,11 +907,12 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 	int					r, c, b;
 	unsigned char		src;
 	unsigned char		mask;
-	int					lastX, xp, e;
-	int					fCnt, hCnt;
+	int					lastX, xp;
 	char				dotChar, lastDotChar;
 	float				val;
 	int					intVal;
+	int					diff;
+	double				tof;
 
 	// Validate the file is open
 	if (m_pFd == NULL)
@@ -776,8 +920,9 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 
 	// Some calculations
 	bytesPerLine = (w+7)/8;
-	fCnt = 0;
-	hCnt = 0;
+	m_dCnt = 0;
+	m_fCnt = 0;
+	tof = 72.0 * m_tof;			// Calculate TOF at 72 DPI
 
 	// Write a Page header
 	WritePageHeader();
@@ -805,17 +950,16 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 			continue;
 
 		// If not already on a new line, terminate the previous line
-		WriteFChars(fCnt);
-		WriteHChars(hCnt);
-		if (e != 0)
-			fprintf(m_pFd, "\n");
-		e = 0;
+		WriteDChars();
+		WriteFChars();
+		WriteDots();
 
 		// Write the new row number to the Postscript file
-		fprintf(m_pFd, "%.1f r\n", 774.0 - (float) r/2.0);
+		fprintf(m_pFd, "%.2f R ", m_formHeight * 72.0 - tof - (float) r/3.0);
+		m_len += 8;
 		lastX = -99;
-		fCnt = 0;
-		hCnt = 0;
+		m_dCnt = 0;
+		m_fCnt = 0;
 
 		// Loop for all bytes on this line
 		for (c = 0; c < numBytes; c++)
@@ -833,83 +977,99 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 				// If this bit is on, mark on the page
 				if (src & mask)
 				{
-					if (lastX + 9 >= xp)
+					diff = xp - lastX;
+					if ((diff > 24) && (diff <= 36) && !(diff & 0x01))
+					{
+						WriteDChars();
+						WriteFChars();
+						MakeDot('A' + ((diff - 26) >> 1));
+					}
+					else if (lastX + 24 >= xp)
 					{
 						// Calculate the dotChar to be written
-						dotChar = 'd'+xp-lastX;
+						dotChar = 'b' + diff;
 
-						// Look for repeated 'f' operators
-						if (dotChar == 'f')
-							++fCnt;
-						else if (dotChar == 'h')
-							++hCnt;
+						// Look for repeated 'd' and 'f' operators
+						if (dotChar == 'd')
+						{
+							WriteFChars();
+							++m_dCnt;
+						}
+						else if (dotChar == 'f')
+						{
+							WriteDChars();
+							++m_fCnt;
+						}
 						else
 						{
 							// Check if we had reserved 'f' chars not printed
-							if (fCnt > 0)
-								e += WriteFChars(fCnt);
-							if (hCnt > 0)
-								e += WriteHChars(hCnt);
-
-							// Print the dot to the Postscript File
-							fprintf(m_pFd, "%c ", dotChar);
-							e++;
+							WriteDChars();
+							WriteFChars();
+							MakeDot(dotChar);
 						}
 					}
 					else
 					{
-						e += WriteFChars(fCnt);
-						e += WriteHChars(hCnt);
-						if (xp - lastX == 11)
-							fprintf(m_pFd, "x ");
-						else if (xp - lastX == 12)
-							fprintf(m_pFd, "y ");
-						else if (xp - lastX == 13)
-							fprintf(m_pFd, "z ");
-						else if (xp - lastX == 14)
-							fprintf(m_pFd, "c ");
-						else if (xp - lastX == 16)
-							fprintf(m_pFd, "d ");
-						else if (lastX != -99)
+						WriteDChars();
+						WriteFChars();
+						WriteDots();
+						if (lastX != -99)
 						{
-							val = (float)(xp - lastX) * .3;
-							intVal = (int) val;
-							if (val == (float) intVal)
-								fprintf(m_pFd, "%d b ", intVal);
-							else
-								fprintf(m_pFd, "%.1f b ", val);
+							fprintf(m_pFd, "%d ", xp - lastX - 26);
+							MakeDot('b');
 						}
 						else
 						{
 							val = (float)xp * .3;
 							intVal = (int) val;
 							if (val == (float) intVal)
-								fprintf(m_pFd, "%d a ", 18 + intVal);
+								fprintf(m_pFd, "%d ", 18 + intVal);
 							else
-								fprintf(m_pFd, "%.1f a ", 18.0+val);
+								fprintf(m_pFd, "%.1f ", 18.0+val);
+							MakeDot('a');
 						}
-						e++;
 					}
 					lastX = xp;
 				}
 				mask <<= 1;
 			}
 
-			// Output 16 symbols per Postscript line
-			if (e >= 40)
+			// Control Postscript line length
+			if (m_len >= 75)
 			{
 				fprintf(m_pFd, "\n");
-				e =0;
+				m_len =0;
 			}
 		}
 	}
 	// Print any reserved 'f' chars
-	WriteFChars(fCnt);
-	WriteHChars(hCnt);
+	WriteDChars();
+	WriteFChars();
+	WriteDots();
 
 	fprintf(m_pFd, "\n\nshowpage\n");
 
 	return PRINT_ERROR_NONE;
+}
+
+
+/*
+=======================================================
+Marks a dot on the page.  This routine takes care of printing
+reserved characters, calculating line lengths, compressing
+symbols and writing strings to the file, etc.
+=======================================================
+*/
+void VTPSPaper::MakeDot(char dotChar)
+{
+	// Print the dot to the Postscript File
+	m_dots = m_dots + dotChar;
+	if (m_len + m_dots.GetLength() > 75)
+	{
+		WriteDots();
+		fprintf(m_pFd, "\n");
+		m_len = 0;
+	}
 }
 
 /*
@@ -919,42 +1079,74 @@ Writes a Postscript header to the file
 */
 void VTPSPaper::WriteHeader(void)
 {
+	double		gray, size;
+
 	if (m_pFd == NULL)
 		return;
+	
 
+	gray = 1.0;
+	size = (double) m_darkness / 100.0;
+	if (m_darkness < 30)
+	{
+		size = .45;
+		gray = 0.5 + (double) (m_darkness - 20) * .05;
+	}
 	fprintf(m_pFd, "%%!PS-Adobe-3.0\n");
 	fprintf(m_pFd, "%%%%Pages: (atend)\n");
-	fprintf(m_pFd, "%%%%BoundingBox: 0 0 612 792\n");
 	fprintf(m_pFd, "%%%%Creator:  VirtualT %s\n", VERSION);
 	fprintf(m_pFd, "%%%%Title:  FX-80 Emulation Print\n", VERSION);
 	fprintf(m_pFd, "%%%%DocumentData: Clean7Bit\n");
 	fprintf(m_pFd, "%%%%LanguageLevel: 2\n");
 	fprintf(m_pFd, "%%%%EndComments\n");
-	fprintf(m_pFd, "/a { newpath dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/b { newpath xp add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/c { newpath xp 4.2 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/d { newpath xp 4.8 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/e { newpath xp .3 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/f { newpath xp .6 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/g { newpath xp .9 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/h { newpath xp 1.2 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/i { newpath xp 1.5 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/j { newpath xp 1.8 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/k { newpath xp 2.1 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/l { newpath xp 2.4 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/m { newpath xp 2.7 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/n { 0 1 2 { f } for} def\n");
-	fprintf(m_pFd, "/o { 0 1 4 { f } for} def\n");
-	fprintf(m_pFd, "/p { 0 1 6 { f } for} def\n");
-	fprintf(m_pFd, "/q { 0 1 3 -1 roll { f } for} def\n");
-	fprintf(m_pFd, "/r { /yp exch def } def\n");
-	fprintf(m_pFd, "/s { 0 1 1 { h } for} def\n");
-	fprintf(m_pFd, "/t { 0 1 2 { h } for} def\n");
-	fprintf(m_pFd, "/u { 0 1 3 { h } for} def\n");
-	fprintf(m_pFd, "/v { 0 1 3 -1 roll { h } for} def\n");
-	fprintf(m_pFd, "/x { newpath xp 3.3 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/y { newpath xp 3.6 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
-	fprintf(m_pFd, "/z { newpath xp 3.9 add dup /xp exch def yp .45 0 360 arc closepath fill} def\n");
+	fprintf(m_pFd, "/a { newpath dup /xp exch def yp %.2f 0 360 arc closepath %.02f setgray fill} def\n",
+		size, gray);
+	fprintf(m_pFd, "/b { 26 add .3 mul dot } def\n");
+	fprintf(m_pFd, "/c { .3 dot } def ");
+	fprintf(m_pFd, "/d { .6 dot } def ");
+	fprintf(m_pFd, "/e { .9 dot } def ");
+	fprintf(m_pFd, "/f { 1.2 dot } def\n");
+	fprintf(m_pFd, "/g { 1.5 dot } def ");
+	fprintf(m_pFd, "/h { 1.8 dot } def ");
+	fprintf(m_pFd, "/i { 2.1 dot } def ");
+	fprintf(m_pFd, "/j { 2.4 dot } def\n");
+	fprintf(m_pFd, "/k { 2.7 dot } def ");
+	fprintf(m_pFd, "/l { 3 dot } def ");
+	fprintf(m_pFd, "/m { 3.3 dot } def ");
+	fprintf(m_pFd, "/n { 3.6 dot } def\n");
+	fprintf(m_pFd, "/o { 3.9 dot } def ");
+	fprintf(m_pFd, "/p { 4.2 dot } def ");
+	fprintf(m_pFd, "/q { 4.5 dot } def ");
+	fprintf(m_pFd, "/r { 4.8 dot } def\n");
+	fprintf(m_pFd, "/s { 5.1 dot } def ");
+	fprintf(m_pFd, "/t { 5.4 dot } def ");
+	fprintf(m_pFd, "/u { 5.7 dot } def ");
+	fprintf(m_pFd, "/v { 6 dot } def\n");
+	fprintf(m_pFd, "/w { 6.3 dot } def ");
+	fprintf(m_pFd, "/x { 6.6 dot } def ");
+	fprintf(m_pFd, "/y { 6.9 dot } def ");
+	fprintf(m_pFd, "/z { 7.2 dot } def\n");
+	fprintf(m_pFd, "/dot { newpath xp add dup /xp exch def yp %.2f 0 360 arc closepath %.2f setgray fill} def\n",
+		size, gray);
+	fprintf(m_pFd, "/A { 7.8 dot } def\n");
+	fprintf(m_pFd, "/B { 8.4 dot } def ");
+	fprintf(m_pFd, "/C { 9 dot } def ");
+	fprintf(m_pFd, "/D { 9.6 dot } def ");
+	fprintf(m_pFd, "/E { 10.2 dot } def\n");
+	fprintf(m_pFd, "/F { 10.8 dot } def ");
+
+	fprintf(m_pFd, "/N { 0 1 2 { d } for} def\n");
+	fprintf(m_pFd, "/O { 0 1 4 { d } for} def ");
+	fprintf(m_pFd, "/P { 0 1 6 { d } for} def\n");
+	fprintf(m_pFd, "/Q { 0 1 3 -1 roll { d } for} def ");
+	fprintf(m_pFd, "/R { /yp exch def } def\n");
+	fprintf(m_pFd, "/S { 0 1 1 { f } for} def\n");
+	fprintf(m_pFd, "/T { 0 1 2 { f } for} def ");
+	fprintf(m_pFd, "/U { 0 1 3 { f } for} def\n");
+	fprintf(m_pFd, "/V { 0 1 3 -1 roll { f } for} def ");
+	fprintf(m_pFd, "/chr 1 string def\n");
+	fprintf(m_pFd, "/chrStr { chr 0 3 -1 roll put } def\n");
+	fprintf(m_pFd, "/X { 80 string cvs { chrStr chr cvx exec } forall } def\n");
 }
 
 /*
@@ -968,6 +1160,7 @@ void VTPSPaper::WritePageHeader(void)
 		return;
 
 	fprintf(m_pFd, "%%%%Page: %d %d\n", m_pageNum, m_pageNum );
+	fprintf(m_pFd, "%%%%PageBoundingBox: 0 0 612 %d\n", (int) (m_formHeight * 72.0) );
 }
 
 /*
@@ -986,47 +1179,49 @@ void VTPSPaper::WriteTrailer(void)
 
 /*
 =======================================================
-Prints reserved 'f' characters to the Output file
+Prints reserved 'd' characters to the Output file
 =======================================================
 */
-int VTPSPaper::WriteFChars(int &cnt)
+int VTPSPaper::WriteDChars()
 {
 	int		symbols = 0;
 
-	if ((m_pFd == NULL) || (cnt == 0))
+	if ((m_pFd == NULL) || (m_dCnt == 0))
 		return 0;
 
 	// We have f3, f5 and f7 symbols, so write the highest
 	// f9 is handled during PrintPage
-	if (cnt > 7)
+	if (m_dCnt > 7)
 	{
-		fprintf(m_pFd, "%d q ", cnt-1);
-		cnt = 0;
+		WriteDots();
+		fprintf(m_pFd, "%d ", m_dCnt-1);
+		MakeDot('Q');
+		m_dCnt = 0;
 		symbols++;
 	}
-	else if (cnt == 7)
+	else if (m_dCnt == 7)
 	{
-		fprintf(m_pFd, "p ");
-		cnt -= 7;
+		MakeDot('P');
+		m_dCnt -= 7;
 		symbols++;
 	}
-	else if (cnt >= 5)
+	else if (m_dCnt >= 5)
 	{
-		fprintf(m_pFd, "o ");
-		cnt -= 5;
+		MakeDot('O');
+		m_dCnt -= 5;
 		symbols++;
 	}
-	else if (cnt >= 3)
+	else if (m_dCnt >= 3)
 	{
-		fprintf(m_pFd, "n ");
-		cnt -= 3;
+		MakeDot('N');
+		m_dCnt -= 3;
 		symbols++;
 	}
 
-	while (cnt != 0)
+	while (m_dCnt != 0)
 	{
-		fprintf(m_pFd, "f ");
-		cnt--;
+		MakeDot('d');
+		m_dCnt--;
 		symbols++;
 	}
 
@@ -1035,50 +1230,301 @@ int VTPSPaper::WriteFChars(int &cnt)
 
 /*
 =======================================================
-Prints reserved 'h' characters to the Output file
+Prints reserved 'f' characters to the Output file
 =======================================================
 */
-int VTPSPaper::WriteHChars(int &cnt)
+int VTPSPaper::WriteFChars()
 {
 	int		symbols = 0;
 
-	if ((m_pFd == NULL) || (cnt == 0))
+	if ((m_pFd == NULL) || (m_fCnt == 0))
 		return 0;
 
 	// We have f3, f5 and f7 symbols, so write the highest
 	// f9 is handled during PrintPage
-	if (cnt > 4)
+	if (m_fCnt > 4)
 	{
-		fprintf(m_pFd, "%d v ", cnt-1);
-		cnt = 0;
+		WriteDots();
+		fprintf(m_pFd, "%d ", m_fCnt-1);
+		MakeDot('V');
+		m_fCnt = 0;
 		symbols++;
 	}
-	else if (cnt == 4)
+	else if (m_fCnt == 4)
 	{
-		fprintf(m_pFd, "u ");
-		cnt -= 4;
+		MakeDot('U');
+		m_fCnt -= 4;
 		symbols++;
 	}
-	else if (cnt == 3)
+	else if (m_fCnt == 3)
 	{
-		fprintf(m_pFd, "t ");
-		cnt -= 3;
+		MakeDot('T');
+		m_fCnt -= 3;
 		symbols++;
 	}
-	else if (cnt == 2)
+	else if (m_fCnt == 2)
 	{
-		fprintf(m_pFd, "s ");
-		cnt -= 2;
+		MakeDot('S');
+		m_fCnt -= 2;
 		symbols++;
 	}
 
-	while (cnt != 0)
+	while (m_fCnt != 0)
 	{
-		fprintf(m_pFd, "h ");
-		cnt--;
+		MakeDot('f');
+		m_fCnt--;
 		symbols++;
 	}
 
 	return symbols;
+}
+
+/*
+================================================================
+Writes dots to the file, taking any reserved dots into account.
+================================================================
+*/
+void VTPSPaper::WriteDots()
+{
+	int		c, count;
+
+	count = m_dots.GetLength();
+
+	// Return if no dots to print
+	if (count == 0)
+		return;
+
+	// If More than 5 dots, write it as a string
+	if (count > 5)
+	{
+		fprintf(m_pFd, "/%s X ", (const char *) m_dots);
+		m_len += 5 + m_dots.GetLength();
+	}
+	else
+	{
+		for (c = 0; c < count; c++)
+			fprintf(m_pFd, "%c ", m_dots[c]);
+		m_len += (c << 2);
+	}
+
+	m_dots = "";
+}
+
+/*
+==============================================================
+Define lpr via Postscript paper Class below
+
+The Postscript paper provides automatic filename generation
+for postscript files and multiple page support.  It creates
+the necessary Postscript comments for a Print Manager to 
+print individual pages, etc.
+==============================================================
+*/
+
+/*
+================================================================================
+VTlprPaper:	This is the class construcor for the lpr via Postscript Paper class
+================================================================================
+*/
+VTlprPaper::VTlprPaper(Fl_Preferences* pPref) :
+	VTPSPaper(pPref)
+{
+}
+
+/*
+=======================================================
+GetName:	Returns the name of the printer.
+=======================================================
+*/
+MString VTlprPaper::GetName()
+{
+	return "lpr via Postscript file";
+}
+
+/*
+=======================================================
+Initialize the page with preferences.
+=======================================================
+*/
+void VTlprPaper::Init()
+{
+	char		temp[512];
+
+	//VTPSPaper::Init();
+	// Load preferences
+	if (m_pPref == NULL)
+		return;
+
+	m_pPref->get("LprPaper_FileFormat", temp, "fx_print_%s.ps", 512);
+	m_fileFormat = temp;
+	m_pPref->get("LprPaper_CmdLine", temp, "lpr -r %f", 512);
+	m_cmdLine = temp;
+	m_pPref->get("LprPaper_InkDarkness", m_darkness, 45);
+
+	// Force other values
+	m_prompt = FALSE;			// No file prompting
+	m_autoFilename = TRUE;		// Generate auto filename
+	m_autoFile.Format(m_fileFormat);
+}
+
+/*
+=======================================================
+Build the page properties dialog controls.
+=======================================================
+*/
+void VTlprPaper::BuildControls()
+{
+	// Control to edit the output file generator format
+	m_pFileFormat = new Fl_Input(65, 215, 240, 20, "Format");
+	m_pFileFormat->hide();
+	m_pFileFormat->value((const char *) m_fileFormat);
+
+	// Control to edit the output file generator format
+	m_pCmdLine = new Fl_Input(65, 245, 240, 20, "Cmd");
+	m_pCmdLine->hide();
+	m_pCmdLine->value((const char *) m_cmdLine);
+
+	// Control to show the format specifiers
+	m_pFormatText = new Fl_Box(75, 270, 230, 20, "%d = Date  %s = Seq  %f = File");
+	m_pFormatText->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pFormatText->hide();
+
+	// Create control for ink darkness
+	m_pDarkness = new Fl_Slider(90, 305, 140, 20, "Ink Density");
+	m_pDarkness->type(5);
+	m_pDarkness->box(FL_FLAT_BOX);
+	m_pDarkness->precision(0);
+	m_pDarkness->range(20, 60);
+	m_pDarkness->value(m_darkness);
+	m_pDarkness->hide();
+	
+	m_pLight = new Fl_Box(45, 305, 40, 20, "Light");
+	m_pLight->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pLight->hide();
+	m_pDark = new Fl_Box(240, 305, 40, 20, "Dark");
+	m_pDark->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pDark->hide();
+
+}
+
+/*
+=======================================================
+Get Page Preferences from dialog and save.
+=======================================================
+*/
+void VTlprPaper::GetPrefs()
+{
+	char		temp[512];
+
+	// Read preferences from controls
+
+	m_fileFormat = m_pFileFormat->value();
+	m_cmdLine = m_pCmdLine->value();
+	m_darkness = (int) (m_pDarkness->value());
+
+	// Now save the properties to the preferences
+	strcpy(temp, (const char *) m_fileFormat);
+	m_pPref->set("LprPaper_FileFormat", temp);
+	strcpy(temp, (const char *) m_cmdLine);
+	m_pPref->set("LprPaper_CmdLine", temp);
+	m_pPref->set("LprPaper_InkDarkness", m_darkness);
+
+	// Update the filename autoformatter
+	m_autoFile.Format(m_fileFormat);
+
+}
+
+/*
+=======================================================
+Hide the controls on the property dialog.  This is 
+called when the paper is not seleted to make room for
+other "papers".
+=======================================================
+*/
+void VTlprPaper::HideControls()
+{
+	m_pFileFormat->hide();
+	m_pCmdLine->hide();
+	m_pFormatText->hide();
+	m_pDarkness->hide();
+	m_pDark->hide();
+	m_pLight->hide();
+}
+
+/*
+=======================================================
+Show the controls on the property dialog.  This is 
+called when the paper is seleted to show the specific
+controls for this paper.
+=======================================================
+*/
+void VTlprPaper::ShowControls()
+{
+	m_pFileFormat->show();
+	m_pCmdLine->show();
+	m_pFormatText->show();
+	m_pDarkness->show();
+	m_pDark->show();
+	m_pLight->show();
+}
+
+/*
+=======================================================
+Prints the current print job.
+=======================================================
+*/
+int VTlprPaper::Print(void)
+{
+	MString		cmd;
+	int			len, c;
+	FILE*		pFD;
+	char		buf[512];
+
+	// First let the PSPaper finish it's job
+	VTPSPaper::Print();
+
+	// Build command base on format line - search for %f
+	len = m_cmdLine.GetLength();
+	for (c = 0; c < len; c++)
+	{
+		if (m_cmdLine[c] == '%')
+		{
+			if (c + 1 != len)
+			{
+				if (m_cmdLine[c+1] == 'f')
+					cmd += m_filename;
+				c++;
+			}
+		}
+		else
+			cmd += m_cmdLine[c];
+	}
+
+	// Test if stderr redirection is part of cmd line
+	if (strstr((const char *) cmd, "2>&1") == NULL)
+		cmd += " 2>&1";
+
+	// Now spool the job
+	//if (fork() == 0)
+	{
+		// Child process - perform system call to print
+		pFD = popen((const char *) cmd, "r");
+		if (pFD == NULL)
+		{
+			// Report error spawning
+			AddError("Error spawning print job");
+		}
+
+		// Read data from the process' stdout looking for errors
+		while (fgets(buf, 512, pFD) != NULL)
+		{
+			if ((strstr(buf, "Error") != 0) || (strstr(buf, "error") != 0))
+				AddError(buf);
+		}
+
+		// Close the stream and exit the child process
+		pclose(pFD);
+		//exit(0);
+	}
 }
 

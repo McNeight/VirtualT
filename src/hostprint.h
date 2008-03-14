@@ -45,7 +45,7 @@ public:
 	VTHostPrint();
 
 	virtual MString		GetName();					// Get name of the printer
-	virtual void		BuildPropertyDialog();		// Build the host dialog
+	virtual void		BuildPropertyDialog(Fl_Window* pParent);		// Build the host dialog
 	virtual int			GetProperties(void);		// Get dialog properties and save
 	virtual int			GetBusyStatus();			// Read BUSY from host
 	virtual void		SendAutoFF(void);			// Send a FF if needed

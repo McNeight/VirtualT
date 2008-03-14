@@ -33,6 +33,7 @@
 
 #include "vtobj.h"
 #include "MString.h"
+#include "MStringArray.h"
 
 class Fl_Preferences;
 
@@ -54,27 +55,35 @@ public:
 
 	// Pure virtual functions specific to the printer
 	virtual MString		GetName() = 0;					// Get name of the printer
-	virtual void		BuildPropertyDialog() = 0;		// Builds property dialog
+	virtual void		BuildPropertyDialog(Fl_Window* pParent) = 0;		// Builds property dialog
 	virtual int			GetProperties(void) = 0;		// Get printer properties from Dialog & save
 	virtual int			GetBusyStatus() = 0;			// Read BUSY from printer
 	virtual void		SendAutoFF(void) = 0;			// Send a FormFeed if needed
 	virtual void		Deinit(void) = 0;				// Deiniatalizes the printer
 	virtual int			CancelPrintJob(void) = 0;		// Cancels the current print job
 
+	// Gets the count of printer errors
+	virtual int			GetErrorCount(void) {return m_errors.GetSize();}
+	virtual MString		GetError(int index);			// Get the text for specified error number
+	// Clears all errors.
+	virtual void		ClearErrors(void) { m_errors.RemoveAll(); }
+
 	// Common printer setup functions
 	virtual void		Init(Fl_Preferences* pPref);	// Initialization routine
 	virtual int			Print(unsigned char byte);		// This is the main "Print" routine
 	virtual void		EndPrintSession(void);			// Called by LPT device to end printing
-	virtual void		ResetPrinter(void) {}			// Resets the printer
+	virtual void		ResetPrinter(void) { m_errors.RemoveAll();}			// Resets the printer
 
 protected:
 	virtual void		PrintByte(unsigned char byte) = 0;	// Print a byte
+	virtual void		AddError(const char *str) {m_errors.Add(str); }
 	virtual void		Init(void) = 0;					// Virtual init for actual printers
 	virtual int			OpenSession(void) = 0;			// Opens a new print session
 	virtual int			CloseSession(void) = 0;			// Closes the current print session
 
 	Fl_Preferences*		m_pPref;
 	int					m_SessionActive;				// Indicates if a print session active
+	MStringArray		m_errors;
 
 };
 

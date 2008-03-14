@@ -765,6 +765,7 @@ void maint(void)
 					{
 						cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
 						display_cpu_speed();
+						lpt_check_errors();
 					}
 					twice_flag = 0;
 					if (gMemMonitor != NULL)

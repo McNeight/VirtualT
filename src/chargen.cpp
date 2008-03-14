@@ -719,10 +719,10 @@ void VTCharacterGen::Load(void)
 	for (index = 0; index < 256; index++)
 	{
 		fread(data, 1, sizeof(data), fd);
-	/*	if (data[0] == 0)
+/*		if (data[0] == 0)
 			data[0] = 0x80;
 		else
-			data[0] = 0; */
+			data[0] = 0;  */
 		m_pCharTable->PutCharData(index, data);
 	}
 	

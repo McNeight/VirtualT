@@ -34,6 +34,7 @@
 #include "printer.h"
 #include "vtobj.h"
 #include "autofile.h"
+#include "MStringArray.h"
 
 /*
 =====================================================================
@@ -47,10 +48,15 @@ public:
 
 	virtual MString		GetName(void) = 0;				// Name of the paper
 	virtual void		Init(void) = 0;					// Initializes with perferences
+	virtual void		Deinit(void) = 0;				// Deinitializes & frees memory
 	virtual void		GetPrefs(void) = 0;				// Get prefs from controls & save
 	virtual void		BuildControls(void) = 0;		// Build paper specific controls
 	virtual void		HideControls(void) = 0;			// Hide paper specific controls
 	virtual void		ShowControls(void) = 0;			// Show paper specific controls
+
+	// Sets the top of form in inches
+	virtual void		SetTopOfForm(double tof) {m_tof=tof;}
+	virtual void		SetFormHeight(double height) {m_formHeight = height;}
 
 	// PrintPage sends data to the active page, it does not send data to a printer
 	virtual int			PrintPage(unsigned char* pData, int x, int y) = 0;
@@ -59,9 +65,30 @@ public:
 	virtual int			CancelJob(void) = 0;			// Cancels printing
 	virtual int			Print(void) = 0;				// Send pages to the printer
 
-protected:
-	Fl_Preferences*		m_pPref;						// Pointer to preferences
+	virtual int			GetErrorCount(void) { return m_errors.GetSize(); }
+	const char *		GetError(int c) { if (c < m_errors.GetSize()) return
+												(const char *) m_errors[c]; else return NULL; }
+	virtual void		ClearErrors(void) { m_errors.RemoveAll(); }
 
+protected:
+	// Adds an error to the list of errors associated with the print
+	void 				AddError(const char *pStr) { m_errors.Add(pStr); }
+	Fl_Preferences*		m_pPref;						// Pointer to preferences
+	double				m_tof;							// Top of form (inches)
+	double				m_formHeight;					// Form height (inches)
+	MStringArray		m_errors;						// Array of Errors
+
+};
+
+class VTVirtualPage : public VTObject
+{
+public:
+	VTVirtualPage() { m_pPage = NULL; m_pageHeight = 0.0; }
+	~VTVirtualPage() { if (m_pPage != NULL) delete m_pPage; }
+	unsigned char *	m_pPage;
+	double			m_pageHeight;
+	double			m_topOffset;
+	double			m_tof;
 };
 
 /*
@@ -77,6 +104,7 @@ public:
 
 	virtual MString		GetName(void);				// Name of the paper
 	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
 	virtual void		HideControls(void);			// Hide paper specific controls
@@ -122,6 +150,7 @@ public:
 
 	virtual MString		GetName(void);				// Name of the paper
 	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
 	virtual void		HideControls(void);			// Hide paper specific controls
@@ -138,23 +167,58 @@ protected:
 	void				WriteHeader();				// Writes a Postscript header to the file
 	void				WritePageHeader();			// Writes a Postscript page header
 	void				WriteTrailer();				// Writes a Postscript trailer
-	int					WriteFChars(int& cnt);		// Writes reserved 'f' chars to the file
-	int					WriteHChars(int& cnt);		// Writes reserved 'h' chars to the file
+	void				MakeDot(char dotChar);		// Puts a dot on the page
+	int					WriteDChars();				// Writes reserved 'd' chars to the file
+	int					WriteFChars();				// Writes reserved 'f' chars to the file
+	void				WriteDots();				// Writes reserved dots to the file
 	int					GetFilename(void);			// Get new filename for print
 	int					m_pageNum;					// Active page number
 	FILE*				m_pFd;						// The output file handle
 	MString				m_filename;					// The output filename
 	MString				m_dir;						// The directory for storing PS files
+	int					m_fCnt, m_dCnt;
+	MString				m_dots;
+	int					m_len;
 
 	// Define Perferences below
 	Fl_Check_Button*	m_pPrompt;					// Prompt for Filename checkbox
 	Fl_Check_Button*	m_pAutoFilename;			// Checkbox to create auto filenames
 	Fl_Input*			m_pFileFormat;				// Edit field for filename format
+	Fl_Box*				m_pFormatText;	
+	Fl_Slider*			m_pDarkness;				// Controls size of dots
+	Fl_Box*				m_pLight;	
+	Fl_Box*				m_pDark;	
 
 	int					m_prompt;					// Flag to prompt for filename
 	int					m_autoFilename;				// Flag to generate auto filename
+	int					m_darkness;					// Setting for the ink darkness
 	MString				m_fileFormat;				// String indicating file format
 	VTAutoFile			m_autoFile;					// Generates auto filenames
+};
+
+/*
+===========================================================
+Define Linux lpr via Postscript paper.  This uses the 
+Postscript paper to generate a PS file, then spawns a print
+job via an lpr (user defineable) process.
+===========================================================
+*/
+class VTlprPaper : public VTPSPaper
+{
+public:
+	VTlprPaper(Fl_Preferences* pPref); 		// Class constructor
+
+	virtual MString		GetName(void);				// Name of the paper
+	virtual void		Init(void);					// Initializes with perferences
+	virtual void		GetPrefs(void);				// Get prefs from controls & save
+	virtual void		BuildControls(void);		// Build paper specific controls
+	virtual void		HideControls(void);			// Hide paper specific controls
+	virtual void		ShowControls(void);			// Show paper specific controls
+
+	// Override the Print funtion so we can spawn the job
+	virtual int			Print(void);				// Send pages to the printer
+	MString				m_cmdLine;
+	Fl_Input*			m_pCmdLine;					// Control or editing command line
 };
 
 #endif

@@ -40,6 +40,7 @@ void init_lpt(void);
 void deinit_lpt(void);
 void send_to_lpt(unsigned char byte);
 void handle_lpt_timeout(unsigned long time);
+void lpt_check_errors(void);
 
 #ifdef __cplusplus
 }
@@ -53,6 +54,7 @@ void build_lpt_setup_tab(void);
 #define LPT_STATUS_IDLE			0
 #define LPT_STATUS_READY		1
 #define	LPT_STATUS_ABORTED		2
+#define LPT_STATUS_ERROR		3
 
 #ifdef __cplusplus
 
@@ -96,6 +98,8 @@ public:
 	void			CancelPrintSession(void);
 	void			ResetPrinter(void);					// Reset printer
 	void			CancelPrintJob(void);				// Cancel the current print job
+	int				CheckErrors(void);					// Checks for errors and upates icon
+	void			ShowErrors(void);					// Display the printer errors
 
 	int				GetPrinterCount(void);				// Returns # printers registered
 	VTPrinter*		GetPrinter(int index);				// Returns pointer to a specific printer
