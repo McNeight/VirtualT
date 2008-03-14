@@ -1099,8 +1099,12 @@ void VTPSPaper::WriteHeader(void)
 	fprintf(m_pFd, "%%%%DocumentData: Clean7Bit\n");
 	fprintf(m_pFd, "%%%%LanguageLevel: 2\n");
 	fprintf(m_pFd, "%%%%EndComments\n");
-	fprintf(m_pFd, "/a { newpath dup /xp exch def yp %.2f 0 360 arc closepath %.02f setgray fill} def\n",
-		size, gray);
+	if (gray == 1.0)
+		fprintf(m_pFd, "/a { newpath dup /xp exch def yp %.2f 0 360 arc closepath fill} def\n",
+			size);
+	else
+		fprintf(m_pFd, "/a { newpath dup /xp exch def yp %.2f 0 360 arc closepath %.02f setgray fill} def\n",
+			size, gray);
 	fprintf(m_pFd, "/b { 26 add .3 mul dot } def\n");
 	fprintf(m_pFd, "/c { .3 dot } def ");
 	fprintf(m_pFd, "/d { .6 dot } def ");
