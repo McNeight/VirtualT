@@ -51,6 +51,7 @@ public:
 	virtual void		SendAutoFF(void);			// Send a FF if needed
 	virtual void		Deinit(void);				// Deini routine
 	virtual int			CancelPrintJob(void);		// Cancels a print job
+	virtual void		BuildMonTab(void);			// Builds the monitor tab
 
 protected:
 	virtual void 		PrintByte(unsigned char byte);	// Print to host

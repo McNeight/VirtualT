@@ -37,6 +37,8 @@
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Choice.H>
+#include <FL/Fl_Text_Buffer.H>
+#include <FL/Fl_Text_Display.H>
 
 
 #if defined(WIN32)
@@ -53,6 +55,7 @@
 #include "periph.h"
 #include "memedit.h"
 #include "cpuregs.h"
+#include "lpt.h"
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
@@ -101,7 +104,15 @@ typedef struct periph_ctrl_struct
 	struct 
 	{
 		Fl_Group*			g;
-		Fl_Box*				pText;
+		Fl_Box*				pPortMode;
+		Fl_Box*				pPortStatus;
+		Fl_Text_Buffer*		pHexLogBuffer;
+		Fl_Text_Display*	pHexLogDisplay;
+		Fl_Check_Button*	pEnable;
+		Fl_Button*			pClear;
+		Fl_Button*			pSave;
+		char				sPortMode[128];
+		char				sPortStatus[128];
 	} lpt;
 	struct 
 	{
@@ -123,6 +134,9 @@ typedef struct periph_ctrl_struct
 		Fl_Group*			g;
 		Fl_Box*				pText;
 	} sound;
+
+	VTObArray		lptDevices;					// Array of LPT devices
+
 } periph_ctrl_t;
 
 // Menu items for the disassembler
@@ -142,9 +156,13 @@ Fl_Menu_Item gPeriph_menuitems[] = {
 
 periph_ctrl_t	periph_ctrl;
 int				gComEnableOn = 0;
+int				gLptEnableOn = 0;
+int				gLptLogLineLen = 0;
 int				gHexOn = 0;
 int				gFontSize = 12;
 Fl_Window		*gpdw;
+extern			VTLpt*		gLpt;
+MString			gLptLogAdds;
 
 /*
 ============================================================================
@@ -153,10 +171,24 @@ Callback routine for the Peripherial Devices window
 */
 void cb_peripheralwin (Fl_Widget* w, void*)
 {
+	int		count, c;
+
 	gpdw->hide();
 	ser_set_monitor_callback(NULL);
+	lpt_set_monitor_callback(NULL);
 	gComEnableOn = 0;
+	gLptEnableOn = 0;
 	gHexOn = 0;
+
+	// Delete lpt device tabs
+	count = periph_ctrl.lptDevices.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		VTLptDevice* pDev = (VTLptDevice*) periph_ctrl.lptDevices[c];
+		delete pDev;
+	}
+	periph_ctrl.lptDevices.RemoveAll();
+
 	delete gpdw;
 	gpdw = NULL;
 }
@@ -172,6 +204,92 @@ void cb_com_clear (Fl_Widget* w, void*)
 	periph_ctrl.com.pScroll->slider_size(1);
 	periph_ctrl.com.pScroll->value(0, 2, 0, 2);
 	periph_ctrl.com.pLog->Clear();
+}
+
+/*
+============================================================================
+Callback routine for the Lpt Clear Log button
+============================================================================
+*/
+void cb_lpt_clear (Fl_Widget* w, void*)
+{
+	gLptLogLineLen = 0;
+	gLptLogAdds = "";
+	periph_ctrl.lpt.pHexLogBuffer->remove(0, 999999);
+	periph_ctrl.lpt.pHexLogDisplay->redraw();
+}
+
+/*
+============================================================================
+Callback routine for saving the LPT log
+============================================================================
+*/
+void cb_lpt_save (Fl_Widget* w, void*)
+{
+	Fl_File_Chooser*	fc;
+	const char *		pText;
+
+	// Check if there is text in the buffer
+	pText = periph_ctrl.lpt.pHexLogBuffer->text();
+	if (pText == NULL)
+		return;
+	if (strlen(pText) == 0)
+	{
+		free((void*) pText);
+		return;
+	}
+	free((void*) pText);
+	
+	// Create a file chooser
+	fc = new Fl_File_Chooser(".", "*.*", Fl_File_Chooser::CREATE, 
+		"Choose file for Hex Log");
+
+	while (1)
+	{
+		// Show the file chooser
+		fc->show();
+		while (fc->visible())
+			Fl::wait();
+
+		// Validate a file was selected
+		if (fc->value() == 0)
+			return;
+
+		// Validate length of filename
+		if (strlen(fc->value()) == 0)
+			return;
+
+		// Check if the file exists
+		FILE*	fd;
+		if ((fd = fopen(fc->value(), "r")) != NULL)
+		{
+			fclose(fd);
+			int ret = fl_choice("Overwrite existing file?", "Cancel", "Yes", "No");
+	
+			// Test for Cancel
+			if (ret == 0)
+			{
+				// Delete the file chooser and return
+				delete fc;
+				return;
+			}
+
+			// Test for Yes
+			if (ret == 1)
+			{
+				printf ("Yes selected\n");
+				break;
+			}
+		}
+		else
+			break;
+	}
+
+	// Okay, now tell the Fl_Text_Buffer to save to the file
+	periph_ctrl.lpt.pHexLogBuffer->savefile(fc->value());
+
+	// Delete the file chooser
+	delete fc;
 }
 
 /*
@@ -201,6 +319,16 @@ void cb_com_enable_box (Fl_Widget* w, void*)
 {
 	gComEnableOn = periph_ctrl.com.pEnable->value();
 	periph_ctrl.com.pLog->redraw();
+}
+
+/*
+============================================================================
+Callback routine for the Lpt Enable checkbox
+============================================================================
+*/
+void cb_lpt_enable_box (Fl_Widget* w, void*)
+{
+	gLptEnableOn = periph_ctrl.lpt.pEnable->value();
 }
 
 
@@ -303,6 +431,92 @@ void ser_com_monitor_cb(int fMonType, unsigned char data)
 
 /*
 ============================================================================
+Callback routine for receiving lpt port status updates
+============================================================================
+*/
+extern "C"
+{
+void lpt_port_monitor_cb(int fMonType, unsigned char data)
+{
+	char 			str[10];
+	int				count, c;
+	VTLptDevice*	pDev;
+
+	switch (fMonType)
+	{
+	case LPT_MON_PORT_STATUS_CHANGE:
+		// Get new settings
+		strcpy(periph_ctrl.lpt.sPortStatus, (const char *) gLpt->GetPortStatus());
+		periph_ctrl.lpt.pPortStatus->label(periph_ctrl.lpt.sPortStatus);
+		periph_ctrl.lpt.pPortStatus->redraw();
+		break;
+
+	case LPT_MON_EMULATION_CHANGE:
+		// Get new settings
+		strcpy(periph_ctrl.lpt.sPortMode, (const char *) gLpt->GetEmulationMode());
+		periph_ctrl.lpt.pPortMode->label(periph_ctrl.lpt.sPortMode);
+		periph_ctrl.lpt.pPortMode->redraw();
+
+		// Remove all tabs 
+		count = periph_ctrl.lptDevices.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			VTLptDevice* pDev = (VTLptDevice*) periph_ctrl.lptDevices[c];
+			periph_ctrl.pTabs->remove(pDev->pTab);
+			pDev->pTab->hide();
+		}
+
+		// Add the tab of the active printer
+		c = gLpt->GetActivePrinterIndex();
+		if (c != -1)
+		{
+			pDev = (VTLptDevice*) periph_ctrl.lptDevices[c];
+			periph_ctrl.pTabs->add(pDev->pTab);
+			pDev->pTab->show();
+		}
+
+		periph_ctrl.pTabs->redraw();
+
+		break;
+
+	case LPT_MON_PORT_WRITE:
+		if (gLptEnableOn)
+		{
+			sprintf(str, "%02X ", data);
+			if (++gLptLogLineLen == 16)
+			{
+				strcat(str, "\n");
+				gLptLogLineLen = 0;
+			}
+			gLptLogAdds += str;
+			//periph_ctrl.lpt.pHexLogBuffer->append(str);
+		}
+		break;
+
+	}
+}
+
+/*
+============================================================================
+Routine to add log items to the text buffer.  This is done by the maint
+routine so we don't slow the emulation down too much.
+============================================================================
+*/
+void periph_mon_update_lpt_log(void)
+{
+	if (gLptLogAdds.GetLength() == 0)
+		return;
+	
+	// Add additons to the text buffer
+	periph_ctrl.lpt.pHexLogBuffer->append((const char *) gLptLogAdds);
+
+	gLptLogAdds = "";
+}
+
+}	// Extern "C"
+
+/*
+============================================================================
 Routine to create the PeripheralSetup Window and tabs
 ============================================================================
 */
@@ -331,6 +545,7 @@ Routine to create the PeripheralSetup Window and tabs
 void cb_PeripheralDevices (Fl_Widget* w, void*)
 {
 	Fl_Box*		o;
+	int			count, c;
 
 	if (gpdw != NULL)
 		return;
@@ -489,8 +704,49 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			// Create the Group item (the "Tab")
 			periph_ctrl.lpt.g = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, " LPT ");
 
-			// Create controls
-			periph_ctrl.lpt.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, "Parallel Port not supported yet");
+			// Create static text boxes
+			o = new Fl_Box(FL_NO_BOX, 20, 45+MENU_HEIGHT, 70, 15, "Emulation Mode:");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			o = new Fl_Box(FL_NO_BOX, 20, 70+MENU_HEIGHT, 50, 15, "Port Status:");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+
+			// Create control for reporting emulaiton mode
+			periph_ctrl.lpt.pPortMode = new Fl_Box(150, 45+MENU_HEIGHT, 200, 15, "Unknown");
+			periph_ctrl.lpt.pPortMode->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+			// Create control for reporting port status
+			periph_ctrl.lpt.pPortStatus = new Fl_Box(150, 70+MENU_HEIGHT, 200, 15, "Unknown");
+			periph_ctrl.lpt.pPortStatus->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+			// Create control for hex log
+			o = new Fl_Box(FL_NO_BOX, 20, 105+MENU_HEIGHT, 70, 15, "Hex Log");
+			o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+			periph_ctrl.lpt.pHexLogBuffer = new Fl_Text_Buffer();
+			periph_ctrl.lpt.pHexLogDisplay = new Fl_Text_Display(20, 130+MENU_HEIGHT, 480, 180, "");
+			periph_ctrl.lpt.pHexLogDisplay->buffer(periph_ctrl.lpt.pHexLogBuffer);
+			periph_ctrl.lpt.pHexLogDisplay->wrap_mode(1, 48);
+			periph_ctrl.lpt.pHexLogDisplay->textfont(FL_COURIER);
+
+			// Create control for enabling capture
+			periph_ctrl.lpt.pEnable = new Fl_Check_Button(20, 357, 130, 20, "Enable Hex Log");
+			periph_ctrl.lpt.pEnable->callback(cb_lpt_enable_box);
+
+			// Create control for Saving the log
+			periph_ctrl.lpt.pSave = new Fl_Button(240, 355, 80, 25, "Save Log");
+			periph_ctrl.lpt.pSave->callback(cb_lpt_save);
+
+			// Create control for Clearing the log
+			periph_ctrl.lpt.pClear = new Fl_Button(340, 355, 80, 25, "Clear Log");
+			periph_ctrl.lpt.pClear->callback(cb_lpt_clear);
+
+			// Populate controls with current status
+			if (gLpt != NULL)
+			{
+				strcpy(periph_ctrl.lpt.sPortMode, (const char *) gLpt->GetEmulationMode());
+				periph_ctrl.lpt.pPortMode->label(periph_ctrl.lpt.sPortMode);
+				strcpy(periph_ctrl.lpt.sPortStatus, (const char *) gLpt->GetPortStatus());
+				periph_ctrl.lpt.pPortStatus->label(periph_ctrl.lpt.sPortStatus);
+			}
 
 			// End of control for this tab
 			periph_ctrl.lpt.g->end();
@@ -499,10 +755,12 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 		// Modem Port Tab
 		{
 			// Create the Group item (the "Tab")
-			periph_ctrl.mdm.g = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, " MDM ");
+			periph_ctrl.mdm.g = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, 
+				" MDM ");
 
 			// Create controls
-			periph_ctrl.mdm.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, "Modem Port not supported yet");
+			periph_ctrl.mdm.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, 
+				"Modem Port not supported yet");
 
 			// End of control for this tab
 			periph_ctrl.mdm.g->end();
@@ -514,7 +772,8 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			periph_ctrl.cas.g = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, " CAS ");
 
 			// Create controls
-			periph_ctrl.cas.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, "Cassette Port not supported yet");
+			periph_ctrl.cas.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, 
+				"Cassette Port not supported yet");
 
 			// End of control for this tab
 			periph_ctrl.cas.g->end();
@@ -526,16 +785,53 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			periph_ctrl.bcr.g = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, " BCR ");
 
 			// Create controls
-			periph_ctrl.bcr.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, "BCR Port not supported yet");
+			periph_ctrl.bcr.pText = new Fl_Box(120, MENU_HEIGHT+60, 60, 80, 
+				"BCR Port not supported yet");
 
 			// End of control for this tab
 			periph_ctrl.bcr.g->end();
 		}
 
-
 		periph_ctrl.pTabs->value(periph_ctrl.com.g);
 		periph_ctrl.pTabs->end();
 	
+	}
+
+	VTLptDevice* pDev;
+
+	// Create tabs for each of the printers
+	if (gLpt != NULL)
+	{
+		count = gLpt->GetPrinterCount();
+		for (c = 0; c < count; c++)
+		{
+			pDev = new VTLptDevice;
+			pDev->pName = new char[100];
+
+			strcpy(pDev->pName, (const char *) gLpt->GetPrinterName(c));
+
+			// Create a Tab for this printer
+			pDev->pTab = new Fl_Group(10, MENU_HEIGHT+30, 500, 380-MENU_HEIGHT, pDev->pName);
+
+			// Build th controls for this tab
+			gLpt->BuildPrinterMonTab(c);
+
+			// End the tab
+			pDev->pTab->end();
+			pDev->pTab->hide();
+
+			// Add the tab to list so we can hide / show it
+			periph_ctrl.lptDevices.Add(pDev);
+		}
+
+		// Now add the active printer tab to the dialog
+		c = gLpt->GetActivePrinterIndex();
+		if (c != -1)
+		{
+			pDev = (VTLptDevice*) periph_ctrl.lptDevices[c];
+			periph_ctrl.pTabs->add(pDev->pTab);
+			pDev->pTab->show();
+		}
 	}
 
 	// Make things resizeable
@@ -544,6 +840,9 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 	// Set COM callback
 	ser_set_monitor_callback(ser_com_monitor_cb);
+
+	// Set LPT callback
+	lpt_set_monitor_callback(lpt_port_monitor_cb);
 
 	gpdw->show();
 }

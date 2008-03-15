@@ -36,11 +36,14 @@
 extern "C" {
 #endif
 
+typedef void (*lpt_monitor_cb)(int fMonType, unsigned char byte);
+
 void init_lpt(void);
 void deinit_lpt(void);
 void send_to_lpt(unsigned char byte);
 void handle_lpt_timeout(unsigned long time);
 void lpt_check_errors(void);
+void lpt_set_monitor_callback(lpt_monitor_cb pCallback);
 
 #ifdef __cplusplus
 }
@@ -55,6 +58,11 @@ void build_lpt_setup_tab(void);
 #define LPT_STATUS_READY		1
 #define	LPT_STATUS_ABORTED		2
 #define LPT_STATUS_ERROR		3
+
+// Define Monitor Callback types
+#define	LPT_MON_PORT_STATUS_CHANGE	0
+#define	LPT_MON_EMULATION_CHANGE	1
+#define	LPT_MON_PORT_WRITE			2
 
 #ifdef __cplusplus
 
@@ -100,13 +108,20 @@ public:
 	void			CancelPrintJob(void);				// Cancel the current print job
 	int				CheckErrors(void);					// Checks for errors and upates icon
 	void			ShowErrors(void);					// Display the printer errors
+	MString			GetEmulationMode(void);				// For reporting the emulation mode
+	MString			GetPortStatus(void);				// For reporting port status
+	void			SetMonitorCallback(lpt_monitor_cb pCallback);
+	void			BuildPrinterMonTab(int c);			// Build Montior Tab controls for specified printer
 
 	int				GetPrinterCount(void);				// Returns # printers registered
+	MString			GetPrinterName(int printer);		// Returns the name of the printer
 	VTPrinter*		GetPrinter(int index);				// Returns pointer to a specific printer
+	int				GetActivePrinterIndex(void);		// Returns the index of the active printer or -1
 
 protected:
 	int					m_EmulationMode;				// Current emulation mode
 	int					m_ConvertCRtoLF;
+	lpt_monitor_cb		m_pMonCallback;					// Callback routine for LPT monitoring
 
 	Fl_Window*			m_pProp;						// Printer Properties window
 	Fl_Button*			m_pCancel;

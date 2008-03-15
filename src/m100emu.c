@@ -120,6 +120,7 @@ char					gDebugActive = 0;
 char					gStopped = 0;
 char					gSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
+void					periph_mon_update_lpt_log(void);
 
 
 /*
@@ -766,6 +767,7 @@ void maint(void)
 						cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
 						display_cpu_speed();
 						lpt_check_errors();
+						periph_mon_update_lpt_log();
 					}
 					twice_flag = 0;
 					if (gMemMonitor != NULL)

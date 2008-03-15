@@ -261,6 +261,22 @@ void lpt_check_errors()
 
 /*
 =======================================================
+Setup a monitor callback routine
+=======================================================
+*/
+extern "C"
+{
+void lpt_set_monitor_callback(lpt_monitor_cb pCallback)
+{
+	if (gLpt != NULL)
+	{
+		gLpt->SetMonitorCallback(pCallback);
+	}
+}
+}
+
+/*
+=======================================================
 Handle LPT device timeouts
 =======================================================
 */
@@ -529,6 +545,7 @@ VTLpt::VTLpt(void)
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PortTimeout = 0;
 	m_AFFSent = FALSE;
+	m_pMonCallback = NULL;
 
 	// Now create printers
 	VTPrinter *pPrint = new VTFilePrint();
@@ -573,11 +590,20 @@ void VTLpt::SendToLpt(unsigned char byte)
 #ifndef WIN32
 			// Print the "reserved" 0x0D
 			ret = m_pActivePrinter->Print(0x0D);
+
+			// Log data sent to port
+			if (m_pMonCallback != NULL)
+				m_pMonCallback(LPT_MON_PORT_WRITE, 0x0D);
+
 #endif
 
 			// If the current byte isn't 0x0A, send a 0x0A
 			if ((byte != 0x0A) && (ret == PRINT_ERROR_NONE))
 				ret = m_pActivePrinter->Print(0x0A);
+
+			// Log data sent to port
+			if (m_pMonCallback != NULL)
+				m_pMonCallback(LPT_MON_PORT_WRITE, 0x0A);
 		}
 
 		// Test if this byte is 0x0D in case there are multiple in a row
@@ -592,6 +618,10 @@ void VTLpt::SendToLpt(unsigned char byte)
 	{
 		// Send byte to the active printer
 		ret = m_pActivePrinter->Print(byte);
+
+		// Log data sent to port
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_WRITE, byte);
 	}
 
 	// Check if printer operation cancelled
@@ -601,6 +631,10 @@ void VTLpt::SendToLpt(unsigned char byte)
 		gpPrint->label("Abrt");
 		gpPrint->set_image(&gCancelPrinterIcon);
 		time(&m_PortTimeout);
+
+		// Report port status change
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 		return;
 	}
 
@@ -610,19 +644,30 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ERROR;
 		gpPrint->label("Err");
 		gpPrint->set_image(&gErrorPrinterIcon);
+
+		// Report port status change
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 		return;
 	}
 
 	time(&m_PortActivity);
+	int oldStatus = m_PortStatus;
 	if (m_PortStatus != LPT_STATUS_READY)
 	{
 		gpPrint->label("Pend");
 		gPrintMenu[0].flags = 0;
 		gPrintMenu[1].flags = 0;
 	}
+
 	m_PortStatus = LPT_STATUS_READY;
 	m_AFFSent = FALSE;
 	m_PrevChar = byte;
+
+		// Report port status change
+	if (oldStatus != m_PortStatus)
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 }
 
 /*
@@ -657,6 +702,10 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			m_PortStatus = LPT_STATUS_IDLE;
 			gpPrint->set_image(&gPrinterIcon);
 			gpPrint->label("Idle");
+
+			// Report port status change
+			if (m_pMonCallback != NULL)
+				m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 		}
 		else
 		{
@@ -710,6 +759,10 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			gpPrint->label("Idle");
 			gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 			gPrintMenu[1].flags = FL_MENU_INVISIBLE;
+
+			// Report port status change
+			if (m_pMonCallback != NULL)
+				m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 		}
 		else
 		{
@@ -903,6 +956,9 @@ void VTLpt::UpdatePreferences(Fl_Preferences* pPref)
 	// Initialize the active printer
 	if (m_pActivePrinter != NULL)
 		m_pActivePrinter->Init(m_pPref);
+
+	if (m_pMonCallback != NULL)
+		m_pMonCallback(LPT_MON_EMULATION_CHANGE, 0);
 }
 
 /*
@@ -990,6 +1046,10 @@ void VTLpt::EndPrintSession(void)
 		gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 		m_PortStatus = LPT_STATUS_IDLE;
 		m_PrevChar = 0;
+
+		// Report port status change
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 	}
 }
 
@@ -1010,6 +1070,10 @@ void VTLpt::ResetPrinter(void)
 	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
+
+	// Report port status change
+	if (m_pMonCallback != NULL)
+		m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 }
 
 /*
@@ -1027,6 +1091,10 @@ void VTLpt::CancelPrintJob(void)
 	m_PrevChar = 0;
 	gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
+
+	// Report port status change
+	if (m_pMonCallback != NULL)
+		m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 }
 
 /*
@@ -1055,6 +1123,10 @@ int VTLpt::CheckErrors(void)
 		}
 	
 		m_PortStatus = LPT_STATUS_ERROR;
+
+		// Report port status change
+		if (m_pMonCallback != NULL)
+			m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
 	}
 
 	return errs;
@@ -1100,5 +1172,123 @@ void VTLpt::ShowErrors(void)
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
 	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
+
+	// Report port status change
+	if (m_pMonCallback != NULL)
+		m_pMonCallback(LPT_MON_PORT_STATUS_CHANGE, 0);
+}
+
+/*
+=========================================================================
+Returns a string indicating the port emulation mode
+=========================================================================
+*/
+MString VTLpt::GetEmulationMode(void)
+{
+	MString		str;
+
+	if (m_EmulationMode == LPT_MODE_NONE)
+		str = "Disabled";
+	else
+	{
+		if (m_pActivePrinter != NULL)
+			str = m_pActivePrinter->GetName();
+		else
+			str = "Error - Unknown print emulation";
+	}
+
+	return str;
+}
+
+/*
+=========================================================================
+Returns a string indicating the current port status
+=========================================================================
+*/
+MString VTLpt::GetPortStatus(void)
+{
+	MString		str;
+
+	switch (m_PortStatus)
+	{
+	case LPT_STATUS_IDLE:
+		str = "Idle - No active session";
+		break;
+
+	case LPT_STATUS_READY:
+		str = "Pending - Session active";
+		break;
+	
+	case LPT_STATUS_ABORTED:
+		str = "Print aborted";
+		break;
+
+	case LPT_STATUS_ERROR:
+		str = "Printer Error";
+		break;
+
+	default:
+		str = "Unknown port status";
+		break;
+	}
+
+	return str;
+}
+
+/*
+=========================================================================
+Sets a monitor callback routine for port change reporting
+=========================================================================
+*/
+void VTLpt::SetMonitorCallback(lpt_monitor_cb pCallback)
+{
+	m_pMonCallback = pCallback;
+}
+
+/*
+=========================================================================
+Build the Monitor Tab controls for the specified printer
+=========================================================================
+*/
+void VTLpt::BuildPrinterMonTab(int printer)
+{
+	if (printer < m_Printers.GetSize())
+		((VTPrinter*) m_Printers[printer])->BuildMonTab();
+}
+
+/*
+=========================================================================
+Get the name of the specified printer
+=========================================================================
+*/
+MString VTLpt::GetPrinterName(int printer)
+{
+	MString		name;
+
+	if (printer < m_Printers.GetSize())
+		name = ((VTPrinter*) m_Printers[printer])->GetName();
+
+	return name;
+}
+
+/*
+=========================================================================
+Get the index of the active printer or -1 if none
+=========================================================================
+*/
+int VTLpt::GetActivePrinterIndex(void)
+{
+	int		c, count;
+
+	if (m_pActivePrinter == NULL)
+		return -1;
+
+	// Loop through the printer devices and find the index of active printer
+	count = m_Printers.GetSize();
+	for (c = 0; c < count; c++)
+		if ((VTPrinter*) m_Printers[c] == m_pActivePrinter)
+			return c;
+
+	return -1;
 }
 

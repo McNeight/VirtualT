@@ -61,6 +61,7 @@ public:
 	virtual void		SendAutoFF(void) = 0;			// Send a FormFeed if needed
 	virtual void		Deinit(void) = 0;				// Deiniatalizes the printer
 	virtual int			CancelPrintJob(void) = 0;		// Cancels the current print job
+	virtual void		BuildMonTab(void) = 0;			// Builds the printer monitor tab
 
 	// Gets the count of printer errors
 	virtual int			GetErrorCount(void) {return m_errors.GetSize();}

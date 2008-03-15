@@ -52,6 +52,7 @@ public:
 	void				UpdateFormatForPage(void);
 	virtual void		Deinit(void);				// Deinit routine
 	virtual int			CancelPrintJob(void);
+	virtual void		BuildMonTab(void);			// Builds the montior tab
 
 protected:
 	virtual void		Init(void);					// Initialization routine

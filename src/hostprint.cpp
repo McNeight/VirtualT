@@ -259,3 +259,12 @@ int VTHostPrint::CancelPrintJob(void)
 	return PRINT_ERROR_NONE;
 }
 
+/*
+=======================================================
+Builds the monitor tab
+=======================================================
+*/
+void VTHostPrint::BuildMonTab(void)
+{
+}
+

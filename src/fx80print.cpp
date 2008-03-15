@@ -2237,7 +2237,7 @@ void VTFX80Print::RenderGraphic(unsigned char byte)
 		for (c = 0; c < 8; c++)
 		{
 			if (byte & mask)
-				PlotPixel(m_curX, m_curY + c * 2);		// Times 2 for 144 DPI
+				PlotPixel(m_curX, m_curY + c * 3);		// Times 2 for 216 DPI
 
 			// Update mask
 			mask >>= 1;
@@ -2253,7 +2253,7 @@ void VTFX80Print::RenderGraphic(unsigned char byte)
 		{
 			// Bit is set...fire the "bottom pin"
 			// NOTE: this really should use m_vertDpi to calc the location
-			PlotPixel(m_curX, m_curY + 24);		// 16 is pin 9 (value 8) times 2
+			PlotPixel(m_curX, m_curY + 24);		// 24 is pin 9 (value 8) times 3 for 216 DPI
 		}
 		
 		// Advance the x position
@@ -2460,5 +2460,14 @@ int VTFX80Print::GetErrorCount(void)
 	}
 
 	return m_errors.GetSize();
+}
+
+/*
+=======================================================
+Builds the monitor tab
+=======================================================
+*/
+void VTFX80Print::BuildMonTab(void)
+{
 }
 

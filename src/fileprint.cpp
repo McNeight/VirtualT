@@ -691,3 +691,12 @@ int VTFilePrint::CancelPrintJob(void)
 	return PRINT_ERROR_NONE;
 }
 
+/*
+=======================================================
+Build the monitor tab
+=======================================================
+*/
+void VTFilePrint::BuildMonTab(void)
+{
+}
+

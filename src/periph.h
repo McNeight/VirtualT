@@ -1,6 +1,6 @@
 /* periph.h */
 
-/* $Id: periph.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: periph.h,v 1.5 2007/03/31 22:09:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -32,6 +32,7 @@
 #define PERIPH_H
 
 #include <FL/Fl_Scrollbar.H>
+#include "vtobj.h"
 
 void cb_PeripheralDevices (Fl_Widget* w, void*);
 
@@ -104,5 +105,15 @@ protected:
 };
 
 
+class VTLptDevice : public VTObject
+{
+public:
+	VTLptDevice() { pTab = NULL; pName = NULL; }
+	~VTLptDevice() { if (pName != NULL) delete pName; }
+
+	Fl_Group*		pTab;
+	char*			pName;
+
+};
 
 #endif
