@@ -53,9 +53,8 @@ Fl_Action_Icon::Fl_Action_Icon(int x, int y, int w, int h, const char *title) :
 {
 	m_pImage = NULL;
 	m_pMenu = gEmptyMenu;
-	m_pPopup = new Fl_Menu_Button(0, 0, 100, 400, title);
+	m_pPopup = new Fl_Menu_Button(x, y, w, h, title);
 	m_pPopup->type(Fl_Menu_Button::POPUP3);
-	m_pPopup->hide();
 }
 
 /*
@@ -96,7 +95,7 @@ int Fl_Action_Icon::handle(int event)
 			m_pPopup->menu(m_pMenu);	
 			m_pPopup->popup();
 		}
-		break;
+		return (1);
 
 	}
 	return Fl_Box::handle(event);

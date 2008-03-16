@@ -724,6 +724,7 @@ void VTPSPaper::HideControls()
 	m_pDarkness->hide();
 	m_pDark->hide();
 	m_pLight->hide();
+	m_pLight->parent()->redraw();
 }
 
 /*
@@ -1457,6 +1458,7 @@ void VTlprPaper::HideControls()
 	m_pDarkness->hide();
 	m_pDark->hide();
 	m_pLight->hide();
+	m_pLight->parent()->redraw();
 }
 
 /*

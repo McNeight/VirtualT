@@ -49,6 +49,7 @@
 #include "vtpaper.h"
 #include "chargen.h"
 
+#define MENU_HEIGHT		32
 extern unsigned char gFX80CharRom[256][12];
 
 unsigned char	gIntlTable[9][12] = {
@@ -2469,5 +2470,31 @@ Builds the monitor tab
 */
 void VTFX80Print::BuildMonTab(void)
 {
+	Fl_Box*		o;
+
+	o = new Fl_Box(20, 45+MENU_HEIGHT, 100, 20, "Print Pitch:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 70+MENU_HEIGHT, 100, 20, "Print Weight:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 95+MENU_HEIGHT, 100, 20, "Italic Mode:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 120+MENU_HEIGHT, 100, 20, "Script Mode:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 145+MENU_HEIGHT, 100, 20, "Underline:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 170+MENU_HEIGHT, 100, 20, "Line Spacing:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 195+MENU_HEIGHT, 100, 20, "Form Length:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 220+MENU_HEIGHT, 100, 20, "Left Margin:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 245+MENU_HEIGHT, 100, 20, "Head Position:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 270+MENU_HEIGHT, 100, 20, "Perforation Skip:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 295+MENU_HEIGHT, 100, 20, "Paper Type:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 320+MENU_HEIGHT, 100, 20, "Paper Status:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 }
 

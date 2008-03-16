@@ -1361,7 +1361,7 @@ void init_display(void)
 		50*DisplayMode+2, 60, 20,"");
 	gpMap->labelsize(10);
 	gpPrint = new Fl_Action_Icon(420, MENU_HEIGHT+DispHeight*MultFact + 
-		50*DisplayMode+2, 60, 20, "");
+		50*DisplayMode+2, 60, 20, "Print Menu");
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->align(FL_ALIGN_TOP | FL_ALIGN_INSIDE | FL_ALIGN_LEFT);
 	gpPrint->menu(gPrintMenu);

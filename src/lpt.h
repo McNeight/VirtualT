@@ -44,6 +44,7 @@ void send_to_lpt(unsigned char byte);
 void handle_lpt_timeout(unsigned long time);
 void lpt_check_errors(void);
 void lpt_set_monitor_callback(lpt_monitor_cb pCallback);
+void lpt_do_animation(void);
 
 #ifdef __cplusplus
 }
@@ -56,8 +57,9 @@ void build_lpt_setup_tab(void);
 
 #define LPT_STATUS_IDLE			0
 #define LPT_STATUS_READY		1
-#define	LPT_STATUS_ABORTED		2
-#define LPT_STATUS_ERROR		3
+#define LPT_STATUS_ACTIVITY		2
+#define	LPT_STATUS_ABORTED		3
+#define LPT_STATUS_ERROR		4
 
 // Define Monitor Callback types
 #define	LPT_MON_PORT_STATUS_CHANGE	0
@@ -117,6 +119,7 @@ public:
 	MString			GetPrinterName(int printer);		// Returns the name of the printer
 	VTPrinter*		GetPrinter(int index);				// Returns pointer to a specific printer
 	int				GetActivePrinterIndex(void);		// Returns the index of the active printer or -1
+	void			DoAnimation(void);					// Does Printer icon animation
 
 protected:
 	int					m_EmulationMode;				// Current emulation mode
@@ -134,6 +137,7 @@ protected:
 	int					m_PortStatus;
 	time_t				m_PortActivity;
 	time_t				m_PortTimeout;
+	int					m_animIconIndex;				// Currently displayed animation icon
 	int					m_AFFSent;						// True if an Auto FormFeed sent
 	unsigned char		m_PrevChar;						// Previous byte sent
 

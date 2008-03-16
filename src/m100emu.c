@@ -738,55 +738,69 @@ interrupts and processing FLTK window events.
 void maint(void)
 {
 	static time_t systime;
-	static float  last_cpu_speed=-1;
 	static int    twice_flag = 0;
 	DWORD         new_rst7cycles;
 	static double last_hires = 0;
 	double		  hires;
+	static int    lpt_animation = 0;
 
 	hires = hirestimer();
 	if (hires > last_hires + .05)
 	{
+		// Update the last_hires timer for next comparison
 		last_hires = hires;
 		one_sec_cycle_count = (DWORD) (cycles - one_sec_cycles) / 100;
 		one_sec_cycles = cycles;
-//		if (systime != (time_t) one_sec_time)
-		{
-			/* Update cycle counts only if 2 consecutive seconds - deals with menus */
-//			if (((time_t)one_sec_time+1 == systime) && ((time_t)last_one_sec_time+2 == systime))
-			{
-				new_rst7cycles = (DWORD) (0.39998 * 20 * one_sec_cycle_count);	  /* 0.39998 = 9830 / 24576 */
-				if ((new_rst7cycles > (rst7cycles * 0.8)) || (twice_flag == 2))
-				{
-					rst7cycles = new_rst7cycles;
-					if (rst7cycles < 9830)
-						rst7cycles = 9830;
-					time(&systime);
-					if (systime != (time_t) one_sec_time)
-					{
-						cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
-						display_cpu_speed();
-						lpt_check_errors();
-						periph_mon_update_lpt_log();
-					}
-					twice_flag = 0;
-					if (gMemMonitor != NULL)
-						gMemMonitor();
-				}
-				else
-					twice_flag++;
-			}
-			last_one_sec_time = one_sec_time;
-			one_sec_time = (unsigned long) systime;
+		new_rst7cycles = (DWORD) (0.39998 * 20 * one_sec_cycle_count);	  /* 0.39998 = 9830 / 24576 */
 
+		// Check if the rst7cycles needs to be updated.  We only update this every 3rd time through
+		// The rst7cycles value is what controls the keyboard-timer interrupt rate and it
+		// changes based on host CPU speed to try to match the M100 scan rate
+		if ((new_rst7cycles > (rst7cycles * 0.8)) || (twice_flag == 2))
+		{
+			rst7cycles = new_rst7cycles;
+			if (rst7cycles < 9830)
+				rst7cycles = 9830;
+			time(&systime);
+			if (systime != (time_t) one_sec_time)
+			{
+				cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
+				display_cpu_speed();
+				lpt_check_errors();
+				periph_mon_update_lpt_log();
+			}
+			twice_flag = 0;
+
+			// Check if we need to update the Memory Editor monitor
+			if (gMemMonitor != NULL)
+				gMemMonitor();
 		}
+		else
+			twice_flag++;
+
+		// Check if we need to do lpt animation
+		if (++lpt_animation >= 7)
+		{
+			lpt_do_animation();
+			lpt_animation = 0;
+		}
+
+		// Update the last one_sec_time value to keep track of seconds for emulated speed reporting
+		last_one_sec_time = one_sec_time;
+		one_sec_time = (unsigned long) systime;
 	}
+
+	// Do CPU throttling for 2.4Mhz mode
 	throttle(cycle_delta);
+
+	// Test if socket interface requested model switch
 	if (gRemoteSwitchModel != -1)
 	{
 		switch_model(gRemoteSwitchModel);
 		gRemoteSwitchModel = -1;
 	}
+
+	// Test if socket interface simulating a key press
 	handle_simkey();
 	process_windows_event();
 

@@ -184,9 +184,206 @@ char* error_print_xpm[] = {
 "        rr        ",
 };
 
+// Define a Printer bitmap
+char* print_xpm2[] = {
+"18 18 14 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"                  ",
+"      pppppp      ",
+"      pppppp      ",
+"      pwwwwp      ",
+"    ghpwwwwphg    ",
+"    g#pwwwwp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeegew. ",
+" .gggllllllllggg. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pwbbnp..... ",
+"      pwbbnp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"                  ",
+};
+
+// Define a Printer bitmap
+char* print_xpm3[] = {
+"18 18 15 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"y	c #FFFF00",
+"                  ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"    ghpwwwwphg    ",
+"    g#pwwwwp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeeyyy. ",
+" .gggllllllllyyy. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pwbbnp..... ",
+"      pwbbnp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"                  ",
+};
+
+// Define a Printer bitmap
+char* print_xpm4[] = {
+"18 18 15 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"y	c #FFFF00",
+"                  ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pwwwwp      ",
+"    ghpppppphg    ",
+"    g#pwwwwp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeeyyy. ",
+" .gggllllllllyyy. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pppppp..... ",
+"      pwbbnp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"                  ",
+};
+
+// Define a Printer bitmap
+char* print_xpm5[] = {
+"18 18 14 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"                  ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pwwwwp      ",
+"    ghpwwwwphg    ",
+"    g#pppppp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeegew. ",
+" .gggllllllllggg. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pwwwwp..... ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pppppp      ",
+"                  ",
+};
+
+
+// Define a Printer bitmap
+char* print_xpm6[] = {
+"18 18 14 1",
+"   c None",
+".  c #555555",
+"w  c #ffffff",
+"g  c #A0A0A0",
+"h  c #646a63",
+"l  c #B0B0B0",
+"d  c #404040",
+"b  c #6080eF",
+"v  c #202020",
+"p	c #353034",
+"e	c #d5d9d6",
+"#	c #838383",
+"n	c #C0e0F0",
+"m	c #c4c4c4",
+"                  ",
+"      pppppp      ",
+"      pwwwwp      ",
+"      pwwwwp      ",
+"    ghpwwwwphg    ",
+"    g#pwwwwp#g    ",
+" ................ ",
+" .wwgeeeeeeeegww. ",
+" .wegeeeeeeeegew. ",
+" .gggllllllllggg. ",
+" .mmgllllllllgmm. ",
+" .mmvv######vvmm. ",
+" .ggvvpnnnnpvvgg. ",
+" .....pwbbnp..... ",
+"      pwwwwp      ",
+"      pppppp      ",
+"      pppppp      ",
+"                  ",
+};
+
 Fl_Pixmap	gPrinterIcon(print_xpm);
+Fl_Pixmap	gPrinterIcon2(print_xpm2);
+Fl_Pixmap	gPrinterIcon3(print_xpm3);
+Fl_Pixmap	gPrinterIcon4(print_xpm4);
+Fl_Pixmap	gPrinterIcon5(print_xpm5);
+Fl_Pixmap	gPrinterIcon6(print_xpm6);
 Fl_Pixmap	gCancelPrinterIcon(cancel_print_xpm);
 Fl_Pixmap	gErrorPrinterIcon(error_print_xpm);
+Fl_Pixmap*	gPrinterAnimIcons[8] = {
+	&gPrinterIcon, &gPrinterIcon2, &gPrinterIcon3,
+	&gPrinterIcon4, &gPrinterIcon5, &gPrinterIcon6
+};
 
 extern "C" time_t one_sec_time;
 
@@ -198,6 +395,7 @@ Define global variables
 VTLpt			*gLpt = NULL;
 lptCtrl_t		gLptCtrl;
 lpt_prefs_t		gLptPrefs;
+int				gAnimationNeeded = FALSE;
 
 /*
 =======================================================
@@ -256,6 +454,19 @@ void lpt_check_errors()
 	if (gLpt != NULL)
 	{
 		gLpt->CheckErrors();
+	}
+}
+
+/*
+=======================================================
+Do lpt animation
+=======================================================
+*/
+void lpt_do_animation()
+{
+	if ((gLpt != NULL) && (gAnimationNeeded))
+	{
+		gLpt->DoAnimation();
 	}
 }
 
@@ -546,6 +757,7 @@ VTLpt::VTLpt(void)
 	m_PortTimeout = 0;
 	m_AFFSent = FALSE;
 	m_pMonCallback = NULL;
+	m_animIconIndex = 1;
 
 	// Now create printers
 	VTPrinter *pPrint = new VTFilePrint();
@@ -630,6 +842,8 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ABORTED;
 		gpPrint->label("Abrt");
 		gpPrint->set_image(&gCancelPrinterIcon);
+		gAnimationNeeded = FALSE;
+		m_animIconIndex = 1;
 		time(&m_PortTimeout);
 
 		// Report port status change
@@ -644,6 +858,8 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ERROR;
 		gpPrint->label("Err");
 		gpPrint->set_image(&gErrorPrinterIcon);
+		gAnimationNeeded = FALSE;
+		m_animIconIndex = 1;
 
 		// Report port status change
 		if (m_pMonCallback != NULL)
@@ -653,16 +869,17 @@ void VTLpt::SendToLpt(unsigned char byte)
 
 	time(&m_PortActivity);
 	int oldStatus = m_PortStatus;
-	if (m_PortStatus != LPT_STATUS_READY)
+	if (m_PortStatus != LPT_STATUS_ACTIVITY)
 	{
-		gpPrint->label("Pend");
+		gpPrint->label("Actv");
 		gPrintMenu[0].flags = 0;
 		gPrintMenu[1].flags = 0;
 	}
 
-	m_PortStatus = LPT_STATUS_READY;
+	m_PortStatus = LPT_STATUS_ACTIVITY;
 	m_AFFSent = FALSE;
 	m_PrevChar = byte;
+	gAnimationNeeded = TRUE;
 
 		// Report port status change
 	if (oldStatus != m_PortStatus)
@@ -702,6 +919,8 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			m_PortStatus = LPT_STATUS_IDLE;
 			gpPrint->set_image(&gPrinterIcon);
 			gpPrint->label("Idle");
+			gAnimationNeeded = FALSE;
+			m_animIconIndex = 1;
 
 			// Report port status change
 			if (m_pMonCallback != NULL)
@@ -757,6 +976,9 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			m_PortStatus = LPT_STATUS_IDLE;
 			m_PrevChar = 0;
 			gpPrint->label("Idle");
+			gpPrint->set_image(&gPrinterIcon);
+			gAnimationNeeded = FALSE;
+			m_animIconIndex = 1;
 			gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 			gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 
@@ -769,6 +991,16 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			sprintf(m_TimeStr, "%d", m_PortActivity + timeout - time);
 			gpPrint->label(m_TimeStr);
 		}
+	}
+	// Check if we need to cancel activity animation
+	if ((m_PortStatus == LPT_STATUS_ACTIVITY) && (m_PortActivity + 1 <= time))
+	{
+		// Change the port status to READY.  Animation will stop automatically
+		m_PortStatus = LPT_STATUS_READY;
+		gpPrint->label("Pend");
+		gpPrint->set_image(&gPrinterIcon);
+		gAnimationNeeded = FALSE;
+		m_animIconIndex = 1;
 	}
 }
 
@@ -900,7 +1132,7 @@ void VTLpt::PrinterProperties(int useActivePrinter)
 	// Show the dialog box
 	m_pProp->end();
 	m_pProp->show();
-	m_pProp->show();
+//	m_pProp->redraw();
 }
 
 /*
@@ -1042,10 +1274,13 @@ void VTLpt::EndPrintSession(void)
 	{
 		m_pActivePrinter->EndPrintSession();
 		gpPrint->label("Idle");
+		gpPrint->set_image(&gPrinterIcon);
 		gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 		gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 		m_PortStatus = LPT_STATUS_IDLE;
 		m_PrevChar = 0;
+		gAnimationNeeded = FALSE;
+		m_animIconIndex = 1;
 
 		// Report port status change
 		if (m_pMonCallback != NULL)
@@ -1070,6 +1305,8 @@ void VTLpt::ResetPrinter(void)
 	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
+	gAnimationNeeded = FALSE;
+	m_animIconIndex = 1;
 
 	// Report port status change
 	if (m_pMonCallback != NULL)
@@ -1089,6 +1326,8 @@ void VTLpt::CancelPrintJob(void)
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
+	gAnimationNeeded = FALSE;
+	m_animIconIndex = 1;
 	gPrintMenu[0].flags = FL_MENU_INVISIBLE;
 	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 
@@ -1123,6 +1362,8 @@ int VTLpt::CheckErrors(void)
 		}
 	
 		m_PortStatus = LPT_STATUS_ERROR;
+		gAnimationNeeded = FALSE;
+		m_animIconIndex = 1;
 
 		// Report port status change
 		if (m_pMonCallback != NULL)
@@ -1172,6 +1413,8 @@ void VTLpt::ShowErrors(void)
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
 	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
+	gAnimationNeeded = FALSE;
+	m_animIconIndex = 1;
 
 	// Report port status change
 	if (m_pMonCallback != NULL)
@@ -1225,6 +1468,10 @@ MString VTLpt::GetPortStatus(void)
 
 	case LPT_STATUS_ERROR:
 		str = "Printer Error";
+		break;
+
+	case LPT_STATUS_ACTIVITY:
+		str = "Active - Receiving data";
 		break;
 
 	default:
@@ -1290,5 +1537,20 @@ int VTLpt::GetActivePrinterIndex(void)
 			return c;
 
 	return -1;
+}
+
+/*
+=========================================================================
+Do Printer icon animation
+=========================================================================
+*/
+void VTLpt::DoAnimation(void)
+{
+	gpPrint->set_image(gPrinterAnimIcons[m_animIconIndex++]);
+	if (m_animIconIndex >= 6)
+		m_animIconIndex = 0;
+	else
+		if ((m_animIconIndex == 1) && (m_PortStatus != LPT_STATUS_ACTIVITY))
+			gAnimationNeeded = FALSE;
 }
 
