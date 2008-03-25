@@ -462,11 +462,17 @@ void lpt_check_errors()
 Do lpt animation
 =======================================================
 */
-void lpt_do_animation()
+void lpt_perodic_update()
 {
-	if ((gLpt != NULL) && (gAnimationNeeded))
+	// Check if printer animation needed
+	if (gLpt != NULL)
 	{
-		gLpt->DoAnimation();
+		// Check if animation neded
+		if (gAnimationNeeded)
+			gLpt->DoAnimation();
+
+		// Perform perodic LPT update
+		gLpt->PerodicUpdate();
 	}
 }
 
@@ -572,6 +578,7 @@ Define a menu for printer icon popup
 ====================================================================
 */
 Fl_Menu_Item	gPrintMenu[] = {
+	{ "Invisible Item",  0,     0,                   0,   FL_MENU_INVISIBLE},
 	{ "Print Now",       0,     cb_LptPrintNow,      0,   FL_MENU_INVISIBLE},
 	{ "Cancel Print",    0,     cb_LptCancelPrint,   0,   FL_MENU_INVISIBLE},
 	{ "Show Errors",     0,     cb_LptShowErrors,    0,   FL_MENU_INVISIBLE},
@@ -710,6 +717,10 @@ get_lpt_options:	Gets the LPT options from the Dialog Tab and saves them
 */
 void get_lpt_options()
 {
+	// End any active print sessions
+	if (gLpt != NULL)
+		gLpt->EndPrintSession();
+
 	// Check if "No Emulation" is selected
 	if (gLptCtrl.pNone->value())
 		gLptPrefs.lpt_mode = LPT_MODE_NONE;
@@ -858,6 +869,8 @@ void VTLpt::SendToLpt(unsigned char byte)
 		m_PortStatus = LPT_STATUS_ERROR;
 		gpPrint->label("Err");
 		gpPrint->set_image(&gErrorPrinterIcon);
+		// Enable the errors menu
+		gPrintMenu[3].flags = 0;
 		gAnimationNeeded = FALSE;
 		m_animIconIndex = 1;
 
@@ -872,7 +885,7 @@ void VTLpt::SendToLpt(unsigned char byte)
 	if (m_PortStatus != LPT_STATUS_ACTIVITY)
 	{
 		gpPrint->label("Actv");
-		gPrintMenu[0].flags = 0;
+		gPrintMenu[2].flags = 0;
 		gPrintMenu[1].flags = 0;
 	}
 
@@ -979,7 +992,7 @@ void VTLpt::HandleTimeouts(unsigned long time)
 			gpPrint->set_image(&gPrinterIcon);
 			gAnimationNeeded = FALSE;
 			m_animIconIndex = 1;
-			gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+			gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 			gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 
 			// Report port status change
@@ -1270,12 +1283,13 @@ End the current print session and send to the "printer".
 */
 void VTLpt::EndPrintSession(void)
 {
-	if (m_pActivePrinter != NULL)
+	if ((m_pActivePrinter != NULL) && (m_PortStatus != LPT_STATUS_IDLE))
 	{
 		m_pActivePrinter->EndPrintSession();
 		gpPrint->label("Idle");
 		gpPrint->set_image(&gPrinterIcon);
-		gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+		gPrintMenu[3].flags = FL_MENU_INVISIBLE;
+		gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 		gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 		m_PortStatus = LPT_STATUS_IDLE;
 		m_PrevChar = 0;
@@ -1302,7 +1316,7 @@ void VTLpt::ResetPrinter(void)
 	// Reset the LPT emulation too
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->label("Idle");
-	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
+	gPrintMenu[3].flags = FL_MENU_INVISIBLE;
 	m_PortStatus = LPT_STATUS_IDLE;
 	m_PrevChar = 0;
 	gAnimationNeeded = FALSE;
@@ -1328,7 +1342,7 @@ void VTLpt::CancelPrintJob(void)
 	m_PrevChar = 0;
 	gAnimationNeeded = FALSE;
 	m_animIconIndex = 1;
-	gPrintMenu[0].flags = FL_MENU_INVISIBLE;
+	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
 	gPrintMenu[1].flags = FL_MENU_INVISIBLE;
 
 	// Report port status change
@@ -1358,7 +1372,7 @@ int VTLpt::CheckErrors(void)
 			gpPrint->label("Err");
 
 			// Enable the errors menu
-			gPrintMenu[2].flags = 0;
+			gPrintMenu[3].flags = 0;
 		}
 	
 		m_PortStatus = LPT_STATUS_ERROR;
@@ -1412,7 +1426,7 @@ void VTLpt::ShowErrors(void)
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->label("Idle");
 	m_PortStatus = LPT_STATUS_IDLE;
-	gPrintMenu[2].flags = FL_MENU_INVISIBLE;
+	gPrintMenu[3].flags = FL_MENU_INVISIBLE;
 	gAnimationNeeded = FALSE;
 	m_animIconIndex = 1;
 
@@ -1552,5 +1566,17 @@ void VTLpt::DoAnimation(void)
 	else
 		if ((m_animIconIndex == 1) && (m_PortStatus != LPT_STATUS_ACTIVITY))
 			gAnimationNeeded = FALSE;
+}
+
+/*
+=========================================================================
+Perform perodic update operations on LPT
+=========================================================================
+*/
+void VTLpt::PerodicUpdate(void)
+{
+	if (m_pMonCallback != NULL)
+		if (m_pActivePrinter != NULL)
+			m_pActivePrinter->UpdateMonTab();
 }
 

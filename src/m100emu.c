@@ -742,7 +742,7 @@ void maint(void)
 	DWORD         new_rst7cycles;
 	static double last_hires = 0;
 	double		  hires;
-	static int    lpt_animation = 0;
+	static int    lpt_update = 0;
 
 	hires = hirestimer();
 	if (hires > last_hires + .05)
@@ -779,10 +779,10 @@ void maint(void)
 			twice_flag++;
 
 		// Check if we need to do lpt animation
-		if (++lpt_animation >= 7)
+		if (++lpt_update >= 7)
 		{
-			lpt_do_animation();
-			lpt_animation = 0;
+			lpt_perodic_update();
+			lpt_update = 0;
 		}
 
 		// Update the last one_sec_time value to keep track of seconds for emulated speed reporting

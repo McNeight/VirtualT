@@ -53,6 +53,7 @@ public:
 	virtual void		Deinit(void);				// Deinit routine
 	virtual int			CancelPrintJob(void);
 	virtual void		BuildMonTab(void);			// Builds the montior tab
+	virtual void		UpdateMonTab(void);			// Updates values on the mon tab
 
 protected:
 	virtual void		Init(void);					// Initialization routine
@@ -71,6 +72,17 @@ protected:
 	Fl_Input*			m_pFormatCode;				// Control for spcifying format string
 	Fl_Check_Button*	m_pFilterCodes;				// Control for filtering control codes
 
+	Fl_Box*				m_pStatOpenStatus;			// Control for Periph tab reporting
+	Fl_Box*				m_pStatFilename;			// Control for Periph tab reporting
+	Fl_Box*				m_pStatSessionSeq;			// Control for Periph tab reporting
+	Fl_Box*				m_pStatBytes;				// Control for Periph tab reporting
+	Fl_Box*				m_pStatPages;				// Control for Periph tab reporting
+	char				m_sStatOpenStatus[20];		// Control for Periph tab reporting
+	char				m_sStatFilename[512];		// Control for Periph tab reporting
+	char				m_sStatSessionSeq[10];		// Control for Periph tab reporting
+	char				m_sStatBytes[20];			// Control for Periph tab reporting
+	char				m_sStatPages[10];			// Control for Periph tab reporting
+
 	char				m_DirName[256];				// Name of file output directory
 	int					m_Prompt;					// True if prompt for filename
 	int					m_SeparateFiles;			// True if printing pages to separate files
@@ -83,6 +95,7 @@ protected:
 	unsigned char		m_LastBytePrinted;
 	int					m_PageNum;					// Current page number of opened file
 	int					m_ActiveSeqNum;				// Sequence number of active session, if any
+	int					m_Bytes;					// Number of bytes written this session
 };
 
 #endif

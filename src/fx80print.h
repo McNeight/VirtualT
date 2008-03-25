@@ -69,6 +69,7 @@ public:
 	virtual int			CancelPrintJob(void);		// Cancels the current print job
 	virtual int			GetErrorCount(void);		// Get count of print errors
 	virtual void		BuildMonTab(void);			// Builds the monitor tab
+	virtual void		UpdateMonTab(void);			// Updates the monitor tab
 
 	int					IntlDipChanged(void);		// Called when a change made to DIP setting
 	void				CharRomBrowse(Fl_Widget* w);// Call back for ROM file browsing
@@ -110,6 +111,53 @@ protected:
 	Fl_Round_Button*	m_pSkipPerfOn;				// Skip Perforation switch
 	Fl_Round_Button*	m_pSkipPerfOff;				// Skip Perforation switch
 	Fl_Input*			m_pTopOfForm;				// Top of Form location in inches
+
+	// Controls for Periph Monitor tab
+	Fl_Box*				m_pStatPrintPitch;			// Current print pitch 
+	Fl_Box*				m_pStatPrintWeight;			// Current print weight 
+	Fl_Box*				m_pStatItalic;				// Current italic setting
+	Fl_Box*				m_pStatScriptMode;			// Current subscript / superscript mode
+	Fl_Box*				m_pStatUnderline;			// Current underline status
+	Fl_Box*				m_pStatLineSpacing;			// Current line spacing
+	Fl_Box*				m_pStatFormLength;			// Current form length
+	Fl_Box*				m_pStatLeftMargin;			// Current Left Margin
+	Fl_Box*				m_pStatPos;					// Current print position
+	Fl_Box*				m_pStatPerfSkip;			// Current perforation skip setting
+	Fl_Box*				m_pStatPaperType;			// Current paper type
+	Fl_Box*				m_pStatPaperStatus;			// Current paper status
+	Fl_Box*				m_pStatEscMode;				// Current ESC mode
+	Fl_Box*				m_pStatEscParams;			// Number of ESC params received
+	Fl_Box*				m_pStatGraphicsMode;		// Curent Graphics enable state
+	Fl_Box*				m_pStatGraphicsRes;			// Curent Graphics resolution
+	Fl_Box*				m_pStatGraphicsRcvd;		// Number of graphics bytes received
+	Fl_Box*				m_pStatUpdateChar;			// Current User Defined update char
+	Fl_Box*				m_pStatLastChar;			// Last User Defined char to be updated
+	Fl_Box*				m_pStatUpdateBytes;			// Number of Update bytes received
+	Fl_Box*				m_pStatFontSource;			// Current font source
+	Fl_Box*				m_pStatIntlCharSet;			// Current International Char set
+
+	char				m_sStatPrintPitch[30];			// Current print pitch 
+	char				m_sStatPrintWeight[30];			// Current print weight 
+	char				m_sStatItalic[20];				// Current italic setting
+	char				m_sStatScriptMode[20];			// Current subscript / superscript mode
+	char				m_sStatUnderline[20];			// Current underline status
+	char				m_sStatLineSpacing[20];			// Current line spacing
+	char				m_sStatFormLength[20];			// Current form length
+	char				m_sStatLeftMargin[20];			// Current Left Margin
+	char				m_sStatPos[20];					// Current print position
+	char				m_sStatPerfSkip[20];			// Current perforation skip setting
+	char				m_sStatPaperType[80];			// Current paper type
+	char				m_sStatPaperStatus[80];			// Current paper status
+	char				m_sStatEscMode[20];				// Current ESC mode
+	char				m_sStatEscParams[20];			// Number of ESC params received
+	char				m_sStatGraphicsMode[20];		// Curent Graphics enable state
+	char				m_sStatGraphicsRes[20];			// Curent Graphics resolution
+	char				m_sStatGraphicsRcvd[20];		// Number of graphics bytes received
+	char				m_sStatUpdateChar[20];			// Current User Defined update char
+	char				m_sStatLastChar[20];			// Last User Defined char to be updated
+	char				m_sStatUpdateBytes[20];			// Number of Update bytes received
+	char				m_sStatFontSource[20];			// Current font source
+	char				m_sStatIntlCharSet[20];			// Current International Char set
 
 	void				SetIntlDipText(char set);	// Set Dialog box text based on code
 

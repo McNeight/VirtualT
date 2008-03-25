@@ -42,6 +42,10 @@ class Fl_Preferences;
 #define	PRINT_ERROR_IO_ERROR	2
 #define PRINT_ERROR_NOMEM		3
 
+#ifndef MENU_HEIGHT
+#define MENU_HEIGHT				32
+#endif
+
 /*
 ==========================================================================
 Define the VTPrinter class.  This is a virtual class that other printers
@@ -62,6 +66,7 @@ public:
 	virtual void		Deinit(void) = 0;				// Deiniatalizes the printer
 	virtual int			CancelPrintJob(void) = 0;		// Cancels the current print job
 	virtual void		BuildMonTab(void) = 0;			// Builds the printer monitor tab
+	virtual void		UpdateMonTab(void) = 0;			// Called to update values on the mon tab
 
 	// Gets the count of printer errors
 	virtual int			GetErrorCount(void) {return m_errors.GetSize();}

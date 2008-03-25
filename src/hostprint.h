@@ -52,6 +52,7 @@ public:
 	virtual void		Deinit(void);				// Deini routine
 	virtual int			CancelPrintJob(void);		// Cancels a print job
 	virtual void		BuildMonTab(void);			// Builds the monitor tab
+	virtual void		UpdateMonTab(void);			// Updates the monitor tab
 
 protected:
 	virtual void 		PrintByte(unsigned char byte);	// Print to host
@@ -62,6 +63,10 @@ protected:
 	Fl_Input*			m_pHostPort;				// Control for Host Port name
 	Fl_Check_Button*	m_pClosePort;				// Check box for closing port
 	Fl_Check_Button*	m_pReadBusy;				// Check box for reading BUSY status
+	Fl_Box*				m_pStatHostPort;			// Control for Periph monitor tab 
+	Fl_Box*				m_pStatPortStatus;			// Control for Periph monitor tab 
+	char				m_sStatHostPort[256];		// String for host port
+	char				m_sStatPortStatus[20];		// String for Port Status
 
 	char				m_HostPort[256];			// Host port name
 	int					m_ClosePort;				// True to close port between sessions

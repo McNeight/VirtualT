@@ -49,7 +49,6 @@
 #include "vtpaper.h"
 #include "chargen.h"
 
-#define MENU_HEIGHT		32
 extern unsigned char gFX80CharRom[256][12];
 
 unsigned char	gIntlTable[9][12] = {
@@ -65,7 +64,7 @@ unsigned char	gIntlTable[9][12] = {
 };   
 
 const char* gIntlCharDesc[] = {
-	"USA", "France", "Germany", "U.K", "Denmark", "Sweden", "Italy", "Spain"
+	"USA", "France", "Germany", "U.K", "Denmark", "Sweden", "Italy", "Spain", "Japan"
 };
 
 double gGraphicsDpis[7] = {
@@ -675,7 +674,11 @@ void VTFX80Print::Init(void)
 	// Add all papers to the m_paper object
 	m_papers.Add(new VTVirtualPaper(m_pPref));
 	m_papers.Add(new VTPSPaper(m_pPref));
+#ifdef WIN32
+//	m_papers.Add(new VTWinPrintPaper(m_pPref));
+#else
 	m_papers.Add(new VTlprPaper(m_pPref));
+#endif
 
 
 	// Initialize Get preferences for all papers
@@ -2336,6 +2339,7 @@ void VTFX80Print::SetNewFormHeight(double newHeight)
 		if (newPage == NULL)
 		{
 			// Error updating form length!!  Process error
+			AddError("Out of memory setting form length");
 
 			// Don't update the form length - no enough memory
 			return;
@@ -2496,5 +2500,324 @@ void VTFX80Print::BuildMonTab(void)
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	o = new Fl_Box(20, 320+MENU_HEIGHT, 100, 20, "Paper Status:");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// 2nd Column of status items
+	o = new Fl_Box(280, 45+MENU_HEIGHT, 100, 20, "ESC Mode:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 70+MENU_HEIGHT, 100, 20, "ESC Params:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 95+MENU_HEIGHT, 100, 20, "Graphics Mode:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 120+MENU_HEIGHT, 100, 20, "Graphics Res:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 145+MENU_HEIGHT, 100, 20, "Graphics Rcvd:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 170+MENU_HEIGHT, 100, 20, "Update Char:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 195+MENU_HEIGHT, 100, 20, "Last Char:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 220+MENU_HEIGHT, 100, 20, "Update Bytes:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 245+MENU_HEIGHT, 100, 20, "Font Source:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(280, 270+MENU_HEIGHT, 100, 20, "Intl Char Set:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	// Create controls for displaying the current status
+	m_pStatPrintPitch = new Fl_Box(150, 45+MENU_HEIGHT, 100, 20, "");
+	m_pStatPrintPitch->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPrintWeight = new Fl_Box(150, 70+MENU_HEIGHT, 100, 20, "");
+	m_pStatPrintWeight->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatItalic = new Fl_Box(150, 95+MENU_HEIGHT, 100, 20, "");
+	m_pStatItalic->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatScriptMode = new Fl_Box(150, 120+MENU_HEIGHT, 100, 20, "");
+	m_pStatScriptMode->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatUnderline = new Fl_Box(150, 145+MENU_HEIGHT, 100, 20, "");
+	m_pStatUnderline->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatLineSpacing = new Fl_Box(150, 170+MENU_HEIGHT, 100, 20, "");
+	m_pStatLineSpacing->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatFormLength = new Fl_Box(150, 195+MENU_HEIGHT, 100, 20, "");
+	m_pStatFormLength->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatLeftMargin = new Fl_Box(150, 220+MENU_HEIGHT, 100, 20, "");
+	m_pStatLeftMargin->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPos = new Fl_Box(150, 245+MENU_HEIGHT, 100, 20, "");
+	m_pStatPos->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPerfSkip = new Fl_Box(150, 270+MENU_HEIGHT, 100, 20, "");
+	m_pStatPerfSkip->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPaperType = new Fl_Box(150, 295+MENU_HEIGHT, 250, 20, "");
+	m_pStatPaperType->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPaperStatus = new Fl_Box(150, 320+MENU_HEIGHT, 250, 20, "");
+	m_pStatPaperStatus->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	m_pStatEscMode = new Fl_Box(390, 45+MENU_HEIGHT, 100, 20, "");
+	m_pStatEscMode->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatEscParams = new Fl_Box(390, 70+MENU_HEIGHT, 130, 20, "");
+	m_pStatEscParams->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatGraphicsMode = new Fl_Box(390, 95+MENU_HEIGHT, 130, 20, "");
+	m_pStatGraphicsMode->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatGraphicsRes = new Fl_Box(390, 120+MENU_HEIGHT, 130, 20, "");
+	m_pStatGraphicsRes->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatGraphicsRcvd = new Fl_Box(390, 145+MENU_HEIGHT, 130, 20, "");
+	m_pStatGraphicsRcvd->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatUpdateChar = new Fl_Box(390, 170+MENU_HEIGHT, 130, 20, "");
+	m_pStatUpdateChar->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatLastChar = new Fl_Box(390, 195+MENU_HEIGHT, 130, 20, "");
+	m_pStatLastChar->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatUpdateBytes = new Fl_Box(390, 220+MENU_HEIGHT, 130, 20, "");
+	m_pStatUpdateBytes->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatFontSource = new Fl_Box(390, 245+MENU_HEIGHT, 130, 20, "");
+	m_pStatFontSource->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatIntlCharSet = new Fl_Box(390, 270+MENU_HEIGHT, 130, 20, "");
+	m_pStatIntlCharSet->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	UpdateMonTab();
+	
+}
+
+/*
+=======================================================
+Updates the monitor tab
+=======================================================
+*/
+void VTFX80Print::UpdateMonTab(void)
+{
+	char		temp[80];
+
+	// Update the print pitch
+	if (m_elite)
+		strcpy(temp, "Elite");
+	else if (m_proportional)
+		strcpy(temp, "Proportional");
+	else if (m_compressed)
+		strcpy(temp, "Condensed");
+	else
+		strcpy(temp, "Pica");
+
+	// Append with Expanded if needed
+	if (m_expanded || m_expandedOneLine)
+		strcat(temp, " Exp");
+
+	// Update if it changed
+	if (strcmp(temp, m_sStatPrintPitch) != 0)
+	{
+		strcpy(m_sStatPrintPitch, temp);
+		m_pStatPrintPitch->label(m_sStatPrintPitch);
+	}
+
+	// Update print weight
+	if (m_dblStrike && m_enhanced)
+		strcpy(temp, "Dbl-Strike, Emphasized");
+	else if (m_dblStrike)
+		strcpy(temp, "Dbl-Strike");
+	else if (m_enhanced)
+		strcpy(temp, "Emphasized");
+	else
+		strcpy(temp, "Single-Strike");
+
+	// Update if it changed
+	if (strcmp(temp, m_sStatPrintWeight) != 0)
+	{
+		strcpy(m_sStatPrintWeight, temp);
+		m_pStatPrintWeight->label(m_sStatPrintWeight);
+	}
+
+	// Update Italic
+	if (m_italic)
+		m_pStatItalic->label("On");
+	else
+		m_pStatItalic->label("Off");
+
+	// Update script mode
+	if (m_superscript)
+		strcpy(temp, "Superscript");
+	else if (m_subscript)
+		strcpy(temp, "Subscript");
+	else
+		strcpy(temp, "None");
+
+	// Update if it changed
+	if (strcmp(m_sStatScriptMode, temp) != 0)
+	{
+		strcpy(m_sStatScriptMode, temp);
+		m_pStatScriptMode->label(m_sStatScriptMode);
+	}
+
+	// Update Italic
+	if (m_underline)
+		m_pStatUnderline->label("On");
+	else
+		m_pStatUnderline->label("Off");
+
+	// Update line spacing
+	int ls = (int) (m_lineSpacing * 216.0 + 0.5);
+	if ((ls % 36) == 0)
+		sprintf(temp, "%d / 6 inch", ls / 36);
+	else if ((ls % 3) == 0)
+		sprintf(temp, "%d / 72 inch", ls / 3);
+	else
+		sprintf(temp, "%d / 216 inch", ls);
+
+	// Update if needed
+	if (strcmp(m_sStatLineSpacing, temp) != 0)
+	{
+		strcpy(m_sStatLineSpacing, temp);
+		m_pStatLineSpacing->label(m_sStatLineSpacing);
+	}
+
+	// Update form length
+	sprintf(temp, "%.2f inch", m_formHeight);
+	if (strcmp(m_sStatFormLength, temp) != 0)
+	{
+		strcpy(m_sStatFormLength, temp);
+		m_pStatFormLength->label(m_sStatFormLength);
+	}
+
+	// Update Left Margin
+	sprintf(temp, "%.2f inch", m_leftMargin);
+	if (strcmp(m_sStatLeftMargin, temp) != 0)
+	{
+		strcpy(m_sStatLeftMargin, temp);
+		m_pStatLeftMargin->label(m_sStatLeftMargin);
+	}
+
+	// Update print head position
+	sprintf(temp, "(%d, %d)", m_curX, m_curY);
+	if (strcmp(m_sStatPos, temp) != 0)
+	{
+		strcpy(m_sStatPos, temp);
+		m_pStatPos->label(m_sStatPos);
+	}
+
+	// Update Perforation Skip setting
+	if (!m_skipPerf)
+		strcpy(temp, "Off");
+	else
+		sprintf(temp, "%.2f inches", m_bottomMargin);
+	if (strcmp(m_sStatPerfSkip, temp) != 0)
+	{
+		strcpy(m_sStatPerfSkip, temp);
+		m_pStatPerfSkip->label(m_sStatPerfSkip);
+	}
+
+	// Update paper type
+	strcpy(temp, (const char *) m_paperName);
+	if (strcmp(m_sStatPaperType, temp) != 0)
+	{
+		strcpy(m_sStatPaperType, temp);
+		m_pStatPaperType->label(m_sStatPaperType);
+	}
+
+	// Update paper status
+	if (m_pPaper == NULL)
+		strcpy(temp, "Not loaded");
+	else
+		strcpy(temp, "Loaded");
+	if (strcmp(m_sStatPaperStatus, temp) != 0)
+	{
+		strcpy(m_sStatPaperStatus, temp);
+		m_pStatPaperStatus->label(m_sStatPaperStatus);
+	}
+
+	// Update Esc Mode
+	if (m_escSeen)
+		strcpy(temp, "ESC Seen");
+	else if (m_escCmd)
+		sprintf(temp, "ESC '%c'", m_escCmd);
+	else
+		strcpy(temp, "None");
+	if (strcmp(m_sStatEscMode, temp) != 0)
+	{
+		strcpy(m_sStatEscMode, temp);
+		m_pStatEscMode->label(m_sStatEscMode);
+	}
+
+	// Update ESC Params
+	sprintf(temp, "%d", m_escParamsRcvd);
+	if (strcmp(m_sStatEscParams, temp) != 0)
+	{
+		strcpy(m_sStatEscParams, temp);
+		m_pStatEscParams->label(m_sStatEscParams);
+	}
+
+	// Update Graphics Mode
+	if (m_graphicsMode)
+		sprintf(temp, "Active - %d bytes", m_graphicsLength);
+	else
+		strcpy(temp, "Inactive");
+	if (strcmp(m_sStatGraphicsMode, temp) != 0)
+	{
+		strcpy(m_sStatGraphicsMode, temp);
+		m_pStatGraphicsMode->label(m_sStatGraphicsMode);
+	}
+
+	// Update Graphics Resoluiton
+	if (m_graphicsMode)
+		sprintf(temp, "%.0f DPI", m_graphicsDpi);
+	else
+		strcpy(temp, "N/A");
+	if (strcmp(m_sStatGraphicsRes, temp) != 0)
+	{
+		strcpy(m_sStatGraphicsRes, temp);
+		m_pStatGraphicsRes->label(m_sStatGraphicsRes);
+	}
+
+	// Update Graphics Received
+	if (m_graphicsMode)
+		sprintf(temp, "%d", m_graphicsRcvd);
+	else
+		strcpy(temp, "N/A");
+	if (strcmp(m_sStatGraphicsRcvd, temp) != 0)
+	{
+		strcpy(m_sStatGraphicsRcvd, temp);
+		m_pStatGraphicsRcvd->label(m_sStatGraphicsRcvd);
+	}
+
+	// Update the User Definable Char update
+	if (m_escCmd == '&')
+	{
+		sprintf(m_sStatUpdateChar, "%d", m_userUpdateChar),
+		sprintf(m_sStatLastChar, "%d", m_userLastChar),
+		sprintf(m_sStatUpdateBytes, "%d", m_escParamsRcvd - 3 - (m_userLastChar - m_userFirstChar + 1) * 12);
+		m_pStatUpdateChar->label(m_sStatUpdateChar);
+		m_pStatLastChar->label(m_sStatLastChar);
+		m_pStatUpdateBytes->label(m_sStatUpdateBytes);
+	}
+	else
+	{
+		if (strcmp(m_sStatUpdateChar, "N/A") != 0)
+		{
+			strcpy(m_sStatUpdateChar, "N/A");
+			strcpy(m_sStatLastChar, "N/A");
+			strcpy(m_sStatUpdateBytes, "N/A");
+			m_pStatUpdateChar->label(m_sStatUpdateChar);
+			m_pStatLastChar->label(m_sStatLastChar);
+			m_pStatUpdateBytes->label(m_sStatUpdateBytes);
+		}
+	}
+
+	// Update Font source
+	if (m_fontSource)
+	{
+		if (strcmp(m_sStatFontSource, "RAM") != 0)
+		{
+			strcpy(m_sStatFontSource, "RAM");
+			m_pStatFontSource->label(m_sStatFontSource);
+		}
+	}
+	else
+	{
+		if (strcmp(m_sStatFontSource, "ROM") != 0)
+		{
+			strcpy(m_sStatFontSource, "ROM");
+			m_pStatFontSource->label(m_sStatFontSource);
+		}
+	}
+
+	// Update International Char Set
+	if (strcmp(gIntlCharDesc[m_intlSelect], m_sStatIntlCharSet) != 0)
+	{
+		strcpy(m_sStatIntlCharSet, gIntlCharDesc[m_intlSelect]);
+		m_pStatIntlCharSet->label(m_sStatIntlCharSet);
+	}
 }
 

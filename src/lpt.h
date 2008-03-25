@@ -44,7 +44,7 @@ void send_to_lpt(unsigned char byte);
 void handle_lpt_timeout(unsigned long time);
 void lpt_check_errors(void);
 void lpt_set_monitor_callback(lpt_monitor_cb pCallback);
-void lpt_do_animation(void);
+void lpt_perodic_update(void);
 
 #ifdef __cplusplus
 }
@@ -65,6 +65,7 @@ void build_lpt_setup_tab(void);
 #define	LPT_MON_PORT_STATUS_CHANGE	0
 #define	LPT_MON_EMULATION_CHANGE	1
 #define	LPT_MON_PORT_WRITE			2
+#define	LPT_MON_PERODIC_UPDATE		3
 
 #ifdef __cplusplus
 
@@ -114,6 +115,7 @@ public:
 	MString			GetPortStatus(void);				// For reporting port status
 	void			SetMonitorCallback(lpt_monitor_cb pCallback);
 	void			BuildPrinterMonTab(int c);			// Build Montior Tab controls for specified printer
+	void			PerodicUpdate(void);				// Perform perodic update operations on LPT
 
 	int				GetPrinterCount(void);				// Returns # printers registered
 	MString			GetPrinterName(int printer);		// Returns the name of the printer

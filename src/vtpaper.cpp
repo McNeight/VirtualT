@@ -1319,6 +1319,7 @@ void VTPSPaper::WriteDots()
 	m_dots = "";
 }
 
+
 /*
 ==============================================================
 Define lpr via Postscript paper Class below
@@ -1329,6 +1330,10 @@ the necessary Postscript comments for a Print Manager to
 print individual pages, etc.
 ==============================================================
 */
+
+// Only define if not Windows
+
+#ifndef WIN32
 
 /*
 ================================================================================
@@ -1537,4 +1542,135 @@ int VTlprPaper::Print(void)
 		//exit(0);
 	}
 }
+
+#else
+
+/*
+==============================================================
+Define Direct Windows Print paper class
+
+This paper prompts the user for a printer name and prints 
+direct to a windows printer.  It creates a Printer DC and 
+prints directly on the deivce.
+==============================================================
+*/
+
+/*
+================================================================================
+VTWinPrintPaper:	This is the class construcor for the lpr via Postscript Paper class
+================================================================================
+*/
+VTWinPrintPaper::VTWinPrintPaper(Fl_Preferences* pPref) :
+	VTPaper(pPref)
+{
+}
+
+/*
+=======================================================
+GetName:	Returns the name of the printer.
+=======================================================
+*/
+MString VTWinPrintPaper::GetName()
+{
+	return "Windows Printer";
+}
+
+/*
+=======================================================
+Initialize the page with preferences.
+=======================================================
+*/
+void VTWinPrintPaper::Init()
+{
+	char		temp[512];
+
+	// Load preferences
+	if (m_pPref == NULL)
+		return;
+
+	m_pPref->get("LprPaper_InkDarkness", m_darkness, 45);
+}
+
+/*
+=======================================================
+Build the page properties dialog controls.
+=======================================================
+*/
+void VTWinPrintPaper::BuildControls()
+{
+	// Create control for ink darkness
+	m_pDarkness = new Fl_Slider(90, 305, 140, 20, "Ink Density");
+	m_pDarkness->type(5);
+	m_pDarkness->box(FL_FLAT_BOX);
+	m_pDarkness->precision(0);
+	m_pDarkness->range(20, 60);
+	m_pDarkness->value(m_darkness);
+	m_pDarkness->hide();
+	
+	m_pLight = new Fl_Box(45, 305, 40, 20, "Light");
+	m_pLight->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pLight->hide();
+	m_pDark = new Fl_Box(240, 305, 40, 20, "Dark");
+	m_pDark->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pDark->hide();
+
+}
+
+/*
+=======================================================
+Get Page Preferences from dialog and save.
+=======================================================
+*/
+void VTWinPrintPaper::GetPrefs()
+{
+
+	// Read preferences from controls
+	m_darkness = (int) (m_pDarkness->value());
+
+	// Update preferences file
+	m_pPref->set("LprPaper_InkDarkness", m_darkness);
+}
+
+/*
+=======================================================
+Hide the controls on the property dialog.  This is 
+called when the paper is not seleted to make room for
+other "papers".
+=======================================================
+*/
+void VTWinPrintPaper::HideControls()
+{
+	m_pDarkness->hide();
+	m_pDark->hide();
+	m_pLight->hide();
+	m_pLight->parent()->redraw();
+}
+
+/*
+=======================================================
+Show the controls on the property dialog.  This is 
+called when the paper is seleted to show the specific
+controls for this paper.
+=======================================================
+*/
+void VTWinPrintPaper::ShowControls()
+{
+	m_pDarkness->show();
+	m_pDark->show();
+	m_pLight->show();
+}
+
+/*
+=======================================================
+Prints the current print job.
+=======================================================
+*/
+int VTWinPrintPaper::Print(void)
+{
+}
+
+
+// Endif for defining Windows Printer Paper
+#endif
+
 

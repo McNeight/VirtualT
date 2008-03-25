@@ -134,6 +134,11 @@ void VTFilePrint::OpenNextPage()
 		if (PromptFilename(m_Filename) == PRINT_ERROR_NONE)
 		{
 			m_OutFd = fopen((const char *) m_Filename, "wb+");
+			if (m_OutFd == NULL)
+			{
+				sprintf(str, "Unable to open file %s", (const char *) filename);
+				AddError(str);
+			}
 		}
 	}
 }
@@ -170,7 +175,10 @@ void VTFilePrint::PrintByte(unsigned char byte)
 
 	// Print byte to the file
 	if (m_OutFd != NULL)
+	{
+		m_Bytes++;
 		fwrite(&byte, 1, 1, m_OutFd);
+	}
 }
 
 /*
@@ -529,6 +537,7 @@ int VTFilePrint::OpenSession(void)
 
 	// Reset page number
 	m_PageNum = 1;
+	m_Bytes = 0;
 
 	// Okay, we need to open a Print Session.  First see if we have
 	// to auto generate a filename
@@ -698,5 +707,91 @@ Build the monitor tab
 */
 void VTFilePrint::BuildMonTab(void)
 {
+	Fl_Box*		o;
+
+	// Build controls to show file printer status
+	o = new Fl_Box(20, 45+MENU_HEIGHT, 100, 20, "Open Status:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 70+MENU_HEIGHT, 100, 20, "Filename:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 95+MENU_HEIGHT, 100, 20, "Session Seq #:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 120+MENU_HEIGHT, 100, 20, "Bytes Written:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 145+MENU_HEIGHT, 100, 20, "Pages:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	m_pStatOpenStatus = new Fl_Box(150, 45+MENU_HEIGHT, 100, 20, "Open Status:");
+	m_pStatOpenStatus->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatFilename = new Fl_Box(150, 70+MENU_HEIGHT, 400, 20, "Filename:");
+	m_pStatFilename->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatSessionSeq = new Fl_Box(150, 95+MENU_HEIGHT, 100, 20, "Session Seq #:");
+	m_pStatSessionSeq->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatBytes = new Fl_Box(150, 120+MENU_HEIGHT, 100, 20, "Bytes Written:");
+	m_pStatBytes->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPages = new Fl_Box(150, 145+MENU_HEIGHT, 100, 20, "Pages:");
+	m_pStatPages->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	
+	UpdateMonTab();
+}
+
+/*
+=======================================================
+Updates the monitor tab
+=======================================================
+*/
+void VTFilePrint::UpdateMonTab(void)
+{
+	char		temp[80];
+
+	// Update file open status
+	if (m_OutFd == NULL)
+		strcpy(temp, "Closed");
+	else
+		strcpy(temp, "Open");
+	if (strcmp(m_sStatOpenStatus, temp) != 0)
+	{
+		strcpy(m_sStatOpenStatus, temp);
+		m_pStatOpenStatus->label(m_sStatOpenStatus);
+	}
+
+	// Update filename
+	if (m_OutFd == NULL)
+	{
+		if (strcmp(m_sStatFilename, "N/A") != 0)
+		{
+			m_pStatFilename->label("N/A");
+			m_pStatSessionSeq->label("N/A");
+			m_sStatFilename[0] = 0;
+		}
+	}
+	else 
+	{
+		// Update filename with current
+		if (strcmp(m_sStatFilename, (const char *) m_Filename) != 0)
+		{
+			strncpy(m_sStatFilename, (const char *) m_Filename, sizeof(m_sStatFilename));
+			m_pStatFilename->label(m_sStatFilename);
+		}
+		// Update sequence number
+		sprintf(temp, "%d", m_ActiveSeqNum);
+		if (strcmp(m_sStatSessionSeq, temp) != 0)
+		{
+			strcpy(m_sStatSessionSeq, temp);
+			m_pStatSessionSeq->label(m_sStatSessionSeq);
+		}
+	}
+
+	// Update bytes written
+	sprintf(temp, "%d", m_Bytes);
+	if (strcmp(m_sStatBytes, temp) != 0)
+	{
+		strcpy(m_sStatBytes, temp);
+		m_pStatBytes->label(m_sStatBytes);
+	}
+
+	// Update Number of pages
+	sprintf(m_sStatPages, "%d", m_PageNum);
+	m_pStatPages->label(m_sStatPages);
 }
 

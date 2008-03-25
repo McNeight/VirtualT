@@ -149,6 +149,8 @@ Opens a new Print Session
 */
 int VTHostPrint::OpenSession(void)
 {
+	char		str[512];
+
 	// Validate the host port name exists
 	if (strlen(m_HostPort) == 0)
 		return PRINT_ERROR_IO_ERROR;
@@ -157,11 +159,14 @@ int VTHostPrint::OpenSession(void)
 	#ifdef WIN32
 
 	#else
-	return PRINT_ERROR_NONE;
 		// Open file in Read/Write mode
 		m_OutFd = open(m_HostPort, O_RDWR);
 		if (m_OutFd == -1)
+		{
+			sprintf(str, "Error - unable to open %s", m_HostPort);
+			AddError(str);
 			return PRINT_ERROR_IO_ERROR;
+		}
 	#endif
 
 	return PRINT_ERROR_NONE;
@@ -266,5 +271,47 @@ Builds the monitor tab
 */
 void VTHostPrint::BuildMonTab(void)
 {
+	Fl_Box*		o;
+
+	o = new Fl_Box(20, 45+MENU_HEIGHT, 100, 20, "Host Port:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	o = new Fl_Box(20, 70+MENU_HEIGHT, 100, 20, "Port Status:");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	m_pStatHostPort = new Fl_Box(150, 45+MENU_HEIGHT, 300, 20, "");
+	m_pStatHostPort->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pStatPortStatus = new Fl_Box(150, 70+MENU_HEIGHT, 300, 20, "");
+	m_pStatPortStatus->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	UpdateMonTab();
+}
+
+/*
+=======================================================
+Updates the monitor tab
+=======================================================
+*/
+void VTHostPrint::UpdateMonTab(void)
+{
+	char		temp[20];
+
+	// Update host port
+	if (strcmp(m_HostPort, m_sStatHostPort) != 0)
+	{
+		strcpy(m_sStatHostPort, m_HostPort);
+		m_pStatHostPort->label(m_sStatHostPort);
+	}
+
+	// Update port status
+	if (m_OutFd == -1)
+		strcpy(temp, "Closed");
+	else
+		strcpy(temp, "Open");
+
+	if (strcmp(temp, m_sStatPortStatus) != 0)
+	{
+		strcpy(m_sStatPortStatus, temp);
+		m_pStatPortStatus->label(m_sStatPortStatus);
+	}
 }
 

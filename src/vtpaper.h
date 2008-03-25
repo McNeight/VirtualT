@@ -196,6 +196,7 @@ protected:
 	VTAutoFile			m_autoFile;					// Generates auto filenames
 };
 
+#ifndef WIN32
 /*
 ===========================================================
 Define Linux lpr via Postscript paper.  This uses the 
@@ -220,6 +221,40 @@ public:
 	MString				m_cmdLine;
 	Fl_Input*			m_pCmdLine;					// Control or editing command line
 };
+
+#else
+
+/*
+===========================================================
+Define Windows Printer paper.  This paper prompts the 
+user to specify a Windows Printer and writes directly on 
+the printer device context.  This paper is only available
+in Windows.
+===========================================================
+*/
+class VTWinPrintPaper : VTPaper
+{
+public:
+	VTWinPrintPaper(Fl_Preferences* pPref); 		// Class constructor
+
+	virtual MString		GetName(void);				// Name of the paper
+	virtual void		Init(void);					// Initializes with perferences
+	virtual void		GetPrefs(void);				// Get prefs from controls & save
+	virtual void		BuildControls(void);		// Build paper specific controls
+	virtual void		HideControls(void);			// Hide paper specific controls
+	virtual void		ShowControls(void);			// Show paper specific controls
+
+	// Override the Print funtion so we can spawn the job
+	virtual int			Print(void);				// Send pages to the printer
+
+protected:
+	Fl_Slider*			m_pDarkness;				// Controls size of dots
+	Fl_Box*				m_pLight;	
+	Fl_Box*				m_pDark;	
+	int					m_darkness;					// Setting for the ink darkness
+};
+
+#endif
 
 #endif
 
