@@ -674,6 +674,8 @@ void VTFilePrint::Deinit(void)
 		fclose(m_OutFd);
 		m_OutFd = NULL;
 	}
+	m_initialized = FALSE;
+
 	return;
 }
 

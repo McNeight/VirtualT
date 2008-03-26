@@ -1,6 +1,6 @@
 /* romstrings.c */
 
-/* $Id: m100rom.c,v 1.1 2004/08/05 06:46:11 kpettit1 Exp $ */
+/* $Id: romstrings.h,v 1.2 2007/03/31 22:09:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -868,7 +868,8 @@ enum {
 	R_PORT_90H,
 	R_RST0_HOOK,
 	R_EXEC_2ND_ROM,
-	R_TELCOM_FKEY_VCTR
+	R_TELCOM_FKEY_VCTR,
+	R_UNUSED
 };
 
 #ifdef __cplusplus

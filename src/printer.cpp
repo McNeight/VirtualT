@@ -47,6 +47,7 @@ VTPrinter::VTPrinter(void)
 {
 	m_pPref = NULL;
 	m_SessionActive = FALSE;
+	m_initialized = FALSE;
 }
 
 /*
@@ -61,8 +62,12 @@ void VTPrinter::Init(Fl_Preferences* pPref)
 		// Save the preferences pointer
 		m_pPref = pPref;
 
-		// call the pure virtual Init funciton
-		Init();
+		if (!m_initialized)
+		{
+			// call the pure virtual Init funciton
+			Init();
+			m_initialized = TRUE;
+		}
 	}
 }
 

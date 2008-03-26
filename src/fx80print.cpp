@@ -882,6 +882,8 @@ Deinit the printer
 */
 void VTFX80Print::Deinit(void)
 {
+	int		count, c;
+
 	// Delete page memory
 	if (m_pPage != NULL)
 		delete m_pPage;
@@ -891,6 +893,17 @@ void VTFX80Print::Deinit(void)
 	if (m_pPaper != NULL)
 		m_pPaper->Deinit();
 	m_pPaper = NULL; 
+
+	// Remove all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		((VTPaper*) m_papers[c])->Deinit();
+		delete (VTPaper*) m_papers[c];
+	}
+	m_papers.RemoveAll();
+
+	m_initialized = FALSE;
 
 	return;
 }

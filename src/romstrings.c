@@ -1,6 +1,6 @@
 /* m100rom.c */
 
-/* $Id: m100rom.c,v 1.1 2004/08/05 06:46:11 kpettit1 Exp $ */
+/* $Id: romstrings.c,v 1.2 2007/03/31 22:09:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -871,5 +871,6 @@ Std_ROM_Strings_t gDisStrings[] = {
 	{ R_RST0_HOOK,			     "RST 0 Hook" },
 	{ R_EXEC_2ND_ROM,		     "Hook to execute Option ROM" },
 	{ R_TELCOM_FKEY_VCTR,	     "Main TELCOM Funciton Key Vector Table" },
+	{ R_UNUSED,				     "Unused Space" },
 	{ -1, "" },
 };

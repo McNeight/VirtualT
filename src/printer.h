@@ -90,6 +90,7 @@ protected:
 	Fl_Preferences*		m_pPref;
 	int					m_SessionActive;				// Indicates if a print session active
 	MStringArray		m_errors;
+	int					m_initialized;					// Indicates if printer initialized
 
 };
 

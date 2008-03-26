@@ -240,6 +240,8 @@ Deinitialize the printer
 */
 void VTHostPrint::Deinit(void)
 {
+	m_initialized = FALSE;
+
 	#ifdef WIN32
 		
 	#else
