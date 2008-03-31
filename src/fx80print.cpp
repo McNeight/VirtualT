@@ -84,6 +84,8 @@ VTFX80Print:	This is the class construcor for the FX80Print Device emulation.
 */
 VTFX80Print::VTFX80Print(void)
 {
+	int		count, c;
+
 	// Initialize pointers
 	m_pPage = NULL;				// No page memory
 	m_pPaper = NULL;			// No paper
@@ -95,6 +97,20 @@ VTFX80Print::VTFX80Print(void)
 
 	m_useRamFile = FALSE;
 	m_marksMade = FALSE;
+
+	// Add all papers to the m_paper object
+	m_papers.Add(new VTVirtualPaper(m_pPref));
+	m_papers.Add(new VTPSPaper(m_pPref));
+#ifdef WIN32
+	m_papers.Add(new VTWinPrintPaper(m_pPref));
+#else
+	m_papers.Add(new VTlprPaper(m_pPref));
+#endif
+
+	// Initialize Get preferences for all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+		((VTPaper*) m_papers[c])->Init();
 
 	ResetPrinter();
 }
@@ -642,7 +658,7 @@ Init routine for reading prefs, setting up, etc.
 void VTFX80Print::Init(void)
 {
 	char		temp[512];
-	int			c, count;
+	int			c;
 
 	// Load preferences
 	m_pPref->get("FX80Print_UseRomFile", m_useRomFile, 0);
@@ -670,21 +686,6 @@ void VTFX80Print::Init(void)
 	m_pPref->get("FX80Print_TopOfForm", m_topOfForm, 0.5);
 	sprintf(m_topOfFormStr, "%.3f", m_topOfForm);
 	m_beep = FALSE;
-
-	// Add all papers to the m_paper object
-	m_papers.Add(new VTVirtualPaper(m_pPref));
-	m_papers.Add(new VTPSPaper(m_pPref));
-#ifdef WIN32
-	m_papers.Add(new VTWinPrintPaper(m_pPref));
-#else
-	m_papers.Add(new VTlprPaper(m_pPref));
-#endif
-
-
-	// Initialize Get preferences for all papers
-	count = m_papers.GetSize();
-	for (c = 0; c < count; c++)
-		((VTPaper*) m_papers[c])->Init();
 
 	// Reset printer
 	ResetPrinter();

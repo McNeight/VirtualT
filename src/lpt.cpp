@@ -1142,7 +1142,7 @@ void VTLpt::PrinterProperties(int useActivePrinter)
 	// Show the dialog box
 	m_pProp->end();
 	m_pProp->show();
-//	m_pProp->redraw();
+	m_pProp->redraw();
 }
 
 /*
