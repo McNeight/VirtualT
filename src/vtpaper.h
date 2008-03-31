@@ -232,26 +232,52 @@ the printer device context.  This paper is only available
 in Windows.
 ===========================================================
 */
-class VTWinPrintPaper : VTPaper
+class VTWinPrintPaper : public VTPaper
 {
 public:
 	VTWinPrintPaper(Fl_Preferences* pPref); 		// Class constructor
 
 	virtual MString		GetName(void);				// Name of the paper
 	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
 	virtual void		HideControls(void);			// Hide paper specific controls
 	virtual void		ShowControls(void);			// Show paper specific controls
 
-	// Override the Print funtion so we can spawn the job
+	// PrintPage sends data to the active page, it does not send data to a printer
+	virtual int			PrintPage(unsigned char* pData, int x, int y);
+	virtual int			LoadPaper(void);			// Called when session is opened
+	virtual	int			NewPage(void);				// Creates a new page
+	virtual int			CancelJob(void);			// Cancels printing
 	virtual int			Print(void);				// Send pages to the printer
 
 protected:
+	int					GetPrinter(void);			// Get the printer to print to
+
 	Fl_Slider*			m_pDarkness;				// Controls size of dots
 	Fl_Box*				m_pLight;	
 	Fl_Box*				m_pDark;	
 	int					m_darkness;					// Setting for the ink darkness
+	HDC					m_printerDC;				// DC of the printer device
+
+	int					m_physWidth;				// Width of paper in pixels
+	int					m_physHeight;				// Height of paper in pixels
+	int					m_physOffsetX;				// Offset to first printable pixel
+	int					m_physOffsetY;				// Offset to first printable pixel
+	int					m_physResX;					// Physical pixel width
+	int					m_physResY;					// Physical pixel height
+	int					m_physDpiX;					// Dots per inch in X direction
+	int					m_physDpiY;					// Dots per inch in Y direction
+
+	int					m_offsetX;					// Calculated X offset
+	int					m_offsetY;					// Calculated Y offset
+	double				m_scaleX;					// Scaling factor for X direction
+	double				m_scaleY;					// Scaling factor for Y direction
+	int					m_diameter;					// Pin diameter in device units
+
+	HPEN				m_blackPen;					// Black pen for drawing
+	HBRUSH				m_blackBrush;				// Black brush for drawing
 };
 
 #endif

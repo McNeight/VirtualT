@@ -304,11 +304,16 @@ void VTHostPrint::UpdateMonTab(void)
 		m_pStatHostPort->label(m_sStatHostPort);
 	}
 
+#ifdef WIN32
+
+#else
 	// Update port status
 	if (m_OutFd == -1)
 		strcpy(temp, "Closed");
 	else
 		strcpy(temp, "Open");
+
+#endif
 
 	if (strcmp(temp, m_sStatPortStatus) != 0)
 	{

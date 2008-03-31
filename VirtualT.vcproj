@@ -400,6 +400,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\src\kc85rom.c"
+				>
+			</File>
+			<File
 				RelativePath="src\m100emu.c"
 				>
 				<FileConfiguration
@@ -999,6 +1003,50 @@
 					</FileConfiguration>
 				</File>
 			</Filter>
+			<Filter
+				Name="print"
+				>
+				<File
+					RelativePath=".\src\autofile.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\chargen.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fileprint.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fl_action_icon.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fx80print.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fx80rom.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\hostprint.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\lpt.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\printer.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\vtpaper.cpp"
+					>
+				</File>
+			</Filter>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -1193,6 +1241,46 @@
 				</File>
 				<File
 					RelativePath="src\project.h"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="print"
+				>
+				<File
+					RelativePath=".\src\autofile.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\chargen.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fileprint.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fl_action_icon.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\fx80print.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\hostprint.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\lpt.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\printer.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\vtpaper.h"
 					>
 				</File>
 			</Filter>

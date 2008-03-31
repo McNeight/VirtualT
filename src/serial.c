@@ -1268,7 +1268,7 @@ int ser_get_flags(unsigned char *flags)
 			
 			*flags = 0;
 
-	`		if (setup.com_ignore_flow)
+			if (setup.com_ignore_flow)
 			{
 				if (sp.dtrState == DTR_CONTROL_ENABLE);
 					*flags |= SER_FLAG_CTS;
@@ -1547,27 +1547,20 @@ ser_poll: opportunity to invoke INT6.5 callback
 int ser_poll ()
 {
 
-	if (	   setup.com_mode != SETUP_COM_HOST
-		&& setup.com_mode != SETUP_COM_OTHER
-	) return;
-//	if (sp.fd < 0) return;
+	if (setup.com_mode != SETUP_COM_HOST
+		&& setup.com_mode != SETUP_COM_OTHER) 
+			return 0;
 
 #ifndef WIN32
-	{
-		int bytes;
-		int s;
+	int bytes;
 
-		s = ioctl(sp.fd, FIONREAD, &bytes);
-		if (s < 0) {
+	if (sp.fd < 0) 
+		return 0;
 
-			/* attempt to close, reopen port */
-			ser_open_port();
-			return;
-		}
+	ioctl(sp.fd, FIONREAD, &bytes);
 
-		if (bytes && sp.pCallback) {
-			sp.pCallback();
-		}
+	if (bytes && sp.pCallback) {
+		sp.pCallback();
 	}
 
 #else

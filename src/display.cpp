@@ -1684,7 +1684,6 @@ int T100_Disp::handle(int event)
 	int		simulated;
 	get_key_t	get_key;
 	event_key_t	event_key;
-	int		xp, yp;
 
 	unsigned int key;
 

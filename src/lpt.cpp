@@ -404,8 +404,6 @@ Initialize the printer subsystem
 */
 void init_lpt(void)
 {
-	VTPrinter*	pPrint;
-
 	// If the LPT object doesn't exist, create it
 	if (gLpt == NULL)
 	{
@@ -1069,7 +1067,6 @@ mode with parameters appropriate for the "printer" needs.
 */
 void VTLpt::PrinterProperties(int useActivePrinter)
 {
-	Fl_Box*		o;
 	int			count, c;
 	int			found;
 	VTPrinter*	pPrint = NULL;

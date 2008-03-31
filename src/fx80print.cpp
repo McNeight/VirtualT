@@ -675,7 +675,7 @@ void VTFX80Print::Init(void)
 	m_papers.Add(new VTVirtualPaper(m_pPref));
 	m_papers.Add(new VTPSPaper(m_pPref));
 #ifdef WIN32
-//	m_papers.Add(new VTWinPrintPaper(m_pPref));
+	m_papers.Add(new VTWinPrintPaper(m_pPref));
 #else
 	m_papers.Add(new VTlprPaper(m_pPref));
 #endif
@@ -763,9 +763,7 @@ Closes the active Print Session
 */
 int VTFX80Print::CloseSession(void)
 {
-	int		r, c, b;
-	int		data, mask;
-	int		err;
+	int		c, err;
 
 	// Print to the paper
 	if (m_pPage != NULL)
@@ -800,7 +798,7 @@ Get Printer Properties from dialog and save.
 */
 int VTFX80Print::GetProperties(void)
 {
-	int		index, count, c;
+	int		count, c;
 
 	if (m_pUseRomFile == NULL)
 		return PRINT_ERROR_NONE;
@@ -1218,7 +1216,7 @@ void VTFX80Print::RenderChar(unsigned char byte)
 	int				mask, bits;
 	int				xpos, ypos, i, dotsPerPin;
 	int				xpos2;			// Used for locating enhanced dots
-	double			scalar, expandScale;
+	double			scalar;
 	int				proportionAdjust;
 
 	// Indicate marks made on the page

@@ -178,7 +178,7 @@ void VTVirtualPaper::DrawPage(int pageNum)
 	int				data, mask;
 	int				bytes;
 	unsigned char	*pPage, *pPtr;
-	int				page, count;
+	int				count;
 	int				pageOffset;
 	int				xpos, ypos;
 	VTVirtualPage*	pVPage;
@@ -358,8 +358,6 @@ print job from scratch and dumps all old pages.
 */
 int VTVirtualPaper::LoadPaper(void)
 {
-	int c;
-
 	// Delete all the page memory
 	DeletePageMemory();
 
@@ -382,7 +380,7 @@ int VTVirtualPaper::PrintPage(unsigned char *pData, int w, int h)
 	int					totalBytes;
 	int					lineOff;
 	int					r, c, cnt, b;
-	unsigned short		src, srcMask,psMask;
+	unsigned short		src, srcMask;
 	unsigned char		mask, data;
 	unsigned char		*pPage, *pPtr;
 	int					everyThird;
@@ -838,7 +836,6 @@ print job from scratch and dumps all old pages.
 */
 int VTPSPaper::LoadPaper(void)
 {
-	int 		c;
 	char		str[512];
 
 	// Check if a file is open and close if it is
@@ -878,8 +875,6 @@ Get a new filename based on prompt and auto geneate settings.
 */
 int VTPSPaper::GetFilename()
 {
-	Fl_File_Chooser*	fc;
-
 	// Check if an automatic filename needs to be generated
 	if (m_autoFilename)
 		m_filename = m_autoFile.GenFilename();
@@ -909,7 +904,7 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 	unsigned char		src;
 	unsigned char		mask;
 	int					lastX, xp;
-	char				dotChar, lastDotChar;
+	char				dotChar;
 	float				val;
 	int					intVal;
 	int					diff;
@@ -1021,7 +1016,7 @@ int VTPSPaper::PrintPage(unsigned char *pData, int w, int h)
 						}
 						else
 						{
-							val = (float)xp * .3;
+							val = (float)((float) xp * .3);
 							intVal = (int) val;
 							if (val == (float) intVal)
 								fprintf(m_pFd, "%d ", 18 + intVal);
@@ -1563,6 +1558,9 @@ VTWinPrintPaper:	This is the class construcor for the lpr via Postscript Paper c
 VTWinPrintPaper::VTWinPrintPaper(Fl_Preferences* pPref) :
 	VTPaper(pPref)
 {
+	m_printerDC = NULL;
+	m_blackPen = NULL;
+	m_blackBrush = NULL;
 }
 
 /*
@@ -1589,6 +1587,27 @@ void VTWinPrintPaper::Init()
 		return;
 
 	m_pPref->get("LprPaper_InkDarkness", m_darkness, 45);
+}
+
+/*
+=======================================================
+Deinitialize the page and frees memory
+=======================================================
+*/
+void VTWinPrintPaper::Deinit()
+{
+	// If we have an active print job, complete the job
+	if (m_printerDC != NULL)
+		Print();
+
+	if (m_blackPen != NULL)
+	{
+		DeleteObject(m_blackBrush);
+		DeleteObject(m_blackPen);
+
+		m_blackPen = NULL;
+		m_blackBrush = NULL;
+	}
 }
 
 /*
@@ -1667,10 +1686,275 @@ Prints the current print job.
 */
 int VTWinPrintPaper::Print(void)
 {
+	// Check if we have a valid printerDC
+	if (m_printerDC != NULL)
+	{
+		// End the document so it can be printed
+		EndDoc(m_printerDC);
+		DeleteDC(m_printerDC);
+		m_printerDC = NULL;
+	}
+
+	// Delete pens in case ink density changes
+	if (m_blackPen != NULL)
+	{
+		DeleteObject(m_blackPen);
+		DeleteObject(m_blackBrush);
+		m_blackPen = NULL;
+		m_blackBrush = NULL;
+	}
+	return PRINT_ERROR_NONE;
 }
 
+/*
+=======================================================
+Prints the current print job.
+=======================================================
+*/
+int VTWinPrintPaper::GetPrinter(void)
+{
+	PRINTDLG	pd;
+	int			err;
+
+	pd.lStructSize = sizeof(PRINTDLG);
+	pd.hDevMode = (HANDLE) NULL;
+	pd.hDevNames = (HANDLE) NULL;
+	pd.Flags = PD_RETURNDC;
+	pd.hwndOwner = NULL;
+	pd.hDC = (HDC) NULL;
+	pd.nFromPage = 1;
+	pd.nToPage = 1;
+	pd.nMinPage = 0;
+	pd.nMaxPage = 0;
+	pd.nCopies = 1;
+	pd.hInstance = NULL;
+	pd.lCustData = 0L;
+	pd.lpfnPrintHook = (LPPRINTHOOKPROC) NULL;
+	pd.lpfnSetupHook = (LPSETUPHOOKPROC) NULL;
+	pd.lpPrintTemplateName = (LPSTR) NULL;
+	pd.lpSetupTemplateName = (LPSTR) NULL;
+	pd.hPrintTemplate = (HANDLE) NULL;
+	pd.hSetupTemplate = (HANDLE) NULL;
+
+	// Show the dialog
+	if (PrintDlg(&pd) == 0)
+		return FALSE;
+
+	// Save the DC
+	m_printerDC = pd.hDC;
+
+	// Create a DocInfo structure
+	DOCINFO di;
+	memset( &di, 0, sizeof(DOCINFO) );
+	di.cbSize = sizeof(DOCINFO);
+	di.lpszDocName = "VirtualT";
+	di.lpszOutput = (LPTSTR) NULL;
+	di.lpszDatatype = (LPTSTR) NULL;
+	di.fwType = 0;
+
+	// Start the Document
+	err = StartDoc(m_printerDC, &di);
+	if (err == SP_ERROR)
+	{
+		// Error starting document - cleanup
+		DeleteDC(m_printerDC);
+		m_printerDC = NULL;
+		return FALSE;
+	}
+
+	// Indicate printer selected and document started
+	return TRUE;
+}
+
+/*
+=======================================================
+Prints data to the current page.
+=======================================================
+*/
+int VTWinPrintPaper::PrintPage(unsigned char *pData, int w, int h)
+{
+	int					bytesPerLine, numBytes, lineOff;
+	int					r, c, b;
+	int					xp, yp;
+	unsigned char		src;
+	unsigned char		mask;
+	HGDIOBJ				oldPen, oldBrush;
+
+	// If user hasn't selected printer already, get the printer
+	if (m_printerDC == NULL)
+		if (!GetPrinter())
+			return PRINT_ERROR_IO_ERROR;
+
+	// Begin a new page in the document
+	StartPage(m_printerDC);
+
+	oldPen = SelectObject(m_printerDC, m_blackPen);
+	oldBrush = SelectObject(m_printerDC, m_blackBrush);
+
+	// Some calculations
+	bytesPerLine = (w+7)/8;
+
+	// Now print the contents of the document, one row at a time
+	for (r = 0; r < h; r++)
+	{
+		// Calculate byte offset for this line
+		lineOff = r * bytesPerLine;
+		numBytes = 0;
+		yp = (int) ((double) r * m_scaleY) + m_offsetY;
+
+		// Loop through all data for this line looking for non-zero
+		for (c = bytesPerLine-1; c >= 0; c--)
+		{
+			if (*(pData + lineOff + c) != 0)
+			{
+				// Calculate number of bytes for this line
+				numBytes = c+1;
+				break;
+			}
+		}
+
+		// If the line is empty, then nothing to do
+		if (numBytes == 0)
+			continue;
+
+		// Loop for all bytes on this line
+		for (c = 0; c < numBytes; c++)
+		{
+			// Get source data
+			src = *(pData + lineOff + c);
+			mask = 0x01;				// Set 1 bit at a time on page
+
+			// Loop for 8 bits
+			for (b = 0; b < 8; b++)
+			{
+				// output to PS file
+				xp = (int) ((double) (c*8+b) * m_scaleX);
+
+				// If this bit is on, mark on the page
+				if (src & mask)
+				{
+					Ellipse(m_printerDC, m_offsetX + xp, yp, 
+						m_offsetX + xp + m_diameter, yp + m_diameter);
+//					printf("xy = %d    d = %d\n, %d", xp, yp, m_diameter);
+//					fflush(stdout);
+				}
+				mask <<= 1;
+			}
+		}
+	}
+
+	// End the current page
+	EndPage(m_printerDC);
+
+	SelectObject(m_printerDC, oldPen);
+	SelectObject(m_printerDC, oldBrush);
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Loads a new sheet of paper.  Basicaly starts a new
+print job from scratch and dumps all old pages.
+=======================================================
+*/
+int VTWinPrintPaper::LoadPaper(void)
+{
+	if (m_printerDC == NULL)
+		if (!GetPrinter())
+			return PRINT_ERROR_IO_ERROR;
+
+	// Use this function to calculate the paper boundries and scaling
+	if (m_printerDC != NULL)
+	{
+		// Get printer physical characteristics
+		m_physWidth = GetDeviceCaps(m_printerDC, PHYSICALWIDTH);
+		m_physHeight = GetDeviceCaps(m_printerDC, PHYSICALHEIGHT);
+		m_physOffsetX = GetDeviceCaps(m_printerDC, PHYSICALOFFSETX);
+		m_physOffsetY = GetDeviceCaps(m_printerDC, PHYSICALOFFSETY);
+		m_physResX = GetDeviceCaps(m_printerDC, HORZRES);
+		m_physResY = GetDeviceCaps(m_printerDC, VERTRES);
+		m_physDpiX = GetDeviceCaps(m_printerDC, LOGPIXELSX);
+		m_physDpiY = GetDeviceCaps(m_printerDC, LOGPIXELSY);
+
+		// Calculate offset for X and Y directions
+		m_offsetX =  (int)(0.25 * (double) m_physDpiX)- m_physOffsetX;
+		if (m_offsetX < 0)
+			m_offsetX = 0;
+		
+		m_offsetY = (int) (m_tof * (double) m_physDpiY) - m_physOffsetY;
+		if (m_offsetY < 0)
+			m_offsetY = 0;
+
+		// Calculates scale factor for X and Y directions
+		m_scaleX = (double) m_physDpiX / 240.0;
+		m_scaleY = (double) m_physDpiY / 216.0;
+
+		// Calculate pin darkness
+		if (m_darkness >= 35)
+			m_diameter = m_physDpiX * (m_darkness+5) / 50 / 72;
+		else
+			m_diameter = m_physDpiX * 35 / 50 / 72;
+
+		// Create black pens and brushes	
+		if (m_blackPen == NULL)
+		{
+			if (m_darkness >= 35)
+			{
+				m_blackPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
+				m_blackBrush = CreateSolidBrush(RGB(0,0,0));
+			}
+			else
+			{
+				int gray = 128 - (20 - m_darkness) * 7; 
+				m_blackPen = CreatePen(PS_SOLID, 1, RGB(gray, gray, gray));
+				m_blackBrush = CreateSolidBrush(RGB(gray,gray,gray));
+			}
+		}
+	}
+
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Creates a new page for printing.
+=======================================================
+*/
+int VTWinPrintPaper::NewPage(void)
+{
+	return PRINT_ERROR_NONE;
+}
+
+/*
+=======================================================
+Cancels the current print job.
+=======================================================
+*/
+int VTWinPrintPaper::CancelJob(void)
+{
+	// Cancel the job only if we have an active print
+	if (m_printerDC != NULL)
+	{
+		// Abort the print
+		AbortDoc(m_printerDC);
+	
+		// Delete the Device Context
+		DeleteDC(m_printerDC);
+
+		m_printerDC = NULL;
+	}
+
+	// Delete pens in case ink density changes
+	if (m_blackPen != NULL)
+	{
+		DeleteObject(m_blackPen);
+		DeleteObject(m_blackBrush);
+		m_blackPen = NULL;
+		m_blackBrush = NULL;
+	}
+	return PRINT_ERROR_NONE;
+}
 
 // Endif for defining Windows Printer Paper
 #endif
-
-

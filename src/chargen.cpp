@@ -315,7 +315,7 @@ void VTCharacterGen::HandleCharTableEdit(int xp, int yp)
 void VTCharacterGen::ChangeActiveChar(int index)
 {
 	unsigned char	data[12];
-	int				c, r, i, shift;
+	int				c, r, shift;
 	unsigned char	ored;
 
 	m_pCharTable->SetActiveChar(index);
@@ -502,7 +502,7 @@ Paste pixels from the buffer
 void VTCharacterGen::PastePixmap(void)
 {
 	int 	c, r;
-	int		r0, r8;
+	bool	r0, r8;
 
 	if (!m_PasteValid)
 		return;
@@ -577,8 +577,7 @@ Handle Mouse events to turn pixels on / off.
 */
 int VTCharacterGen::handle(int event)
 {
-	int		c, i, xp, yp;
-	int		row, col;
+	int		c, xp, yp;
 	int		key;
 
 	switch (event)
@@ -741,11 +740,10 @@ void VTCharacterGen::Save(int format)
 {
 	Fl_File_Chooser*	fc;
 	unsigned char		data[12];
-	int					index, len, c, i;
+	int					index, len, c;
 	char				ch;
 	char				ext[5];
 	MString				filename;
-	char				line[20];
 	const char*			pLineStr;
 	int					lineNo;
 
