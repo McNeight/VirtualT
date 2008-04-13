@@ -48,6 +48,13 @@ unsigned char	*gReMemSectPtr = 0;	/* Pointer to current Sector memory */
 unsigned short	gReMemMap[64];		/* Map of 1K blocks - 64 total */
 unsigned int	gReMemMapLower = 0; /* Lower address of actively mapped MMU Map */
 unsigned int	gReMemMapUpper = 0; /* Upper address of actively mapped MMU Map */
+int				gReMemFlash1State = FLASH_STATE_RO;
+int				gReMemFlash2State = FLASH_STATE_RO;
+UINT64			gReMemFlash1Time = 0;
+UINT64			gReMemFlash2Time = 0;
+int				gReMemFlash1Busy = FALSE;
+int				gReMemFlash2Busy = FALSE;
+int				gReMemFlashReady = TRUE;
 
 uchar			*gReMemRam = 0;		/* Pointer to ReMem RAM space */
 uchar			*gReMemFlash1 = 0;	/* Pointer to ReMem Flash1 space */
@@ -73,11 +80,24 @@ extern RomDescription_t		gM10_Desc;
 extern RomDescription_t		gKC85_Desc;
 
 extern int					gShowVersion;
+extern UINT64				cycles;
+
+uchar	gFlashCFIData[] = {
+	0x51, 0x52, 0x59, 0x02, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27, 0x36, 0x00, 0x00, 0x04,
+	0x00, 0x0A, 0x00, 0x05, 0x00, 0x04, 0x00, 0x15, 0x02, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x40, 
+	0x00, 0x01, 0x00, 0x20, 0x00, 0x00, 0x00, 0x80, 0x00, 0x1E, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+	0x50, 0x52, 0x49, 0x31, 0x30, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00
+};
 
 unsigned char get_memory8(unsigned short address)
 {
 	if (gReMem)
-		return gMemory[address >> 10][address & 0x3FF];
+	{
+		if (gReMemFlashReady)
+			return gMemory[address >> 10][address & 0x3FF];
+		/* Process Flash state machine and return the value */
+		return remem_flash_sm_read(address);
+	}
 	else
 		return gBaseMemory[address];
 }
@@ -525,7 +545,8 @@ void init_mem(void)
 		remem_copy_normal_to_system();
 
 		/* Initialize Rampac I/O mode access variables */
-		gReMemMode = 0;
+		gReMemMode = REMEM_MODE_FLASH1_RDY | REMEM_MODE_FLASH2_RDY;
+		gReMemFlashReady = TRUE;
 		gReMemSector = 0;
 		gReMemCounter = 0;
 		gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET);
@@ -578,7 +599,8 @@ void reinit_mem(void)
 	/* Check if ReMem emulation on */
 	if (gReMem)
 	{
-		gReMemMode = 0;
+		gReMemMode = REMEM_MODE_FLASH1_RDY | REMEM_MODE_FLASH2_RDY;
+		gReMemFlashReady = TRUE;
 		gReMemSector = 0;
 		gReMemCounter = 0;
 		gReMemSectPtr = (unsigned char *) (gReMemRam + REMEM_MAP_OFFSET);
@@ -1250,6 +1272,14 @@ void set_rom_bank(unsigned char bank)
 		case MODEL_M100:	/* Model 100 / 102 emulation */
 		case MODEL_M102:
 		case MODEL_KC85:
+			// Default ROM size
+			gRomSize = 32768;
+
+			// Save any writes to OptROM space
+			if ((gOptRomRW) && (gRomBank == 1))
+				memcpy(gOptROM, gBaseMemory, ROMSIZE);
+
+			// Update ROM bank
 			gRomBank = bank;
 			if (bank & 0x01) 
 			{
@@ -1257,15 +1287,20 @@ void set_rom_bank(unsigned char bank)
 				gRomSize = gOptRomRW ? 0 : 32768;				
 			}	
 			else 
-			{
-				gRomSize = 32768;
 				memcpy(gBaseMemory,gSysROM,ROMSIZE);
-			}
 			break;
 
 		case MODEL_T200:	/* Model 200 emulation */
-			gRomBank = bank;
+			// Default ROM size
 			gRomSize = 40960;
+
+			// Save any writes to OptROM space
+			if ((gOptRomRW) && (gRomBank == 2))
+				memcpy(gOptROM, gBaseMemory, ROMSIZE);
+
+			// Save ROM bank
+			gRomBank = bank;
+
 			switch (bank) {
 			case 0:
 				memcpy(gBaseMemory,gSysROM,ROMSIZE);
@@ -1282,8 +1317,15 @@ void set_rom_bank(unsigned char bank)
 
 		case MODEL_PC8201:	/* NEC laptops */
 		case MODEL_PC8300:
-			gRomBank = bank;	/* Update global ROM bank var */
+			// Default ROM size
 			gRomSize = 32768;
+
+			// Save any writes to OptROM space
+			if ((gOptRomRW) && (gRomBank == 2))
+				memcpy(gOptROM, gBaseMemory, ROMSIZE);
+
+			// Save ROM bank
+			gRomBank = bank;	/* Update global ROM bank var */
 
 			switch (bank)
 			{
@@ -1348,6 +1390,10 @@ void remem_set8(unsigned int address, unsigned char data)
 	int		bank;			/* Bank with map that is being modified */
 	int		romBank;		/* The currently mapped romBank within the Map */
 	int		ramBank;		/* The currently mapped ramBank within the Map */
+	int		sectOffset;
+	int		sectSize, c;
+	int		sector;
+	uchar	*ptr;
 
  	/* Calculate which block is being accessed */
 	block = gIndex[address];	
@@ -1402,6 +1448,122 @@ void remem_set8(unsigned int address, unsigned char data)
 		}
 	}
 
+	/* Do FLASH state machine management */
+	if (gReMemMap[block] & (REMEM_VCTR_FLASH1_CS | REMEM_VCTR_FLASH2_CS) != 0x1800)
+	{
+		int		*pFlashState;
+		UINT64	*pFlashTime;
+		int		*pFlashBusy;
+		uchar	mask;
+
+		/* Writing to FLASH.  Do FLASH State machine processing */
+		if (!(gReMemMap[block] & REMEM_VCTR_FLASH1_CS))
+		{
+			pFlashState = &gReMemFlash1State;
+			pFlashTime = &gReMemFlash1Time;
+			pFlashBusy = &gReMemFlash1Busy;
+			mask = REMEM_MODE_FLASH1_RDY;
+		}
+		else
+		{
+			pFlashState = &gReMemFlash2State;
+			pFlashTime = &gReMemFlash2Time;
+			pFlashBusy = &gReMemFlash2Busy;
+			mask = REMEM_MODE_FLASH2_RDY;
+		}
+
+		/* Look for Reset command */
+		if ((data == FLASH_CMD_RESET) && (*pFlashState != FLASH_STATE_PROG))
+		{
+			*pFlashState = FLASH_STATE_RO;
+			*pFlashTime = 0;
+			*pFlashBusy = FALSE;
+			gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
+			return;
+		}
+
+		switch (*pFlashState)
+		{
+		case FLASH_STATE_RO:
+			/* Proocess write as command */
+			if ((data == FLASH_CMD_CFI_QUERY) && (address == 0xAA))
+			{
+				*pFlashState = FLASH_STATE_CFI_QUERY;
+				*pFlashBusy = TRUE;
+				gReMemFlashReady = FALSE;
+			}
+			return;
+
+		case FLASH_STATE_PROG:
+			/* Change state back to Read Only and break to perform the write */
+			*pFlashState = FLASH_STATE_RO;
+			*pFlashBusy = TRUE;
+			*pFlashTime = cycles + FLASH_CYCLES_PROG;
+			gReMemMode &= ~mask;
+			gReMemFlashReady = FALSE;
+			break;
+
+		case FLASH_STATE_CMD2:
+			/* Test if data is a Sect Erase command */
+			if (data != FLASH_CMD_SECT_ERASE)
+			{
+				*pFlashState = FLASH_STATE_RO;
+				return;
+			}
+
+			/* Process Sector erase */
+			sector = address >> 15;
+
+			/* Calculate sector offset and size */
+			if (sector == 0)
+			{
+				/* Test for sector zero */
+				if ((address & 0xFE000) == 0)
+				{
+					/* Sector zero is 16K */
+					sectOffset = 0;
+					sectSize = 16384;
+				}
+				else if ((address & 0xFC00) != 0)
+				{
+					/* Sector 3 is a 32K sector */
+					sectOffset = 0x4000;
+					sectSize = 32768;
+				}
+				else
+				{
+					sectOffset = address & 0xFF000;
+					sectSize = 8192;
+				}
+			}
+			else
+			{
+				/* Setup for 64K sector */
+				sectOffset = address & 0xF8000;
+				sectSize = 0x10000;
+			}
+
+			/* Point to the correct memory space */
+			if (pFlashState == &gReMemFlash1State)
+				ptr = gReMemFlash1 + sectOffset;
+			else
+				ptr = gReMemFlash2 + sectOffset;		
+
+			/* Erase the sector */
+			for (c = 0; c < sectSize; c++)
+				*ptr++ = 0xFF;
+
+			/* Update state and set busy flag */
+			*pFlashState = FLASH_STATE_RO;
+			*pFlashBusy = TRUE;
+			*pFlashTime = cycles + FLASH_CYCLES_SECT_ERASE;
+			gReMemMode &= ~mask;
+			gReMemFlashReady = FALSE;
+
+			return;
+		}
+	}	
+
 	/* Update memory with data */
 	gMemory[block][address & 0x3FF] = data;
 }
@@ -1430,6 +1592,9 @@ int remem_in(unsigned char port, unsigned char *data)
 	{
 
 	case REMEM_MODE_PORT:		/* ReMem mode port */
+		if (!gReMemFlashReady)
+			remem_flash_proc_timer();
+
 		*data = gReMemMode;			/* Return the current ReMem mode */
 		ret = 1;					/* Indicate port processed */
 		break;
@@ -1515,6 +1680,9 @@ int remem_out(unsigned char port, unsigned char data)
 	int				romSector, ramSector;
 	int				bank, block, mmuBlock;
 	int				map;
+	int				*pFlashState;
+	uchar			*ptr;
+	int				c;
 
 	/* Test if ReMem emulation is enabled */
 	if (!(gReMem | gRampac))
@@ -1532,7 +1700,7 @@ int remem_out(unsigned char port, unsigned char data)
 		ret = 1;			/* Indicate port processed */
 
 		/* Test if old mode = new mode and do nothing if equal */
-		if (data == gReMemMode)
+		if (data == gReMemMode & 0x3F)
 			break;
 
 		/*
@@ -1614,7 +1782,7 @@ int remem_out(unsigned char port, unsigned char data)
 		}
 
 		/* Update ReMem mode */
-		gReMemMode = data;
+		gReMemMode = (gReMemMode & 0xC0) | (data & 0x3F);
 		break;
 
 
@@ -1775,6 +1943,110 @@ int remem_out(unsigned char port, unsigned char data)
 		ret = 1;
 		break;
 
+	case REMEM_FLASH1_AAA_PORT:
+	case REMEM_FLASH2_AAA_PORT:
+		if (port == REMEM_FLASH1_AAA_PORT)
+			pFlashState = &gReMemFlash1State;
+		else
+			pFlashState = &gReMemFlash2State;
+
+		switch (*pFlashState)
+		{
+		case FLASH_STATE_RO:
+			if (data == 0xAA)
+				*pFlashState = FLASH_STATE_UNLK1;
+
+			// Check for other states, such as Erase Pause, etc.
+
+			break;
+
+		case FLASH_STATE_CMD:
+			// Get the command
+			if (data == FLASH_CMD_PROG)
+				*pFlashState = FLASH_STATE_PROG;
+			else if (data == FLASH_CMD_UNLK_BYPASS)
+				*pFlashState = FLASH_STATE_UNLK_BYPASS;
+			else if (data == FLASH_CMD_UNLK2)
+				*pFlashState = FLASH_STATE_UNLK2;
+			else if (data == FLASH_CMD_AUTOSELECT)
+				*pFlashState = FLASH_STATE_AUTOSELECT;
+			else
+				*pFlashState = FLASH_STATE_RO;
+			break;
+
+		case FLASH_STATE_UNLK2:
+			// Get 1st byte of 2nd Unlock
+			if (data == 0xAA)
+				*pFlashState = FLASH_STATE_UNLK3;
+			else
+				*pFlashState = FLASH_STATE_RO;
+			break;
+
+		case FLASH_STATE_CMD2:
+			// Test for Erase Chip command
+			if (data == FLASH_CMD_CHIP_ERASE)
+			{
+				*pFlashState = FLASH_STATE_RO;
+				if (port == REMEM_FLASH1_AAA_PORT)
+				{
+					gReMemFlash1Time = cycles + FLASH_CYCLES_CHIP_ERASE;
+					gReMemMode &= ~REMEM_MODE_FLASH1_RDY;
+					gReMemFlashReady = FALSE;
+					gReMemFlash1Busy = TRUE;
+					ptr = gReMemFlash1;
+				}
+				else
+				{
+					gReMemFlash2Time = cycles + FLASH_CYCLES_CHIP_ERASE;
+					gReMemMode &= ~REMEM_MODE_FLASH2_RDY;
+					gReMemFlashReady = FALSE;
+					gReMemFlash2Busy = TRUE;
+					ptr = gReMemFlash2;
+				}
+				/* Erase the Flash */
+				for (c = 0; c < 2048 * 1024; c++)
+					*ptr++ = 0xFF;
+			}
+			break;
+
+		default:
+			*pFlashState = FLASH_STATE_RO;
+			break;
+		}
+		break;
+
+	case REMEM_FLASH1_555_PORT:
+	case REMEM_FLASH2_555_PORT:
+		if (port == REMEM_FLASH1_555_PORT)
+			pFlashState = &gReMemFlash1State;
+		else
+			pFlashState = &gReMemFlash2State;
+
+		switch (*pFlashState)
+		{
+		case FLASH_STATE_UNLK1:
+			// Check for 2nd byte of unlock sequence
+			if (data == 0x55)
+				*pFlashState = FLASH_STATE_CMD;
+			else
+				*pFlashState = FLASH_STATE_RO;
+			break;
+
+		case FLASH_STATE_UNLK3:
+			// Check for double unlock 2nd byte
+			if (data == 0x55)
+				*pFlashState = FLASH_STATE_CMD2;
+			else
+				*pFlashState = FLASH_STATE_RO;
+			break;
+
+		default:
+			*pFlashState = FLASH_STATE_RO;
+			break;
+		}
+
+		break;
+
 		/* Other Ports not supported */
 	default:
 		ret = 0;
@@ -1828,19 +2100,19 @@ void remem_update_vectors(unsigned char targetMode)
 			gReMemMap[block] = pMapPtr[c];		/* Copy map vector from ReMem RAM */
 
 			/* Test for Global R/O bit in ReMemMode for FLASH1 */
-			if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
+/*			if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
 			{
 				if (gReMemMode & REMEM_MODE_FLASH1_RO)
 					gReMemMap[block] |= REMEM_VCTR_READ_ONLY;
 			}
-
+*/
 			/* Test for Global R/O bit in ReMemMode for FLASH2 */
-			if ((gReMemMap[block] & REMEM_VCTR_FLASH2_CS) == 0)
+/*			if ((gReMemMap[block] & REMEM_VCTR_FLASH2_CS) == 0)
 			{
 				if (gReMemMode & REMEM_MODE_FLASH2_RO)
 					gReMemMap[block] |= REMEM_VCTR_READ_ONLY;
 			}
-
+*/
 			/* Test if Block being mapped is active MMU Map space */
 			if (x && ((gReMemMap[block] & REMEM_VCTR_ADDRESS) == mmuBlock))
 			{
@@ -1935,4 +2207,141 @@ void remem_copy_mmu_to_block(int block)
 	/* Copy bytes */
 	gMemory[block] = pSrc;
 }
+
+/*
+=============================================================================
+remem_flash_sm_read:	This routine performs a read operation when there is
+						a pending FLASH command still being processed.  It 
+						updates the state machine and returns the correct 
+						value from the FLASH.
+=============================================================================
+*/
+unsigned char remem_flash_sm_read(unsigned short address)
+{
+	int				block;
+	int				*pFlashState;
+	UINT64			*pFlashTime;
+	int				*pFlashBusy;
+	unsigned char	mask;
+	int				index;
+
+	/* Calculate block number */
+	block = address >> 10;
+
+	/* Test if this is the flash that is not ready */
+	if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
+	{
+		if (!gReMemFlash1Busy && (gReMemFlash1State == FLASH_STATE_RO))
+			return gMemory[block][address & 0x3FF];
+
+		/* Set variables for state machine processing */
+		pFlashState = &gReMemFlash1State;
+		pFlashTime = &gReMemFlash1Time;
+		pFlashBusy = &gReMemFlash1Busy;
+		mask = REMEM_MODE_FLASH1_RDY;
+	}
+	else
+	{
+		if (!gReMemFlash2Busy && (gReMemFlash2State == FLASH_STATE_RO))
+			return gMemory[block][address & 0x3FF];
+
+		/* Set variables for state machine processing */
+		pFlashState = &gReMemFlash2State;
+		pFlashTime = &gReMemFlash2Time;
+		pFlashBusy = &gReMemFlash2Busy;
+		mask = REMEM_MODE_FLASH2_RDY;
+	}
+
+	/* The flash is busy during a read - process as State Machine */
+	if (*pFlashBusy && (*pFlashState == FLASH_STATE_RO))
+	{
+		/* Waiting for timeout of erase / program */
+		if (*pFlashTime > 0)
+		{
+			if (cycles >= *pFlashTime)
+				*pFlashTime = 0;
+		}
+
+		/* Test if timeout expired */
+		if (*pFlashTime == 0)
+		{
+			*pFlashBusy = FALSE;
+			gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
+			gReMemMode |= mask;
+			return gMemory[block][address & 0x3FF];
+		}
+	}
+	else if (*pFlashState == FLASH_STATE_AUTOSELECT)
+	{
+		if ((address & 0xFF) == 0)
+			return FLASH_MANUF_ID;
+		else if ((address & 0xFF) == 1)
+			return FLASH_PRODUCT_ID;
+		else
+			return 0;
+	}
+	else if (*pFlashState == FLASH_STATE_CFI_QUERY)
+	{
+		/* Test Query address */
+		if ((address < 32) || (address > 0x98))
+			return 0xFF;
+
+		/* Calculate index for CFI address */
+		index = (address - 0x20) >> 1;
+		return gFlashCFIData[index];
+	}
+
+	/* Test for failed command sequence */
+	if (*pFlashState != FLASH_STATE_RO)
+	{
+		/* Reset back to read state */
+		*pFlashState = FLASH_STATE_RO;
+		gReMemMode |= mask;
+		*pFlashBusy = FALSE;
+		*pFlashTime = 0;
+		gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
+		return gMemory[block][address & 0x3FF];
+	}
+
+	return 0xFF;
+}
+
+/*
+=============================================================================
+remem_flash_proc_timer:	This routine processes FLASH timers.
+=============================================================================
+*/
+void remem_flash_proc_timer(void)
+{
+	/* Check if FLASH1 is busy */
+	if (gReMemFlash1Time > 0)
+	{
+		if (cycles >= gReMemFlash1Time)
+		{
+			/* Clear busy bit for Flash1 */
+			gReMemMode |= REMEM_MODE_FLASH1_RDY;
+			gReMemFlash1Time = 0;
+			gReMemFlash1Busy = FALSE;
+		}
+	}
+
+	/* Check if FLASH2 is busy */
+	if (gReMemFlash2Time > 0)
+	{
+		if (cycles >= gReMemFlash2Time)
+		{
+			/* Clear busy bit for Flash1 */
+			gReMemMode |= REMEM_MODE_FLASH2_RDY;
+			gReMemFlash2Time = 0;
+			gReMemFlash2Busy = FALSE;
+		}
+	}
+
+	/* Check if either flash is busy */
+	if (gReMemFlash1Busy || gReMemFlash2Busy)
+		gReMemFlashReady = FALSE;
+	else
+		gReMemFlashReady = TRUE;
+}
+
 

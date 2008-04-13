@@ -52,7 +52,7 @@ public:
 	virtual void		Deinit(void);				// Deini routine
 	virtual int			CancelPrintJob(void);		// Cancels a print job
 	virtual void		BuildMonTab(void);			// Builds the monitor tab
-	virtual void		UpdateMonTab(void);			// Updates the monitor tab
+	virtual void		UpdateMonTab(int forceUpdate=FALSE);// Updates the monitor tab
 
 protected:
 	virtual void 		PrintByte(unsigned char byte);	// Print to host
@@ -75,6 +75,8 @@ protected:
 	int					m_PrevChar;					// Previous character written
 
 #ifdef WIN32
+
+	HANDLE				m_OutFd;					// Output File Handle
 
 #else
 

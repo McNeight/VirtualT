@@ -23,20 +23,24 @@ extern "C" {
 #define	REMEM_REV_M102				((REMEM_REV_MAJOR << 4) | 0x01)
 #define	REMEM_REV_T200				((REMEM_REV_MAJOR << 4) | 0x02)
 
-#define	REMEM_REV					(gModel == MODEL_M100 ? REMEM_REV_M100 : gModel == MODEL_M102 ? REMEM_REV_M102 : REMEM_REV_T200)
+#define	REMEM_REV					((gModel == MODEL_M100) || (gModel == MODEL_KC85) ? REMEM_REV_M100 : gModel == MODEL_M102 ? REMEM_REV_M102 : REMEM_REV_T200)
 
 #define	REMEM_MODE_NORMAL			0x01
 #define	REMEM_MODE_RAMPAC			0x02
 #define	REMEM_MODE_IOENABLE			0x04
 #define	REMEM_MODE_MAP_BITS			0x38
 #define	REMEM_MODE_MAP_SHIFT		3
-#define	REMEM_MODE_FLASH1_RO		0x40
-#define	REMEM_MODE_FLASH2_RO		0x80
+#define	REMEM_MODE_FLASH1_RDY		0x40
+#define	REMEM_MODE_FLASH2_RDY		0x80
 
 #define	REMEM_SECTOR_PORT			0x61
 #define	REMEM_DATA_PORT				0x63
 #define	REMEM_MODE_PORT				0x70
 #define	REMEM_REVID_PORT			0x71
+#define	REMEM_FLASH1_AAA_PORT		0x74
+#define	REMEM_FLASH1_555_PORT		0x75
+#define	REMEM_FLASH2_AAA_PORT		0x76
+#define	REMEM_FLASH2_555_PORT		0x77
 #define	RAMPAC_SECTOR_PORT			0x81
 #define	RAMPAC_DATA_PORT			0x83
 
@@ -57,6 +61,35 @@ extern "C" {
 #define REMEM_RAMPAC_OFFSET			0x1C0000
 #define	RAMPAC_SECTOR_SIZE			1024
 #define	RAMPAC_SECTOR_COUNT			256
+
+#define	FLASH_STATE_RO				0
+#define FLASH_STATE_UNLK1			1
+#define FLASH_STATE_CMD				2
+#define FLASH_STATE_UNLK2			3
+#define FLASH_STATE_PROG			4
+#define FLASH_STATE_SECT_ERASE		5
+#define FLASH_STATE_CHIP_ERASE		6
+#define FLASH_STATE_UNLK_BYPASS		7
+#define FLASH_STATE_UB_PROG			8
+#define FLASH_STATE_UNLK3			9
+#define FLASH_STATE_CMD2			10
+#define FLASH_STATE_CFI_QUERY		11
+#define FLASH_STATE_AUTOSELECT		12
+
+#define	FLASH_CMD_PROG				0xA0
+#define	FLASH_CMD_UNLK_BYPASS		0x20
+#define FLASH_CMD_UNLK2				0x80
+#define FLASH_CMD_SECT_ERASE		0x30
+#define FLASH_CMD_CHIP_ERASE		0x10
+#define FLASH_CMD_AUTOSELECT		0x90
+#define FLASH_CMD_RESET				0xF0
+#define FLASH_CMD_CFI_QUERY			0x98
+
+#define FLASH_CYCLES_PROG			40
+#define FLASH_CYCLES_SECT_ERASE		1680000
+#define	FLASH_CYCLES_CHIP_ERASE		19000000
+#define	FLASH_MANUF_ID				1
+#define	FLASH_PRODUCT_ID			0x49
 
 #define	REGION_RAM					0
 #define	REGION_ROM					1
@@ -105,6 +138,8 @@ void			remem_copy_system_to_normal(void);
 void			remem_copy_system_to_mmu(void);
 void			remem_copy_mmu_to_block(int block);
 void			remem_copy_block_to_mmu(int block);
+unsigned char	remem_flash_sm_read(unsigned short address);
+void			remem_flash_proc_timer(void);
 
 void			save_ram(void);
 void			load_ram(void);

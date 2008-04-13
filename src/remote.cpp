@@ -161,8 +161,10 @@ void handle_lcd_timeout()
 		// New string being written.  Send the old one
 		sprintf(str, "event, lcdwrite, (%d,%d),%s\n", gLcdRow, gLcdColStart,
 			gLcdString.c_str());
-		if (gSocketOpened)
-			gOpenSock << str;
+
+		if ((gLcdRow != -1) && (gLcdColStart != -1))
+			if (gSocketOpened)
+				gOpenSock << str;
 		gLcdUpdateCycle = (UINT64) -1;	
 		gLcdRow = -1;
 		gLcdColStart = -1;

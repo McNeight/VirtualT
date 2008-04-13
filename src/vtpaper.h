@@ -44,10 +44,10 @@ Define the class to represent the "Paper" used for printer emulation.
 class VTPaper : public VTObject
 {
 public:
-	VTPaper(Fl_Preferences* pPref) { m_pPref = pPref; }
+	VTPaper() { m_pPref = NULL; m_formHeight = 10.0; m_tof = 0.5; }
 
 	virtual MString		GetName(void) = 0;				// Name of the paper
-	virtual void		Init(void) = 0;					// Initializes with perferences
+	virtual void		Init(Fl_Preferences* pPref) = 0;// Initializes with perferences
 	virtual void		Deinit(void) = 0;				// Deinitializes & frees memory
 	virtual void		GetPrefs(void) = 0;				// Get prefs from controls & save
 	virtual void		BuildControls(void) = 0;		// Build paper specific controls
@@ -99,11 +99,11 @@ Okay, now define VirtualPaper.  This prints to a window.
 class VTVirtualPaper : public VTPaper, public Fl_Double_Window
 {
 public:
-	VTVirtualPaper(Fl_Preferences* pPref);
+	VTVirtualPaper();
 	~VTVirtualPaper();
 
 	virtual MString		GetName(void);				// Name of the paper
-	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Init(Fl_Preferences* pPref);// Initializes with perferences
 	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
@@ -145,11 +145,11 @@ Define Postscript paper.  This prints to a Postscript file.
 class VTPSPaper : public VTPaper
 {
 public:
-	VTPSPaper(Fl_Preferences* pPref);
+	VTPSPaper();
 	~VTPSPaper();
 
 	virtual MString		GetName(void);				// Name of the paper
-	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Init(Fl_Preferences* pPref);// Initializes with perferences
 	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
@@ -207,10 +207,10 @@ job via an lpr (user defineable) process.
 class VTlprPaper : public VTPSPaper
 {
 public:
-	VTlprPaper(Fl_Preferences* pPref); 		// Class constructor
+	VTlprPaper(); 		// Class constructor
 
 	virtual MString		GetName(void);				// Name of the paper
-	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Init(Fl_Preferences* pPref);// Initializes with perferences
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls
 	virtual void		HideControls(void);			// Hide paper specific controls
@@ -235,10 +235,10 @@ in Windows.
 class VTWinPrintPaper : public VTPaper
 {
 public:
-	VTWinPrintPaper(Fl_Preferences* pPref); 		// Class constructor
+	VTWinPrintPaper(); 		// Class constructor
 
 	virtual MString		GetName(void);				// Name of the paper
-	virtual void		Init(void);					// Initializes with perferences
+	virtual void		Init(Fl_Preferences* pPref);// Initializes with perferences
 	virtual void		Deinit(void);				// Deinitializes & frees memory
 	virtual void		GetPrefs(void);				// Get prefs from controls & save
 	virtual void		BuildControls(void);		// Build paper specific controls

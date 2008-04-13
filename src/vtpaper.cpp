@@ -67,8 +67,8 @@ void cb_VirtualPaperWin(Fl_Widget *w, void * ptr)
 VTVirtualPaper:	This is the class construcor for the VTVirtualPaper class.
 ================================================================================
 */
-VTVirtualPaper::VTVirtualPaper(Fl_Preferences* pPref) :
-	Fl_Double_Window(985, 500, "Virtual Paper Output"), VTPaper(pPref)
+VTVirtualPaper::VTVirtualPaper() :
+	Fl_Double_Window(985, 500, "Virtual Paper Output")
 {
 	// Initialize pointers
 	m_pLineCnts = NULL;				// Line count storage not allocated
@@ -122,8 +122,9 @@ MString VTVirtualPaper::GetName()
 Initialize the page with preferences.
 =======================================================
 */
-void VTVirtualPaper::Init()
+void VTVirtualPaper::Init(Fl_Preferences* pPref)
 {
+	m_pPref = pPref;
 }
 
 /*
@@ -587,8 +588,7 @@ print individual pages, etc.
 VTPSPaper:	This is the class construcor for the Postscript Paper class
 ================================================================================
 */
-VTPSPaper::VTPSPaper(Fl_Preferences* pPref) :
-	VTPaper(pPref)
+VTPSPaper::VTPSPaper()
 {
 	// Initialize pointers
 	m_pageNum = 0;					// Clear active page number
@@ -620,9 +620,11 @@ MString VTPSPaper::GetName()
 Initialize the page with preferences.
 =======================================================
 */
-void VTPSPaper::Init()
+void VTPSPaper::Init(Fl_Preferences* pPref)
 {
 	char		temp[512];
+
+	m_pPref = pPref;
 
 	// Load preferences
 	if (m_pPref == NULL)
@@ -753,6 +755,12 @@ void VTPSPaper::GetPrefs(void)
 	char		temp[512];
 
 	// Read preferences from controls
+	if (m_pPref == NULL)
+	{
+		printf("PSPaper Prefs NULL\n");
+		fflush(stdout);
+		return;
+	}
 
 	m_prompt = m_pPrompt->value();
 	m_autoFilename = m_pAutoFilename->value();
@@ -1335,8 +1343,7 @@ print individual pages, etc.
 VTlprPaper:	This is the class construcor for the lpr via Postscript Paper class
 ================================================================================
 */
-VTlprPaper::VTlprPaper(Fl_Preferences* pPref) :
-	VTPSPaper(pPref)
+VTlprPaper::VTlprPaper()
 {
 }
 
@@ -1355,11 +1362,12 @@ MString VTlprPaper::GetName()
 Initialize the page with preferences.
 =======================================================
 */
-void VTlprPaper::Init()
+void VTlprPaper::Init(Fl_Preferences* pPref)
 {
 	char		temp[512];
 
-	//VTPSPaper::Init();
+	m_pPref = pPref;
+
 	// Load preferences
 	if (m_pPref == NULL)
 		return;
@@ -1426,6 +1434,12 @@ void VTlprPaper::GetPrefs()
 	char		temp[512];
 
 	// Read preferences from controls
+	if (m_pPref == NULL)
+	{
+		printf("lprPaper Prefs NULL\n");
+		fflush(stdout);
+		return;
+	}
 
 	m_fileFormat = m_pFileFormat->value();
 	m_cmdLine = m_pCmdLine->value();
@@ -1555,8 +1569,7 @@ prints directly on the deivce.
 VTWinPrintPaper:	This is the class construcor for the lpr via Postscript Paper class
 ================================================================================
 */
-VTWinPrintPaper::VTWinPrintPaper(Fl_Preferences* pPref) :
-	VTPaper(pPref)
+VTWinPrintPaper::VTWinPrintPaper()
 {
 	m_printerDC = NULL;
 	m_blackPen = NULL;
@@ -1578,9 +1591,11 @@ MString VTWinPrintPaper::GetName()
 Initialize the page with preferences.
 =======================================================
 */
-void VTWinPrintPaper::Init()
+void VTWinPrintPaper::Init(Fl_Preferences* pPref)
 {
 	char		temp[512];
+
+	m_pPref = pPref;
 
 	// Load preferences
 	if (m_pPref == NULL)
@@ -1618,7 +1633,7 @@ Build the page properties dialog controls.
 void VTWinPrintPaper::BuildControls()
 {
 	// Create control for ink darkness
-	m_pDarkness = new Fl_Slider(90, 305, 140, 20, "Ink Density");
+	m_pDarkness = new Fl_Slider(90, 210, 140, 20, "Ink Density");
 	m_pDarkness->type(5);
 	m_pDarkness->box(FL_FLAT_BOX);
 	m_pDarkness->precision(0);
@@ -1626,10 +1641,10 @@ void VTWinPrintPaper::BuildControls()
 	m_pDarkness->value(m_darkness);
 	m_pDarkness->hide();
 	
-	m_pLight = new Fl_Box(45, 305, 40, 20, "Light");
+	m_pLight = new Fl_Box(45, 210, 40, 20, "Light");
 	m_pLight->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pLight->hide();
-	m_pDark = new Fl_Box(240, 305, 40, 20, "Dark");
+	m_pDark = new Fl_Box(240, 210, 40, 20, "Dark");
 	m_pDark->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pDark->hide();
 
@@ -1644,6 +1659,13 @@ void VTWinPrintPaper::GetPrefs()
 {
 
 	// Read preferences from controls
+	if (m_pPref == NULL)
+	{
+		printf("lprPaper Prefs NULL\n");
+		fflush(stdout);
+		return;
+	}
+
 	m_darkness = (int) (m_pDarkness->value());
 
 	// Update preferences file
@@ -1835,8 +1857,6 @@ int VTWinPrintPaper::PrintPage(unsigned char *pData, int w, int h)
 				{
 					Ellipse(m_printerDC, m_offsetX + xp, yp, 
 						m_offsetX + xp + m_diameter, yp + m_diameter);
-//					printf("xy = %d    d = %d\n, %d", xp, yp, m_diameter);
-//					fflush(stdout);
 				}
 				mask <<= 1;
 			}
@@ -1886,15 +1906,23 @@ int VTWinPrintPaper::LoadPaper(void)
 		if (m_offsetY < 0)
 			m_offsetY = 0;
 
-		// Calculates scale factor for X and Y directions
-		m_scaleX = (double) m_physDpiX / 240.0;
-		m_scaleY = (double) m_physDpiY / 216.0;
-
 		// Calculate pin darkness
 		if (m_darkness >= 35)
 			m_diameter = m_physDpiX * (m_darkness+5) / 50 / 72;
 		else
 			m_diameter = m_physDpiX * 35 / 50 / 72;
+
+		// Calculates scale factor for X and Y directions
+		m_scaleX = (double) m_physDpiX / 240.0;
+		m_scaleY = (double) m_physDpiY / 216.0;
+
+		// Check X scaling factor
+		if (m_scaleX * 8 > m_physWidth)
+			m_scaleX = (double) m_physWidth / (double) (8 * 240 + m_diameter);
+
+		// Check Y scaling factor
+		if (m_scaleY *(m_formHeight * 216.0) > m_physHeight)
+			m_scaleY = (double) m_physHeight / (m_formHeight * 216.0 + (double) m_diameter);
 
 		// Create black pens and brushes	
 		if (m_blackPen == NULL)

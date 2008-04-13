@@ -375,6 +375,10 @@ void out(uchar port, uchar val)
 		case REMEM_MODE_PORT:		/* ReMem Mode port */
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
 		case REMEM_DATA_PORT:		/* ReMem Data Port */
+		case REMEM_FLASH1_555_PORT:	/* ReMem Flash Command Port */
+		case REMEM_FLASH1_AAA_PORT:	/* ReMem Flash Command Port */
+		case REMEM_FLASH2_555_PORT:	/* ReMem Flash Command Port */
+		case REMEM_FLASH2_AAA_PORT:	/* ReMem Flash Command Port */
 		case RAMPAC_SECTOR_PORT:	/* ReMem/RAMPAC emulation port */
 		case RAMPAC_DATA_PORT:		/* ReMem RAMPAC emulation port */
 		case 0x85:
@@ -411,6 +415,7 @@ void out(uchar port, uchar val)
 				io90 = val;
 				break;
 			}
+			/* Fallthrough */
 		case 0x91:  
 		case 0x92:
 		case 0x93:
@@ -629,6 +634,7 @@ void out(uchar port, uchar val)
 				ser_write_byte(val);
 				return;
 			}
+			/* Fallthrough */
 		case 0xCF:
 			if (gModel == MODEL_T200)
 			{
@@ -1057,6 +1063,7 @@ int inport(uchar port)
 				ser_read_byte((char *) &ret);
 				return ret;
 			}
+			/* Fallthrough */
 		case 0xCF:
 			if (gModel == MODEL_T200)
 			{

@@ -45,6 +45,8 @@
 #include "VirtualT.h"
 #include "fileprint.h"
 #include "m100emu.h"
+#include "MString.h"
+#include "MStringArray.h"
 
 extern "C" struct tm* mytime;
 extern "C" char path[255];
@@ -121,6 +123,8 @@ void VTFilePrint::OpenNextPage()
 			sprintf(str, "Unable to open file %s", (const char *) filename);
 			AddError(str);
 		}
+		else
+			m_printFiles.Add(m_Filename);
 
 		return;
 	}
@@ -139,6 +143,8 @@ void VTFilePrint::OpenNextPage()
 				sprintf(str, "Unable to open file %s", (const char *) filename);
 				AddError(str);
 			}
+			else
+				m_printFiles.Add(filename);
 		}
 	}
 }
@@ -356,6 +362,8 @@ void VTFilePrint::Init(void)
 	m_pPref->get("FilePrint_FilterCodes", m_FilterCodes, 0);
 	m_pPref->get("FilePrint_AutoFormat", m_AutoFormat, 0);
 	m_pPref->get("FilePrint_FormatString", m_FormatCode, "lpt_out_%d_%s.txt", 256);
+
+	m_printFiles.RemoveAll();
 	return;
 }
 
@@ -570,6 +578,7 @@ int VTFilePrint::OpenSession(void)
 
 	// Save the filename
 	m_Filename = filename;
+	m_printFiles.Add(m_Filename);
 
 	return PRINT_ERROR_NONE;
 }
@@ -588,6 +597,9 @@ int VTFilePrint::CloseSession(void)
 		m_OutFd = NULL;
 		m_ActiveSeqNum = -1;
 	}
+
+	// Remove all files we printed to
+	m_printFiles.RemoveAll();
 
 	return PRINT_ERROR_NONE;
 }
@@ -676,6 +688,9 @@ void VTFilePrint::Deinit(void)
 	}
 	m_initialized = FALSE;
 
+	// Remove all files opened in last session
+	m_printFiles.RemoveAll();
+
 	return;
 }
 
@@ -686,6 +701,8 @@ Cancel the print job & delete the file
 */
 int VTFilePrint::CancelPrintJob(void)
 {
+	int			count, c;
+
 	// Ensure there is an active session first
 	if (!m_SessionActive)
 		return PRINT_ERROR_NONE;
@@ -694,10 +711,16 @@ int VTFilePrint::CancelPrintJob(void)
 	if (m_OutFd != NULL)
 		fclose(m_OutFd);
 
+
 	m_OutFd = NULL;
 
-	// Remove the file
-	std::remove((const char *) m_Filename);
+	// Remove all files in the print job
+	count = m_printFiles.GetSize();
+	for (c = 0; c < count; c++)
+		std::remove((const char *) m_printFiles[c]);
+
+	// Delete all print files from the array
+	m_printFiles.RemoveAll();
 	
 	return PRINT_ERROR_NONE;
 }
@@ -734,7 +757,7 @@ void VTFilePrint::BuildMonTab(void)
 	m_pStatPages = new Fl_Box(150, 145+MENU_HEIGHT, 100, 20, "Pages:");
 	m_pStatPages->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	
-	UpdateMonTab();
+	UpdateMonTab(TRUE);
 }
 
 /*
@@ -742,7 +765,7 @@ void VTFilePrint::BuildMonTab(void)
 Updates the monitor tab
 =======================================================
 */
-void VTFilePrint::UpdateMonTab(void)
+void VTFilePrint::UpdateMonTab(int forceUpdate)
 {
 	char		temp[80];
 
@@ -751,7 +774,7 @@ void VTFilePrint::UpdateMonTab(void)
 		strcpy(temp, "Closed");
 	else
 		strcpy(temp, "Open");
-	if (strcmp(m_sStatOpenStatus, temp) != 0)
+	if ((strcmp(m_sStatOpenStatus, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatOpenStatus, temp);
 		m_pStatOpenStatus->label(m_sStatOpenStatus);
@@ -760,7 +783,7 @@ void VTFilePrint::UpdateMonTab(void)
 	// Update filename
 	if (m_OutFd == NULL)
 	{
-		if (strcmp(m_sStatFilename, "N/A") != 0)
+		if ((strcmp(m_sStatFilename, "N/A") != 0) || forceUpdate)
 		{
 			m_pStatFilename->label("N/A");
 			m_pStatSessionSeq->label("N/A");
@@ -770,14 +793,14 @@ void VTFilePrint::UpdateMonTab(void)
 	else 
 	{
 		// Update filename with current
-		if (strcmp(m_sStatFilename, (const char *) m_Filename) != 0)
+		if ((strcmp(m_sStatFilename, (const char *) m_Filename) != 0) || forceUpdate)
 		{
 			strncpy(m_sStatFilename, (const char *) m_Filename, sizeof(m_sStatFilename));
 			m_pStatFilename->label(m_sStatFilename);
 		}
 		// Update sequence number
 		sprintf(temp, "%d", m_ActiveSeqNum);
-		if (strcmp(m_sStatSessionSeq, temp) != 0)
+		if ((strcmp(m_sStatSessionSeq, temp) != 0) || forceUpdate)
 		{
 			strcpy(m_sStatSessionSeq, temp);
 			m_pStatSessionSeq->label(m_sStatSessionSeq);
@@ -786,7 +809,7 @@ void VTFilePrint::UpdateMonTab(void)
 
 	// Update bytes written
 	sprintf(temp, "%d", m_Bytes);
-	if (strcmp(m_sStatBytes, temp) != 0)
+	if ((strcmp(m_sStatBytes, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatBytes, temp);
 		m_pStatBytes->label(m_sStatBytes);

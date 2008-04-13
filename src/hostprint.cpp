@@ -58,7 +58,7 @@ VTHostPrint:	This is the class construcor for the HostPrint Device emulation.
 VTHostPrint::VTHostPrint(void)
 {
 	#ifdef WIN32
-
+		m_OutFd = NULL;
 	#else
 		m_OutFd = -1;
 		m_PrevChar = 0;
@@ -82,9 +82,12 @@ Print a byte to the Host device.
 */
 void VTHostPrint::PrintByte(unsigned char byte)
 {
-
 	#ifdef WIN32
+		unsigned long dwWritten;
 
+		if (m_OutFd == NULL)
+			return;
+		WriteFile(m_OutFd, &byte, 1, &dwWritten, NULL);
 	#else
 		// Write byte to the host
 		if (m_OutFd != -1)
@@ -158,6 +161,23 @@ int VTHostPrint::OpenSession(void)
 	// Attempt to open the Host Port
 	#ifdef WIN32
 
+		// Attempt to open the port specified by sp.port_name
+		m_OutFd = CreateFile( m_HostPort,  
+				GENERIC_READ | GENERIC_WRITE, 
+				0, 
+				0, 
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL,
+				0);
+
+		// Check for error opening port
+		if (m_OutFd == INVALID_HANDLE_VALUE)
+		{
+			sprintf(str, "Error opening port %s", m_HostPort);
+			AddError(str);
+			return PRINT_ERROR_IO_ERROR;
+		}
+		
 	#else
 		// Open file in Read/Write mode
 		m_OutFd = open(m_HostPort, O_RDWR);
@@ -186,6 +206,9 @@ int VTHostPrint::CloseSession(void)
 	if (m_ClosePort)
 	{
 		#ifdef WIN32
+			if (m_OutFd != NULL)
+				CloseHandle(m_OutFd);
+			m_OutFd = NULL;
 
 		#else
 			// Close the file descriptor
@@ -243,7 +266,9 @@ void VTHostPrint::Deinit(void)
 	m_initialized = FALSE;
 
 	#ifdef WIN32
-		
+		if (m_OutFd != NULL)
+			CloseHandle(m_OutFd);
+		m_OutFd = NULL;
 	#else
 		// Close the host device if open
 		if (m_OutFd != -1)
@@ -293,19 +318,22 @@ void VTHostPrint::BuildMonTab(void)
 Updates the monitor tab
 =======================================================
 */
-void VTHostPrint::UpdateMonTab(void)
+void VTHostPrint::UpdateMonTab(int forceUpdate)
 {
 	char		temp[20];
 
 	// Update host port
-	if (strcmp(m_HostPort, m_sStatHostPort) != 0)
+	if ((strcmp(m_HostPort, m_sStatHostPort) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatHostPort, m_HostPort);
 		m_pStatHostPort->label(m_sStatHostPort);
 	}
 
 #ifdef WIN32
-
+	if (m_OutFd == NULL)
+		strcpy(temp, "Closed");
+	else
+		strcpy(temp, "Open");
 #else
 	// Update port status
 	if (m_OutFd == -1)
@@ -315,7 +343,7 @@ void VTHostPrint::UpdateMonTab(void)
 
 #endif
 
-	if (strcmp(temp, m_sStatPortStatus) != 0)
+	if ((strcmp(temp, m_sStatPortStatus) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPortStatus, temp);
 		m_pStatPortStatus->label(m_sStatPortStatus);

@@ -84,8 +84,6 @@ VTFX80Print:	This is the class construcor for the FX80Print Device emulation.
 */
 VTFX80Print::VTFX80Print(void)
 {
-	int		count, c;
-
 	// Initialize pointers
 	m_pPage = NULL;				// No page memory
 	m_pPaper = NULL;			// No paper
@@ -99,18 +97,13 @@ VTFX80Print::VTFX80Print(void)
 	m_marksMade = FALSE;
 
 	// Add all papers to the m_paper object
-	m_papers.Add(new VTVirtualPaper(m_pPref));
-	m_papers.Add(new VTPSPaper(m_pPref));
+	m_papers.Add(new VTVirtualPaper());
+	m_papers.Add(new VTPSPaper());
 #ifdef WIN32
-	m_papers.Add(new VTWinPrintPaper(m_pPref));
+	m_papers.Add(new VTWinPrintPaper());
 #else
-	m_papers.Add(new VTlprPaper(m_pPref));
+	m_papers.Add(new VTlprPaper());
 #endif
-
-	// Initialize Get preferences for all papers
-	count = m_papers.GetSize();
-	for (c = 0; c < count; c++)
-		((VTPaper*) m_papers[c])->Init();
 
 	ResetPrinter();
 }
@@ -658,7 +651,7 @@ Init routine for reading prefs, setting up, etc.
 void VTFX80Print::Init(void)
 {
 	char		temp[512];
-	int			c;
+	int			c, count;
 
 	// Load preferences
 	m_pPref->get("FX80Print_UseRomFile", m_useRomFile, 0);
@@ -686,6 +679,11 @@ void VTFX80Print::Init(void)
 	m_pPref->get("FX80Print_TopOfForm", m_topOfForm, 0.5);
 	sprintf(m_topOfFormStr, "%.3f", m_topOfForm);
 	m_beep = FALSE;
+
+	// Initialize Get preferences for all papers
+	count = m_papers.GetSize();
+	for (c = 0; c < count; c++)
+		((VTPaper*) m_papers[c])->Init(m_pPref);
 
 	// Reset printer
 	ResetPrinter();
@@ -741,7 +739,7 @@ int VTFX80Print::CreatePaper(void)
 	if (pPaper != NULL)
 	{
 		m_pPaper = pPaper;
-		m_pPaper->Init();
+		m_pPaper->Init(m_pPref);
 		m_pPaper->SetFormHeight(m_formHeight);
 		m_pPaper->SetTopOfForm(m_topOfForm);
 		if ((err = m_pPaper->LoadPaper()) != PRINT_ERROR_NONE)
@@ -881,8 +879,6 @@ Deinit the printer
 */
 void VTFX80Print::Deinit(void)
 {
-	int		count, c;
-
 	// Delete page memory
 	if (m_pPage != NULL)
 		delete m_pPage;
@@ -892,15 +888,6 @@ void VTFX80Print::Deinit(void)
 	if (m_pPaper != NULL)
 		m_pPaper->Deinit();
 	m_pPaper = NULL; 
-
-	// Remove all papers
-	count = m_papers.GetSize();
-	for (c = 0; c < count; c++)
-	{
-		((VTPaper*) m_papers[c])->Deinit();
-		delete (VTPaper*) m_papers[c];
-	}
-	m_papers.RemoveAll();
 
 	m_initialized = FALSE;
 
@@ -954,6 +941,7 @@ void VTFX80Print::ResetMode(void)
 	m_enhanced = m_defEnhance;					// Set enhanced to DIP switch setting
 	m_dblStrike = FALSE;						// Default to non-dbl strike
 	m_expanded = FALSE;							// Default to non-expanded
+	m_expandedOneLine = FALSE;					// Default to not expandd-one-line
 	m_italic = FALSE;
 	m_underline = FALSE;
 	m_superscript = m_subscript = FALSE;
@@ -2582,7 +2570,7 @@ void VTFX80Print::BuildMonTab(void)
 	m_pStatIntlCharSet = new Fl_Box(390, 270+MENU_HEIGHT, 130, 20, "");
 	m_pStatIntlCharSet->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
-	UpdateMonTab();
+	UpdateMonTab(TRUE);
 	
 }
 
@@ -2591,7 +2579,7 @@ void VTFX80Print::BuildMonTab(void)
 Updates the monitor tab
 =======================================================
 */
-void VTFX80Print::UpdateMonTab(void)
+void VTFX80Print::UpdateMonTab(int forceUpdate)
 {
 	char		temp[80];
 
@@ -2610,7 +2598,7 @@ void VTFX80Print::UpdateMonTab(void)
 		strcat(temp, " Exp");
 
 	// Update if it changed
-	if (strcmp(temp, m_sStatPrintPitch) != 0)
+	if ((strcmp(temp, m_sStatPrintPitch) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPrintPitch, temp);
 		m_pStatPrintPitch->label(m_sStatPrintPitch);
@@ -2627,7 +2615,7 @@ void VTFX80Print::UpdateMonTab(void)
 		strcpy(temp, "Single-Strike");
 
 	// Update if it changed
-	if (strcmp(temp, m_sStatPrintWeight) != 0)
+	if ((strcmp(temp, m_sStatPrintWeight) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPrintWeight, temp);
 		m_pStatPrintWeight->label(m_sStatPrintWeight);
@@ -2648,7 +2636,7 @@ void VTFX80Print::UpdateMonTab(void)
 		strcpy(temp, "None");
 
 	// Update if it changed
-	if (strcmp(m_sStatScriptMode, temp) != 0)
+	if ((strcmp(m_sStatScriptMode, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatScriptMode, temp);
 		m_pStatScriptMode->label(m_sStatScriptMode);
@@ -2670,7 +2658,7 @@ void VTFX80Print::UpdateMonTab(void)
 		sprintf(temp, "%d / 216 inch", ls);
 
 	// Update if needed
-	if (strcmp(m_sStatLineSpacing, temp) != 0)
+	if ((strcmp(m_sStatLineSpacing, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatLineSpacing, temp);
 		m_pStatLineSpacing->label(m_sStatLineSpacing);
@@ -2678,7 +2666,7 @@ void VTFX80Print::UpdateMonTab(void)
 
 	// Update form length
 	sprintf(temp, "%.2f inch", m_formHeight);
-	if (strcmp(m_sStatFormLength, temp) != 0)
+	if ((strcmp(m_sStatFormLength, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatFormLength, temp);
 		m_pStatFormLength->label(m_sStatFormLength);
@@ -2686,7 +2674,7 @@ void VTFX80Print::UpdateMonTab(void)
 
 	// Update Left Margin
 	sprintf(temp, "%.2f inch", m_leftMargin);
-	if (strcmp(m_sStatLeftMargin, temp) != 0)
+	if ((strcmp(m_sStatLeftMargin, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatLeftMargin, temp);
 		m_pStatLeftMargin->label(m_sStatLeftMargin);
@@ -2694,7 +2682,7 @@ void VTFX80Print::UpdateMonTab(void)
 
 	// Update print head position
 	sprintf(temp, "(%d, %d)", m_curX, m_curY);
-	if (strcmp(m_sStatPos, temp) != 0)
+	if ((strcmp(m_sStatPos, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPos, temp);
 		m_pStatPos->label(m_sStatPos);
@@ -2705,7 +2693,7 @@ void VTFX80Print::UpdateMonTab(void)
 		strcpy(temp, "Off");
 	else
 		sprintf(temp, "%.2f inches", m_bottomMargin);
-	if (strcmp(m_sStatPerfSkip, temp) != 0)
+	if ((strcmp(m_sStatPerfSkip, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPerfSkip, temp);
 		m_pStatPerfSkip->label(m_sStatPerfSkip);
@@ -2713,7 +2701,7 @@ void VTFX80Print::UpdateMonTab(void)
 
 	// Update paper type
 	strcpy(temp, (const char *) m_paperName);
-	if (strcmp(m_sStatPaperType, temp) != 0)
+	if ((strcmp(m_sStatPaperType, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPaperType, temp);
 		m_pStatPaperType->label(m_sStatPaperType);
@@ -2724,7 +2712,7 @@ void VTFX80Print::UpdateMonTab(void)
 		strcpy(temp, "Not loaded");
 	else
 		strcpy(temp, "Loaded");
-	if (strcmp(m_sStatPaperStatus, temp) != 0)
+	if ((strcmp(m_sStatPaperStatus, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatPaperStatus, temp);
 		m_pStatPaperStatus->label(m_sStatPaperStatus);
@@ -2737,7 +2725,7 @@ void VTFX80Print::UpdateMonTab(void)
 		sprintf(temp, "ESC '%c'", m_escCmd);
 	else
 		strcpy(temp, "None");
-	if (strcmp(m_sStatEscMode, temp) != 0)
+	if ((strcmp(m_sStatEscMode, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatEscMode, temp);
 		m_pStatEscMode->label(m_sStatEscMode);
@@ -2745,7 +2733,7 @@ void VTFX80Print::UpdateMonTab(void)
 
 	// Update ESC Params
 	sprintf(temp, "%d", m_escParamsRcvd);
-	if (strcmp(m_sStatEscParams, temp) != 0)
+	if ((strcmp(m_sStatEscParams, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatEscParams, temp);
 		m_pStatEscParams->label(m_sStatEscParams);
@@ -2756,7 +2744,7 @@ void VTFX80Print::UpdateMonTab(void)
 		sprintf(temp, "Active - %d bytes", m_graphicsLength);
 	else
 		strcpy(temp, "Inactive");
-	if (strcmp(m_sStatGraphicsMode, temp) != 0)
+	if ((strcmp(m_sStatGraphicsMode, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatGraphicsMode, temp);
 		m_pStatGraphicsMode->label(m_sStatGraphicsMode);
@@ -2767,7 +2755,7 @@ void VTFX80Print::UpdateMonTab(void)
 		sprintf(temp, "%.0f DPI", m_graphicsDpi);
 	else
 		strcpy(temp, "N/A");
-	if (strcmp(m_sStatGraphicsRes, temp) != 0)
+	if ((strcmp(m_sStatGraphicsRes, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatGraphicsRes, temp);
 		m_pStatGraphicsRes->label(m_sStatGraphicsRes);
@@ -2778,7 +2766,7 @@ void VTFX80Print::UpdateMonTab(void)
 		sprintf(temp, "%d", m_graphicsRcvd);
 	else
 		strcpy(temp, "N/A");
-	if (strcmp(m_sStatGraphicsRcvd, temp) != 0)
+	if ((strcmp(m_sStatGraphicsRcvd, temp) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatGraphicsRcvd, temp);
 		m_pStatGraphicsRcvd->label(m_sStatGraphicsRcvd);
@@ -2796,7 +2784,7 @@ void VTFX80Print::UpdateMonTab(void)
 	}
 	else
 	{
-		if (strcmp(m_sStatUpdateChar, "N/A") != 0)
+		if ((strcmp(m_sStatUpdateChar, "N/A") != 0) || forceUpdate)
 		{
 			strcpy(m_sStatUpdateChar, "N/A");
 			strcpy(m_sStatLastChar, "N/A");
@@ -2810,7 +2798,7 @@ void VTFX80Print::UpdateMonTab(void)
 	// Update Font source
 	if (m_fontSource)
 	{
-		if (strcmp(m_sStatFontSource, "RAM") != 0)
+		if ((strcmp(m_sStatFontSource, "RAM") != 0) || forceUpdate)
 		{
 			strcpy(m_sStatFontSource, "RAM");
 			m_pStatFontSource->label(m_sStatFontSource);
@@ -2818,7 +2806,7 @@ void VTFX80Print::UpdateMonTab(void)
 	}
 	else
 	{
-		if (strcmp(m_sStatFontSource, "ROM") != 0)
+		if ((strcmp(m_sStatFontSource, "ROM") != 0) || forceUpdate)
 		{
 			strcpy(m_sStatFontSource, "ROM");
 			m_pStatFontSource->label(m_sStatFontSource);
@@ -2826,7 +2814,7 @@ void VTFX80Print::UpdateMonTab(void)
 	}
 
 	// Update International Char Set
-	if (strcmp(gIntlCharDesc[m_intlSelect], m_sStatIntlCharSet) != 0)
+	if ((strcmp(gIntlCharDesc[m_intlSelect], m_sStatIntlCharSet) != 0) || forceUpdate)
 	{
 		strcpy(m_sStatIntlCharSet, gIntlCharDesc[m_intlSelect]);
 		m_pStatIntlCharSet->label(m_sStatIntlCharSet);

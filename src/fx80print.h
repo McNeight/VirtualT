@@ -69,7 +69,7 @@ public:
 	virtual int			CancelPrintJob(void);		// Cancels the current print job
 	virtual int			GetErrorCount(void);		// Get count of print errors
 	virtual void		BuildMonTab(void);			// Builds the monitor tab
-	virtual void		UpdateMonTab(void);			// Updates the monitor tab
+	virtual void		UpdateMonTab(int forceUpdate=FALSE);			// Updates the monitor tab
 
 	int					IntlDipChanged(void);		// Called when a change made to DIP setting
 	void				CharRomBrowse(Fl_Widget* w);// Call back for ROM file browsing

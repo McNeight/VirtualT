@@ -53,7 +53,7 @@ public:
 	virtual void		Deinit(void);				// Deinit routine
 	virtual int			CancelPrintJob(void);
 	virtual void		BuildMonTab(void);			// Builds the montior tab
-	virtual void		UpdateMonTab(void);			// Updates values on the mon tab
+	virtual void		UpdateMonTab(int forceUpdate=FALSE);// Updates values on the mon tab
 
 protected:
 	virtual void		Init(void);					// Initialization routine
@@ -92,6 +92,7 @@ protected:
 
 	FILE*				m_OutFd;					// Output File Decriptor
 	MString				m_Filename;					// Filename of active print file
+	MStringArray		m_printFiles;				// Files printed to during session
 	unsigned char		m_LastBytePrinted;
 	int					m_PageNum;					// Current page number of opened file
 	int					m_ActiveSeqNum;				// Sequence number of active session, if any
