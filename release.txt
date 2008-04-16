@@ -5,9 +5,9 @@ VirtualT Release.txt
 
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
-======================
-v1.1  Not Released Yet
-======================
+===================
+v1.1  April 16 2008
+===================
 
 1.  Fixed a bug with Rampac Only emulation.  When this Memory Configuration was weleted, 
     the I/O operations were returning without performing any action because they were 
@@ -23,11 +23,14 @@ v1.1  Not Released Yet
     Rampac memory space during this condition.
 
 4.  Added LPT Device emulation support and configuration options on the Peripheral Setup dialog.
+    Added printer icon to main window to show printer status and provide a Popup menu
+    for printer control.
 
 5.  Added Emulated printer support for printing to Files and Host Port devices.
 
 6.  Added Epson FX-80 printer emulation with output to different "Papers".  Current papers
-    include Postscript files and "Virtual Paper" (FLTK Window).
+    include Postscript files, "Virtual Paper" (FLTK Window), Windows Printer, and Linux 'lpr'
+    command line printing.
 
 7.  Fixed issue with default (cold boot) year setting on M10 and PC-8201a models.
 
@@ -40,7 +43,14 @@ v1.1  Not Released Yet
 
 10. Fixed bug when cancelling file save operation that caused the program to crash.
 
-11. Added support for Kyocera KC85 emulation.  ROM Disassembly is only 50% complete.
+11. Added support for Kyocera KC85 emulation.
+
+12. Fixed bug with "Make OptROM Read/Write" option to save write operations between
+    bank switch operations.
+
+13. Added FLASH Program / Erase state machine to ReMem emulation.  State Machine supports
+    Programming, Chip and Sector Erase, CFI Query, Autoselect, and Reset commands.  Does
+    not support sector protection.
 
 
 ======================

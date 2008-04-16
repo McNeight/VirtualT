@@ -60,9 +60,10 @@ later.
 
 <h2><a name="periph">Peripheral Devices</a></h2>
 <p>The Peripheral Devices dialog presents device monitor tabs for each of the Model T built-in
-peripherals.  Currently, only the COM peripheral is supported by VirtualT and therefore only
-the COM tab conatains monitor controls.  As emulation for additional peripheral is added, new
-functionality will be added to the appropriate monitor tab on this dialog.
+peripherals.  Currently, the COM and LPT peripherals are supported by VirtualT and contain
+monitor controls.  In addition, emulated printers connected to the LPT port will have a monitor
+tab for displaying the current printer status.  Other tabs are only placeholders.
+
 <p><h3>COM Peripheral Tab</h3>
 <p>This tab shows the current status of the integrated RS-232 Serial port and provides a serial
 port monitor window to display traffic on the port.  To enable this feature, select the 
@@ -70,6 +71,37 @@ port monitor window to display traffic on the port.  To enable this feature, sel
 monitor window.
 <p>
 <img src="periph.jpg">
+
+<p><h3>LPT Tab</h3>
+<p>This tab shows the current status of the LPT emulation and provides an interface for 
+logging and saving LPT port data in hex format.  The currently selected printer will be
+displayed and an indication if there is an active print session.  Enabling the Hex Log will
+cause all data sent to the LPT from that point forward to be capture and displayed periodically
+in the hex display window.  The Hex data can be saved in ASCII format using the "Save Log"
+button or cleared using the "Clear Log" button.  The data captured represents the exact data
+that would appear on the physical LPT connector, including any CRLF translation setup on the
+LPT Setup tab.  It does not include translations or filtering performed by emulated printers.
+<p>
+<img src="lpt_mon.jpg">
+
+<p><a name="file_print"></a><h3>File Output</h3>
+<p>This tab shows the current status of the File Output Printer emulation.  Items reported
+on this tab include the active output filename, the file open/close status and the number of
+bytes and pages written during the active session.
+<p>
+<img src="file_print_mon.jpg">
+
+<p><h3>Host Device</h3>
+<p>This tab shows the current status of the Host Device Printer emulation including current
+Host Port name and Open/Closed status.
+<p>
+
+<p><a name="fx80_emulation"></a><h3>FX-80 Emulation</h3>
+<p>This tab shows the current status of the FX-80 Emulation.  The controls on this tab are for
+display purposes only and cannot affect the emulation status.
+<p>
+<img src="fx80_print_mon.jpg">
+
 
 <h2><a name="disassemble">Disassembler</a></h2>
 <p>The disassembler window provides a disassembly of the emulated model's System ROM.   Additional

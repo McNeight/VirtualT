@@ -110,6 +110,10 @@ shown below.
 and will show up in the ReMem memory space and RAM file.
 <li><b>ReMem + RamPac </b> - Emulates a ReMem expansion module and a Rampac.  Rampac accesses are directed
 to the Rampac memory space and saved in the Rampac RAM file.
+<p><li>ReMem Overrides Rampac - When both ReMem and Rampac are enabled, they can both respond to Rampac
+style I/O operations based on ReMem configuration.  This selection controls which emulation will respond
+to the I/O operations and therefore controls which memory space will be updated.  If this option is
+checked, then memory updates will be made to ReMem memory, otherwise they will be made to Rampac memory.
 <p><li>Make option ROM R/W - Useful for ReMem emulation.  Allows writes to the OptionROM space.
 <li>Patch ROM onload (...) - Enables / disables automatic patching to display version on MENU screen.
 </ul>
@@ -120,9 +124,9 @@ configuration of peripheral emulation options.  Currenlty the only peripheral th
 serial port.  The Peripheral Setup dialog is displayed below.  It has a separate configuration tab for each
 of of the peripherals on the Model T, although most of them are simply placeholders for future functionality.
 
-<p><img src="periph_setup.jpg" align="center">
 
 <h3>COM port setup tab</h3>
+<p><img src="periph_setup.jpg" align="center">
 <p>This tab provides configuration options for emulation of the Model T serial port.  The controls on this tab
 provide the follwoing functionality:
 <ul>
@@ -137,5 +141,72 @@ appropriate OS system calls to affect the desired response on a "real-world" ser
 configuration data can be monitored in the <a href="tools.html#periph">Peripherial Devices</a> dialog.
 
 <p>
+
+<h3>LPT port setup tab</h3>
+<p><img src="lpt_tab.jpg" align="center">
+<p>This tab provides configuration options for emulation of the Model T parallel port.  The controls on this tab
+provide the follwoing functionality:
+<ul>
+<li><b>No emulation</b> - No parallel port emulation provided.
+<li><b>Connect LPT To</b> - Emulates parallel port hardware and "connects" the printer specified in the listbox below
+to the emulated parallel port.  The selected printer can be configured using the "Printer Setup" button.
+<p><li>Convert lonely CR to LF - This option, if enabled, converts a single CR to a CRLF sequence.  If a
+CR is received as a CRLF pair, no conversion is provided.
+<p><li>Auto FormFeed after timeout - This option, if enabled, sends a FormFeed (FF) to the emulated printer
+after the spcified number of seconds.
+<p><li>Close Session after timeout - This option, if enabled, causes the print session to be automatically
+closed after a timeout.  See Print Session below.
+</ul>
+<p>All parallel port traffic is trapped by VirtualT and directed to the specified printer emulation for
+further processing.  For help on the emulated printers, see <a href="printers.html">Emulated Printers</a>.
+The LPT emulation maintains a Port Status to track I/O errors, aborted print jobs, and
+active Print Sessions.  The valid Port Status values are:
+
+<ul>
+<li>Idle - No printer activity or active print session open. Print Sesion closed.
+<li>Actv - Data actively being received on the LPT port. Print Session open.
+<li>Pend - Previously received data pending transmisison to the printer. Print Session open.
+<li>Err  - Indicates an error occurred on the emulated printer.
+<li>Abrt - A print job was aborted.  This status will be cleared automatically after a timeout.
+</ul>
+
+<p><b> Print Sessions</b>
+<p>
+As computers have become more advanced, so have the printer system associated with them.  Printing on 
+modern computers involves preparing a print job and submitting it for printing, usually to a print
+spooler or other print manager.  Since printing on the Model T consists simply of writing bytes to the
+LPT port until the job is complete, there is no defined ending for a "print job".  To accomodate printing
+to the Host's print spoolers, USB connected and network connected printers, the LPT emulation uses the
+concept of Print Sessions.  A Print Session is simply a way of defining a starting and ending point for
+a print job.  Data associated with a Print Session will be held until the Print Session is closed, at
+which point the entire print operation will be released for print.
+<p>Print Sessions are opened automatically when data is first received on the LPT port and will remain
+open until either closed automatically through selectable timeout or manually from the Printer Icon
+popup menu.  If automatic closure is selected, the timeout specified will be counted from the last
+byte received on the LPT port.  Any data received prior to expiration of the timeout time will reset
+the timer.
+
+<p><b>Printer Icon</b>
+<p>The printer icon on the bottom border of the main window indicates the curent Port Status and data
+activity.  Clicking on the Printer Icon will popup a Print Menu for controlling various printer
+operations.  During Idle or Pending states, the printer appears normally.  During active data transfer
+across the LPT port, the printer animates pages feeding through the printer.  If an error occurs, an
+exclamation point appears over the icon and if a print job is canceled, an X appears over the icon.  The
+status is also displayed in words to the right of the icon.  The Abort status is needed to allow trapping
+and ignoring additional data written to the LPT port after a print is aborted.  Since a Print Session
+is not opened for an aborted print job, simply returning to Idle state would prompt the user for print
+details upon receipt of the 2nd byte printed, then the 3rd, etc.  The Abort status can also be cleared
+by reseting the printer from the printer popup menu.
+
+<p>
+<p><b>Print Menu</b>
+<p><img src="print_menu.jpg">
+<p>The Print menu provides control of the current print session and the currently selected printer.  This
+is a popup menu that is accessed by clicking on the Printer Icon in the lower border of the Main Window.
+The options in this menu allow the user to cancel print jobs, submit pending print jobs to the destination
+output device (files or real printers), reset the printer and choose printer preferences.
+
+<p>
+
 </BODY>
 </HTML>

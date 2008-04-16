@@ -838,15 +838,18 @@ void load_remem_ram(void)
 	{
 		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH 
 
-		/* Write ReMem RAM first */
+		/* Read ReMem RAM first */
 		fread(gReMemRam, 1, size, fd);
 
-		/* Now write Flash */
+		/* Now read Flash */
 		fread(gReMemFlash1, 1, size, fd);
 		fread(gReMemFlash2, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
+
+		/* Now update the VirtualT version if needed */
+		patch_vt_version(gReMemFlash1, ROMSIZE);
 	}
 
 	/* Test if ReMem FLASH "Normal" region is empty */
@@ -1019,14 +1022,82 @@ void load_ram(void)
 load_opt_rom:  This function loads option ROMS as specified by user settings.
 =============================================================================
 */
-void load_sys_rom(void)
+void patch_vt_version(char* pMem, int size)
 {
-	FILE*			fd;
-	//int					fd;
 	unsigned short		address;
 	char				oldString[15];
 	char				newString[40];
 	int					c, srchLen, strLen;
+	int					found = FALSE;
+
+	/* Test if VirtulalT version should replace (C) Micro***t text */
+	if (gShowVersion)
+	{
+		if (gModel == MODEL_PC8201)
+		{
+			sprintf(newString, " VirtualT %s ", VERSION);
+			newString[14] = 0;
+			strcpy(oldString, "(C) Micro");
+		}
+		else
+		{
+			sprintf(newString, "VirtualT %s", VERSION);
+			newString[12] = 0;
+			strcpy(oldString, "(C)Micro");
+		}
+		strcat(oldString, "soft");
+		
+		/* Start by checking the address identified in the StdRomDescription */
+		address = gStdRomDesc->sMSCopyright;
+
+		/* Check if the address contains a (possibly previous version) VT string */
+		if (strncmp((char*) &pMem[address], "VirtualT", strlen("VirtualT")) == 0)
+			found = TRUE;
+
+		/* Check if the copyright string is where we expect it to be */
+		if (strncmp((char*) &pMem[address], oldString, strlen(oldString)) == 0)
+			found = TRUE;
+
+		if (!found)
+		{
+			/* Okay, the copyright string has been moved (by the user?)  Find it */
+			address = 0;
+			srchLen = size-strlen(oldString)-1;
+			strLen = strlen(oldString);
+
+			/* Loop through entire memory range */
+			for (c = 0; c < srchLen; c++)
+			{
+				/* Search for MSoft string */
+				if (strncmp((char*) &pMem[c], oldString, strLen) == 0)
+				{
+					address = (unsigned short) c;
+					break;
+				}
+				/* Search for VirtualT string */
+				if (strncmp((char*) &pMem[c], "VirtualT", strlen("VirtualT")) == 0)
+				{
+					address = (unsigned short) c;
+					break;
+				}
+			}
+		}
+
+		/* If the address is good, update the ROM */
+		if (address != 0)
+			strcpy((char*) &pMem[address], newString);
+	}
+}
+
+/*
+=============================================================================
+load_opt_rom:  This function loads option ROMS as specified by user settings.
+=============================================================================
+*/
+void load_sys_rom(void)
+{
+	FILE*			fd;
+	//int					fd;
 
 	/* Get Path to ROM based on current Model selection */
 	get_rom_path(file, gModel);
@@ -1043,7 +1114,7 @@ void load_sys_rom(void)
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
 
 	/* Read data from the ROM file */
-	if (fread(gSysROM, 1, ROMSIZE, fd)<ROMSIZE)
+	if ((int) fread(gSysROM, 1, ROMSIZE, fd) < ROMSIZE)
 	{
 		show_error("Error reading ROM file: Bad Rom file");
 	}
@@ -1069,48 +1140,8 @@ void load_sys_rom(void)
 	else 
 		gStdRomDesc = &gM100_Desc;
 
-	/* Test if VirtulalT version should replace (C) Micro***t text */
-	if (gShowVersion)
-	{
-		if (gModel == MODEL_PC8201)
-		{
-			sprintf(newString, " VirtualT %s ", VERSION);
-			newString[14] = 0;
-			strcpy(oldString, "(C) Micro");
-		}
-		else
-		{
-			sprintf(newString, "VirtualT %s", VERSION);
-			newString[12] = 0;
-			strcpy(oldString, "(C)Micro");
-		}
-		strcat(oldString, "soft");
-		
-		/* Start by checking the address identified in the StdRomDescription */
-		address = gStdRomDesc->sMSCopyright;
-
-		/* Check if the copyright string is where we expect it to be */
-		if (strncmp((char*) &gSysROM[address], oldString, strlen(oldString)) != 0)
-		{
-			/* Okay, the copyright string has been moved (by the user?)  Find it */
-			address = 0;
-			srchLen = ROMSIZE-strlen(oldString)-1;
-			strLen = strlen(oldString);
-
-			for (c = 0; c < srchLen; c++)
-			{
-				if (strncmp((char*) &gSysROM[c], oldString, strLen) == 0)
-				{
-					address = (unsigned short) c;
-					break;
-				}
-			}
-		}
-
-		/* If the address is good, update the ROM */
-		if (address != 0)
-			strcpy((char*) &gSysROM[address], newString);
-	}
+	/* Patch the ROM with VirtualT version if requested */
+	patch_vt_version(gSysROM, ROMSIZE);
 
 	/* Copy ROM into system memory */
 	memcpy(gBaseMemory, gSysROM, ROMSIZE);
@@ -1449,7 +1480,8 @@ void remem_set8(unsigned int address, unsigned char data)
 	}
 
 	/* Do FLASH state machine management */
-	if (gReMemMap[block] & (REMEM_VCTR_FLASH1_CS | REMEM_VCTR_FLASH2_CS) != 0x1800)
+	if ((gReMemMode & REMEM_MODE_NORMAL) && 
+		(gReMemMap[block] & (REMEM_VCTR_FLASH1_CS | REMEM_VCTR_FLASH2_CS)) != 0x1800)
 	{
 		int		*pFlashState;
 		UINT64	*pFlashTime;
@@ -1700,7 +1732,7 @@ int remem_out(unsigned char port, unsigned char data)
 		ret = 1;			/* Indicate port processed */
 
 		/* Test if old mode = new mode and do nothing if equal */
-		if (data == gReMemMode & 0x3F)
+		if (data == (gReMemMode & 0x3F))
 			break;
 
 		/*

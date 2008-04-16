@@ -140,6 +140,7 @@ void			remem_copy_mmu_to_block(int block);
 void			remem_copy_block_to_mmu(int block);
 unsigned char	remem_flash_sm_read(unsigned short address);
 void			remem_flash_proc_timer(void);
+void			patch_vt_version(char* pMem, int size);
 
 void			save_ram(void);
 void			load_ram(void);

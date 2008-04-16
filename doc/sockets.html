@@ -299,7 +299,8 @@ returns:     Parameter error
 <p>Specifies an ignore region on the LCD during LCD monitoring or returns a list
 of active ignore regions if no parameter is provided.  If the parameter is "none", 
 then all ignore regions are deleted.  If a parameter is specified, it must follow
-the format "(row, col)-(row, col)".  Up to 10 ignore regions can be defined.  During
+the format "(row, col)-(row, col)".  All row and col values are "1" based.
+Up to 10 ignore regions can be defined.  During
 LCD monitoring, any data written to an ignore region will not be reported on the 
 socket interface.  This is useful when monitoring repetitive operations, such as
 time updates on the MENU, etc.
@@ -316,7 +317,7 @@ returns:     Parameter error
              Ok
 </pre>
 <p>Turns LCD monitoring on, off or reports the current activation state if no 
-parameter is provided.  During LCD monitoring, and data written to the LCD that is
+parameter is provided.  During LCD monitoring, any data written to the LCD that is
 not part of an lcd_ignore region will be reported on the socket interface using
 an async event.  Data written to the LCD will be reported as strings as long as
 it is written to consecutive columns and the time between characters is less than 
