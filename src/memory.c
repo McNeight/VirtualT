@@ -1736,6 +1736,8 @@ int remem_out(unsigned char port, unsigned char data)
 
 	case REMEM_MODE_PORT:		/* ReMem mode port */
 		ret = 1;			/* Indicate port processed */
+		if (!gReMem)
+			break;
 
 		/* Test if old mode = new mode and do nothing if equal */
 		if (data == (gReMemMode & 0x3F))
@@ -1830,6 +1832,9 @@ int remem_out(unsigned char port, unsigned char data)
 		break;
 
 	case REMEM_SECTOR_PORT:
+		if (!gReMem)
+			break;
+
 		/* Test if MMU I/O Enable mode is set */
 		if (gReMemMode & REMEM_MODE_IOENABLE)
 		{
@@ -1848,6 +1853,9 @@ int remem_out(unsigned char port, unsigned char data)
 	case REMEM_DATA_PORT:
 		/* First check if RamPac Mode enabled */
 		ret = 1;
+		if (!gReMem)
+			break;
+
 		if (!(gReMemMode & REMEM_MODE_IOENABLE))
 			break;
 

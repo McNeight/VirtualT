@@ -655,11 +655,11 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
 	{
 		// Check if we are turning Host port emulation off
-		if ((mem_ctrl.pRampac->value() != 1) && (mem_ctrl.pReMem_Rampac->value() != 1))
-		{
+//		if ((mem_ctrl.pRampac->value() != 1) && (mem_ctrl.pReMem_Rampac->value() != 1))
+//		{
 			save_rampac_ram();		// Write Rampac memory to file
-			free_rampac_mem();		// Deallocate Rampac memory
-		}
+//			free_rampac_mem();		// Deallocate Rampac memory
+//		}
 	}
 
 	// Save old mem_mode so we know when to load data from file
