@@ -70,6 +70,9 @@ int				gRampacSaveCounter = 0;	/* Rampac emulation Counter */
 unsigned char	*gRampacSaveSectPtr = 0;/* Pointer to current Sector memory */
 int				gRampacEmulation = 0;/* ReMem's Rampac emulation active? */
 
+int				gRex;				/* Rex Emulation Enable flag */
+unsigned char	*gRexRam;			/* Rex RAM pointer */
+
 int				gIndex[65536];
 
 extern RomDescription_t		gM100_Desc;
@@ -893,7 +896,7 @@ void load_rampac_ram(void)
 	int		size;
 
 	/* Open Rampac file */
-	fd = fopen(mem_setup.rampac_file, "wb+");
+	fd = fopen(mem_setup.rampac_file, "rb+");
 
 	/* Check if file opened successfully */
 	if (fd != 0)
@@ -1019,7 +1022,10 @@ void load_ram(void)
 
 /*
 =============================================================================
-load_opt_rom:  This function loads option ROMS as specified by user settings.
+patch_vt_version:  This function patches the VirtualT verison in the ROM
+					memory space specified.  It searches for M**soft and
+					old VirtulT Version strings in case an old VT version is
+					saved in a ReMem Flash memory.
 =============================================================================
 */
 void patch_vt_version(char* pMem, int size)
