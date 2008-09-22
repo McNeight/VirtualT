@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.7 2008/02/10 06:52:31 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.8 2008/03/08 04:08:36 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -829,7 +829,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	// may exist.
 	if (file_type == TYPE_BA)
 	{
-		addr3 = get_memory16(gStdRomDesc->sFilePtrBA)+len;
+		addr3 = get_memory16(gStdRomDesc->sFilePtrBA);
 
 		while (get_memory16(addr3) != 0)
 		{
