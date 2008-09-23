@@ -3,7 +3,40 @@ VirtualT Release.txt
 ====================
 
 
+
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
+
+=======================
+v1.2  September 22 2008
+=======================
+
+1.  Fixed a bug with the Remem Overrides Rampac checkbox where it wouldn't properly override
+    the Rampac operations.
+
+2.  Fixed a bug when changing from Rampac Only to ReMem + Rampac memory mode where the Rampac
+    RAM file was not being saved properly.
+
+3.  Fixed issue while loading .BA files from the "Load from HD" feature.  During the relocation
+    of the "unsaved BASIC program", .DO and .CO files could potentially be corrupted due to
+    an error in memory pointer calculations.
+
+4.  Added features to both the "CPU Registers" and the socket interface debugger to allow
+    stepping over function call (CALL, CZ, CNZ, etc.) and RST statements.  Performing
+    multiple "step over" operations currently does not properly break at any defined breakpoints.
+
+5.  Added a feature to both the "CPU Registers" and socket interface debuggers to enable /
+    disable debugging if ISRs (Interrupt Service Routines).  If the ISR debugging is disabled,
+    the debugger will not stop / halt in the middle of an ISR, and performing single step or
+    step over functions will not "step into" an ISR.  The ISR will complete and the single 
+    step function will return control after the RET, RZ, etc. instruction has executed.  Also
+    added a shortcut key for single stepping ("s") in the socket interface.
+
+6.  Fixed a bug with Tandy 200 serial port TX_EMPTY signal handling that caused high-speed
+    transfers to overwrite data prior to being sent to the serial port.
+
+7.  Fixed an issue with printer initialization when opening the Peripherals window that could
+    cause it to crash the program sometimes.
+ 
 
 ===================
 v1.1  April 16 2008
