@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.5 2008/02/10 06:52:31 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.7 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -65,6 +65,7 @@ int					gRadix = 10;		// Radix used for reporting values
 int					gRemoteBreak[65536];// Storage of breakpoint types
 int					gBreakActive = 0;	// Indicates if an active debug was reported
 int					gHaltActive = 0;	// Indicates if an active halt was issued
+int					gStepOverBreak = -1;// Indicates if a break was for a "Step Over"
 int					gLcdTrapAddr = -1;	// Address of LCD level 6 output routine
 int					gLcdRowAddr = -1;	// Address of LCD output row storage
 int					gMonitorLcd = 0;	// Flag indicating if LCD is monitored
@@ -119,6 +120,7 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "Help\n====\n";
 	sock << "  clear_break(cb) address\n";
 	sock << "  cold_boot\n";
+	sock << "  debug_isr(isr) [on off]\n";
 	sock << "  dis address [lines]\n";
 	sock << "  flags [all S Z ac P=1 s=0 ...]\n";
 	sock << "  halt\n";
@@ -138,7 +140,8 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "  run\n";
 	sock << "  set_break(sb) address [main opt mplan ram ram2 ram3]\n";
 	sock << "  speed [2.4 friendly max]\n";
-	sock << "  step [count]\n";
+	sock << "  step(s) [count]\n";
+	sock << "  step_over(so) [count]\n";
 	sock << "  string address\n";
 	sock << "  terminate\n";
 	sock << "  write_mem(wm) address [data data data ...]\n";
@@ -406,6 +409,14 @@ void cb_remote_debug(int reason)
 	unsigned char	bank;
 	char			str[40];
 
+	// Test if callback is for an interrupt
+	if (reason == DEBUG_INTERRUPT)
+	{
+//		gIntActive = TRUE;
+//		gIntSP = SP;
+		return;
+	}
+
 	// Check if trace is on
 	if (gTraceActive && gTraceOpen)
 	{
@@ -453,7 +464,7 @@ void cb_remote_debug(int reason)
 			}
 
 			// Report break to client socket
-			if (gStopped)
+			if (gStopped && (PC != gStepOverBreak))
 			{
 				if (gSocketOpened)
 				{
@@ -658,6 +669,101 @@ std::string cmd_step(ServerSocket& sock, std::string& args)
 
 		while (gSingleStep)
 			fl_wait(0.001);
+	}
+	
+	return "Ok";
+}
+
+/*
+=======================================================
+Step command:  Single steps the CPU the specified
+				number of steps.
+=======================================================
+*/
+std::string cmd_step_over(ServerSocket& sock, std::string& args)
+{
+	int				value, inst, saveBrk;
+	std::string 	next_arg;
+	std::string 	more_args;
+	int				c, addr;
+
+	// If argument list is empty, assume 1
+	if (args == "")
+	{
+		next_arg = "1";
+	}
+	else
+	{
+		// Get first parameter if more than 1
+		next_arg = get_next_arg(args);
+	}
+
+	// Get address of read
+	value = str_to_i(next_arg.c_str());
+	if (value < 0)
+		return "Parameter Error\nOk";
+
+	// Loop for each step
+	for (c = 0; c < value; c++)
+	{
+		// Get the next instruction
+		addr = PC;
+		inst = get_memory8(addr);
+
+		// Check if instruction is a CALL type inst.
+		if (((inst & 0xC7) == 0xC4) || (inst == 0xCD) || ((inst & 0xC7) == 0xC7)) 
+		{
+			if ((inst & 0xC7) == 0xC7)
+			{
+				if ((inst == 0xCF) || (inst == 0xFF))
+				{
+					// Its a RST 1 or RST 7 instruction
+					addr += 2;
+					saveBrk = gRemoteBreak[addr];
+					gRemoteBreak[addr] = 0x1F;
+					gStepOverBreak = addr;
+				}
+				else
+				{
+					// Its an RST instruction
+					addr++;
+					saveBrk = gRemoteBreak[addr];
+					gRemoteBreak[addr] = 0x2F;
+					gStepOverBreak = addr;
+				}
+			}
+			else
+			{
+				// It's a CAlL, CZ, etc. instruction
+				addr += 3;
+				saveBrk = gRemoteBreak[addr];
+				gRemoteBreak[addr] = 0x3F;
+				gStepOverBreak = addr;
+			}
+
+			// Take the processor out of STOP mode
+			lock_remote();
+			gStopped = 0;
+			unlock_remote();
+
+			// Wait for the processor to stop again
+			while (!gStopped)
+				fl_wait(0.001);
+
+			gRemoteBreak[addr] = saveBrk;
+			gStepOverBreak = -1;
+		}
+		else
+		{
+			// Not a CALL or RST - process as single step
+			lock_remote();
+			gSingleStep = 1;
+			unlock_remote();
+
+			// Wait for single step to complete
+			while (gSingleStep)
+				fl_wait(0.001);
+		}
 	}
 	
 	return "Ok";
@@ -2047,6 +2153,43 @@ std::string cmd_lcd_mon(ServerSocket& sock, std::string& args)
 
 /*
 =======================================================
+Lcd_mon command:  Enables or disables LCD monitoring.
+=======================================================
+*/
+std::string cmd_debug_isr(ServerSocket& sock, std::string& args)
+{
+	int		c;
+
+	// Get breakpoint arguments
+	if (args == "")
+	{
+		if (gDebugInts)
+			return "on\nOk";
+		else
+			return "off\nOk";
+	}
+
+	std::transform(args.begin(), args.end(), args.begin(), (int(*)(int)) std::tolower);
+	if (args == "on")
+	{
+		lock_remote();
+		gDebugInts = TRUE;
+		unlock_remote();
+	}
+	else if (args == "off")
+	{
+		lock_remote();
+		gDebugInts = FALSE;
+		unlock_remote();
+	}
+	else
+		return "Parameter Error\nOk";
+
+	return "Ok";
+}
+
+/*
+=======================================================
 string command:  Outputs data at address as a string.
 =======================================================
 */
@@ -2315,7 +2458,7 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	else if (cmd_word == "flags")
 		ret = cmd_flags(sock, args);
 
-	else if (cmd_word == "step")
+	else if ((cmd_word == "step") || (cmd_word == "s"))
 		ret = cmd_step(sock, args);
 
 	else if ((cmd_word == "lcd_mon") || (cmd_word == "lm"))
@@ -2396,6 +2539,12 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	else if (cmd_word == "optrom")
 		ret = cmd_optrom(sock, args);
 
+	else if ((cmd_word == "step_over") || (cmd_word == "so"))
+		ret = cmd_step_over(sock, args);
+
+	else if ((cmd_word == "debug_isr") || (cmd_word == "isr"))
+		ret = cmd_debug_isr(sock, args);
+
 	return ret;
 }
 
@@ -2470,10 +2619,6 @@ void init_remote(void)
 #ifdef WIN32
 	DWORD id;
 	gRemoteLock = CreateMutex(NULL, FALSE, NULL);
-	gRemoteThread = CreateThread( NULL, 0,
-			(LPTHREAD_START_ROUTINE) remote_control,
-			NULL, 0, &id);
-
 	WORD wVersionRequested; 
 	WSADATA wsaData; 
 	int err; 
@@ -2502,6 +2647,10 @@ void init_remote(void)
         WSACleanup( ); 
         return;    
     } 
+
+	gRemoteThread = CreateThread( NULL, 0,
+			(LPTHREAD_START_ROUTINE) remote_control,
+			NULL, 0, &id);
 
 #else
 	// Initialize thread processing

@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: m100emu.h,v 1.1.1.1 2004/08/05 06:46:11 deuce Exp $ */
+/* $Id: m100emu.h,v 1.7 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -60,6 +60,8 @@ void	debug_halt(void);
 void	debug_run(void);
 void	remote_switch_model(int model);
 extern	char	gDebugActive;
+extern	char	gIntActive;
+extern	char	gDebugInts;
 extern	char	gStopped;
 extern	char	gSingleStep;
 extern	int		gDebugMonitorFreq;
@@ -70,6 +72,7 @@ extern	int		gNoGUI;
 #define	DEBUG_CPU_HALTED	2
 #define	DEBUG_CPU_RESUME	3
 #define	DEBUG_CPU_STEP		4 
+#define	DEBUG_INTERRUPT		5
 
 #define	SPEED_REAL			0
 #define	SPEED_FRIENDLY1		1

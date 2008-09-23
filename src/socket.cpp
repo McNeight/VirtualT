@@ -36,7 +36,10 @@ bool Socket::create()
 		    0 );
 
   if ( ! is_valid() )
-    return false;
+  {
+	int err = WSAGetLastError();
+	return false;
+  }
 
 
   // TIME_WAIT - argh

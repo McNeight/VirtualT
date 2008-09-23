@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.0 2006/03/27 06:46:12 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -407,7 +407,7 @@ void debug_monitor_cb(int fMonType, unsigned char data)
 }
 }
 
-char get_m()
+unsigned char get_m()
 {
 	if (gReMem)
 		return (gMemory[gIndex[HL]][HL & 0x3FF]);
@@ -426,6 +426,7 @@ void activate_controls()
 	// Change activation state of processor controls
 	cpuregs_ctrl.pStop->deactivate();
 	cpuregs_ctrl.pStep->activate();
+	cpuregs_ctrl.pStepOver->activate();
 	cpuregs_ctrl.pRun->activate();
 	cpuregs_ctrl.pRedraw->activate();
 
@@ -489,20 +490,29 @@ void debug_cpuregs_cb (int reason)
 	// Check for breakpoint
 	if (!gStopped)
 	{
-		for (x = 0; x < 4; x++)
+		for (x = 0; x < 5; x++)
 		{
 			if ((PC == cpuregs_ctrl.breakAddr[x]) && (cpuregs_ctrl.breakEnable[x]))
 			{
 				activate_controls();
-				clear_trace();
 				gStopped = 1;
+
+				// Clear 'step over' breakpoint
+				if (x == 4)
+					cpuregs_ctrl.breakAddr[x] = -1;
+				else
+					clear_trace();
 			}
 		}
 	}
 
 	if (!gStopped)
+	{
+		if (cpuregs_ctrl.breakAddr[4] != -1)
+			return;
 		if (++gDebugCount < gDebugMonitorFreq)
 			return;
+	}
 
 	gDebugCount = 0;
 
@@ -598,13 +608,108 @@ void debug_cpuregs_cb (int reason)
 	if (gStopCountdown > 0)
 	{
 		// We countdown to a stop so the last 8 trace steps make sense
-		if (--gStopCountdown == 0)
+		if (gStopCountdown == 1)
 		{
-			gStopped = 1;
-			gDebugMonitorFreq = gSaveFreq;
+			if (!gIntActive)
+			{
+				gStopped = 1;
+				gDebugMonitorFreq = gSaveFreq;
+				gStopCountdown = 0;
+			}
 		}
+		else
+			--gStopCountdown;
 	}
 
+}
+
+/*
+============================================================================
+Routine to deactivate the debugging controls
+============================================================================
+*/
+void deactivate_controls(void)
+{
+	// Change activation state of processor controls
+	cpuregs_ctrl.pStop->activate();
+	cpuregs_ctrl.pStep->deactivate();
+	cpuregs_ctrl.pStepOver->deactivate();
+	cpuregs_ctrl.pRun->deactivate();
+	cpuregs_ctrl.pRedraw->deactivate();
+
+	// Deactivate the edit fields to allow register updates
+	cpuregs_ctrl.pRegA->deactivate();
+	cpuregs_ctrl.pRegB->deactivate();
+	cpuregs_ctrl.pRegC->deactivate();
+	cpuregs_ctrl.pRegD->deactivate();
+	cpuregs_ctrl.pRegE->deactivate();
+	cpuregs_ctrl.pRegH->deactivate();
+	cpuregs_ctrl.pRegL->deactivate();
+	cpuregs_ctrl.pRegPC->deactivate();
+	cpuregs_ctrl.pRegSP->deactivate();
+	cpuregs_ctrl.pRegBC->deactivate();
+	cpuregs_ctrl.pRegDE->deactivate();
+	cpuregs_ctrl.pRegHL->deactivate();
+	cpuregs_ctrl.pRegM->deactivate();
+
+	// Deactivate Flags
+	cpuregs_ctrl.pSFlag->deactivate();
+	cpuregs_ctrl.pZFlag->deactivate();
+	cpuregs_ctrl.pCFlag->deactivate();
+	cpuregs_ctrl.pTSFlag->deactivate();
+	cpuregs_ctrl.pACFlag->deactivate();
+	cpuregs_ctrl.pPFlag->deactivate();
+	cpuregs_ctrl.pOVFlag->deactivate();
+	cpuregs_ctrl.pXFlag->deactivate();
+
+	// Deactivate breakpoints
+	cpuregs_ctrl.pBreak1->deactivate();
+	cpuregs_ctrl.pBreak2->deactivate();
+	cpuregs_ctrl.pBreak3->deactivate();
+	cpuregs_ctrl.pBreak4->deactivate();
+	cpuregs_ctrl.pBreakDisable1->deactivate();
+	cpuregs_ctrl.pBreakDisable2->deactivate();
+	cpuregs_ctrl.pBreakDisable3->deactivate();
+	cpuregs_ctrl.pBreakDisable4->deactivate();
+}
+
+/*
+============================================================================
+Routine to handle 'Step Over' button
+============================================================================
+*/
+void cb_debug_step_over(Fl_Widget* w, void*)
+{
+	int		inst;
+
+	// Get Register updates
+	get_reg_edits();
+
+	// Determine the 'step over' breakpoint location
+	inst = get_memory8(PC);
+	if (((inst & 0xC7) == 0xC4) || (inst == 0xCD)) 
+	{
+		cpuregs_ctrl.breakAddr[4] = PC+3;
+	}
+	else if ((inst & 0xC7) == 0xC7)
+	{
+		if ((inst == 0xCF) || (inst == 0xFF))
+			cpuregs_ctrl.breakAddr[4] = PC+2;
+		else
+			cpuregs_ctrl.breakAddr[4] = PC+1;
+	}
+	else
+	{
+		// Single step the processor
+		gSingleStep = 1;
+		return;
+	}
+
+	// Deactivate the controls
+//	deactivate_controls();
+
+	// Start the processor
+	gStopped = 0;
 }
 
 /*
@@ -643,46 +748,8 @@ Routine to handle Run button
 */
 void cb_debug_run(Fl_Widget* w, void*)
 {
-	// Change activation state of processor controls
-	cpuregs_ctrl.pStop->activate();
-	cpuregs_ctrl.pStep->deactivate();
-	cpuregs_ctrl.pRun->deactivate();
-	cpuregs_ctrl.pRedraw->deactivate();
-
-	// Deactivate the edit fields to allow register updates
-	cpuregs_ctrl.pRegA->deactivate();
-	cpuregs_ctrl.pRegB->deactivate();
-	cpuregs_ctrl.pRegC->deactivate();
-	cpuregs_ctrl.pRegD->deactivate();
-	cpuregs_ctrl.pRegE->deactivate();
-	cpuregs_ctrl.pRegH->deactivate();
-	cpuregs_ctrl.pRegL->deactivate();
-	cpuregs_ctrl.pRegPC->deactivate();
-	cpuregs_ctrl.pRegSP->deactivate();
-	cpuregs_ctrl.pRegBC->deactivate();
-	cpuregs_ctrl.pRegDE->deactivate();
-	cpuregs_ctrl.pRegHL->deactivate();
-	cpuregs_ctrl.pRegM->deactivate();
-
-	// Deactivate Flags
-	cpuregs_ctrl.pSFlag->deactivate();
-	cpuregs_ctrl.pZFlag->deactivate();
-	cpuregs_ctrl.pCFlag->deactivate();
-	cpuregs_ctrl.pTSFlag->deactivate();
-	cpuregs_ctrl.pACFlag->deactivate();
-	cpuregs_ctrl.pPFlag->deactivate();
-	cpuregs_ctrl.pOVFlag->deactivate();
-	cpuregs_ctrl.pXFlag->deactivate();
-
-	// Deactivate breakpoints
-	cpuregs_ctrl.pBreak1->deactivate();
-	cpuregs_ctrl.pBreak2->deactivate();
-	cpuregs_ctrl.pBreak3->deactivate();
-	cpuregs_ctrl.pBreak4->deactivate();
-	cpuregs_ctrl.pBreakDisable1->deactivate();
-	cpuregs_ctrl.pBreakDisable2->deactivate();
-	cpuregs_ctrl.pBreakDisable3->deactivate();
-	cpuregs_ctrl.pBreakDisable4->deactivate();
+	// Deactivate the debug controls
+	deactivate_controls();
 
 	// Get Register updates
 	get_reg_edits();
@@ -2067,6 +2134,9 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	cpuregs_ctrl.pBreakDisable4 = new Fl_Check_Button(365, 395, 40, 20, "Off");
 	cpuregs_ctrl.pBreakDisable4->deactivate();
 
+	cpuregs_ctrl.pDebugInts = new Fl_Check_Button(465, 375, 40, 20, "Debug ISRs");
+	cpuregs_ctrl.pDebugInts->value(gDebugInts);
+
 	// Create Stop button
 	cpuregs_ctrl.pStop = new Fl_Button(30, 445, 80, 25, "Stop");
 	cpuregs_ctrl.pStop->callback(cb_debug_stop);
@@ -2076,13 +2146,18 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	cpuregs_ctrl.pStep->deactivate();
 	cpuregs_ctrl.pStep->callback(cb_debug_step);
 
+	// Create Step button
+	cpuregs_ctrl.pStepOver = new Fl_Button(230, 445, 100, 25, "Step Over");
+	cpuregs_ctrl.pStepOver->deactivate();
+	cpuregs_ctrl.pStepOver->callback(cb_debug_step_over);
+
 	// Create Run button
-	cpuregs_ctrl.pRun = new Fl_Button(230, 445, 80, 25, "Run");
+	cpuregs_ctrl.pRun = new Fl_Button(350, 445, 80, 25, "Run");
 	cpuregs_ctrl.pRun->deactivate();
 	cpuregs_ctrl.pRun->callback(cb_debug_run);
 
 	// Create Redraw button
-	cpuregs_ctrl.pRedraw = new Fl_Button(330, 445, 80, 25, "Redraw");
+	cpuregs_ctrl.pRedraw = new Fl_Button(450, 445, 80, 25, "Redraw");
 	cpuregs_ctrl.pRedraw->deactivate();
 	cpuregs_ctrl.pRedraw->callback(cb_redraw_trace);
 
@@ -2095,14 +2170,11 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	// Indicate an active debug window
 	gDebugActive++;
 	cpuregs_ctrl.breakMonitorFreq = 0;
-	cpuregs_ctrl.breakAddr[0] = -1;
-	cpuregs_ctrl.breakAddr[1] = -1;
-	cpuregs_ctrl.breakAddr[2] = -1;
-	cpuregs_ctrl.breakAddr[3] = -1;
-	cpuregs_ctrl.breakEnable[0] = 1;
-	cpuregs_ctrl.breakEnable[1] = 1;
-	cpuregs_ctrl.breakEnable[2] = 1;
-	cpuregs_ctrl.breakEnable[3] = 1;
+	for (int x = 0; x < 5; x++)
+	{
+		cpuregs_ctrl.breakAddr[x] = -1;
+		cpuregs_ctrl.breakEnable[x] = 1;
+	}
 }
 
 

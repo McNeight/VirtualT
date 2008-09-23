@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.14 2008/03/01 15:41:11 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.19 2008/03/25 02:28:33 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -117,6 +117,9 @@ RomDescription_t			*gStdRomDesc = NULL;
 
 /* Define Debug global variables */
 char					gDebugActive = 0;
+char					gDebugInts = TRUE;
+char					gIntActive = 0;
+unsigned short			gIntSP = 0;
 char					gStopped = 0;
 char					gSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
@@ -668,9 +671,14 @@ __inline void check_interrupts(void)
 
 	/* TRAP should be first */
 
-	if(RST65PEND && !INTDIS && !RST65MASK) {
+	if(RST65PEND && !INTDIS && !RST65MASK) 
+	{
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 6.5 CALLed\n");
+
+		if (gDebugInts)
+			gIntActive = TRUE;
+		gIntSP = SP;
 		DECSP2;
 		if (gReMem)
 		{
@@ -694,6 +702,10 @@ __inline void check_interrupts(void)
 	else if(RST75PEND && !INTDIS && !RST75MASK) {
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 CALLed\n");
+
+		if (gDebugInts)
+			gIntActive = TRUE;
+		gIntSP = SP;
 		DECSP2;
 		if (gReMem)
 		{
@@ -840,7 +852,8 @@ void do_debug_stuff(void)
 			process_windows_event();
 		}
 		gOsDelay = 0;
-		gSingleStep = 0;
+//		if (!gIntActive)
+			gSingleStep = 0;
 	}
 	lock_remote();
 }
@@ -885,6 +898,18 @@ void emulate(void)
 					check_interrupts();
 				}
 
+				// Check for return from interrupt
+				if (gIntActive)
+				{
+					if (SP == gIntSP)
+						gIntActive = FALSE;
+				}
+				if (gSingleStep)
+				{
+					if (!gIntActive)
+						gSingleStep = 0;
+				}
+
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */
 				if(!(--nxtmaint & 0x3FF)) 
 				{
@@ -920,6 +945,18 @@ void emulate(void)
 				if (get_memory8(PC) == 0xF3)
 				{
 					check_interrupts();
+				}
+
+				// Check for return from interrupt
+				if (gIntActive)
+				{
+					if (SP == gIntSP)
+						gIntActive = FALSE;
+				}
+				if (gSingleStep)
+				{
+					if (!gIntActive)
+						gSingleStep = 0;
 				}
 
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */

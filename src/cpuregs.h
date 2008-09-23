@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.3 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -69,6 +69,8 @@ typedef struct cpuregs_ctrl_struct
 	Fl_Check_Button*	pBreakDisable3;
 	Fl_Check_Button*	pBreakDisable4;
 
+	Fl_Check_Button*	pDebugInts;
+
 	Fl_Check_Button*	pSFlag;
 	Fl_Check_Button*	pZFlag;
 	Fl_Check_Button*	pTSFlag;
@@ -114,12 +116,13 @@ typedef struct cpuregs_ctrl_struct
 	int					iInstTraceHead;
 	Fl_Check_Button*	pDisableTrace;
 
-	int					breakAddr[4];
-	int					breakEnable[4];
+	int					breakAddr[5];
+	int					breakEnable[5];
 	int					breakMonitorFreq;
 
 	Fl_Button*			pStop;
 	Fl_Button*			pStep;
+	Fl_Button*			pStepOver;
 	Fl_Button*			pRun;
 	Fl_Button*			pRedraw;
 
