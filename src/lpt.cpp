@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.12 2008/03/31 08:23:54 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -1510,8 +1510,9 @@ Build the Monitor Tab controls for the specified printer
 */
 void VTLpt::BuildPrinterMonTab(int printer)
 {
-	if (printer < m_Printers.GetSize())
-		((VTPrinter*) m_Printers[printer])->BuildMonTab();
+	if (m_EmulationMode != LPT_MODE_NONE)
+		if (printer < m_Printers.GetSize())
+			((VTPrinter*) m_Printers[printer])->BuildMonTab();
 }
 
 /*

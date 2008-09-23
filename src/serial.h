@@ -1,6 +1,6 @@
 /* serial.h */
 
-/* $Id: serial.h,v 1.5 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: serial.h,v 1.6 2008/02/25 03:20:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -144,7 +144,7 @@ typedef struct ser_params
 	char			rx_buf[128];		// Read buffer
 	int				rxIn;				// Read buffer input location
 	int				rxOut;				// Read buffer output location
-	char			tx_buf[32];			// Read buffer
+	char			tx_buf[128];		// Write buffer
 	int				txIn;				// Read buffer input location
 	int				txOut;				// Read buffer output location
 	int				tx_empty;			// Flag to indicate when TX is done

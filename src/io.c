@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.10 2008/02/17 13:25:26 kpettit1 Exp $ */
+/* $Id: io.c,v 1.13 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1067,16 +1067,17 @@ int inport(uchar port)
 		case 0xCF:
 			if (gModel == MODEL_T200)
 			{
-				ret = 1;
+				ret = 0;
 				if (ser_get_flags(&flags) == SER_PORT_NOT_OPEN)
 				{
-					ret = SER_FLAG_TX_EMPTY << 2;
+					ret = (SER_FLAG_TX_EMPTY << 2) | 1;
 				}
 				else
 				{
 					ret |= (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR)) << 3;
 					ret |= flags & SER_FLAG_PARITY_ERR;
-					ret |= (flags & SER_FLAG_TX_EMPTY) << 2; 
+					ret |= (flags & SER_FLAG_TX_EMPTY);
+					ret |= (flags & SER_FLAG_TX_EMPTY) << 2;
 					ret |= (flags & SER_FLAG_DSR) << 1;
 				}
 			}
