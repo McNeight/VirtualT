@@ -140,11 +140,11 @@ The commands that VirtualT supports are:
 
 <ul><h3>Debug Commands:</h3>
 <ul>
-<a href="#clear_break">clear_break</a>, <a href="#dis">dis</a>, <a href="#halt">halt</a>, 
-<a href="#lcd_ignore">lcd_ignore</a>, <a href="#lcd_mon">lcd_mon</a>, 
+<a href="#clear_break">clear_break</a>, <a href="#debug_isr">debug_isr</a>, <a href="#dis">dis</a>, 
+<a href="#halt">halt</a>, <a href="#lcd_ignore">lcd_ignore</a>, <a href="#lcd_mon">lcd_mon</a>, 
 <a href="#list_break">list_break</a>, 
 <a href="#run">run</a>, <a href="#set_break">set_break</a>, 
-<a href="#step">step</a>, 
+<a href="#step">step</a>, <a href="#step_over">step_over</a> 
 </ul>
 </ul>
 
@@ -173,6 +173,25 @@ returns:     Ok
 
 <hr>
 
+<h3><a name="debug_isr">debug_isr (isr)</a></h3>
+<ul><pre>
+parameters:  ["on" "off"]
+
+returns:     Parameter error
+             Current ISR debug state
+             Ok
+</pre>
+<p>Sets the current state for debugging ISRs, or returns the current state if no
+parameter is supplied.  Turning off debugging of ISR allows single stepping of
+assembly programs without the interruption of periodic interrupts from the 
+system's RST 7.5 background ISR.  When an interrupt is encountered during single
+stepping, the debugger will allow the ISR to run to completion before halting the
+processor, and the effect will appear to be a true single step operation.
+
+</ul>
+
+<hr>
+
 <h3><a name="dis">dis</a></h3>
 <ul><pre>
 parameters:  [address [lineCount]]
@@ -181,7 +200,7 @@ returns:     Parameter error
              Disassembled lines of code
              Ok
 </pre>
-<p>Dissasemles object code using VirtualT's disassembler function.  Includes comments for
+<p>Dissasembles object code using VirtualT's disassembler function.  Includes comments for
 the known addresses and variables.  The starting address can be supplied or ommited to 
 continue disassembly from the last disassembled address.  If the address is supplied, then 
 a line count can also be provided to specify the number of lines to disassemble.
@@ -546,7 +565,7 @@ etc.
 
 <hr>
 
-<h3><a name="step">step</a></h3>
+<h3><a name="step">step (s)</a></h3>
 <ul><pre>
 parameters:  [count]
 
@@ -556,6 +575,24 @@ returns:     Parameter Error
 <p>Causes the CPU to execute one or more instruction beginning at the current Program 
 Counter (PC) location.  If no parameter is provided, a single instruction is executed, 
 otherwise 'count' instrutions will be executed.
+
+</ul>
+
+<hr>
+
+<h3><a name="step_over">step_over (so)</a></h3>
+<ul><pre>
+parameters:  [count]
+
+returns:     Parameter Error
+             Ok
+</pre>
+<p>Causes the CPU to step over any RST, CALL, CZ, CNZ, etc. instruction and return control
+at the next instruction.  The subroutine which is the target of the RST, CALL, etc. will be
+executed entirely.  This is accomplished by setting a temporary breakpoint at the instruction
+just after the RST, CALL, etc. and allowing the processor to run.  If a breakpoint is 
+encountered within the subroutine, running the processor 'run' will cause the program to 
+continue to the intended location of the single step.
 
 </ul>
 
