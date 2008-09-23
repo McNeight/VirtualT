@@ -3,11 +3,11 @@ VirtualT Release.txt
 ====================
 
 
-
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
+
 =======================
-v1.2  September 22 2008
+v1.3  September 22 2008
 =======================
 
 1.  Fixed a bug with the Remem Overrides Rampac checkbox where it wouldn't properly override
@@ -36,7 +36,15 @@ v1.2  September 22 2008
 
 7.  Fixed an issue with printer initialization when opening the Peripherals window that could
     cause it to crash the program sometimes.
- 
+
+8.  Fixed a race condition with socket port creation vs socket interface initialization on
+    Windows that would frequently cause the socket creation to fail. 
+
+
+==============================
+v1.2  Never Offically released
+==============================
+
 
 ===================
 v1.1  April 16 2008
