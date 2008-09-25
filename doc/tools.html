@@ -28,8 +28,11 @@ while the CPU is executing.  To enable editing of CPU registers, use the Stop pu
 to halt the CPU emulation and activate the edit fields.
 
 <p>In addition to displaying CPU registers, the dialog provides limited debug capability 
-and a disassembly window.  The debug features consist of Stop, Step and Run buttons and
-four edit fields for specifying debug breakpoints and enabling and disabling them.
+and a disassembly window.  The debug features consist of Stop, Step Step Over and Run buttons and
+four edit fields for specifying debug breakpoints and enabling and disabling them.  Also,
+the debugger can be configured to ignore ISR debugging which will prevent single step operations
+from stepping into an interrupt handler.  The ISR will be allowed to complete before the single
+step operation is considered complete.
 <p>
 <img src="cpu_regs.jpg">
 
