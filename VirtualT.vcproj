@@ -216,6 +216,10 @@
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
 			<File
+				RelativePath=".\src\clock.cpp"
+				>
+			</File>
+			<File
 				RelativePath="src\cpuregs.cpp"
 				>
 				<FileConfiguration
@@ -1052,6 +1056,10 @@
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl"
 			>
+			<File
+				RelativePath=".\src\clock.h"
+				>
+			</File>
 			<File
 				RelativePath="src\cpu.h"
 				>

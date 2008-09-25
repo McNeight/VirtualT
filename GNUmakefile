@@ -45,7 +45,7 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
 				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp \
-				vtpaper.cpp autofile.cpp
+				vtpaper.cpp autofile.cpp clock.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -128,20 +128,20 @@ $(OBJECTS) $(OBJECTSCPP): m100emu.h GNUmakefile VirtualT.h
 $(CLIENT_OBJS):	socket.h
 
 disassemble.o:	disassemble.h io.h cpu.h periph.h memedit.h romstrings.h
-display.o:		display.h io.h file.h setup.h periph.h memory.h memedit.h lpt.h
+display.o:		display.h io.h file.h setup.h periph.h memory.h memedit.h lpt.h clock.h
 doins.o:		cpu.h io.h
 file.o:			memory.h roms.h intelhex.h
-io.o:			cpu.h gen_defs.h io.h serial.h display.h setup.h memory.h lpt.h
+io.o:			cpu.h gen_defs.h io.h serial.h display.h setup.h memory.h lpt.h clock.h
 intelhex.o:		intelhex.h
 m100emu.o:		io.h cpu.h doins.h display.h genwrap.h filewrap.h roms.h \
-				intelhex.h setup.h memory.h do_instruct.h lpt.h
+				intelhex.h setup.h memory.h do_instruct.h lpt.h clock.h
 memedit.o:		memedit.h disassemble.h memory.h cpu.h
 memory.o:		memory.h cpu.h io.h intelhex.h setup.h
 periph.o:		periph.h serial.h setup.h display.h disassemble.h lpt.h
 serial.o:		serial.h setup.h display.h
 rememcfg.o:		rememcfg.h setup.h display.h
 fl_usage_box.o: fl_usage_box.h
-setup.o:		setup.h io.h serial.h memory.h memedit.h lpt.h
+setup.o:		setup.h io.h serial.h memory.h memedit.h lpt.h clock.h
 sound.c:		sound.h
 m100rom.o m102rom.o m200rom.o n8201rom.o romstrings.o m10rom.o kc85rom.o: roms.h romstrings.h
 remote.o:		remote.cpp m100emu.h socket.h serversocket.h socketexception.h
@@ -157,6 +157,7 @@ fl_action_icon.o:fl_action_icon.h
 fx80rom.o:		
 vtpaper.o:		printer.h vtpaper.h autofile.h
 autofile.o:		autofile.h
+clock.o:		clock.h
 
 # ==========
 # asm files
