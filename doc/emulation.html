@@ -208,5 +208,29 @@ output device (files or real printers), reset the printer and choose printer pre
 
 <p>
 
+<h3>Clock setup tab</h3>
+<p><img src="clock_tab.jpg" align="center">
+<p>This tab provides configuration options for emulation of the Model T Real-Time Clock.  Starting with
+VirtualT 1.3, the emulated time is no longer fixed to be the same as the host's time.  The controls on 
+this tab provide the follwoing functionality:
+<ul>
+<li><b>Reset to Host Time</b> - Causes the emulated time to match the host's time when VirtualT is
+started.  The clock can be changed during the emulation session, but will reset when the program is
+restarted.
+<li>Reset time when changing models - Resets the emulated clock to the host's time when switching
+between emulated models.  VirtualT maintains a single emulated clock source that can be set to any date
+(within the limits of the host).  All emulated models use the same virtual clock.  If this clock is changed
+in one model, those changes will be reflected in any other model that is selected unless this option is enabled.
+<p><li><b>Restore Emulated Time</b> - This option resets the emulation clock to match the 
+time of the emulated model when it was last suspended.  Each model can have a unique emulation time that
+is saved between emulation sessions.
+<li>Time elapses while emulation stopped - This option causes the emulation time to match the last
+known time for the specific model, adjusted by the elapsed "real world time" between the last suspension
+and the current time.
+</ul>
+<p>The alarm functions of the real-time-clock are not yet implemented.
+
+<p>
+
 </BODY>
 </HTML>

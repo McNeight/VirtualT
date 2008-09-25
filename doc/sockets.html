@@ -144,7 +144,7 @@ The commands that VirtualT supports are:
 <a href="#halt">halt</a>, <a href="#lcd_ignore">lcd_ignore</a>, <a href="#lcd_mon">lcd_mon</a>, 
 <a href="#list_break">list_break</a>, 
 <a href="#run">run</a>, <a href="#set_break">set_break</a>, 
-<a href="#step">step</a>, <a href="#step_over">step_over</a> 
+<a href="#step">step</a>, <a href="#step_over">step_over</a>, <a href="#dis_pc">x</a>  
 </ul>
 </ul>
 
@@ -203,7 +203,13 @@ returns:     Parameter error
 <p>Dissasembles object code using VirtualT's disassembler function.  Includes comments for
 the known addresses and variables.  The starting address can be supplied or ommited to 
 continue disassembly from the last disassembled address.  If the address is supplied, then 
-a line count can also be provided to specify the number of lines to disassemble.
+a line count can also be provided to specify the number of lines to disassemble.<br>
+</ul>
+<h3><a name="dis_pc">x</a></h3>
+<ul>
+<p>For disassembling at the current PC location, the shortcut comand "x" (for eXecution) is
+provided and is equivalent to "dis pc".  The "x" command can have an optional line_count 
+parameter to specifiy the number of lines to disassemble.
 
 </ul>
 
