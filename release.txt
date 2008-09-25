@@ -34,11 +34,21 @@ v1.3  September 22 2008
 6.  Fixed a bug with Tandy 200 serial port TX_EMPTY signal handling that caused high-speed
     transfers to overwrite data prior to being sent to the serial port.
 
-7.  Fixed an issue with printer initialization when opening the Peripherals window that could
+7.  Fixed an issue with printer initialization when opening the "Peripherals" window that could
     cause it to crash the program sometimes.
 
-8.  Fixed a race condition with socket port creation vs socket interface initialization on
-    Windows that would frequently cause the socket creation to fail. 
+8.  Fixed a race condition with socket port creation vs. socket interface initialization that
+    would frequently cause the socket creation to fail under Windows. 
+
+9.  Fixed error displaying COM port list from the COM Port Setup tab under the "Host Port"
+    selection.  The list was incorrectly displaying multiple COM ports as a single entry.
+
+10. Added support for setting the time in the clock chip for all models.  Also added a tab on
+    the "Peripheral Setup" window for configuring the clock operation.  Emulated "time" can
+    now be different than the host's system time.
+
+11. Fixed the "Peripheral Setup" Ok button so it doesn't improperly give an error message that
+    the COM port could not be opened, or rather, re-opened.
 
 
 ==============================
