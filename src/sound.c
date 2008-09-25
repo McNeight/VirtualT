@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.5 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.6 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -54,7 +54,7 @@
 #pragma comment(lib, "winmm.lib")
 
 #define				snd_Buffers		2 
-#define				cwSizel			32
+#define				cwSizel			128
 
 /*
  * module static data
@@ -366,7 +366,7 @@ void init_sound(void)
 
 #ifdef _WIN32
 	// Start thread to handle Sound I/O
-//	g_hEquThread = (HANDLE)_beginthreadex(0,0,EquProc,0,0,&dwThreadID);
+	g_hEquThread = (HANDLE)_beginthreadex(0,0,EquProc,0,0,&dwThreadID);
 #endif
 }
 
@@ -383,7 +383,7 @@ void deinit_sound(void)
 	free(gpOneHertz);
 
 #ifdef _WIN32
-//	sndCloseOutput();
+	sndCloseOutput();
 #endif
 }
 

@@ -1,9 +1,9 @@
-/* VirtualT.h */
+/* clock.h */
 
-/* $Id: VirtualT.h,v 1.11 2008/05/12 05:41:44 kpettit1 Exp $ */
+/* $Id: clock.h,v 1.2 2008/03/31 22:09:17 kpettit1 Exp $ */
 
 /*
- * Copyright 2004 Stephen Hurd and Ken Pettit
+ * Copyright 2008 Ken Pettit
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,25 +27,44 @@
  * SUCH DAMAGE.
  */
 
+#ifndef CLOCK_H
+#define CLOCK_H
 
-#ifndef _VIRTUALT_H_
-#define _VIRTUALT_H_
-
-#define VERSION	"1.3"
-
-enum {
-	 MODEL_M100
-	,MODEL_M102
-	,MODEL_T200
-	,MODEL_PC8201
-	,MODEL_M10
-	,MODEL_KC85
-	,MODEL_PC8300
-};
-
-#ifndef TRUE
-#define TRUE 1
-#define FALSE 0
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+void	init_clock				(void);
+void	rp5c01_write			(uchar port, uchar val);
+uchar	rp5c01_read				(uchar val);
+void	pd1990ac_chip_cmd		(uchar val);
+void	pd1990ac_clk_pulse		(uchar val);
+void	save_model_time(void);
+void	get_model_time(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
+
+void load_clock_preferences(Fl_Preferences* pPref);
+void save_clock_preferences(Fl_Preferences* pPref);
+void get_clock_options(void);
+void build_clock_setup_tab(void);
+
+typedef struct
+{
+	Fl_Round_Button*	pSysTime;
+	Fl_Round_Button*	pEmulTime;
+	Fl_Check_Button*	pReload;
+	Fl_Check_Button*	pTimeElapse;
+} clock_ctrl_t;
+
+#define	CLOCK_MODE_SYS		1
+#define	CLOCK_MODE_EMUL		2
+
+#endif
+
 
 #endif

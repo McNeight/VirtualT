@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.13 2008/04/13 16:42:55 kpettit1 Exp $ */
+/* $Id: io.c,v 1.14 2008/09/23 00:03:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -43,6 +43,7 @@
 #include "memory.h"
 #include "sound.h"
 #include "lpt.h"
+#include "clock.h"
 
 uchar lcd[10][256];
 uchar lcdpointers[10]={0,0,0,0,0,0,0,0,0,0};
@@ -59,22 +60,15 @@ uchar ioD0;		/* D0-DF io for T200 */
 uchar t200_ir;  /* Instruction register */
 uchar t200_mcr; /* Mode Control Register */
 uchar t200_uart_state = 0;
-uchar gRp5c01_mode;
-uchar gRp5c01_data[4][13];
 uchar keyscan[9] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 char  keyin[9];
 
 uint			lcdbits=0;
-time_t			clock_time = 0;
-time_t			last_clock_time = 1;
-struct	tm		*mytime	;
 unsigned long	gSpecialKeys = 0;
 unsigned char	gKeyStates[128];
 int				gDelayUpdateKeys = 0;
 int				gDelayCount = 0;
-uchar			clock_sr[5];			/* 40 Bit shift register */
-uchar			clock_sr_index = 0;
-uchar			clock_serial_out = 0;
+extern uchar	clock_serial_out;
 extern int		gRomBank;
 extern RomDescription_t	*gStdRomDesc;
 
@@ -251,6 +245,7 @@ void init_io(void)
 	/* Initialize serial I/O structures */
 	t200_uart_state = 0;			/* Confiture 8152 to Mode state */
 	ser_init();
+	init_clock();
 
 	/* Setup callback for serial I/O */
 	ser_set_callback(cb_int65);
@@ -264,84 +259,13 @@ void init_io(void)
 	ioBC = 0;		/* Low byte of 14-bit timer */
 	ioBD = 0;		/* High byte of 14-bit timer */
 	ioD0 = 0;		/* D0-DF io for T200 */
+
 }
 
 void deinit_io(void)
 {
 	/* Deinitialize the serial port */
 	ser_deinit();
-}
-
-void clock_chip_cmd(void)
-{
-	static int	clk_cnt = 1;
-
-	/* Clock chip command strobe */
-	switch (ioB9 & 0x07)
-	{
-	case 0:		/* NOP */
-		break;
-	case 1:		/* Serial Shift */
-		clock_serial_out = clock_sr[0] & 0x01;
-		clock_sr_index = 0;
-		break;
-	case 2:		/* Write Clock chip */
-		clock_sr_index = 0;
-		break;
-	case 3:		/* Read clock chip */
-		if (--clk_cnt > 0)
-			break;
-
-		clk_cnt = 20;
-
-		clock_time = time(&clock_time);
-		if (clock_time == last_clock_time)
-			break;
-
-		last_clock_time = clock_time;
-		mytime = localtime(&clock_time);
-		
-		/* Update Clock Chip Shift register Seconds */
-		clock_sr[0] = mytime->tm_sec % 10;
-		clock_sr[0] |= (mytime->tm_sec / 10) << 4;
-
-		/* Minutes */
-		clock_sr[1] = mytime->tm_min % 10;
-		clock_sr[1] |= (mytime->tm_min / 10) << 4;
-
-		/* Hours */
-		clock_sr[2] = mytime->tm_hour % 10;
-		clock_sr[2] |= (mytime->tm_hour / 10) << 4;
-
-		/* Day of month */
-		clock_sr[3] = mytime->tm_mday % 10;
-		clock_sr[3] |= (mytime->tm_mday / 10) << 4;
-
-		/* Day of week */
-		clock_sr[4] = (mytime->tm_wday) % 10;
-
-		/* Month */
-		clock_sr[4] |= (mytime->tm_mon + 1) << 4;
-
-		clock_sr_index = 0;
-
-		if (gModel == MODEL_PC8201)
-		{
-			if ((get_memory8(gStdRomDesc->sYear+1) == '8') && (get_memory8(gStdRomDesc->sYear) == '3'))
-			{
-				set_memory8(gStdRomDesc->sYear, (unsigned char) (mytime->tm_year % 10) + '0');
-				set_memory8(gStdRomDesc->sYear+1, (unsigned char) ((mytime->tm_year % 100) / 10) + '0');
-			}
-		}
-		else
-		{
-			if ((get_memory8(gStdRomDesc->sYear+1) == 0) && (get_memory8(gStdRomDesc->sYear) == 0))
-			{
-				set_memory8(gStdRomDesc->sYear, (unsigned char) (mytime->tm_year % 10));
-				set_memory8(gStdRomDesc->sYear+1, (unsigned char) ((mytime->tm_year % 100) / 10));
-			}
-		}
-	}
 }
 
 void show_remem_mode(void)
@@ -403,7 +327,7 @@ void out(uchar port, uchar val)
 			{
 				if ((val & 0x10) && !(io90 & 0x10))
 				{
-					clock_chip_cmd();
+					pd1990ac_chip_cmd(ioB9);
 					break;
 				}
 
@@ -428,25 +352,9 @@ void out(uchar port, uchar val)
 		case 0x9A:
 		case 0x9B:
 		case 0x9C:
-			if (gModel == MODEL_T200)
-			{
-				gRp5c01_data[gRp5c01_mode & 0x03][port & 0x0F] = val;
-
-				/* Check if the time is being set */
-				if (gRp5c01_mode == 0)
-				{
-					/* Add code here to update the system time */
-				}
-				/* Check if the alarm is being set */
-				else if (gRp5c01_mode == 1)
-				{
-				}
-			}
-			break;
-
 		case 0x9D:	/* Clock chip Mode Register */
 			if (gModel == MODEL_T200)
-				gRp5c01_mode = val & 0x03;
+				rp5c01_write(port, val);
 			break;
 
 		case 0x9E:
@@ -521,13 +429,8 @@ void out(uchar port, uchar val)
 			/* Check for clock chip serial shift clock */
 			if ((val & 0x08) && !(ioB9 & 0x08))
 			{
-
-				/* Increment shift register index */
-				clock_sr_index++;
-
-				/* Update clock chip output bit based on index */
-				clock_serial_out = clock_sr[clock_sr_index / 8] & (0x01 << clock_sr_index % 8) ? 1 : 0;
-
+				/* Call routine to process the CLK pulse */
+				pd1990ac_clk_pulse(val);
 			}
 			ioB9 = val;
 			return;
@@ -731,7 +634,7 @@ void out(uchar port, uchar val)
 			}
 			else
 			{
-				/* ROM and RAM bank seleciton bits */
+				/* ROM and RAM bank selection bits */
 				/* Check for a change in the current RAM bank */
 				if ((ioD0 & 0x0C) != (val & 0x0C))
 				{
@@ -779,8 +682,7 @@ void out(uchar port, uchar val)
 				/* Check for Clock Chip strobe */
 				if ((val & 0x04) && !(ioE8 & 0x04))
 				{
-					clock_chip_cmd();
-//					break;
+					pd1990ac_chip_cmd(ioB9);
 				}
 
 				/* Check for data to the printer */
@@ -789,13 +691,12 @@ void out(uchar port, uchar val)
 			}
 			else
 			{
-				// T200 Printer port is on Bit 0, not Bit 1
+				// T200 Printer port STROBE is on Bit 0, not Bit 1
 				if ((val & 0x01) && !(ioE8 & 0x01))
 					send_to_lpt(ioB9);
 			}
 
 			ioE8 = val;
-
 			return;
 
 		case 0xF0:	/* LCD display data bus (F0H-FFH same) */
@@ -877,8 +778,8 @@ void out(uchar port, uchar val)
 int inport(uchar port)
 {
 	int c;
-	unsigned char ret;
-	unsigned char flags;
+	unsigned char	 ret;
+	unsigned char	flags;
 
 	switch(port) {
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
@@ -908,73 +809,8 @@ int inport(uchar port)
 		case 0x9A:
 		case 0x9B:
 		case 0x9C:
-			if (gModel == MODEL_T200)
-			{
-				/* Check if the time is being set */
-				if (gRp5c01_mode == 0)
-				{
-					/* Read system clock and update "chip" */
-					if (port == 0x90)
-					{
-						clock_time = time(&clock_time);
-						if (clock_time != last_clock_time)
-						{
-							last_clock_time = clock_time;
-							mytime = localtime(&clock_time);
-							
-							/* Update Clock Chip Shift register Seconds */
-							gRp5c01_data[0][0] = mytime->tm_sec % 10;
-							gRp5c01_data[0][1] = mytime->tm_sec / 10;
-
-							/* Minutes */
-							gRp5c01_data[0][2] = mytime->tm_min % 10;
-							gRp5c01_data[0][3] = mytime->tm_min / 10;
-
-							/* Hours */
-							/* Test if we are in 12 or 24 hour mode */
-							if (gRp5c01_data[1][10] == 1)
-							{
-								gRp5c01_data[0][4] = mytime->tm_hour % 10;
-								gRp5c01_data[0][5] = mytime->tm_hour / 10;
-							}
-							else
-							{
-								gRp5c01_data[0][4] = (mytime->tm_hour % 12) % 10;
-								gRp5c01_data[0][5] = (mytime->tm_hour % 12) / 10;
-								if (mytime->tm_hour >=12)
-									gRp5c01_data[0][5] |= 2;
-							}
-
-							/* Day of week */
-							gRp5c01_data[0][6] = mytime->tm_wday;
-
-							/* Day of month */
-							gRp5c01_data[0][7] = mytime->tm_mday % 10;
-							gRp5c01_data[0][8] = mytime->tm_mday / 10;
-
-							/* Month */
-							gRp5c01_data[0][9] = (mytime->tm_mon+1) % 10;
-							gRp5c01_data[0][10] = (mytime->tm_mon+1) / 10;
-
-							/* Year */
-							gRp5c01_data[0][11] = mytime->tm_year % 10;
-							gRp5c01_data[0][12] = (mytime->tm_year % 100) / 10;
-						}
-					}
-				}
-				/* Check if the alarm is being set */
-				else if (gRp5c01_mode == 1)
-				{
-				}
-
-				/* Return data stored in the RP5C01 "chip" */
-				ret = gRp5c01_data[gRp5c01_mode & 0x03][port & 0x0F];
-				return ret;
-			}
-			return 0;;
-
 		case 0x9D:	/* Clock chip Mode Register */
-			return gRp5c01_mode;
+			return rp5c01_read(port);
 
 		case 0x9E:
 		case 0x9F:
@@ -1075,10 +911,8 @@ int inport(uchar port)
 				else
 				{
 					ret |= (flags & (SER_FLAG_OVERRUN | SER_FLAG_FRAME_ERR)) << 3;
-					ret |= flags & SER_FLAG_PARITY_ERR;
-					ret |= (flags & SER_FLAG_TX_EMPTY);
-					ret |= (flags & SER_FLAG_TX_EMPTY) << 2;
-					ret |= (flags & SER_FLAG_DSR) << 1;
+					ret |= flags & (SER_FLAG_PARITY_ERR | SER_FLAG_TX_EMPTY);
+					ret |= (flags & (SER_FLAG_TX_EMPTY | SER_FLAG_DSR)) << 2;
 				}
 			}
 			else

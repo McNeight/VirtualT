@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.7 2008/04/13 16:42:55 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.8 2008/09/23 00:06:13 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -140,12 +140,14 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "  run\n";
 	sock << "  set_break(sb) address [main opt mplan ram ram2 ram3]\n";
 	sock << "  speed [2.4 friendly max]\n";
+	sock << "  status\n";
 	sock << "  step(s) [count]\n";
 	sock << "  step_over(so) [count]\n";
 	sock << "  string address\n";
 	sock << "  terminate\n";
 	sock << "  write_mem(wm) address [data data data ...]\n";
 	sock << "  write_reg(wr) [A=xx B=xx hl=xx ...]\n";
+	sock << "  x [lines]\n";
 
 	return "Ok";
 }
@@ -2158,8 +2160,6 @@ Lcd_mon command:  Enables or disables LCD monitoring.
 */
 std::string cmd_debug_isr(ServerSocket& sock, std::string& args)
 {
-	int		c;
-
 	// Get breakpoint arguments
 	if (args == "")
 	{
@@ -2544,6 +2544,12 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 
 	else if ((cmd_word == "debug_isr") || (cmd_word == "isr"))
 		ret = cmd_debug_isr(sock, args);
+
+	else if (cmd_word == "x")
+	{
+		args = "pc " + args;
+		ret = cmd_disassemble(sock, args);
+	}
 
 	return ret;
 }

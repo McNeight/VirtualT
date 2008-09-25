@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.9 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.11 2008/05/12 08:45:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -55,6 +55,7 @@
 #include "io.h"
 #include "file.h"
 #include "lpt.h"
+#include "clock.h"
 
 extern	Fl_Preferences virtualt_prefs;
 void init_menus(void);
@@ -78,7 +79,7 @@ typedef struct setup_ctrl_struct
 	struct 
 	{
 		Fl_Group*			g;
-		Fl_Box*				pText;
+//		Fl_Box*				pText;
 	} lpt;
 	struct 
 	{
@@ -100,6 +101,10 @@ typedef struct setup_ctrl_struct
 		Fl_Group*			g;
 		Fl_Box*				pText;
 	} sound;
+	struct 
+	{
+		Fl_Group*			g;
+	} clock;
 } setup_ctrl_t;
 
 
@@ -157,6 +162,9 @@ void save_setup_preferences(void)
 	// Save BCR emulation settings
 
 	// Save Sound emulation settings
+
+	// Save Clock preference settings
+	save_clock_preferences(&virtualt_prefs);
 }
 
 void load_setup_preferences(void)
@@ -185,6 +193,9 @@ void load_setup_preferences(void)
 	// Load BCR emulation settings
 
 	// Load Sound emulation settings
+
+	// Load Clock emulation settings
+	load_clock_preferences(&virtualt_prefs);
 
 #ifdef	__APPLE__
 	//JV 08/10/05
@@ -220,27 +231,41 @@ void cb_setup_cancel (Fl_Widget* w, void*)
 
 void cb_setup_OK(Fl_Widget* w, void*)
 {
+	int		open_port = FALSE;
+
 	// First check if Host port needs to be closed
 	if (setup.com_mode == SETUP_COM_HOST)
 	{
 		// Check if we are turning Host port emulation off
 		if (setup_ctrl.com.pHost->value() != 1)
+		{
 			ser_close_port();
+			open_port = TRUE;
+		}
 
 		// Check if we are changing ports
 		if (strcmp(setup_ctrl.com.pPort->text(), setup.com_port) != 0)
+		{	
 			ser_close_port();
+			open_port = TRUE;
+		}
 	}
 
 	if (setup.com_mode == SETUP_COM_OTHER)
 	{
 		// Check if we are turning Host port emulation off
 		if (setup_ctrl.com.pOther->value() != 1)
+		{
 			ser_close_port();
+			open_port = TRUE;
+		}
 
 		// Check if we are changing ports
 		if (strcmp(setup_ctrl.com.pOtherName->value(), setup.com_other) != 0)
+		{
 			ser_close_port();
+			open_port = TRUE;
+		}
 	}
 
 	// ===========================
@@ -271,8 +296,11 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		setup.com_mode = SETUP_COM_HOST;
 
 		// Open the Host port
-		ser_set_port(setup.com_port);
-		ser_open_port();
+		if (open_port)
+		{
+			ser_set_port(setup.com_port);
+			ser_open_port();
+		}
 	}
 	else if (setup_ctrl.com.pOther->value() == 1)
 	{
@@ -280,8 +308,11 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		setup.com_mode = SETUP_COM_OTHER;
 
 		// Open the Host port
-		ser_set_port(setup.com_other);
-		ser_open_port();
+		if (open_port)
+		{
+			ser_set_port(setup.com_other);
+			ser_open_port();
+		}
 	}
 
 	setup.com_ignore_flow = setup_ctrl.com.pIgnoreFlow->value();
@@ -309,6 +340,11 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// Get Sound options
 	// ===========================
 //	get_sound_options();
+
+	// ===========================
+	// Get Clock options
+	// ===========================
+	get_clock_options();
 
 	// Save setup preferences to file
 	save_setup_preferences();
@@ -492,13 +528,13 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 		// BCR Port Tab
 		{ 
 			// Create the Group item (the "Tab")
-			setup_ctrl.bcr.g = new Fl_Group(10, 30, 300, 260, " BCR ");
+//			setup_ctrl.bcr.g = new Fl_Group(10, 30, 300, 260, " BCR ");
 
 			// Create controls
-			setup_ctrl.bcr.pText = new Fl_Box(120, 60, 60, 80, "BCR Port not supported yet");
+//			setup_ctrl.bcr.pText = new Fl_Box(120, 60, 60, 80, "BCR Port not supported yet");
 
 			// End of control for this tab
-			setup_ctrl.bcr.g->end();
+//			setup_ctrl.bcr.g->end();
 		}
 
 		// Speaker Port Tab
@@ -511,6 +547,18 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 
 			// End of control for this tab
 			setup_ctrl.sound.g->end();
+		}
+
+		// Clock Port Tab
+		{ 
+			// Create the Group item (the "Tab")
+			setup_ctrl.clock.g = new Fl_Group(10, 30, 350, 260, " Clock ");
+
+			// Create controls
+			build_clock_setup_tab();
+
+			// End of control for this tab
+			setup_ctrl.clock.g->end();
 		}
 
 		setup_ctrl.pTabs->value(setup_ctrl.com.g);
