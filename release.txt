@@ -7,7 +7,7 @@ This file lists the changes and additions for each of the versions of VirtualT s
 
 
 =======================
-v1.3  September 22 2008
+v1.3  September 24 2008
 =======================
 
 1.  Fixed a bug with the Remem Overrides Rampac checkbox where it wouldn't properly override
