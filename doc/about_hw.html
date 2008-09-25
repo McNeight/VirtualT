@@ -34,7 +34,9 @@ flags.  During emulation program control will be directed to routines in the oth
 fetches, and I/O operations.  I/O operations will be further directed to the appropriate routines for peripheral
 device control functionality.  Additionally, the main emulation routine ("emulate") checks for debug operations
 between execution of each instruction.  This is the integrated debugger functionality.
+
 <p><h3>RAM and ROM Emulation</h3>
+
 <p>The RAM, ROM, and ReMem emulation functions are located in the file 'memory.c'.  This file provides functions 
 for reading and writing data that is within the CPU's address space in addition to functions for directly accessing
 specified regions (ReMem RAM / Flash, etc.) so the VirtualT tools have a common access method.  It also contains
@@ -45,12 +47,16 @@ All CPU memory accesses are directed to the static 64K array.  During ReMem emul
 byte region from the appropriate RAM or Flash memory as dictated by the ReMem mapping rules.  All CPU accesses 
 are performed by selecting the appropriate base pointer from the array of 64 and then reading / writing using an
 offset from that pointer.
+
 <p><h3>I/O Operations</h3>
+
 <p>All I/O operations are handled in the file 'io.c'.  The I/O operations are performed with C switch statements
 to determine the I/O address, and the appropriate actions are performed.  The operation of some the I/O ports varies
 from model to model, and some of the ports control more than one function.  The routines in 'io.c' save port values
 and check the emulation model as needed to direct operations to the correct routines. 
+
 <p><h3>LCD Operation</h3>
+
 <p>The LCD emulation is performed in the file 'display.cpp' and uses the FLTK libraries to perform graphics operations.
 To emulate the LCD, VirtualT uses a C++ class called T100_Disp derived from the FLTK Fl_Window class.  A second
 class named T200_Disp is further derived from the T100_Disp class to provide Model 200 emulation functionality.  Based
@@ -87,12 +93,13 @@ The I/O portion of the keyboard operation monitors the keyscan columns and retur
 value.
 
 <p><h3>Real-Time Clock</h3>
-<p>The Real-Time Clock (RTC) device is emulated in the 'io.c' file.  The Model 200 uses a different clock chip than the
-other models.  The emulation will change base on the emulated models.  For the Model 200, the alarm feature is not
-supported.  For any model, the real-time clock chip reads the host system time to retrieve the current time.  The 
-Model T operating system ROM reads the clock chip frequently but only provides resolution in seconds.  To maximize
-emulation speed, the RTC emulation samples the host system time every 20 times the ROM makes a request.  Since the
-RTC emulation reads the host time, the current implementation does not allow setting the emulated time.
+<p>The Real-Time Clock (RTC) device is emulated in the 'clock.cpp' file.  The Model 200 uses a different clock chip 
+than the other models, however VirtualT emulates only a single clock device and presents different interfaces to
+that emulation based on the model selected.  For the Model 200, the alarm feature is not supported.  Starting with, 
+version 1.3, the real-time clock chip emulation allows setting the emulated time and is no longer "slaved" to the
+host's system time.  An options tab as been added to the "Peripheral Setup" window to configure the clock options. 
+The emulated clock can be configured to initialize from the host's system clock or from a previously saved emulation 
+session.
 
 <p><h3>Serial Port</h3>
 <p>The serial port emulation is implemented in 'serial.c' with help from the I/O routines in 'io.c'. The serial port 
