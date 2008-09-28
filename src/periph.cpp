@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.6 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.10 2008/03/25 02:28:33 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -537,6 +537,20 @@ void update_com_port_settings()
 	periph_ctrl.com.sComMdm[0] = 0;
 }
 
+void cb_test_data(Fl_Widget* w, void*)
+{
+	int	x;
+
+	for (x = 0; x < 512; x++)
+	{
+		Fl::wait(.001);
+		periph_ctrl.com.pLog->AddByte(x & 0x10, (x&0x7F) | 0x40, 0);
+	}
+	periph_ctrl.com.pLog->AddByte(x & 0x10, 'T', 0);
+	periph_ctrl.com.pLog->AddByte(x & 0x10, 'e', 0);
+	periph_ctrl.com.pLog->AddByte(x & 0x10, 's', 0);
+	periph_ctrl.com.pLog->AddByte(x & 0x10,	't', 0);
+}
 /*
 ============================================================================
 Routine to create the PeripheralSetup Window and tabs
@@ -692,6 +706,9 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			periph_ctrl.com.pFont->add("14");
 			periph_ctrl.com.pFont->add("16");
 			periph_ctrl.com.pFont->value(0);
+
+			Fl_Button *but = new Fl_Button(440, 360, 60, 25, "Test");
+			but->callback(cb_test_data);
 
 			periph_ctrl.com.g->end();
 
@@ -926,7 +943,7 @@ void T100_ComMon::AddByte(int rx_tx, char byte, char flags)
 	b->entries[b->used].flags = flags;
 	b->entries[b->used].time = hirestimer();
 
-	// Check if last char was save type as this & advance col if it was
+	// Check if last char was same type as this & advance col if it was
 	if (m_pLastEntry != NULL)
 	{
 		if ((m_pLastEntry->flags & 0x80) == (b->entries[b->used].flags & 0x80) ||
@@ -1099,7 +1116,7 @@ void T100_ComMon::draw()
 	m_Height = fl_height();
 	
 	// Calculate max cols and lines
-	lines = (int) (h() / m_Height);
+	lines = ((int) (h() / m_Height)) & ~1;
 	cols = (int) (w() / m_Width);
 
 	if ((lines != m_Lines) || (cols != m_Cols))
@@ -1175,23 +1192,40 @@ void T100_ComMon::draw()
 
 			if (&clb->entries[index] == m_pStartTime)
 			{
-				fl_color(FL_GREEN);
-				fl_rectf(xpos, ypos-(int) m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
-				fl_color(FL_BLACK);
-				m_StartTimeLine = line;
-				if ((clb->entries[index].flags & 0x80) == 0)
-					m_StartTimeLine++;
-				m_StartTimeCol = col;
+				if ((m_StartTimeLine >= m_FirstLine) && 
+					(m_StartTimeLine < m_FirstLine + m_Lines))
+				{
+					if (m_pStartTime == m_pStopTime)
+						fl_color(FL_YELLOW);
+					else
+						fl_color(FL_GREEN);
+					fl_rectf(xpos, ypos-(int) m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
+					fl_color(FL_BLACK);
+					m_StartTimeLine = line + m_FirstLine;
+					if ((clb->entries[index].flags & 0x80) == 0)
+						m_StartTimeLine++;
+					m_StartTimeCol = col;
+				}
 			}
 			else if (&clb->entries[index] == m_pStopTime)
 			{
-				fl_color(FL_RED);
-				fl_rectf(xpos, ypos-(int)m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
-				fl_color(FL_WHITE);
-				m_StopTimeLine = line;
-				if ((clb->entries[index].flags & 0x80) == 0)
-					m_StopTimeLine++;
-				m_StopTimeCol = col;
+				if ((m_StopTimeLine >= m_FirstLine) && 
+					(m_StopTimeLine < m_FirstLine + m_Lines))
+				{
+					if (m_pStartTime == m_pStopTime)
+						fl_color(FL_YELLOW);
+					else
+						fl_color(FL_RED);
+					fl_rectf(xpos, ypos-(int)m_Height+3, (int) (adder * m_Width), (int) m_Height-1);
+					if (m_pStartTime == m_pStopTime)
+						fl_color(FL_BLACK);
+					else
+						fl_color(FL_WHITE);
+					m_StopTimeLine = line + m_FirstLine;
+					if ((clb->entries[index].flags & 0x80) == 0)
+						m_StopTimeLine++;
+					m_StopTimeCol = col;
+				}
 			}
 			// Draw the text
 			if (gHexOn)
@@ -1333,7 +1367,8 @@ int T100_ComMon::handle(int event)
 					// Check for correct line number
 					if (cle->flags & 0x80)
 					{
-						if (line == line_click)
+						if (!(line_click & 0x01))
+//						if (line == line_click)
 						{
 							cle_sel = &clb->entries[index];	
 							break;
@@ -1341,7 +1376,8 @@ int T100_ComMon::handle(int event)
 					}
 					else
 					{
-						if (line + 1 == line_click)
+						if (line_click & 0x01)
+//						if (line + 1 == line_click)
 						{
 							cle_sel = &clb->entries[index];
 							break;
@@ -1376,7 +1412,7 @@ int T100_ComMon::handle(int event)
 						(m_StopTimeLine < m_FirstLine + m_Lines))
 					{
 						xpos = (int) (x() + m_StopTimeCol * m_Width);
-						ypos = (int) (y() + m_StopTimeLine * m_Height);
+						ypos = (int) (y() + (m_StopTimeLine - m_FirstLine) * m_Height);
 						prev_cle = m_pStopTime;
 						line = m_StopTimeLine;
 					}
@@ -1392,7 +1428,7 @@ int T100_ComMon::handle(int event)
 						(m_StartTimeLine < m_FirstLine + m_Lines))
 					{
 						xpos = (int) (x() + m_StartTimeCol * m_Width);
-						ypos = (int) (y() + m_StartTimeLine * m_Height);
+						ypos = (int) (y() + (m_StartTimeLine - m_FirstLine) * m_Height);
 						prev_cle = m_pStartTime;
 						line = m_StartTimeLine;
 					}
@@ -1435,7 +1471,7 @@ int T100_ComMon::handle(int event)
 					sprintf(periph_ctrl.com.sStopChar, "%c (%02xh)", cle_sel->byte, cle_sel->byte);
 					periph_ctrl.com.pStopChar->label(periph_ctrl.com.sStopChar);
 					m_pStopTime = cle_sel;
-					m_StopTimeLine = line_click;
+					m_StopTimeLine = line_click + m_FirstLine;
 					m_StopTimeCol = col;
 					fl_color(FL_RED);
 				}
@@ -1445,16 +1481,17 @@ int T100_ComMon::handle(int event)
 					sprintf(periph_ctrl.com.sStartChar, "%c (%02xh)", cle_sel->byte, cle_sel->byte);
 					periph_ctrl.com.pStartChar->label(periph_ctrl.com.sStartChar);
 					m_pStartTime = cle_sel;
-					m_StartTimeLine = line_click;
+					m_StartTimeLine = line_click + m_FirstLine;
 					m_StartTimeCol = col;
 				}
 
-				if (m_pStartTime != NULL)
+				if ((m_pStartTime != NULL) && (m_StartTimeLine >= m_FirstLine) && 
+						(m_StartTimeLine < m_FirstLine + m_Lines))
 				{
 					// Draw the Start selecton box
 					fl_color(FL_GREEN);
 					xpos = (int) (x() + m_StartTimeCol * m_Width);
-					ypos = (int) (y() + m_StartTimeLine * m_Height);
+					ypos = (int) (y() + (m_StartTimeLine - m_FirstLine) * m_Height);
 					fl_rectf(xpos, ypos+3, (int) (adder * m_Width), (int) m_Height-1);
 					
 					// Draw the StartTime text
@@ -1466,7 +1503,8 @@ int T100_ComMon::handle(int event)
 					fl_draw(string, xpos, ypos + (int)m_Height-2);
 				}
 				
-				if (m_pStopTime != NULL)
+				if ((m_pStopTime != NULL) && (m_StopTimeLine >= m_FirstLine) && 
+						(m_StopTimeLine < m_FirstLine + m_Lines))
 				{
 					// Draw the Start selecton box
 					if (m_pStartTime == m_pStopTime)
@@ -1474,7 +1512,7 @@ int T100_ComMon::handle(int event)
 					else
 						fl_color(FL_RED);
 					xpos = (int) (x() + m_StopTimeCol * m_Width);
-					ypos = (int) (y() + m_StopTimeLine * m_Height);
+					ypos = (int) (y() + (m_StopTimeLine - m_FirstLine) * m_Height);
 					fl_rectf(xpos, ypos+3, (int) (adder * m_Width), (int) m_Height-1);
 					
 					// Draw the StartTime text
