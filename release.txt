@@ -7,6 +7,16 @@ This file lists the changes and additions for each of the versions of VirtualT s
 
 
 =======================
+v1.4  Not released yet
+=======================
+
+1.  The COM data log on the Peripherals Window was not allowing selection of data to show
+    time delta between 2 bytes when the top line in the window was not the first line of 
+    data.  This has been corrected.  Also The last line of data would not be displayed if 
+    the number of lines that would fit in the window was odd.  This has also been fixed.
+
+
+=======================
 v1.3  September 24 2008
 =======================
 
