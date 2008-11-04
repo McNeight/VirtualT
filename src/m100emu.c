@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.20 2008/09/23 00:06:13 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.21 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -59,6 +59,7 @@
 #include "serial.h"
 #include "lpt.h"
 #include "clock.h"
+#include "fileview.h"
 
 int		fullspeed=0;
 int		gModel = MODEL_M100;
@@ -68,7 +69,8 @@ extern uchar	*gMemory[64];
 extern uchar	gMsplanROM[32768];
 extern uchar	gOptROM[32768];
 
-mem_monitor_cb	gMemMonitor = NULL;
+mem_monitor_cb	gMemMonitor1 = NULL;
+mem_monitor_cb	gMemMonitor2 = NULL;
 
 char	op[26];
 UINT64	cycles=0;
@@ -734,7 +736,18 @@ __inline void check_interrupts(void)
 
 void	mem_set_monitor_callback(mem_monitor_cb cb)
 {
-	gMemMonitor = cb;
+	if (gMemMonitor1 == NULL)
+		gMemMonitor1 = cb;
+	else if (gMemMonitor2 == NULL)
+		gMemMonitor2 = cb;
+}
+
+void	mem_clear_monitor_callback(mem_monitor_cb cb)
+{
+	if (gMemMonitor1 == cb)
+		gMemMonitor1 = NULL;
+	else if (gMemMonitor2 == cb)
+		gMemMonitor2 = NULL;
 }
 
 void remote_switch_model(int model)
@@ -785,8 +798,10 @@ void maint(void)
 			twice_flag = 0;
 
 			// Check if we need to update the Memory Editor monitor
-			if (gMemMonitor != NULL)
-				gMemMonitor();
+			if (gMemMonitor1 != NULL)
+				gMemMonitor1();
+			if (gMemMonitor2 != NULL)
+				gMemMonitor2();
 		}
 		else
 			twice_flag++;

@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: disassemble.cpp,v 1.7 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -49,6 +49,7 @@
 #include "romstrings.h"
 #include "cpuregs.h"
 #include "memory.h"
+#include "fileview.h"
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
@@ -166,7 +167,7 @@ Fl_Menu_Item gDis_menuitems[] = {
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
 
   { 0 }

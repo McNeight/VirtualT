@@ -1,6 +1,6 @@
 /* cpu.h */
 
-/* $Id: cpu.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: cpu.h,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -168,16 +168,28 @@ the settings for ReMem support.
 #define	MEMSET(a,v)	{if(a>=ROMSIZE) gBaseMemory[a] = v; }
 
 #else
-					 
+
 #define SETPCINS16 {int pc=PC; PCL=get_memory8((unsigned short) pc++); PCH=get_memory8((unsigned short) pc);}
-#define M			(gMemory[gIndex[HL]][HL & 0x3FF])
-#define INS			(gMemory[gIndex[PC]][PC & 0x3FF])
-#define INS_INC		(gMemory[gIndex[PC]][PC & 0x3FF]); INCPC;
+#define M			(get_memory8(HL))
+#define INS			(get_memory8(PC))
+#define INS_INC		(get_memory8(PC); INCPC;)
 #define NXTINS		(get_memory8((unsigned short) (PC+1)))
 #define INS16		(((int)get_memory8((unsigned short) (PC)))|(((int)get_memory8((unsigned short) (PC+1)))<<8))
-#define MEM(x)		(gMemory[gIndex[x]][x & 0x3FF])
+#define MEM(x)		(get_memory8(x))
 #define MEM16(x)	(((ushort)MEM(x))|((ushort)MEM(x+1))<<8)
-#define	MEMSET(a,v)	{remem_set8((unsigned short) (a), v); }
+#define	MEMSET(a,v)	{gRex?rex_set8((unsigned short)(a),v):remem_set8((unsigned short) (a), v); }
+
+
+//#define SETPCINS16 {int pc=PC; PCL=get_memory8((unsigned short) pc++); PCH=get_memory8((unsigned short) pc);}
+//#define M			(gMemory[gIndex[HL]][HL & 0x3FF])
+//#define INS			(gMemory[gIndex[PC]][PC & 0x3FF])
+//#define INS_INC		(gMemory[gIndex[PC]][PC & 0x3FF]); INCPC;
+//#define NXTINS		(get_memory8((unsigned short) (PC+1)))
+//#define INS16		(((int)get_memory8((unsigned short) (PC)))|(((int)get_memory8((unsigned short) (PC+1)))<<8))
+//#define MEM(x)		(gMemory[gIndex[x]][x & 0x3FF])
+//#define MEM16(x)	(((ushort)MEM(x))|((ushort)MEM(x+1))<<8)
+//#define MEMSET(a,v)	{remem_set8((unsigned short) (a), v); }
+
 
 #endif
 

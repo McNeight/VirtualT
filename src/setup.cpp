@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.11 2008/05/12 08:45:24 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.12 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -114,11 +114,17 @@ typedef struct memory_ctrl_struct
 	Fl_Round_Button*	pReMem;
 	Fl_Round_Button*	pRampac;
 	Fl_Round_Button*	pReMem_Rampac;
+	Fl_Round_Button*	pRex;
+	Fl_Round_Button*	pRex2;
 	Fl_Check_Button*	pReMemOverride;
 	Fl_Input*			pReMemFile;
 	Fl_Input*			pRampacFile;
+	Fl_Input*			pRexFlashFile;
+	Fl_Input*			pRex2RamFile;
 	Fl_Button*			pReMemBrowse;
 	Fl_Button*			pRampacBrowse;
+	Fl_Button*			pRexFlashBrowse;
+	Fl_Button*			pRex2RamBrowse;
 	Fl_Box*				pReMemText;
 	Fl_Check_Button*	pOptRomRW;
 	Fl_Check_Button*	pShowVersion;
@@ -602,10 +608,17 @@ void save_memory_preferences(void)
 	strcat(pref, "_ReMemFile");
 	virtualt_prefs.set(pref, mem_setup.remem_file);
 
-
 	strcpy(pref, str);
 	strcat(pref, "_RampacFile");
 	virtualt_prefs.set(pref, mem_setup.rampac_file);
+
+	strcpy(pref, str);
+	strcat(pref, "_RexFlashFile");
+	virtualt_prefs.set(pref, mem_setup.rex_flash_file);
+
+	strcpy(pref, str);
+	strcat(pref, "_Rex2RamFile");
+	virtualt_prefs.set(pref, mem_setup.rex2_ram_file);
 
 	strcpy(pref, str);
 	strcat(pref, "_OptRomRW");
@@ -652,6 +665,24 @@ void load_memory_preferences(void)
 	if (strlen(mem_setup.rampac_file) == 0)
 		strcpy(mem_setup.rampac_file, path);
 
+	// Load Rex Flash filename based on Model
+	strcpy(pref, str);
+	strcat(pref, "_RexFlashFile");
+	get_emulation_path(path, gModel);
+	strcat(path, "rex_flash.bin");
+	virtualt_prefs.get(pref, mem_setup.rex_flash_file, path, 256);
+	if (strlen(mem_setup.rex_flash_file) == 0)
+		strcpy(mem_setup.rex_flash_file, path);
+
+	// Load Rex2 Ram filename based on Model
+	strcpy(pref, str);
+	strcat(pref, "_Rex2RamFile");
+	get_emulation_path(path, gModel);
+	strcat(path, "rex2_ram.bin");
+	virtualt_prefs.get(pref, mem_setup.rex2_ram_file, path, 256);
+	if (strlen(mem_setup.rex2_ram_file) == 0)
+		strcpy(mem_setup.rex2_ram_file, path);
+
 	// Load OptRom R/W or R/O option
 	strcpy(pref, str);
 	strcat(pref, "_OptRomRW");
@@ -677,12 +708,13 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	Save Base memory if needed
 	===================================================
 	*/
-	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE))
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE) ||
+		(mem_setup.mem_mode == SETUP_MEM_REX))
 		save_ram();
 
 	/* 
 	===================================================
-	First check if ReMem memory needs to be deallocated
+	Check if ReMem memory needs to be deallocated
 	===================================================
 	*/
 	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
@@ -703,11 +735,29 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
 	{
 		// Check if we are turning Host port emulation off
-//		if ((mem_ctrl.pRampac->value() != 1) && (mem_ctrl.pReMem_Rampac->value() != 1))
-//		{
 			save_rampac_ram();		// Write Rampac memory to file
-//			free_rampac_mem();		// Deallocate Rampac memory
-//		}
+	}
+
+	/* 
+	===================================================
+	Check if Rex Flash needs to be saved / deallocated
+	===================================================
+	*/
+	if ((mem_setup.mem_mode == SETUP_MEM_REX) || (mem_setup.mem_mode == SETUP_MEM_REX2))
+	{
+		// Save Rex Flash 
+		save_rex_flash();		// Write Rex flash memory to file
+	}
+
+	/* 
+	===================================================
+	Check if Rex Flash needs to be saved / deallocated
+	===================================================
+	*/
+	if (mem_setup.mem_mode == SETUP_MEM_REX2)
+	{
+		// Save Rex Flash 
+		save_rex2_ram();			// Write Rex RAM memory to file
 	}
 
 	// Save old mem_mode so we know when to load data from file
@@ -724,6 +774,10 @@ void cb_memory_OK(Fl_Widget* w, void*)
 		mem_setup.mem_mode = SETUP_MEM_REMEM;
 	else if (mem_ctrl.pReMem_Rampac->value() == 1)
 		mem_setup.mem_mode = SETUP_MEM_REMEM_RAMPAC;
+	else if (mem_ctrl.pRex->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_REX;
+	else if (mem_ctrl.pRex2->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_REX2;
 
 	// Get OptRom R/W Enable setting
 	gOptRomRW = mem_ctrl.pOptRomRW->value();
@@ -743,8 +797,9 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	Load Base memory if needed
 	===================================================
 	*/
-	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE))
-		load_ram();
+	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE) ||
+		(mem_setup.mem_mode == SETUP_MEM_REX))
+			load_ram();
 
 	// If we are in ReMem or ReMem_Rampac mode, check if ReMem filename changed
 	if ((mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC))
@@ -790,9 +845,55 @@ void cb_memory_OK(Fl_Widget* w, void*)
 		}
 	}
 
+	// If we are in Rex or Rex2 mode, check if Rex Flash filename changed
+	if ((mem_setup.mem_mode == SETUP_MEM_REX) || (mem_setup.mem_mode == SETUP_MEM_REX2))
+	{
+		// Check if we are changing Rampac filename
+		if (strcmp(mem_ctrl.pRexFlashFile->value(), mem_setup.rex_flash_file) != 0)
+		{
+			// Save memory to old file
+			save_rex_flash();
+
+			// Copy new filename to preferences
+			strcpy(mem_setup.rex_flash_file, mem_ctrl.pRexFlashFile->value());
+
+			// Load Rampac data from new file
+			load_rex_flash();
+		}
+		else if ((old_mode != SETUP_MEM_REX) && (old_mode != SETUP_MEM_REX2))
+		{
+			// Load Rampac data from file
+			load_rex_flash();
+		}
+	}
+
+	// If we are in Rex or Rex2 mode, check if Rex Flash filename changed
+	if (mem_setup.mem_mode == SETUP_MEM_REX2)
+	{
+		// Check if we are changing Rampac filename
+		if (strcmp(mem_ctrl.pRex2RamFile->value(), mem_setup.rex2_ram_file) != 0)
+		{
+			// Save memory to old file
+			save_rex2_ram();
+
+			// Copy new filename to preferences
+			strcpy(mem_setup.rex2_ram_file, mem_ctrl.pRex2RamFile->value());
+
+			// Load Rampac data from new file
+			load_rex2_ram();
+		}
+		else if (old_mode != SETUP_MEM_REX2)
+		{
+			// Load Rampac data from file
+			load_rex2_ram();
+		}
+	}
+
 	// Copy new ReMem filename and Rampac filename to preferences
 	strcpy(mem_setup.remem_file, mem_ctrl.pReMemFile->value());
 	strcpy(mem_setup.rampac_file, mem_ctrl.pRampacFile->value());
+	strcpy(mem_setup.rex_flash_file, mem_ctrl.pRexFlashFile->value());
+	strcpy(mem_setup.rex2_ram_file, mem_ctrl.pRex2RamFile->value());
 
 	// Save memory preferences to file
 	save_memory_preferences();
@@ -871,6 +972,120 @@ void cb_remem_browse(Fl_Widget* w, void*)
 	delete fc;
 }
 
+void cb_rex_browse(Fl_Widget* w, void*)
+{
+	int					count;
+	Fl_File_Chooser		*fc;
+	const char			*filename;
+	const char			*filename_name;
+	int					len;
+	char				mstr[16];
+	char				mstr_upper[16];
+	char				path[256];
+	int					c;
+	
+	// Create chooser window to pick file
+	strcpy(path, mem_ctrl.pRexFlashFile->value());
+	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex Flash File");
+	fc->preview(0);
+	fc->show();
+
+	// Show Chooser window
+	while (fc->visible())
+		Fl::wait();
+
+	count = fc->count();
+	if (count == 0)
+	{
+		delete fc;
+		return;
+	}
+
+	// Get Filename
+	filename = fc->value(1);
+	if (filename == 0)
+	{
+		delete fc;
+		return;
+	}
+	len = strlen(filename);
+
+	// Copy filename to edit field
+	filename_name = fl_filename_name(filename);
+
+	get_model_string(mstr, gModel);
+	strcpy(mstr_upper, mstr);
+	for (c = strlen(mstr_upper)-1; c >= 0; c--)
+		mstr_upper[c] = toupper(mstr_upper[c]);
+	if (strstr(filename, mstr) || strstr(filename, mstr_upper))
+	{
+		get_emulation_path(path, gModel);
+		strcat(path, filename_name);
+		mem_ctrl.pRexFlashFile->value(path);
+	}
+	else
+		mem_ctrl.pRexFlashFile->value(filename);
+
+	delete fc;
+}
+
+void cb_rex2_browse(Fl_Widget* w, void*)
+{
+	int					count;
+	Fl_File_Chooser		*fc;
+	const char			*filename;
+	const char			*filename_name;
+	int					len;
+	char				mstr[16];
+	char				mstr_upper[16];
+	char				path[256];
+	int					c;
+	
+	// Create chooser window to pick file
+	strcpy(path, mem_ctrl.pRex2RamFile->value());
+	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex2 RAM File");
+	fc->preview(0);
+	fc->show();
+
+	// Show Chooser window
+	while (fc->visible())
+		Fl::wait();
+
+	count = fc->count();
+	if (count == 0)
+	{
+		delete fc;
+		return;
+	}
+
+	// Get Filename
+	filename = fc->value(1);
+	if (filename == 0)
+	{
+		delete fc;
+		return;
+	}
+	len = strlen(filename);
+
+	// Copy filename to edit field
+	filename_name = fl_filename_name(filename);
+
+	get_model_string(mstr, gModel);
+	strcpy(mstr_upper, mstr);
+	for (c = strlen(mstr_upper)-1; c >= 0; c--)
+		mstr_upper[c] = toupper(mstr_upper[c]);
+	if (strstr(filename, mstr) || strstr(filename, mstr_upper))
+	{
+		get_emulation_path(path, gModel);
+		strcat(path, filename_name);
+		mem_ctrl.pRex2RamFile->value(path);
+	}
+	else
+		mem_ctrl.pRex2RamFile->value(filename);
+
+	delete fc;
+}
+
 void cb_radio_base_memory (Fl_Widget* w, void*)
 {
 	mem_ctrl.pRampacFile->deactivate();
@@ -879,6 +1094,10 @@ void cb_radio_base_memory (Fl_Widget* w, void*)
 	mem_ctrl.pReMemFile->deactivate();
 	mem_ctrl.pReMemBrowse->deactivate();
 	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->deactivate();
+	mem_ctrl.pRexFlashBrowse->deactivate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
 }
 
 void cb_radio_remem (Fl_Widget* w, void*)
@@ -889,6 +1108,10 @@ void cb_radio_remem (Fl_Widget* w, void*)
 	mem_ctrl.pRampacFile->deactivate();
 	mem_ctrl.pRampacBrowse->deactivate();
 	mem_ctrl.pReMemText->show();
+	mem_ctrl.pRexFlashFile->deactivate();
+	mem_ctrl.pRexFlashBrowse->deactivate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
 }
 
 void cb_radio_rampac (Fl_Widget* w, void*)
@@ -899,6 +1122,10 @@ void cb_radio_rampac (Fl_Widget* w, void*)
 	mem_ctrl.pReMemFile->deactivate();
 	mem_ctrl.pReMemBrowse->deactivate();
 	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->deactivate();
+	mem_ctrl.pRexFlashBrowse->deactivate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
 }
 
 void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
@@ -909,6 +1136,38 @@ void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
 	mem_ctrl.pRampacFile->activate();
 	mem_ctrl.pRampacBrowse->activate();
 	mem_ctrl.pReMemText->show();
+	mem_ctrl.pRexFlashFile->deactivate();
+	mem_ctrl.pRexFlashBrowse->deactivate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
+}
+
+void cb_radio_rex (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemOverride->deactivate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->activate();
+	mem_ctrl.pRexFlashBrowse->activate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
+}
+
+void cb_radio_rex2 (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemOverride->deactivate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->activate();
+	mem_ctrl.pRexFlashBrowse->activate();
+	mem_ctrl.pRex2RamFile->activate();
+	mem_ctrl.pRex2RamBrowse->activate();
 }
 
 void cb_memory_cancel (Fl_Widget* w, void*)
@@ -982,7 +1241,7 @@ Routine to create the PeripheralSetup Window and tabs
 void cb_MemorySetup (Fl_Widget* w, void*)
 {
 	// Create Peripheral Setup window
-	gmsw = new Fl_Window(420, 310, "Memory Emulation Options");
+	gmsw = new Fl_Window(420, 415, "Memory Emulation Options");
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
@@ -1049,19 +1308,62 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 		mem_ctrl.pReMemText->hide();
 	}
 
+	// Create Rex radio button
+	mem_ctrl.pRex = new Fl_Round_Button(20, 210, 270, 20, "Rex     (1 Meg Flash Option ROM)");
+	mem_ctrl.pRex->type(FL_RADIO_BUTTON);
+	mem_ctrl.pRex->callback(cb_radio_rex);
+	if (mem_setup.mem_mode == SETUP_MEM_REX)
+		mem_ctrl.pRex->value(1);
+
+	// Create Rex radio button
+	mem_ctrl.pRex2 = new Fl_Round_Button(20, 235, 270, 20, "Rex2   (1 Meg Opt ROM + 256K SRAM)");
+	mem_ctrl.pRex2->type(FL_RADIO_BUTTON);
+	mem_ctrl.pRex2->callback(cb_radio_rex2);
+	if (mem_setup.mem_mode == SETUP_MEM_REX2)
+		mem_ctrl.pRex2->value(1);
+
+	// ===============================================
+	// Setup Rex Flash File edit field and Browser button
+	// ===============================================
+	mem_ctrl.pRexFlashFile = new Fl_Input(105, 260, 210, 20, "Flash File");
+	mem_ctrl.pRexFlashFile->value(mem_setup.rex_flash_file);
+	mem_ctrl.pRexFlashBrowse = new Fl_Button(330, 257, 60, 30, "Browse");
+    mem_ctrl.pRexFlashBrowse->callback((Fl_Callback*)cb_rex_browse);
+
+	if ((mem_setup.mem_mode != SETUP_MEM_REX) && (mem_setup.mem_mode != SETUP_MEM_REX2))
+	{
+		mem_ctrl.pRexFlashFile->deactivate();
+		mem_ctrl.pRexFlashBrowse->deactivate();
+	}
+
+	// ===============================================
+	// Setup Rex Flash File edit field and Browser button
+	// ===============================================
+	mem_ctrl.pRex2RamFile = new Fl_Input(105, 295, 210, 20, "RAM File");
+	mem_ctrl.pRex2RamFile->value(mem_setup.rex2_ram_file);
+	mem_ctrl.pRex2RamBrowse = new Fl_Button(330, 292, 60, 30, "Browse");
+    mem_ctrl.pRex2RamBrowse->callback((Fl_Callback*)cb_rex2_browse);
+
+	if (mem_setup.mem_mode != SETUP_MEM_REX2)
+	{
+		mem_ctrl.pRex2RamFile->deactivate();
+		mem_ctrl.pRex2RamBrowse->deactivate();
+	}
+
+
 	// Option ROM RW Enable
-	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 210, 210, 20, "Make Option ROM R/W");
+	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 320, 210, 20, "Make Option ROM R/W");
 	mem_ctrl.pOptRomRW->value(gOptRomRW);
 
 	// Show Version Checkbox
-	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 240, 210, 20, "Patch ROM on load to show VirtualT version");
+	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 345, 210, 20, "Patch ROM on load to show VirtualT version");
 	mem_ctrl.pShowVersion->value(gShowVersion);
 
 	// OK button
-    { Fl_Button* o = new Fl_Button(140, 270, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(140, 375, 60, 30, "Cancel");
       o->callback((Fl_Callback*)cb_memory_cancel);
     }
-    { Fl_Return_Button* o = new Fl_Return_Button(220, 270, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(220, 375, 60, 30, "OK");
       o->callback((Fl_Callback*)cb_memory_OK);
     }
 

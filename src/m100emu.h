@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: m100emu.h,v 1.7 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: m100emu.h,v 1.8 2008/09/23 00:06:13 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -53,6 +53,7 @@ double hirestimer(void);
 typedef void (*mem_monitor_cb)(void);
 typedef void (*debug_monitor_callback)(int reason);
 void	mem_set_monitor_callback(mem_monitor_cb cb);
+void	mem_clear_monitor_callback(mem_monitor_cb cb);
 int		debug_set_monitor_callback(debug_monitor_callback pCallback);
 void	debug_clear_monitor_callback(debug_monitor_callback pCallback);
 void	debug_step(void);

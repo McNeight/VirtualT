@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.10 2008/03/25 02:28:33 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.11 2008/09/28 01:56:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,6 +56,7 @@
 #include "memedit.h"
 #include "cpuregs.h"
 #include "lpt.h"
+#include "fileview.h"
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
@@ -147,7 +148,7 @@ Fl_Menu_Item gPeriph_menuitems[] = {
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
 
   { 0 }

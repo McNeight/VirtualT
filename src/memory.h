@@ -102,12 +102,27 @@ extern "C" {
 #define	REGION_FLASH1				8
 #define	REGION_FLASH2				9
 #define	REGION_RAMPAC				10
+#define	REGION_REX_FLASH			11
+#define	REGION_REX2_RAM				12
 
+#define	REX							1
+#define	REX2						2
+
+#define	REX_ROM_REPLACEMENT			0x01
+#define	REX2_RAM_MODE				0x02
+
+typedef	struct {
+	int				gFlashState;
+	UINT64			gFlashTime;
+	int				gFlashBusy;
+	char*			pFlash;
+} amd_flash_t;	
 
 extern unsigned char	*gMemory[64];
 extern unsigned char	gSysROM[65536];
 extern unsigned char	gBaseMemory[65536];
 extern unsigned char	gReMem;
+extern int				gRex;
 
 void			init_mem(void);
 void			reinit_mem(void);
@@ -119,6 +134,10 @@ void			load_remem_ram(void);
 void			save_rampac_ram(void);
 void			save_remem_ram(void);
 void			reload_sys_rom(void);
+void			save_rex2_ram(void);
+void			save_rex_flash(void);
+void			load_rex2_ram(void);
+void			load_rex_flash(void);
 
 unsigned char	get_memory8(unsigned short address);
 unsigned short	get_memory16(unsigned short address);
@@ -141,6 +160,8 @@ void			remem_copy_block_to_mmu(int block);
 unsigned char	remem_flash_sm_read(unsigned short address);
 void			remem_flash_proc_timer(void);
 void			patch_vt_version(char* pMem, int size);
+unsigned char	rex_read(unsigned short address);
+void			rex_set8(unsigned short address, unsigned char val);
 
 void			save_ram(void);
 void			load_ram(void);

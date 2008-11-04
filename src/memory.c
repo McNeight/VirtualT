@@ -2391,3 +2391,22 @@ void remem_flash_proc_timer(void)
 }
 
 
+void rex_set8(unsigned short address, unsigned char val)
+{
+}
+
+void load_rex2_ram(void)
+{
+}
+
+void save_rex2_ram(void)
+{
+}
+
+void load_rex_flash(void)
+{
+}
+
+void save_rex_flash(void)
+{
+}

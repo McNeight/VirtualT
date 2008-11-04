@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.12 2008/03/31 08:23:54 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.13 2008/09/23 00:03:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -410,6 +410,8 @@ void init_lpt(void)
 		gLpt = new VTLpt();
 		gLpt->UpdatePreferences(&virtualt_prefs);
 	}
+
+	gpPrint->label("Idle");
 
 }
 

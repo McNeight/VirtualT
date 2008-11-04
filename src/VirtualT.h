@@ -1,6 +1,6 @@
 /* VirtualT.h */
 
-/* $Id: VirtualT.h,v 1.11 2008/05/12 05:41:44 kpettit1 Exp $ */
+/* $Id: VirtualT.h,v 1.12 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -31,7 +31,7 @@
 #ifndef _VIRTUALT_H_
 #define _VIRTUALT_H_
 
-#define VERSION	"1.3"
+#define VERSION	"1.4"
 
 enum {
 	 MODEL_M100

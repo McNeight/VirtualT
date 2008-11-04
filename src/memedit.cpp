@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.5 2008/03/09 16:33:56 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -54,6 +54,8 @@
 #include "memory.h"
 #include "cpu.h"
 #include "cpuregs.h"
+#include "fileview.h"
+
 extern "C"
 {
 #include "intelhex.h"
@@ -105,6 +107,7 @@ extern "C"
 {
 extern uchar			gReMem;			/* Flag indicating if ReMem emulation enabled */
 extern uchar			gRampac;
+void			memory_monitor_cb(void);
 }
 
 
@@ -121,7 +124,7 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
 
   { 0 }
@@ -141,7 +144,7 @@ Callback routine for the Peripherial Devices window
 void cb_memeditwin (Fl_Widget* w, void*)
 {
 	gmew->hide();
-	mem_set_monitor_callback(NULL);
+	mem_clear_monitor_callback(memory_monitor_cb);
 	delete gmew;
 	gmew = NULL;
 }

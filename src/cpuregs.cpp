@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.5 2008/09/23 00:06:13 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -47,6 +47,7 @@
 #include "memedit.h"
 #include "cpu.h"
 #include "memory.h"
+#include "fileview.h"
 
 #define		MENU_HEIGHT	32
 
@@ -74,7 +75,7 @@ Fl_Menu_Item gCpuRegs_menuitems[] = {
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
   { 0 }
 };

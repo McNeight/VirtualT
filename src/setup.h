@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.4 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.5 2008/02/25 03:20:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -71,6 +71,8 @@ typedef struct memory_setup
 	int		remem_override;				// Override setting for ReMem's Rampac
 	char	remem_file[256];			// Filename for ReMem storage
 	char	rampac_file[256];			// Filename for RamPac storage
+	char	rex_flash_file[256];		// Rex flash file
+	char	rex2_ram_file[256];			// Rex2 RAM file
 } memory_setup_t;
 
 extern memory_setup_t	mem_setup;
@@ -86,7 +88,9 @@ enum {
 	SETUP_MEM_BASE,
 	SETUP_MEM_RAMPAC,
 	SETUP_MEM_REMEM,
-	SETUP_MEM_REMEM_RAMPAC
+	SETUP_MEM_REMEM_RAMPAC,
+	SETUP_MEM_REX,
+	SETUP_MEM_REX2
 };
 
 #ifdef __cplusplus

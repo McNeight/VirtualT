@@ -1,6 +1,6 @@
 /* clock.cpp */
 
-/* $Id: io.c,v 1.14 2008/09/23 00:03:46 kpettit1 Exp $ */
+/* $Id: clock.cpp,v 1.1 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -399,7 +399,6 @@ void save_model_time(void)
 	strcpy(pref, str);
 	strcat(pref, "_RefTime");
 	virtualt_prefs.set(pref, ctime(&gRefTime));
-	printf(ctime(&gRefTime));
 
 	// Save Start Time
 	strcpy(pref, str);

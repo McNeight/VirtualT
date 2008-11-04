@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.8 2008/09/23 00:06:13 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.9 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -65,7 +65,8 @@ int					gRadix = 10;		// Radix used for reporting values
 int					gRemoteBreak[65536];// Storage of breakpoint types
 int					gBreakActive = 0;	// Indicates if an active debug was reported
 int					gHaltActive = 0;	// Indicates if an active halt was issued
-int					gStepOverBreak = -1;// Indicates if a break was for a "Step Over"
+int					gStepOverBreak = 0;	// Indicates if a break was for a "Step Over"
+unsigned char		gLastIns = 0;		// Saves last instruction for stepover break
 int					gLcdTrapAddr = -1;	// Address of LCD level 6 output routine
 int					gLcdRowAddr = -1;	// Address of LCD output row storage
 int					gMonitorLcd = 0;	// Flag indicating if LCD is monitored
@@ -414,8 +415,6 @@ void cb_remote_debug(int reason)
 	// Test if callback is for an interrupt
 	if (reason == DEBUG_INTERRUPT)
 	{
-//		gIntActive = TRUE;
-//		gIntSP = SP;
 		return;
 	}
 
@@ -466,7 +465,7 @@ void cb_remote_debug(int reason)
 			}
 
 			// Report break to client socket
-			if (gStopped && (PC != gStepOverBreak))
+			if (gStopped)
 			{
 				if (gSocketOpened)
 				{
@@ -496,6 +495,22 @@ void cb_remote_debug(int reason)
 					gOpenSock << str;
 				}
 			}
+		}
+		// Check for step-over break condition
+		if (!gStopped && gStepOverBreak)
+		{
+			// Check if SP equals gStepOverBreak upon return
+			if  (gStepOverBreak == SP)
+			{
+				// Check if we are about to execute a retrun
+				if ((gLastIns == 0xC9) || ((gLastIns & 0xC7) == 0xC0))
+				{
+					// Stop the processor
+					gStopped = 1;
+				}
+			}
+			// Save this instruction for next test
+			gLastIns = INS;
 		}
 	}
 
@@ -684,7 +699,7 @@ Step command:  Single steps the CPU the specified
 */
 std::string cmd_step_over(ServerSocket& sock, std::string& args)
 {
-	int				value, inst, saveBrk;
+	int				value, inst;
 	std::string 	next_arg;
 	std::string 	more_args;
 	int				c, addr;
@@ -715,7 +730,7 @@ std::string cmd_step_over(ServerSocket& sock, std::string& args)
 		// Check if instruction is a CALL type inst.
 		if (((inst & 0xC7) == 0xC4) || (inst == 0xCD) || ((inst & 0xC7) == 0xC7)) 
 		{
-			if ((inst & 0xC7) == 0xC7)
+/*			if ((inst & 0xC7) == 0xC7)
 			{
 				if ((inst == 0xCF) || (inst == 0xFF))
 				{
@@ -742,6 +757,10 @@ std::string cmd_step_over(ServerSocket& sock, std::string& args)
 				gRemoteBreak[addr] = 0x3F;
 				gStepOverBreak = addr;
 			}
+*/
+
+			// Set gStepOverBreak to current SP */
+			gStepOverBreak = SP;
 
 			// Take the processor out of STOP mode
 			lock_remote();
@@ -752,8 +771,8 @@ std::string cmd_step_over(ServerSocket& sock, std::string& args)
 			while (!gStopped)
 				fl_wait(0.001);
 
-			gRemoteBreak[addr] = saveBrk;
-			gStepOverBreak = -1;
+//			gRemoteBreak[addr] = saveBrk;
+			gStepOverBreak = 0;
 		}
 		else
 		{

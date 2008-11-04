@@ -1,6 +1,6 @@
 /* intelhex.c */
 
-/* $Id: intelhex.c,v 1.5 2007/03/31 22:09:15 kpettit1 Exp $ */
+/* $Id: intelhex.c,v 1.6 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -41,6 +41,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include "gen_defs.h"
 #include "intelhex.h"
 #include "memory.h"
 

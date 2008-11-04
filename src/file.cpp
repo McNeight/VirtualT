@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.8 2008/03/08 04:08:36 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.9 2008/09/22 23:39:20 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -47,10 +47,13 @@ extern "C"
 #include "roms.h"
 #include "intelhex.h"
 #include "m100emu.h"
+
 extern RomDescription_t *gStdRomDesc;
 void jump_to_zero(void);
 }
+
 #include "file.h"
+#include "fileview.h"
 
 int		BasicSaveMode = 0;
 int		COSaveMode = 0;
@@ -170,12 +173,6 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 
 char			*gIllformedBasic = "Ill formed BASIC file";
 static char		*gTooLargeMsg = "File too large for available memory";
-
-#define TYPE_BA	0x80
-#define	TYPE_CO	0xA0
-#define	TYPE_DO	0xC0
-#define TYPE_HEX 0x40
-
 
 char *gKeywordTable[] = {
 	"END",    "FOR",   "NEXT",  "DATA",    "INPUT", "DIM",    "READ",   "LET",
@@ -887,6 +884,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			set_memory8(addr1+x, conv[x]);
 	}
 
+	// Update file view if open
+	fileview_model_changed();
 
 	// Reset the system so file will show up
 	jump_to_zero();

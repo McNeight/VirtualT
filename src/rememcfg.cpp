@@ -1,6 +1,6 @@
 /* rememcfg.cpp */
 
-/* $Id: rememcfg.cpp,v 1.0 2008/01/02 06:46:12 kpettit1 Exp $ */
+/* $Id: rememcfg.cpp,v 1.1 2008/01/26 14:39:46 kpettit1 Exp $ */
 
 /*
 * Copyright 2008 Ken Pettit
@@ -50,6 +50,7 @@
 #include "memory.h"
 #include "io.h"
 #include "VirtualT.h"
+#include "fileview.h"
 
 #define		MENU_HEIGHT	32
 
@@ -80,7 +81,7 @@ Fl_Menu_Item gRememCfg_menuitems[] = {
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
   { 0 }
 };
