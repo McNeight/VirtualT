@@ -15,6 +15,15 @@ v1.4  Not released yet
     data.  This has been corrected.  Also The last line of data would not be displayed if 
     the number of lines that would fit in the window was odd.  This has also been fixed.
 
+2.  Fixed a bug with cold boot in T200 emulation mode.
+
+3.  Added Model T File Viewer window.  This window allows selection of files in the Model T
+    directory and provides details regarding the storage location for the directory entry
+    and the actual file contents.  Also provides a view of the file's contents.
+
+4.  Added fullscreen display mode with automatic adjustment of multiplication factor.  This
+    feature was added to support sub-notbook platforms with smaller display resolutions that
+    cannot display full window borders well.
 
 =======================
 v1.3  September 24 2008
