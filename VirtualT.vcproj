@@ -330,6 +330,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\src\fileview.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\src\fl_usage_box.cpp"
 				>
 			</File>
@@ -668,6 +672,10 @@
 						PreprocessorDefinitions=""
 					/>
 				</FileConfiguration>
+			</File>
+			<File
+				RelativePath=".\VirtualT.rc"
+				>
 			</File>
 			<Filter
 				Name="asm"
@@ -1089,6 +1097,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\fileview.h"
+				>
+			</File>
+			<File
 				RelativePath=".\src\fl_usage_box.h"
 				>
 			</File>
@@ -1130,6 +1142,10 @@
 			</File>
 			<File
 				RelativePath=".\src\rememcfg.h"
+				>
+			</File>
+			<File
+				RelativePath=".\resource.h"
 				>
 			</File>
 			<File
@@ -1297,6 +1313,10 @@
 			Name="Resource Files"
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
+			<File
+				RelativePath=".\ModelT.ico"
+				>
+			</File>
 		</Filter>
 	</Files>
 	<Globals>
