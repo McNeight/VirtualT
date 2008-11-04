@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.16 2008/03/31 02:59:20 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.17 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -60,6 +60,7 @@
 #include "lpt.h"
 #include "fl_action_icon.h"
 #include "clock.h"
+#include "fileview.h"
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
@@ -90,6 +91,7 @@ char			gsMenuROM[40];
 char			gDelayedError[128] = {0};
 int				MultFact = 3;
 int				DisplayMode = 1;
+int				Fullscreen = 0;
 int				SolidChars = 0;
 int				DispHeight = 64;
 int				gRectsize = 2;
@@ -263,13 +265,40 @@ void resize_window()
 		gpDisp->DispHeight = 64;
 		DispHeight = 64;
 	}
-	MainWin->resize(MainWin->x(), MainWin->y(), 240*gpDisp->MultFact +
-		90*gpDisp->DisplayMode+2,gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
-	Menu->resize(0, 0, 240*gpDisp->MultFact + 90*gpDisp->DisplayMode+2, 
-		MENU_HEIGHT-2);
-	gpDisp->resize(0, MENU_HEIGHT, 240*gpDisp->MultFact + 90*gpDisp->DisplayMode+2, 
-		gpDisp->DispHeight*gpDisp->MultFact	+ 50*gpDisp->DisplayMode+2);
+	if (Fullscreen)
+	{
+		MainWin->fullscreen();
+		MultFact = min(MainWin->w()/240, MainWin->h()/128);
+		gpDisp->MultFact = MultFact;
+	}
+	else
+	{
+		if (MainWin->y() <= 0)
+			MainWin->fullscreen_off(32, 32, 240*gpDisp->MultFact +
+				90*gpDisp->DisplayMode+2, gpDisp->DispHeight*gpDisp->MultFact + 
+				50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
+		else
+			MainWin->fullscreen_off(MainWin->x(), MainWin->y(), 240*gpDisp->MultFact +
+				90*gpDisp->DisplayMode+2, gpDisp->DispHeight*gpDisp->MultFact + 
+				50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
+	}
+
+	if (MainWin->y() <= 0)
+	{
+		if (!Fullscreen)
+			MainWin->resize(32, 32, 240*gpDisp->MultFact +
+				90*gpDisp->DisplayMode+2,gpDisp->DispHeight*gpDisp->MultFact + 
+				50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
+	}
+	else
+	{
+		MainWin->resize(MainWin->x(), MainWin->y(), 240*gpDisp->MultFact +
+			90*gpDisp->DisplayMode+2,gpDisp->DispHeight*gpDisp->MultFact + 
+			50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
+	}
+
+	Menu->resize(0, 0, MainWin->w(), MENU_HEIGHT-2);
+	gpDisp->resize(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
 	gpGraph->resize(0, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
 		50*gpDisp->DisplayMode+2, 60, 20);
 	gpCode->resize(60, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
@@ -341,6 +370,7 @@ void cb_1x(Fl_Widget* w, void*)
 {
 	gpDisp->MultFact = 1;
 	MultFact = 1;
+	Fullscreen = 0;
 
 	virtualt_prefs.set("MultFact",1);
 	resize_window();
@@ -349,6 +379,7 @@ void cb_2x(Fl_Widget* w, void*)
 {
 	gpDisp->MultFact = 2;
 	MultFact = 2;
+	Fullscreen = 0;
 
 	virtualt_prefs.set("MultFact",2);
 	resize_window();
@@ -357,6 +388,7 @@ void cb_3x(Fl_Widget* w, void*)
 {
 	gpDisp->MultFact = 3;
 	MultFact = 3;
+	Fullscreen = 0;
 
 	virtualt_prefs.set("MultFact",3);
 	resize_window();
@@ -365,8 +397,18 @@ void cb_4x(Fl_Widget* w, void*)
 {
 	gpDisp->MultFact = 4;
 	MultFact = 4;
+	Fullscreen = 0;
 
 	virtualt_prefs.set("MultFact",4);
+	resize_window();
+}
+void cb_fullscreen(Fl_Widget* w, void*)
+{
+	gpDisp->MultFact = 5;
+	MultFact = 5;
+	Fullscreen = 1;
+
+	virtualt_prefs.set("MultFact",5);
 	resize_window();
 }
 void cb_framed(Fl_Widget* w, void*)
@@ -424,7 +466,6 @@ void remote_reset(void)
 
 void cb_coldBoot (Fl_Widget* w, void*)
 {
-	int x;
 	int a;
 
 	if (gReMem)
@@ -449,16 +490,13 @@ void cb_coldBoot (Fl_Widget* w, void*)
 		resetcpu();
 		reinit_mem();
 
-		// Clear the RAM
-		for (x = 32768; x < 65536; x++)
-			set_memory8(x, 0);
-
 		show_remem_mode();
 
 		if (gpDisp != NULL)
 			gpDisp->Reset();
 		if (gpDebugMonitor != 0)
 			gpDebugMonitor->Reset();
+		fileview_model_changed();
 	}
 }
 
@@ -676,7 +714,8 @@ Fl_Menu_Item menuitems[] = {
 		{ "1x",  0, cb_1x, (void *) 1, FL_MENU_RADIO },
 		{ "2x",  0, cb_2x, (void *) 2, FL_MENU_RADIO },
 		{ "3x",  0, cb_3x, (void *) 3, FL_MENU_RADIO | FL_MENU_VALUE},
-		{ "4x",  0, cb_4x, (void *) 4, FL_MENU_RADIO | FL_MENU_DIVIDER},
+		{ "4x",  0, cb_4x, (void *) 4, FL_MENU_RADIO },
+		{ "Fullscreen",  0, cb_fullscreen, (void *) 5, FL_MENU_RADIO | FL_MENU_DIVIDER},
 		{ "Framed",  0, cb_framed, (void *) 1, FL_MENU_TOGGLE|FL_MENU_VALUE },
 		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
 		{ 0 },
@@ -700,7 +739,7 @@ Fl_Menu_Item menuitems[] = {
 	{ "ReMem Configuration",   0, cb_RememCfg, 0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 //	{ "Simulation Log Viewer", 0, 0 },
-	{ "Model T File Viewer",   0, 0 },
+	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
   { "&Help", 0, 0, 0, FL_SUBMENU },
 	{ "Help", 0, cb_help },
@@ -842,6 +881,9 @@ void switch_model(int model)
 
 	/* Update Memory Editor window if any */
 	cb_MemoryEditorUpdate();
+
+	// Update the File View window if it is open
+	fileview_model_changed();
 }
 
 
@@ -1021,7 +1063,8 @@ void T100_Disp::draw_static()
 		fl_color(FL_WHITE);
 		fl_font(FL_COURIER,12);
 		char  text[3] = "F1";
-		y_pos = h()+20;
+//		y_pos = h()+20;
+		y_pos = y()+DispHeight*MultFact+40;
 		xl_start = 2*MultFact;
 		xl_end = 7*MultFact;
 
@@ -1173,6 +1216,10 @@ void init_pref(void)
 	virtualt_prefs.get("BasicSaveMode",BasicSaveMode,0);
 	virtualt_prefs.get("COSaveMode",COSaveMode,0);
 	virtualt_prefs.get("Model",gModel, MODEL_M100);
+	
+	Fullscreen = 0;
+	if (MultFact == 5)
+		Fullscreen = 1;
 
 	get_model_string(option_name, gModel);
 	strcat(option_name, "_OptRomFile");
@@ -1218,14 +1265,26 @@ void init_display(void)
 		DispHeight = 64;
 	MainWin = new Fl_Window(240*MultFact + 90*DisplayMode+2,DispHeight*MultFact +
 		50*DisplayMode + MENU_HEIGHT + 22, "Virtual T");
-	Menu = new Fl_Menu_Bar(0, 0, 240*MultFact + 90*DisplayMode+2,
-		MENU_HEIGHT-2);
-	if (gModel == MODEL_T200)
-		gpDisp = new T200_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
-			DispHeight*MultFact + 50*DisplayMode+2);
+
+	// Check if we are running in full screen mode
+	if (MultFact == 5)
+	{
+		MainWin->fullscreen();
+		MultFact = min(MainWin->w()/240, MainWin->h()/128);
+	}
 	else
-		gpDisp = new T100_Disp(0, MENU_HEIGHT, 240*MultFact + 90*DisplayMode+2,
-			DispHeight*MultFact + 50*DisplayMode+2);
+	{
+		if (MainWin->y() <= 0)
+			MainWin->fullscreen_off(32, 32, 
+			240*MultFact + 90*DisplayMode+2,DispHeight*MultFact +
+			50*DisplayMode + MENU_HEIGHT + 22);
+	}
+
+	Menu = new Fl_Menu_Bar(0, 0, MainWin->w(), MENU_HEIGHT-2);
+	if (gModel == MODEL_T200)
+		gpDisp = new T200_Disp(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
+	else
+		gpDisp = new T100_Disp(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
 
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
@@ -1257,16 +1316,20 @@ void init_display(void)
 		mIndex++;
 	mIndex--;
 
-    for(i=1;i<5;i++)
+    for(i=1;i<6;i++)
     {
         if(i==MultFact) 
-            if(i==4) 
+		{
+            if(i==5) 
                 menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE | FL_MENU_DIVIDER;
             else menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE;  
-        else
-            if(i==4) 
+		}
+		else
+		{
+            if(i==5) 
                 menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_DIVIDER;
             else menuitems[i+mIndex].flags=FL_MENU_RADIO;  
+		}
     }
 
 	//==================================================
