@@ -1,6 +1,6 @@
 /* periph.h */
 
-/* $Id: periph.h,v 1.5 2007/03/31 22:09:16 kpettit1 Exp $ */
+/* $Id: periph.h,v 1.6 2008/03/15 06:01:53 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -75,6 +75,7 @@ public:
 	void			AddByte(int rx_tx, char byte, char flags);
 	void			CalcLineStarts(void);
 	void			Clear(void);
+	void			SaveLog(void);
 	int				m_FirstLine;
 				
 protected:
