@@ -37,7 +37,7 @@ bool Socket::create()
 
   if ( ! is_valid() )
   {
-	int err = WSAGetLastError();
+//	int err = WSAGetLastError();
 	return false;
   }
 
