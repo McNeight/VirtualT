@@ -2,7 +2,7 @@
 
 /* General cross-platform development wrappers */
 
-/* $Id: genwrap.h,v 1.3 2007/03/31 22:09:15 kpettit1 Exp $ */
+/* $Id: genwrap.h,v 1.4 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -187,7 +187,7 @@ extern "C" {
 	#define BEEP(freq,dur)	Beep((DWORD)(freq),(DWORD)(dur))
 	#define	popen			_popen
 	#define pclose			_pclose
-	#define tzname			_tzname
+//	#define tzname			_tzname
 
 #elif defined(__OS2__)
 
