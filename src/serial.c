@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.14 2008/03/31 02:59:20 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.15 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -354,14 +354,15 @@ void process_read_byte(ser_params_t *sp, char byte)
 
 	sp->rxIn = new_rxIn;
 
-	ReleaseMutex(sp->hReadMutex);
-
 	// Call callback to indicate receipt of data
 	if (sp->pCallback != NULL)
 	{
 		sp->pCallback();
 		sp->fIntPending = TRUE;
 	}
+
+	ReleaseMutex(sp->hReadMutex);
+
 }
 
 /*
@@ -1315,6 +1316,8 @@ int ser_get_flags(unsigned char *flags)
 
 			// FRAMING Error flag
 
+			WaitForSingleObject(sp.hReadMutex, 2000);
+
 			if ((sp.rxIn != sp.rxOut) && (sp.fIntPending == 0))
 			{
 				if (sp.pCallback != NULL)
@@ -1323,6 +1326,9 @@ int ser_get_flags(unsigned char *flags)
 					sp.fIntPending = TRUE;
 				}
 			}
+
+			ReleaseMutex(sp.hReadMutex);
+
 		#else
 		{
 
