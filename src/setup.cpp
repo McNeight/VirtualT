@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.12 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.13 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -250,10 +250,13 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		}
 
 		// Check if we are changing ports
-		if (strcmp(setup_ctrl.com.pPort->text(), setup.com_port) != 0)
-		{	
-			ser_close_port();
-			open_port = TRUE;
+		if (setup_ctrl.com.pPort->text() != NULL)
+		{
+			if (strcmp(setup_ctrl.com.pPort->text(), setup.com_port) != 0)
+			{	
+				ser_close_port();
+				open_port = TRUE;
+			}
 		}
 	}
 
