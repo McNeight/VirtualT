@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.12 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.13 2008/12/31 05:06:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1696,7 +1696,7 @@ void T100_ComMon::SaveLog(void)
 				else
 					rxtx = CLE_RX;
 
-				sprintf(outLine, "%04d %s ", line++, rxtx == CLE_TX ? "tx" : "rx");
+				sprintf(outLine, "%04d %s ", line++, rxtx == CLE_TX ? "TX" : "RX");
 				cnt = 0;			// No bytes on this line yet
 			}
 
