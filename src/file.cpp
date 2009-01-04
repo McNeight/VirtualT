@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.9 2008/09/22 23:39:20 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.10 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -743,8 +743,16 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	// Determine if file alaready exists in directory
 	addr2 = gStdRomDesc->sDirectory;
 	dir_index = 0;
-	while ((get_memory8(addr2) != 0) && (dir_index < gStdRomDesc->sDirCount))
+	while (dir_index < gStdRomDesc->sDirCount)
 	{
+		// Test if this slot is empty
+		if (get_memory8(addr2) == 0)
+		{
+			addr2 += 11;
+			dir_index++;
+			continue;
+		}
+
 		// Compare this entry to the file being added
 		for (x = 0; x < 8; x++)
 		{
