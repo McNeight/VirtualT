@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.20 2009/01/04 05:49:25 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.21 2009/01/04 06:18:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -106,7 +106,9 @@ extern Fl_Pixmap	gPrinterIcon;
 
 void switch_model(int model);
 
+#ifndef	WIN32
 #define	min(a,b)	((a)<(b) ? (a):(b))
+#endif
 
 void setMonitorWindow(Fl_Window* pWin)
 {
