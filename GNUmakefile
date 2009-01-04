@@ -45,7 +45,7 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
 				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp \
-				vtpaper.cpp autofile.cpp clock.cpp
+				vtpaper.cpp autofile.cpp clock.cpp fileview.cpp
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -158,6 +158,7 @@ fx80rom.o:
 vtpaper.o:		printer.h vtpaper.h autofile.h
 autofile.o:		autofile.h
 clock.o:		clock.h
+fileview.o:		display.h cpuregs.h disassemble.h fileview.h periph.h memedit.h file.h
 
 # ==========
 # asm files
