@@ -126,6 +126,7 @@ extern int				gRex;
 
 void			init_mem(void);
 void			reinit_mem(void);
+void			cold_boot_mem(void);
 void			free_mem(void);
 void			free_remem_mem(void);
 void			free_rampac_mem(void);

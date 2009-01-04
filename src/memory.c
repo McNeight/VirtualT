@@ -619,7 +619,24 @@ void reinit_mem(void)
 	gRomBank = 0;
 
 }
+/*
+============================================================================
+Clear RAM to emulate a cold-boot based on Memory mode selected.
+============================================================================
+*/
+void cold_boot_mem(void)
+{
+	int		x;
 
+	if (gReMem)
+	{
+	}
+	else
+	{
+		for (x = ROMSIZE; x < 65536; x++)
+			gBaseMemory[x] = 0;
+	}
+}
 
 /*
 ========================================================================
