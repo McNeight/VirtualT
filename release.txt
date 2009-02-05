@@ -25,6 +25,12 @@ v1.4  Not released yet
     feature was added to support sub-notbook platforms with smaller display resolutions that
     cannot display full window borders well.
 
+5.  Added option to reload the Option ROM image.  This is useful when developing a new OptROM
+    image and using VirtualT for debugging.
+
+6.  Modified the Memory Editor's Load and Save features so they properly address the absolute
+    memory addresses to RAM vs. relative offsets from the beginning RAM address.
+
 =======================
 v1.3  September 24 2008
 =======================

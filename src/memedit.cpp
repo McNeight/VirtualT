@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.5 2008/03/09 16:33:56 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -287,9 +287,15 @@ void update_length_field(const char *filename)
 
 void load_file_to_mem(const char *filename, int address)
 {
-	int					len;
+	int					len, region;
 	unsigned char		*buffer;
 	unsigned short		start_addr;
+
+	// Adjust address if writing to RAM region
+	region = memedit_ctrl.pMemEdit->GetRegionEnum();
+	if ((region == REGION_RAM) || (region == REGION_RAM1) || (region == REGION_RAM2) ||
+		(region == REGION_RAM3))
+			address -= RAMSTART;
 
 	// Check for hex file
 	len = strlen(filename);
@@ -307,7 +313,7 @@ void load_file_to_mem(const char *filename, int address)
 		else
 		{
 			// Write data to the selected region
-			set_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, len, buffer);
+			set_memory8_ext(region, address, len, buffer);
 		}
 
 		// Free the memory
@@ -325,12 +331,11 @@ void load_file_to_mem(const char *filename, int address)
 			buffer = new unsigned char[len];
 			fseek(fd, 0, SEEK_SET);
 			fread(buffer, 1, len, fd);
-			set_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, len, buffer);
+			set_memory8_ext(region, address, len, buffer);
 			fclose(fd);
 
 			delete buffer;
 		}
-		
 	}
 }
 
@@ -338,7 +343,14 @@ void save_mem_to_file(const char *filename, int address, int count, int save_as_
 {
 	unsigned char		*buffer;
 	FILE				*fd;
+	int					region;
 
+
+	// Adjust address if writing from RAM
+	region = memedit_ctrl.pMemEdit->GetRegionEnum();
+	if ((region == REGION_RAM) || (region == REGION_RAM1) || (region == REGION_RAM2) ||
+		(region == REGION_RAM3))
+			address -= RAMSTART;
 
 	// Check for hex file
 	if (save_as_hex)
@@ -348,7 +360,7 @@ void save_mem_to_file(const char *filename, int address, int count, int save_as_
 		if (fd == NULL)
 			return;
 
-		save_hex_file_ext(address, address+count-1, memedit_ctrl.pMemEdit->GetRegionEnum(), fd);
+		save_hex_file_ext(address, address+count-1, region, fd);
 
 		fclose(fd);
 	}
@@ -359,13 +371,13 @@ void save_mem_to_file(const char *filename, int address, int count, int save_as_
 		if ((fd = fopen(filename, "wb+")) != NULL)
 		{
 			buffer = new unsigned char[count];
-			get_memory8_ext(memedit_ctrl.pMemEdit->GetRegionEnum(), address, count, buffer);
+
+			get_memory8_ext(region, address, count, buffer);
 			fwrite(buffer, count, 1, fd);
 			fclose(fd);
 
 			delete buffer;
 		}
-		
 	}
 }
 
