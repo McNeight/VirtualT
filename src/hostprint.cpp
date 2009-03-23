@@ -1,6 +1,6 @@
 /* hostprint.cpp */
 
-/* $Id: hostprint.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: hostprint.cpp,v 1.8 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -45,6 +45,7 @@
 #include <fcntl.h>
 
 #ifdef __unix__
+#include <unistd.h>
 #endif
 
 #include "VirtualT.h"

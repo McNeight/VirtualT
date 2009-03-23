@@ -14,6 +14,7 @@ VTAssembler:		This class defines an 8085 Macro Assembler for the
 #include		<math.h>
 #include		<string.h>
 #include		<stdio.h>
+#include		<stdlib.h>
 
 extern	CRpnEquation*	gEq;
 extern	VTObArray*		gExpList;

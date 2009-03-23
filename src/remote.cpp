@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.9 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.10 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -32,8 +32,9 @@
 #include <string.h>
 #include <stdio.h>
 
-#ifdef WIN32
 #include <algorithm>
+
+#ifdef WIN32
 #include <cctype>
 #else
 #include <pthread.h>

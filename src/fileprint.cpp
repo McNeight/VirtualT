@@ -1,6 +1,6 @@
 /* fileprint.cpp */
 
-/* $Id: fileprint.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: fileprint.cpp,v 1.7 2008/04/13 16:42:54 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -41,6 +41,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <algorithm>
+#include <ctime>
+#include <iterator>
 
 #include "VirtualT.h"
 #include "fileprint.h"
