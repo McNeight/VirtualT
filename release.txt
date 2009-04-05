@@ -31,6 +31,22 @@ v1.4  Not released yet
 6.  Modified the Memory Editor's Load and Save features so they properly address the absolute
     memory addresses to RAM vs. relative offsets from the beginning RAM address.
 
+7.  Fixed socket interface break on memory write function so an LXI H,XXXX doesn't cause a
+    breakpoint at address XXXX.
+
+8.  Added socket interface shortcuts for the key command (k) and for the "enter" keyword (cr).
+
+9.  Modified hexadecimal input for GUI and socket interfaces to accept HEX formats using the
+    "04h" notation or for values that contain 'a' through 'f', simply using "5d" notation.
+    It is case insensitive for both the hex values and 'H'.
+
+10. Fixed timing race condition on some platforms with the socket interface 'key' command 
+    where the first keystroke would sometimes be dropped.
+    
+11. Modified remote socket interface to support telnet character based transfer and line endings.
+
+ 
+
 =======================
 v1.3  September 24 2008
 =======================
