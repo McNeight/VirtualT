@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.11 2009/03/23 04:58:12 jhoger Exp $ */
+/* $Id: remote.cpp,v 1.12 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -82,6 +82,8 @@ int					gSocketOpened = FALSE;
 lcd_rect_t			gIgnoreRects[10];
 int					gIgnoreCount = 0;
 int					gLastDisAddress = 0;
+int					gLastDisCount = 10;
+int					gLastCmdDis = FALSE;
 int					gTraceOpen = 0;
 int					gTraceActive = 0;
 std::string			gTraceFile;
@@ -2303,7 +2305,7 @@ std::string cmd_disassemble(ServerSocket& sock, std::string& args)
 		
 	// Get line count
 	if (more_args == "")
-		lineCount = 10;
+		lineCount = gLastDisCount;
 	else
 		lineCount = str_to_i(more_args.c_str());
 
@@ -2320,6 +2322,7 @@ std::string cmd_disassemble(ServerSocket& sock, std::string& args)
 		sock << line;
 	}
 	gLastDisAddress = dis_addr;
+	gLastDisCount = lineCount;
 
 	return gOk;
 }
@@ -2466,6 +2469,7 @@ int telnet_command_ready(ServerSocket& sock, std::string &cmd)
 	for (x = 0; x < len; x++)
 	{
 		char ch = cmd.c_str()[x];
+		printf("<%02Xh> ", ch);
 
 		/* Test for 0x0D and ignore it */
 		if (ch == 0x0D)
@@ -2482,7 +2486,10 @@ int telnet_command_ready(ServerSocket& sock, std::string &cmd)
 		if (ch == 0x08)
 		{
 			if (gTelnetCmd.length() == 0)
+			{
+				sock << " ";
 				continue;
+			}
 			gTelnetCmd = gTelnetCmd.substr(0, gTelnetCmd.length()-1);
 			sock << " \x08";
 			continue;
@@ -2523,12 +2530,25 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 		if (!telnet_command_ready(sock, cmd))
 			return "";
 		if (cmd == "")
+		{
+			if (gLastCmdDis)
+			{
+				ret = cmd_disassemble(sock, args);
+				return ret;
+			}
 			return gOk;
+		}
 	}
 
 	// Separate out the command word from any arguments
 	args = cmd;
 	cmd_word = get_next_arg(args);
+
+	if ((cmd == "") && gLastCmdDis)
+	{
+		ret = cmd_disassemble(sock, args);
+		return ret;
+	}
 
 	if (cmd == "help")				// Check for help
 		ret = cmd_help(sock);
@@ -2606,7 +2626,11 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 		ret = cmd_speed(sock, args);
 
 	else if (cmd_word == "dis")
+	{
 		ret = cmd_disassemble(sock, args);
+		gLastCmdDis = TRUE;
+		return ret;
+	}
 
 	else if (cmd_word == "pc")
 		ret = cmd_show_reg(sock, PC, 2);
@@ -2669,7 +2693,11 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	{
 		args = "pc " + args;
 		ret = cmd_disassemble(sock, args);
+		gLastCmdDis = TRUE;
+		return ret;
 	}
+
+	gLastCmdDis = FALSE;
 
 	return ret;
 }
