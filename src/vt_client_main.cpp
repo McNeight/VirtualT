@@ -49,7 +49,7 @@ int main ( int argc, char* argv[] )
     } 
 #endif
 
-	std::cout << "Use decimal or C hex notation for input (0x2a)\n";
+	std::cout << "Use decimal, C hex (0x2a) or Asm hex (14h) for input\n";
 	std::cout << "Return data reported according to specified radix\n";
 	std::cout << "Type 'help' or 'quit' to exit\n";
 

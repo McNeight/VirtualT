@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.14 2008/09/23 00:03:46 kpettit1 Exp $ */
+/* $Id: io.c,v 1.15 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -107,9 +107,6 @@ void update_keys(void)
 		}
 	}
 
-	gDelayUpdateKeys = 0;
-	gDelayCount = 0;
-	
 	if (gModel == MODEL_M10)
 	{
 		keyscan[0] = ~(gKeyStates['q']       | (gKeyStates['w'] << 1) |
@@ -227,6 +224,10 @@ void update_keys(void)
 					 	(unsigned char) (((gSpecialKeys & MT_CAP_LOCK) | ~MT_CAP_LOCK) >> 1);
 		}
 	}
+
+	gDelayUpdateKeys = 0;
+	gDelayCount = 0;
+	
 }
 
 void init_io(void)

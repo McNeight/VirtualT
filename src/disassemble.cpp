@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.7 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.8 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -105,7 +105,7 @@ char * gStrTable[256] = {
 	"CMP B",   "CMP C",   "CMP D",   "CMP E",   "CMP H",   "CMP L",    "CMP M",   "CMP A",
 
 	"RNZ",     "POP B",   "JNZ ",    "JMP ",    "CNZ ",    "PUSH B",   "ADI ",    "RST 0",
-	"RZ",      "RET",     "JZ ",     "-",       "CZ ",     "CALL ",    "ACI ",    "RST 1",
+	"RZ",      "RET",     "JZ ",     "RSTV",    "CZ ",     "CALL ",    "ACI ",    "RST 1",
 
 	"RNC",     "POP D",   "JNC ",    "OUT ",    "CNC ",    "PUSH D",   "SUI ",    "RST 2",
 	"RC",      "SHLX",    "JC ",     "IN ",     "CC ",     "JNX ",     "SBI ",    "RST 3",
@@ -172,8 +172,6 @@ Fl_Menu_Item gDis_menuitems[] = {
 
   { 0 }
 };
-
-
 
 /*
 =======================================================
@@ -372,7 +370,7 @@ void VTDis::Disassemble()
 	{
 		// Search for C in the function table
 		x = 0;
-		while (m_pRom->pFuns[x].addr != -1)
+/*		while (m_pRom->pFuns[x].addr != -1)
 		{
 			if (m_pRom->pFuns[x].addr == c)
 			{
@@ -386,7 +384,7 @@ void VTDis::Disassemble()
 
 			x++;
 		}
-
+*/
 		// Check if address is a table instead of code
 		x = 0;
 		table = 0;

@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.10 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.11 2009/03/23 04:58:12 jhoger Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -87,6 +87,10 @@ int					gTraceActive = 0;
 std::string			gTraceFile;
 FILE*				gTraceFileFd;
 VTDis				gTraceDis;
+std::string			gLineTerm = "\n";
+std::string			gOk = "Ok";
+std::string			gParamError = "Parameter Error\nOk";
+std::string			gTelnetCmd;
 
 int remote_cpureg_stop(void);
 int remote_cpureg_run(void);
@@ -119,39 +123,39 @@ Help command:  Send list of supported commands
 */
 std::string cmd_help(ServerSocket& sock)
 {
-	sock << "Help\n====\n";
-	sock << "  clear_break(cb) address\n";
-	sock << "  cold_boot\n";
-	sock << "  debug_isr(isr) [on off]\n";
-	sock << "  dis address [lines]\n";
-	sock << "  flags [all S Z ac P=1 s=0 ...]\n";
-	sock << "  halt\n";
-	sock << "  in port\n";
-	sock << "  key [enter f1 esc ctrl+c shift+code+a \"Text\" ...]\n";
-	sock << "  lcd_ignore(li) [none (row,col)-(row,col)]\n";
-	sock << "  lcd_mon(lm) [on off]\n";
-	sock << "  list_break(lb)\n";
-	sock << "  load filename\n";
-	sock << "  model [m100 m102 t200 pc8201 m10 kc85]\n";
-	sock << "  optrom [unload, filename]\n";
-	sock << "  out port, value\n";
-	sock << "  radix [10 or 16]\n";
-	sock << "  read_mem(rm) address [count]\n";
-	sock << "  read_reg(rr) [all A B h m DE ...]\n";
-	sock << "  reset\n";
-	sock << "  run\n";
-	sock << "  set_break(sb) address [main opt mplan ram ram2 ram3]\n";
-	sock << "  speed [2.4 friendly max]\n";
-	sock << "  status\n";
-	sock << "  step(s) [count]\n";
-	sock << "  step_over(so) [count]\n";
-	sock << "  string address\n";
-	sock << "  terminate\n";
-	sock << "  write_mem(wm) address [data data data ...]\n";
-	sock << "  write_reg(wr) [A=xx B=xx hl=xx ...]\n";
-	sock << "  x [lines]\n";
+	sock << "Help" << gLineTerm << "====" << gLineTerm;
+	sock << "  clear_break(cb) address" << gLineTerm;
+	sock << "  cold_boot" << gLineTerm;
+	sock << "  debug_isr(isr) [on off]" << gLineTerm;
+	sock << "  dis address [lines]" << gLineTerm;
+	sock << "  flags [all S Z ac P=1 s=0 ...]" << gLineTerm;
+	sock << "  halt" << gLineTerm;
+	sock << "  in port" << gLineTerm;
+	sock << "  key(k) [enter cr f1 esc ctrl+c shift+code+a \"Text\" ...]" << gLineTerm;
+	sock << "  lcd_ignore(li) [none (row,col)-(row,col)]" << gLineTerm;
+	sock << "  lcd_mon(lm) [on off]" << gLineTerm;
+	sock << "  list_break(lb)" << gLineTerm;
+	sock << "  load filename" << gLineTerm;
+	sock << "  model [m10 m102 t200 pc8201 m10 kc85]" << gLineTerm;
+	sock << "  optrom [unload, filename]" << gLineTerm;
+	sock << "  out port, value" << gLineTerm;
+	sock << "  radix [10 or 16]" << gLineTerm;
+	sock << "  read_mem(rm) address [count]" << gLineTerm;
+	sock << "  read_reg(rr) [all A B h m DE ...]" << gLineTerm;
+	sock << "  reset" << gLineTerm;
+	sock << "  run" << gLineTerm;
+	sock << "  set_break(sb) address [main opt mplan ram ram2 ram3 read write]" << gLineTerm;
+	sock << "  speed [2.4 friendly max]" << gLineTerm;
+	sock << "  status" << gLineTerm;
+	sock << "  step(s) [count]" << gLineTerm;
+	sock << "  step_over(so) [count]" << gLineTerm;
+	sock << "  string address" << gLineTerm;
+	sock << "  terminate" << gLineTerm;
+	sock << "  write_mem(wm) address [data data data ...]" << gLineTerm;
+	sock << "  write_reg(wr) [A=xx B=xx hl=xx ...]" << gLineTerm;
+	sock << "  x [lines] (short for \"dis pc\")" << gLineTerm;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -166,8 +170,8 @@ void handle_lcd_timeout()
 	if ((int) (cycles - gLcdUpdateCycle) > gLcdTimeoutCycles)
 	{
 		// New string being written.  Send the old one
-		sprintf(str, "event, lcdwrite, (%d,%d),%s\n", gLcdRow, gLcdColStart,
-			gLcdString.c_str());
+		sprintf(str, "event, lcdwrite, (%d,%d),%s%s", gLcdRow, gLcdColStart,
+			gLcdString.c_str(), gLineTerm.c_str());
 
 		if ((gLcdRow != -1) && (gLcdColStart != -1))
 			if (gSocketOpened)
@@ -218,8 +222,8 @@ void handle_lcd_trap()
 		if (gLcdRow != -1)
 		{
 			// New string being written.  Send the old one
-			sprintf(str, "event, lcdwrite, (%d,%d),%s\n", gLcdRow, gLcdColStart,
-				gLcdString.c_str());
+			sprintf(str, "event, lcdwrite, (%d,%d),%s%s", gLcdRow, gLcdColStart,
+				gLcdString.c_str(), gLineTerm.c_str());
 			if (gSocketOpened)
 				gOpenSock << str;
 		}
@@ -288,9 +292,10 @@ int check_mem_access_break(void)
 		case 0x11:	/* LXI D */
 		case 0x21:	/* LXI H */
 		case 0x31:	/* LXI SP */
-			address = (int) (PC) | ((int) (PC) << 8);
+			address = (((int)get_memory8((unsigned short) (PC+1)))|(((int)get_memory8((unsigned short) (PC+2)))<<8));
 			read = TRUE;
 			len = 2;
+			break;
 
 		case 0x22:	/* SHLD */
 			write = TRUE;
@@ -471,9 +476,9 @@ void cb_remote_debug(int reason)
 				if (gSocketOpened)
 				{
 					if (gRadix == 10)
-						sprintf(str, "event, break, PC=%d\n", PC);
+						sprintf(str, "event, break, PC=%d%s", PC, gLineTerm.c_str());
 					else
-						sprintf(str, "event, break, PC=%04X\n", PC);
+						sprintf(str, "event, break, PC=%04X%s", PC, gLineTerm.c_str());
 					gOpenSock << str;
 				}
 			}
@@ -490,9 +495,9 @@ void cb_remote_debug(int reason)
 				if (gSocketOpened)
 				{
 					if (gRadix == 10)
-						sprintf(str, "event, break, PC=%d\n", PC);
+						sprintf(str, "event, break, PC=%d%s", PC, gLineTerm.c_str());
 					else
-						sprintf(str, "event, break, PC=%04X\n", PC);
+						sprintf(str, "event, break, PC=%04X%s", PC, gLineTerm.c_str());
 					gOpenSock << str;
 				}
 			}
@@ -558,7 +563,7 @@ std::string cmd_terminate(ServerSocket& sock)
 {
 	gExitApp = TRUE;
 	gExitLoop = TRUE;
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -575,9 +580,11 @@ std::string cmd_status(ServerSocket& sock)
 	get_model_string(modelStr, gModel);
 
 	if (gStopped)
-		sprintf(retStr, "Model=%s, CPU halted\nOk", modelStr);
+		sprintf(retStr, "Model=%s, CPU halted%s%s", modelStr, 
+			gLineTerm.c_str(), gOk.c_str());
 	else
-		sprintf(retStr, "Model=%s, CPU running\nOk", modelStr);
+		sprintf(retStr, "Model=%s, CPU running%s%s", modelStr,
+			gLineTerm.c_str(), gOk.c_str());
 
 	return retStr;
 	
@@ -600,7 +607,7 @@ std::string cmd_halt(ServerSocket& sock)
 			unlock_remote();
 		}
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -611,7 +618,7 @@ Reset command:  Reset the CPU
 std::string cmd_reset(ServerSocket& sock)
 {
 	remote_reset();
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -622,7 +629,7 @@ Cold Boot command:  Cold boot the machine
 std::string cmd_cold_boot(ServerSocket& sock)
 {
 	remote_cold_boot();
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -646,7 +653,7 @@ std::string cmd_run(ServerSocket& sock)
 			unlock_remote();
 		}
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -673,10 +680,10 @@ std::string cmd_step(ServerSocket& sock, std::string& args)
 		next_arg = get_next_arg(args);
 	}
 
-	// Get address of read
+	// Get step count
 	value = str_to_i(next_arg.c_str());
 	if (value < 0)
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	// Loop for each step
 	for (c = 0; c < value; c++)
@@ -689,7 +696,7 @@ std::string cmd_step(ServerSocket& sock, std::string& args)
 			fl_wait(0.001);
 	}
 	
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -716,10 +723,10 @@ std::string cmd_step_over(ServerSocket& sock, std::string& args)
 		next_arg = get_next_arg(args);
 	}
 
-	// Get address of read
+	// Get step over count
 	value = str_to_i(next_arg.c_str());
 	if (value < 0)
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	// Loop for each step
 	for (c = 0; c < value; c++)
@@ -788,7 +795,7 @@ std::string cmd_step_over(ServerSocket& sock, std::string& args)
 		}
 	}
 	
-	return "Ok";
+	return gOk;
 }
 
 int get_address(std::string arg)
@@ -849,7 +856,7 @@ std::string cmd_write_mem(ServerSocket& sock, std::string& args)
 	}
 	unlock_remote();
 			
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -891,9 +898,9 @@ std::string cmd_read_mem(ServerSocket& sock, std::string& args)
 		ret += str;
 	}
 	unlock_remote();
-	ret += "\n";
+	ret += gLineTerm;
 	
-	return ret + "Ok";
+	return ret + gOk;
 }
 
 /*
@@ -917,11 +924,11 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 	if (args == "all")
 	{
 		if (gRadix == 10)
-			sprintf(reg_str, "A=%d F=%d B=%d C=%d D=%d E=%d H=%d L=%d M=%d PC=%d SP=%d\nOk",
-				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP);
+			sprintf(reg_str, "A=%d F=%d B=%d C=%d D=%d E=%d H=%d L=%d M=%d PC=%d SP=%d%s%s",
+				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP, gLineTerm.c_str(), gOk.c_str());
 		else
-			sprintf(reg_str, "A=%02X F=%02X B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X M=%02X PC=%04X SP=%04X\nOk",
-				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP);
+			sprintf(reg_str, "A=%02X F=%02X B=%02X C=%02X D=%02X E=%02X H=%02X L=%02X M=%02X PC=%04X SP=%04X%s%s",
+				A, F, B, C, D, E, H, L, get_memory8(HL), PC, SP, gLineTerm.c_str(), gOk.c_str());
 		unlock_remote();
 		return reg_str;
 	}
@@ -1023,9 +1030,9 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 			}
 		}
 		unlock_remote();
-		return ret + "\nOk";
+		return ret + gLineTerm + gOk;
 	}
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1060,7 +1067,7 @@ std::string cmd_write_reg(ServerSocket& sock, std::string& args)
 		if (pos == -1)
 		{
 			unlock_remote();
-			return "Parameter Error\nOk";
+			return gParamError;
 		}
 		regStr = next_arg.substr(0, pos);
 		valueStr = next_arg.substr(pos+1, next_arg.length()-pos-1);
@@ -1115,7 +1122,7 @@ std::string cmd_write_reg(ServerSocket& sock, std::string& args)
 	// Unlock access to remote control
 	unlock_remote();
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1126,9 +1133,12 @@ Load command:  Loads a target file from the host
 std::string cmd_load(ServerSocket& sock, std::string& args)
 {
 	if (remote_load_from_host(args.c_str()))
-		return "Load Error\nOk";
+	{
+		std::string ret = "Load Error" + gLineTerm + gOk;
+		return ret;
+	}
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1140,31 +1150,35 @@ void cb_UnloadOptRom (Fl_Widget* w, void*);
 
 std::string cmd_optrom(ServerSocket& sock, std::string& args)
 {
-	int ret;
+	int err;
 
 	// 
 	if (args == "")
 	{
 		if (strlen(gsOptRomFile) == 0)
-			return "none\nOk";
+		{
+			std::string ret = "none" + gLineTerm + gOk;
+			return ret;
+		}
 		sock << gsOptRomFile;
-		return "\nOk";
+		return gLineTerm + gOk;
 	}
 
 	if (args == "unload")
 	{
 		cb_UnloadOptRom(NULL, NULL);
-		return "Ok";
+		return gOk;
 	}
 
 	// Load the optrom specified
-	ret = load_optrom_file(args.c_str());
-	if (ret == FILE_ERROR_INVALID_HEX)
-		return "Invalid hex file\nOk";
-	if (ret == FILE_ERROR_FILE_NOT_FOUND)
-		return "File not found\nOk";
+	std::string ret = gOk;
+	err = load_optrom_file(args.c_str());
+	if (err == FILE_ERROR_INVALID_HEX)
+		ret = "Invalid hex file" + gLineTerm + gOk;
+	if (err == FILE_ERROR_FILE_NOT_FOUND)
+		ret = "File not found" + gLineTerm + gOk;
 
-	return "Ok";
+	return ret;
 }
 
 /*
@@ -1178,15 +1192,15 @@ std::string cmd_radix(ServerSocket& sock, std::string& args)
 
 	if (args == "")
 	{
-		sprintf(str, "%d\nOk", gRadix);
+		sprintf(str, "%d%s%s", gRadix, gLineTerm.c_str(), gOk.c_str());
 		return str;
 	}
 		
 	if ((args != "10") && (args != "16"))
-		return "Parameter error\nOk";
+		return gParamError;
 
 	gRadix = str_to_i(args.c_str());
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1201,16 +1215,16 @@ std::string cmd_in(ServerSocket& sock, std::string& args)
 
 	// Ensure there are params
 	if (args == "")
-		return "Parameter error\nOk";
+		return gParamError;
 
 	// Convert the port # to integer
 	port = str_to_i(args.c_str());
 
 	// Report the value based on radix
-	if (gRadix = 10)
-		sprintf(str, "%d\nOk", inport(port));
+	if (gRadix == 10)
+		sprintf(str, "%d%s%s", inport(port), gLineTerm.c_str(), gOk.c_str());
 	else
-		sprintf(str, "%02X\nOk", inport(port));
+		sprintf(str, "%02X%s%s", inport(port), gLineTerm.c_str(), gOk.c_str());
 	return str;
 }
 
@@ -1243,7 +1257,7 @@ std::string cmd_flags(ServerSocket& sock, std::string& args)
 		if (AC) str += "AC ";
 		if (TS) str += "TS ";
 		if (str == "")  str = "(none)";
-		str += "\n";
+		str += gLineTerm;
 	}
 	else
 	{
@@ -1312,9 +1326,9 @@ std::string cmd_flags(ServerSocket& sock, std::string& args)
 				}
 			}
 		}
-		str += "\n";
+		str += gLineTerm;
 	}
-	str += "Ok";
+	str += gOk;
 
 	unlock_remote();
 	return str;
@@ -1333,7 +1347,7 @@ std::string cmd_out(ServerSocket& sock, std::string& args)
 
 	// Validate there are parameters
 	if (args == "")
-		return "Parameter error\nOk";
+		return gParamError;
 
 	// Find the comma separating the port and value
 	pos = args.find(',');
@@ -1360,7 +1374,7 @@ std::string cmd_out(ServerSocket& sock, std::string& args)
 		else
 		{
 			// Invalid format
-			return "Parameter Error\nOk";
+			return gParamError;
 		}
 	}
 
@@ -1370,7 +1384,7 @@ std::string cmd_out(ServerSocket& sock, std::string& args)
 
 	// Perform the out function
 	out(port, value);
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1394,7 +1408,7 @@ std::string cmd_set_break(ServerSocket& sock, std::string& args)
 	// Convert address
 	address = get_address(next_arg);
 	if ((address > 65535) || (address < 0))
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	// Determine the types of breaks
 	if (more_args == "")
@@ -1440,9 +1454,7 @@ std::string cmd_set_break(ServerSocket& sock, std::string& args)
 		}
 		
 		if (value == 0)
-		{
-			return "Parameter Error\nOk";
-		}
+			return gParamError;
 	}
 
 	// Okay, now set the breakpoint
@@ -1457,7 +1469,7 @@ std::string cmd_set_break(ServerSocket& sock, std::string& args)
 	// Unlock access to global vars
 	unlock_remote();
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1487,7 +1499,7 @@ std::string cmd_clear_break(ServerSocket& sock, std::string& args)
 		// Convert address
 		address = get_address(next_arg);
 		if ((address > 65535) || (address < 0))
-			return "Parameter Error\nOk";
+			return gParamError;
 
 		// Clear the breakpoint
 		gRemoteBreak[address] = 0;
@@ -1512,7 +1524,7 @@ std::string cmd_clear_break(ServerSocket& sock, std::string& args)
 		}
 	}
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1550,11 +1562,11 @@ std::string cmd_list_break(ServerSocket& sock, std::string& args)
 				strcat(str, "read ");
 			if (gRemoteBreak[c] & BPTYPE_WRITE)
 				strcat(str, "write ");
-			strcat(str, "\n");
+			strcat(str, gLineTerm.c_str());
 			sock << str;
 		}
 	}
-	return "Ok";
+	return gOk;
 }
 
 void key_delay(void)
@@ -1562,6 +1574,7 @@ void key_delay(void)
 	fl_wait(0.01);
 	while (gDelayUpdateKeys)
 		fl_wait(0.001);
+	fl_wait(0.01);
 }
 /*
 =======================================================
@@ -1625,6 +1638,8 @@ int keyword_lookup(std::string& keyword)
 	std::transform(keyword.begin(), keyword.end(), keyword.begin(), (int(*)(int)) std::tolower);
 
 	if (keyword == "enter")
+		return FL_Enter;
+	else if (keyword == "cr")
 		return FL_Enter;
 	else if (keyword == "esc")
 		return FL_Escape;
@@ -1740,7 +1755,7 @@ std::string cmd_key(ServerSocket& sock, std::string& args)
 	if (len == 1)
 	{
 		key_press(args[0]);
-		return "Ok";
+		return gOk;
 	}
 
 	// Loop through all charaters
@@ -1837,7 +1852,7 @@ std::string cmd_key(ServerSocket& sock, std::string& args)
 		send_key_list(key_list, key_count);
 	}
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1874,7 +1889,7 @@ std::string cmd_model(ServerSocket& sock, std::string& args)
 	if (args == "")
 	{
 		get_model_string(model, gModel);
-		sprintf(str, "%s\nOk", model);
+		sprintf(str, "%s%s%s", model, gLineTerm.c_str(), gOk.c_str());
 		return str;
 	}
 		
@@ -1913,10 +1928,10 @@ std::string cmd_model(ServerSocket& sock, std::string& args)
 			local_switch_model(MODEL_KC85);
 	}
 	else
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	fl_wait(0.25);
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -1927,15 +1942,22 @@ Speed command:  Sets the emulation speed
 std::string cmd_speed(ServerSocket& sock, std::string& args)
 {
 	std::string	more_args = args;
+	std::string ret;
 
 	if (args == "")
 	{
 		switch (fullspeed)
 		{
-		case SPEED_REAL: return "2.4\nOk";
+		case SPEED_REAL: 
+			ret = "2.4" + gLineTerm + gOk;
+			return ret;
 		case SPEED_FRIENDLY1:
-		case SPEED_FRIENDLY2: return "friendly\nOk";
-		case SPEED_FULL: return "max\nOk";
+		case SPEED_FRIENDLY2: 
+			ret = "friendly" + gLineTerm + gOk;
+			return ret;
+		case SPEED_FULL: 
+			ret = "max" + gLineTerm + gOk;
+			return ret;
 		}
 	}
 
@@ -1956,9 +1978,9 @@ std::string cmd_speed(ServerSocket& sock, std::string& args)
 		remote_set_speed(SPEED_FULL);
 	}
 	else
-		return "Parameter Error\nOk";
+		return gParamError;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -2018,16 +2040,19 @@ std::string cmd_lcd_ignore(ServerSocket& sock, std::string& args)
 	if (args == "")
 	{
 		if (gIgnoreCount == 0)
-			return "none\nOk";
+		{
+			std::string ret = "none" + gLineTerm + gOk;
+			return ret;
+		}
 
 		for (pos = 0; pos < gIgnoreCount; pos++)
 		{
-			sprintf(str, "(%d,%d)-(%d,%d)\n", gIgnoreRects[pos].top_row,
+			sprintf(str, "(%d,%d)-(%d,%d)%s", gIgnoreRects[pos].top_row,
 				gIgnoreRects[pos].top_col, gIgnoreRects[pos].bottom_row,
-				gIgnoreRects[pos].bottom_col);
+				gIgnoreRects[pos].bottom_col, gLineTerm.c_str());
 			sock << str;
 		}
-		return "Ok";
+		return gOk;
 	}
 
 	// Ckeck if clearing all ignores
@@ -2035,7 +2060,7 @@ std::string cmd_lcd_ignore(ServerSocket& sock, std::string& args)
 	{
 		// Clear the ignore count so all regions are monitored
 		gIgnoreCount = 0;
-		return "Ok";
+		return gOk;
 	}
 
 	// Separate coordinates
@@ -2046,13 +2071,13 @@ std::string cmd_lcd_ignore(ServerSocket& sock, std::string& args)
 		more_args = args.substr(pos+1, args.length()-pos-1);
 	}
 	else
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	// Get row from first argument
 	if (get_lcd_coords(next_arg, top_row, top_col))
-		return "Parameter Error\nOk";
+		return gParamError;
 	if (get_lcd_coords(more_args, bottom_row, bottom_col))
-		return "Parameter Error\nOk";
+		return gParamError;
 
 	// Update the ignore region
 	gIgnoreRects[gIgnoreCount].top_row = top_row;
@@ -2061,7 +2086,7 @@ std::string cmd_lcd_ignore(ServerSocket& sock, std::string& args)
 	gIgnoreRects[gIgnoreCount].bottom_col = bottom_col;
 	gIgnoreCount++;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -2074,13 +2099,13 @@ std::string cmd_show_reg(ServerSocket& sock, int value, int size)
 	char		str[10];
 
 	if (gRadix == 10)
-		sprintf(str, "%d\nOk", value);
+		sprintf(str, "%d%s%s", value, gLineTerm.c_str(), gOk.c_str());
 	else
 	{
 		if (size == 2)
-			sprintf(str, "%04X\nOk", value);
+			sprintf(str, "%04X%s%s", value, gLineTerm.c_str(), gOk.c_str());
 		else
-			sprintf(str, "%02X\nOk", value);
+			sprintf(str, "%02X%s%s", value, gLineTerm.c_str(), gOk.c_str());
 	}
 
 	return str;
@@ -2097,10 +2122,12 @@ std::string cmd_lcd_mon(ServerSocket& sock, std::string& args)
 	// Get breakpoint arguments
 	if (args == "")
 	{
+		std::string ret;
 		if (gMonitorLcd)
-			return "on\nOk";
+			ret = "on";
 		else
-			return "off\nOk";
+			ret = "off";
+		return ret + gLineTerm + gOk;
 	}
 
 	std::transform(args.begin(), args.end(), args.begin(), (int(*)(int)) std::tolower);
@@ -2120,7 +2147,10 @@ std::string cmd_lcd_mon(ServerSocket& sock, std::string& args)
 			{
 				// Test for end of table
 				if (gStdRomDesc->pFuns[c].strnum == -1)
-					return "Error - no trap vector \nOk";
+				{
+					std::string ret = "Error - no trap vector" + gLineTerm + gOk;
+					return ret;
+				}
 
 				// Search for the Level 6 plotting function
 				if (gStdRomDesc->pFuns[c].strnum == R_CHAR_PLOT_6)
@@ -2135,7 +2165,10 @@ std::string cmd_lcd_mon(ServerSocket& sock, std::string& args)
 			{
 				// Test for end of table
 				if (gStdRomDesc->pVars[c].strnum == -1)
-					return "Error - no row vector\nOk";
+				{
+					std::string ret = "Error - no row vector" + gLineTerm + gOk;
+					return ret;
+				}
 
 				// Search for the Level 6 plotting function
 				if (gStdRomDesc->pVars[c].strnum == R_CURSOR_ROW)
@@ -2168,9 +2201,9 @@ std::string cmd_lcd_mon(ServerSocket& sock, std::string& args)
 		}
 	}
 	else
-		return "Parameter Error\nOk";
+		return gParamError;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -2183,10 +2216,12 @@ std::string cmd_debug_isr(ServerSocket& sock, std::string& args)
 	// Get breakpoint arguments
 	if (args == "")
 	{
+		std::string ret;
 		if (gDebugInts)
-			return "on\nOk";
+			ret = "on";
 		else
-			return "off\nOk";
+			ret = "off";
+		return ret + gLineTerm + gOk;
 	}
 
 	std::transform(args.begin(), args.end(), args.begin(), (int(*)(int)) std::tolower);
@@ -2203,9 +2238,9 @@ std::string cmd_debug_isr(ServerSocket& sock, std::string& args)
 		unlock_remote();
 	}
 	else
-		return "Parameter Error\nOk";
+		return gParamError;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -2236,7 +2271,7 @@ std::string cmd_string(ServerSocket& sock, std::string& args)
 		address++;
 	}
 
-	str += "\nOk";
+	str += gLineTerm + gOk;
 	return str;
 }
 
@@ -2281,12 +2316,12 @@ std::string cmd_disassemble(ServerSocket& sock, std::string& args)
 	for (c = 0; c < lineCount; c++)
 	{
 		dis_addr += dis.DisassembleLine(dis_addr, line);
-		strcat(line, "\n");
+		strcat(line, gLineTerm.c_str());
 		sock << line;
 	}
 	gLastDisAddress = dis_addr;
 
-	return "Ok";
+	return gOk;
 }
 
 /*
@@ -2333,7 +2368,8 @@ std::string cmd_trace(ServerSocket& sock, std::string& args)
 			// Must be a filename.  Only 1 filename allowed
 			if (trace_file != "")
 			{
-				sprintf(line, "Error filename \"%s\" already specified\nOk", trace_file.c_str());
+				sprintf(line, "Error filename \"%s\" already specified%s%s", trace_file.c_str(),
+					gLineTerm.c_str(), gOk.c_str());
 				return line;
 			}
 			// Save filename
@@ -2367,7 +2403,7 @@ std::string cmd_trace(ServerSocket& sock, std::string& args)
 				gTraceOpen = 1;
 			else
 			{
-				sock << "Error opening file\n";
+				sock << "Error opening file" << gLineTerm;
 			}
 		}
 	}
@@ -2413,8 +2449,62 @@ std::string cmd_trace(ServerSocket& sock, std::string& args)
 		}
 	}
 
-	return "Ok";
+	return gOk;
 }
+
+/*
+=======================================================
+Routine to process remote commands
+=======================================================
+*/
+int telnet_command_ready(ServerSocket& sock, std::string &cmd)
+{
+	int		len, x, cmd_term;
+
+	len = cmd.length();
+	cmd_term = FALSE;
+	for (x = 0; x < len; x++)
+	{
+		char ch = cmd.c_str()[x];
+
+		/* Test for 0x0D and ignore it */
+		if (ch == 0x0D)
+			continue;
+		/* Test for 0x0a command line terminaor */
+		if (ch == 0x0A)
+		{
+			cmd_term = TRUE;
+			cmd = gTelnetCmd;
+			gTelnetCmd = "";
+			break;
+		}
+		// Test for backspace
+		if (ch == 0x08)
+		{
+			if (gTelnetCmd.length() == 0)
+				continue;
+			gTelnetCmd = gTelnetCmd.substr(0, gTelnetCmd.length()-1);
+			sock << " \x08";
+			continue;
+			
+		}
+		/* If this character isn't a control char, add it to the cmd */
+		if ((ch >= ' ') && (ch <= '~'))
+		{
+			char temp[2];
+			temp[0] = ch;
+			temp[1] = 0;
+			gTelnetCmd = gTelnetCmd + temp;
+		}
+		else
+		{
+			// TODO:  Process telnet out-of band characters
+		}
+	}
+
+	return cmd_term;
+}
+
 /*
 =======================================================
 Routine to process remote commands
@@ -2425,6 +2515,16 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	std::string ret = "Syntax error";
 	std::string cmd_word;
 	std::string args;
+
+	// Test for telnet protocol bytes
+	if (gTelnet)
+	{
+		ret += gLineTerm + gOk;
+		if (!telnet_command_ready(sock, cmd))
+			return "";
+		if (cmd == "")
+			return gOk;
+	}
 
 	// Separate out the command word from any arguments
 	args = cmd;
@@ -2496,7 +2596,7 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	else if ((cmd_word == "list_break") || (cmd_word == "lb"))
 		ret = cmd_list_break(sock, args);
 
-	else if (cmd_word == "key")
+	else if ((cmd_word == "key") || (cmd_word == "k"))
 		ret = cmd_key(sock, args);
 
 	else if (cmd_word == "model")
@@ -2582,6 +2682,8 @@ Routine that will become the remote control thread.
 */
 void* remote_control(void* arg)
 {
+	std::string  ret;
+
 	gSocketOpened = FALSE;
 	try
 	{
@@ -2596,7 +2698,14 @@ void* remote_control(void* arg)
 				{
 					std::string data;
 					gOpenSock >> data;
-					gOpenSock << process_command(gOpenSock, data);
+					ret = process_command(gOpenSock, data);
+					if (gTelnet)
+					{
+						if (ret != "")
+							gOpenSock << ret;
+					}
+					else
+						gOpenSock << ret;
 				}
 			}
 			catch (SocketException&)
@@ -2640,6 +2749,14 @@ void init_remote(void)
 
 	// Hook our routine to the debug monitor
 	debug_set_monitor_callback(cb_remote_debug);
+
+	// Setup the line termination for \r\n if in telnet mode
+	if (gTelnet)
+	{
+		gLineTerm = "\r\n";
+		gOk = "Ok> ";
+		gParamError = "Parameter Error" + gLineTerm + "Ok> ";
+	}
 
 	// Create the thread
 #ifdef WIN32

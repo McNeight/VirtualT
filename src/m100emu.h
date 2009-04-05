@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: m100emu.h,v 1.8 2008/09/23 00:06:13 kpettit1 Exp $ */
+/* $Id: m100emu.h,v 1.9 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -67,6 +67,7 @@ extern	char	gStopped;
 extern	char	gSingleStep;
 extern	int		gDebugMonitorFreq;
 extern	int		gSocketPort;
+extern	int		gTelnet;
 extern	int		gNoGUI;
 
 #define	DEBUG_PC_CHANGED	1

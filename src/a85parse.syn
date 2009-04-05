@@ -96,10 +96,10 @@ expression
  -> literal name, "set", equation					= gAsm->directive_set(ss[ss_idx--]);
  -> label, "equ", equation							= gAsm->equate((const char *) -1);
  -> label, "set", equation							= gAsm->directive_set((const char *) -1);
- -> label?, "org", equation							= gAsm->directive_org();
- -> label?, "aseg"									= gAsm->directive_aseg();
- -> label?, "cseg"									= gAsm->directive_cseg(0);
- -> label?, "dseg"									= gAsm->directive_dseg(0);
+ -> label?, '.'?, "org", equation							= gAsm->directive_org();
+ -> label?, '.'?, "aseg"									= gAsm->directive_aseg();
+ -> label?, '.'?, "cseg"									= gAsm->directive_cseg(0);
+ -> label?, '.'?, "dseg"									= gAsm->directive_dseg(0);
  -> literal name, "ds", equation					= { gAsm->label(ss[ss_idx--]); gAsm->directive_ds(); }
  -> label?, "ds", equation							= gAsm->directive_ds();
  -> literal name, "db", expression list, WS?...		= { gAsm->label(ss[ss_idx--]); gAsm->directive_db(); }

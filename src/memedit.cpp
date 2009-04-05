@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.7 2009/02/05 04:39:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -325,13 +325,20 @@ void load_file_to_mem(const char *filename, int address)
 		FILE* fd;
 		if ((fd = fopen(filename, "r")) != NULL)
 		{
+			int read_len;
+
 			// Determine file length
 			fseek(fd, 0, SEEK_END);
 			len = ftell(fd);
 			buffer = new unsigned char[len];
 			fseek(fd, 0, SEEK_SET);
-			fread(buffer, 1, len, fd);
-			set_memory8_ext(region, address, len, buffer);
+			while (len != 0)
+			{
+				read_len = fread(buffer, 1, len, fd);
+				set_memory8_ext(region, address, read_len, buffer);
+				len -= read_len;
+				address += read_len;
+			}
 			fclose(fd);
 
 			delete buffer;

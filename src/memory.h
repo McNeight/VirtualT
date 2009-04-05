@@ -122,6 +122,7 @@ typedef	struct {
 
 extern unsigned char	*gMemory[64];
 extern unsigned char	gSysROM[65536];
+extern unsigned char	gOptROM[32768];
 extern unsigned char	gBaseMemory[65536];
 extern unsigned char	gReMem;
 extern int				gRex;

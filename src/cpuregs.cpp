@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.5 2008/09/23 00:06:13 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -118,14 +118,38 @@ str_to_i:	This routine converts a hex or decimal string to an integer.
 */
 int str_to_i(const char *pStr)
 {
-	int		x;
+	int		x, len, hex = FALSE;
 	int		val, digit;
 
 	// Test for Hex number
 	if (strncmp("0x", pStr, 2) == 0)
 	{
-		x = 2; val = 0;
-		while (pStr[x] != '\0')
+		hex = TRUE;
+		pStr += 2;
+	}
+	else
+	{
+		// Scan scring for any hex digits
+		len = strlen(pStr);
+		if ((pStr[len-1] == 'h') || (pStr[len-1] == 'H'))
+			hex = TRUE;
+		else
+			for (x = 0; x < len; x++)
+			{
+				if (((pStr[x] >= 'A') && (pStr[x] <= 'F')) ||
+					((pStr[x] >= 'a') && (pStr[x] <= 'f')))
+				{
+					hex = TRUE;
+					break;
+				}
+			}
+	}
+
+	// If it's a hex string, use hex conversion
+	if (hex)
+	{
+		x = 0; val = 0;
+		while ((pStr[x] != '\0') && (pStr[x] != 'h') && (pStr[x] != 'H'))
 		{
 			digit = pStr[x] > '9' ? (pStr[x] | 0x60) - 'a' + 10 : pStr[x] - '0';
 			val = val * 16 + digit;
@@ -133,7 +157,9 @@ int str_to_i(const char *pStr)
 		}
 	}
 	else
+	{
 		val = atoi(pStr);
+	}
 
 	// Return value to caller
 	return val;
