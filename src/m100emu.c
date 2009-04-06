@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.22 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.23 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -92,7 +92,7 @@ volatile int		gExitLoop = 0;
 char	gsOptRomFile[256];
 int		gShowVersion = 0;
 DWORD	last_one_sec_time;
-int		gMaintCount = 262888;
+int		gMaintCount = 65536;
 int		gOsDelay = 0;
 int		gNoGUI = 0;
 int		gSocketPort = 0;
@@ -101,8 +101,8 @@ int		gRemoteSwitchModel = -1;
 
 //Added J. VERNET
 
-char path[255];
-char file[255];
+char path[512];
+char file[512];
 
 extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
@@ -461,8 +461,8 @@ check_installation:	This routine checks that VirtualT is properly installed
 void check_installation(void)
 {
 	int 	model, len;
-	char	path[256];
-	char	roms_path[256];
+	char	localpath[256];
+	char	roms_path[512];
 	char	errors[256];
 	FILE	*fd, *fd2;
 
@@ -476,35 +476,39 @@ void check_installation(void)
 			continue;
 
 		/* ROM file doesn't exist.  Try to open in ROMs dir */
-		get_rom_path(path, model);
-		sprintf(roms_path, "ROMs%s", strrchr(path, '/'));
-		
+		get_rom_path(localpath, model);
+#if defined(__APPLE__)
+		sprintf(roms_path, "%sROMs%s", path, strrchr(localpath, '/'));
+#else
+		sprintf(roms_path, "ROMs%s", strrchr(localpath, '/'));
+#endif
+
 		if ((fd = fopen(roms_path, "rb")) == NULL)
 		{
 			/* Error - ROM file not in ROMs dir */
 			if (strlen(errors) != 0)
 				strcat(errors, ", ");
-			get_model_string(path, model);
-			strcat(errors, path);
+			get_model_string(localpath, model);
+			strcat(errors, localpath);
 			continue;		
 		}
 
 		/* Create the emulation directory */
-		get_emulation_path(path, model);
+		get_emulation_path(localpath, model);
 #ifdef WIN32
-		_mkdir(path);
+		_mkdir(localpath);
 #else
-		mkdir(path, 0755);
+		mkdir(localpath, 0755);
 #endif
 		/* Create ROM in the emulation directory */
-		get_rom_path(path, model);
-		fd2 = fopen(path, "wb");
+		get_rom_path(localpath, model);
+		fd2 = fopen(localpath, "wb");
 		if (fd2 == NULL)
 		{
 			if (strlen(errors) != 0)
 				strcat(errors, ", ");
-			get_model_string(path, model);
-			strcat(errors, path);
+			get_model_string(localpath, model);
+			strcat(errors, localpath);
 			fclose(fd);
 			continue;
 		}
@@ -526,8 +530,8 @@ void check_installation(void)
 
 	if (strlen(errors) > 0)
 	{
-		sprintf(path, "No ROM file for %s", errors);
-		show_error(path);
+		sprintf(localpath, "No ROM file for %s", errors);
+		show_error(localpath);
 	}
 }
 
@@ -907,7 +911,7 @@ void emulate(void)
 				}
 
 				/* Instruction emulation contained in header file */
-			//	#include "do_instruct.h"
+				#include "do_instruct.h"
 
 				// Check if next inst is SIM
 				if (get_memory8(PC) == 0xF3)
@@ -928,7 +932,11 @@ void emulate(void)
 				}
 
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+#ifdef __APPLE__
+				if(!(--nxtmaint)) 
+#else
 				if(!(--nxtmaint & 0x3FF)) 
+#endif
 				{
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
@@ -977,7 +985,11 @@ void emulate(void)
 				}
 
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */
+#ifdef __APPLE__
+				if(!(--nxtmaint)) 
+#else
 				if(!(--nxtmaint & 0x3FF)) 
+#endif
 				{
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
@@ -1086,19 +1098,46 @@ is done by looking at the argv[0] argument and removing the app name.
 void setup_working_path(char **argv)
 {
 #if defined(__unix__) || defined(__APPLE__)
-	int		i;
+	int			i, found;
+	char		temp[512];
+	struct stat romStat;
 
 	getcwd(path, sizeof(path));
 
 	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
-	if (strlen(path) == 0)
+#if defined(__APPLE__)
+	found = FALSE;
+		
+	/* Recursively search up the path until we find the ROMs directory */
+	i = strlen(argv[0])-1;
+	strcpy(temp, argv[0]);
+	while (!found)
 	{
-		i = strlen(argv[0])-1;
 		// Find last '/' in path to remove app name from the path
 		while ((argv[0][i] != '/') && (i > 0))
 			i--;
-		strncpy(path,argv[0], i+1);
+		if (i < 0)
+			break;
+		temp[i+1] = 0;
+
+		/* Now append "ROMs" and check if the directory exists */
+		strcat(temp, "ROMs");
+		if (stat(temp, &romStat) == 0)
+		{
+			if (S_ISDIR(romStat.st_mode))
+			{
+				found = TRUE;
+				strncpy(path, argv[0], i+1);
+				path[i+1] = 0;
+			}
+		}
+		else
+		{
+			/* Not this directory segment...skip the '/' and find next higher */
+			i--;
+		}
 	}
+#endif
 	
 	// Check if the last character is '/'
 	i = strlen(path);
@@ -1120,9 +1159,9 @@ int main(int argc, char **argv)
 	if (process_args(argc, argv))	/* Parse command line args */
 		return 1;
 	
+	setup_working_path(argv);	/* Create a working dir path */
 	check_installation();		/* Test if install needs to be performed */
 	setup_unix_signals();		/* Setup Unix signal handling */
-	setup_working_path(argv);	/* Create a working dir path */
 
 	// Added by JV for prefs
 	init_pref();				/* load user Menu preferences */
