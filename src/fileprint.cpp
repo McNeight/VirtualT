@@ -1,6 +1,6 @@
 /* fileprint.cpp */
 
-/* $Id: fileprint.cpp,v 1.7 2008/04/13 16:42:54 kpettit1 Exp $ */
+/* $Id: fileprint.cpp,v 1.8 2009/03/23 04:58:12 jhoger Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -721,7 +721,7 @@ int VTFilePrint::CancelPrintJob(void)
 	// Remove all files in the print job
 	count = m_printFiles.GetSize();
 	for (c = 0; c < count; c++)
-		std::remove((const char *) m_printFiles[c]);
+		remove((const char *) m_printFiles[c]);
 
 	// Delete all print files from the array
 	m_printFiles.RemoveAll();
