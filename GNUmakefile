@@ -12,8 +12,8 @@
 
 -include $(shell uname).mk
 
-CFLAGS		+=	-I $(FLTKDIR) -I src/FLU
-CPPFLAGS	+=	-I $(FLTKDIR) 
+CFLAGS		+=	-I $(FLTKDIR) -I src/FLU -g
+CPPFLAGS	+=	-I $(FLTKDIR)  -g
 EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
