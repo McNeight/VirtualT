@@ -1,6 +1,6 @@
 /* clock.cpp */
 
-/* $Id: clock.cpp,v 1.1 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: clock.cpp,v 1.2 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -417,7 +417,7 @@ void save_model_time(void)
 convert_ctime:	Convert from string time to time_t.
 =============================================================================
 */
-char *gMonths[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+const char *gMonths[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", 
 							"Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 time_t convert_ctime(char* stime)
 {

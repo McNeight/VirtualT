@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.13 2008/09/23 00:03:46 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.14 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -71,7 +71,7 @@ typedef struct
 } lptCtrl_t;
 
 // Define a Printer bitmap
-char* print_xpm[] = {
+const char* print_xpm[] = {
 "18 18 14 1",
 "   c None",
 ".  c #555555",
@@ -109,7 +109,7 @@ char* print_xpm[] = {
 
 
 // Define a Cancel Printer bitmap
-char* cancel_print_xpm[] = {
+const char* cancel_print_xpm[] = {
 "18 18 15 1",
 "   c None",
 ".  c #555555",
@@ -147,7 +147,7 @@ char* cancel_print_xpm[] = {
 };
 
 // Define a Printer Error bitmap
-char* error_print_xpm[] = {
+const char* error_print_xpm[] = {
 "18 18 15 1",
 "   c None",
 ".  c #555555",
@@ -185,7 +185,7 @@ char* error_print_xpm[] = {
 };
 
 // Define a Printer bitmap
-char* print_xpm2[] = {
+const char* print_xpm2[] = {
 "18 18 14 1",
 "   c None",
 ".  c #555555",
@@ -222,7 +222,7 @@ char* print_xpm2[] = {
 };
 
 // Define a Printer bitmap
-char* print_xpm3[] = {
+const char* print_xpm3[] = {
 "18 18 15 1",
 "   c None",
 ".  c #555555",
@@ -260,7 +260,7 @@ char* print_xpm3[] = {
 };
 
 // Define a Printer bitmap
-char* print_xpm4[] = {
+const char* print_xpm4[] = {
 "18 18 15 1",
 "   c None",
 ".  c #555555",
@@ -298,7 +298,7 @@ char* print_xpm4[] = {
 };
 
 // Define a Printer bitmap
-char* print_xpm5[] = {
+const char* print_xpm5[] = {
 "18 18 14 1",
 "   c None",
 ".  c #555555",
@@ -336,7 +336,7 @@ char* print_xpm5[] = {
 
 
 // Define a Printer bitmap
-char* print_xpm6[] = {
+const char* print_xpm6[] = {
 "18 18 14 1",
 "   c None",
 ".  c #555555",

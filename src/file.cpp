@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.10 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.11 2009/01/04 06:43:14 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -171,10 +171,10 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 }
 
 
-char			*gIllformedBasic = "Ill formed BASIC file";
-static char		*gTooLargeMsg = "File too large for available memory";
+const char			*gIllformedBasic = "Ill formed BASIC file";
+static const char		*gTooLargeMsg = "File too large for available memory";
 
-char *gKeywordTable[] = {
+const char *gKeywordTable[] = {
 	"END",    "FOR",   "NEXT",  "DATA",    "INPUT", "DIM",    "READ",   "LET",
 	"GOTO",	  "RUN",   "IF",    "RESTORE", "GOSUB", "RETURN", "REM",    "STOP",
 	"WIDTH",  "ELSE",  "LINE",  "EDIT",    "ERROR", "RESUME", "OUT",    "ON",

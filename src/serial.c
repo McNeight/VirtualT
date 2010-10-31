@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.15 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.16 2008/12/31 05:13:10 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -755,7 +755,7 @@ int ser_close_port(void)
 
 			int my_fd = sp.fd;
 			sp.fd = 0;
-			close (sp.fd);
+			close (my_fd);
 
 		#endif
 	}
@@ -1249,7 +1249,9 @@ ser_get_flags:	Get serial port's flags
 int ser_get_flags(unsigned char *flags)
 {
 
+#ifdef WIN32
 	long modem_status;
+#endif
 
 	if ((setup.com_mode == SETUP_COM_HOST) || 
 		(setup.com_mode == SETUP_COM_OTHER))
@@ -1375,7 +1377,9 @@ ser_get_signals:	Get serial port's CTS, RTS, DTR, and DSR signals
 int ser_get_signals(unsigned char *flags)
 {
 
+#ifdef WIN32
 	long modem_status;
+#endif
 
 	if ((setup.com_mode == SETUP_COM_HOST) || 
 		(setup.com_mode == SETUP_COM_OTHER))
@@ -1550,7 +1554,8 @@ int ser_write_byte(char data)
 			// Trigger the thread to write the byte
 			SetEvent(sp.hWriteEvent);
 		#else
-			write (sp.fd, &data, 1);
+			if (write (sp.fd, &data, 1) <= 0)
+                return SER_IO_ERROR;
 		#endif
 	}
 
@@ -1586,6 +1591,7 @@ int ser_poll ()
 	if (bytes && sp.pCallback) {
 		sp.pCallback();
 	}
+    return 0;
 
 #else
 	return 0;

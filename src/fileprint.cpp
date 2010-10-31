@@ -1,6 +1,6 @@
 /* fileprint.cpp */
 
-/* $Id: fileprint.cpp,v 1.8 2009/03/23 04:58:12 jhoger Exp $ */
+/* $Id: fileprint.cpp,v 1.9 2010/10/30 19:11:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -561,7 +561,7 @@ int VTFilePrint::OpenSession(void)
 	else
 	{
 		filename = m_DirName;
-		filename += "lpt_out.txt";
+		filename += (char *) "lpt_out.txt";
 	}
 
 	// Check if Prompt is enabled

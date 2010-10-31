@@ -261,7 +261,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 			{
 				if ((temp[0] == '$') && (temp[1] != 0))
 				{
-					temp = m_LastLabel + "%%" + op.m_Variable;
+					temp = m_LastLabel + (char *) "%%" + op.m_Variable;
 					local = 1;
 				}
 			}
@@ -319,7 +319,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 						else
 						{
 							// Check if AuotExtern is enabled
-							if (m_AsmOptions.Find("-e") != -1)
+							if (m_AsmOptions.Find((char *) "-e") != -1)
 							{
 								// Add symbol as an EXTERN
 								symbol = new CSymbol;
@@ -489,7 +489,7 @@ int VTAssembler::GetValue(MString & string, int & value)
 	MString myStr = string;
 	if ((string[0] == '$') && (string[1] != 0))
 	{
-		myStr = m_LastLabel + "%%" + string;
+		myStr = m_LastLabel + (char *) "%%" + string;
 	}
 	for (c = 0; c < 3; c++)
 	{
@@ -820,7 +820,7 @@ void VTAssembler::include(const char *filename)
 	}
 }
 
-char*		types[5] = { "", "a label", "an equate", "a set", "an extern" };
+const char*		types[5] = { "", "a label", "an equate", "a set", "an extern" };
 
 /*
 ============================================================================
@@ -936,7 +936,7 @@ void VTAssembler::label(const char *label)
 	if (pSymbol != NULL)
 	{
 		if (local)
-			pSymbol->m_Name = m_LastLabel + "%%" + label;
+			pSymbol->m_Name = m_LastLabel + (char *) "%%" + label;
 		else
 			pSymbol->m_Name = label;
 		pSymbol->m_Line = m_Line;
@@ -2776,7 +2776,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 	Add debug sections to .OBJ file
 	=======================================
 	*/
-	if (m_AsmOptions.Find("-g") >= 0)
+	if (m_AsmOptions.Find((char *) "-g") >= 0)
 	{
 	}
 
@@ -2965,7 +2965,7 @@ void VTAssembler::Parse(MString filename)
 
 			// Append .obj to filename
 			temp = outfile;
-			outfile += ".obj";
+			outfile += (char *) ".obj";
 
 			// Generate the object file
 			CreateObjFile(outfile);
@@ -2981,7 +2981,7 @@ void VTAssembler::CreateList(MString& filename)
 	MString		outfile;
 	FILE*		fd;
 
-	if ((m_AsmOptions.Find("-l") != -1) || (m_List))
+	if ((m_AsmOptions.Find((char *) "-l") != -1) || (m_List))
 	{
 		if ((strcmp(filename, ".asm") == 0) || (strcmp(filename, "a85") == 0))
 		{
@@ -2991,7 +2991,7 @@ void VTAssembler::CreateList(MString& filename)
 			outfile = filename;
 
 		// Append .lst to filename
-		outfile += ".lst";
+		outfile += (char *) ".lst";
 
 		fd = fopen(outfile, "wb+");
 		fclose(fd);
@@ -3157,8 +3157,8 @@ void VTAssembler::CalcIncludeDirs(void)
 		// Generate the path
 		temp = pToken;
 		temp.Trim();
-		temp += "/";
-		temp = m_RootPath + "/" + temp;
+		temp += (char *) "/";
+		temp = m_RootPath + (char *) "/" + temp;
 
 		// Now add it to the array
 		m_IncludeDirs.Add(temp);

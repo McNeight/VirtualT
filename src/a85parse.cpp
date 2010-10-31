@@ -131,7 +131,7 @@ BOOL ParseASMFile(const char* filename, VTAssembler* pAsm)
 	if ((gAsm->m_fd = fopen(gAsm->m_Filenames[gAsm->m_FileIndex], "r")) == 0)
 	{
 		// Add error indicating failure to open file
-		gAsm->m_Errors.Add("Error opening file");
+		gAsm->m_Errors.Add((char *) "Error opening file");
 		return FALSE;
 	}
 

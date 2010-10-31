@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.2 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -1412,7 +1412,7 @@ void VT_Ide::NewProject(void)
 
 	// Check if path ends with '/'
 	if (m_ActivePrj->m_RootPath[m_ActivePrj->m_RootPath.GetLength()-1] != '/')
-		m_ActivePrj->m_RootPath = m_ActivePrj->m_RootPath + "/";
+		m_ActivePrj->m_RootPath = m_ActivePrj->m_RootPath + (char *) "/";
 
 	m_ActivePrj->m_RootPath = m_ActivePrj->m_RootPath + m_ActivePrj->m_Name;
 	
@@ -1651,7 +1651,7 @@ void VT_Ide::BuildTreeControl(void)
 
 	// Set the Root name
 	temp = m_ActivePrj->m_Name;
-	temp += " files";
+	temp += (char *) " files";
 	m_ProjTree->label( temp );
 
 	n = m_ProjTree->get_root();
@@ -1672,7 +1672,7 @@ void VT_Ide::BuildTreeControl(void)
 			// Object is a group add node to tree
 			pGroup = (VT_IdeGroup *) pObj;
 			addStr.Format(fmt, (const char *) pGroup->m_Name);
-			addStr += "/";
+			addStr += (char *) "/";
 			n = m_ProjTree->add(addStr);
 			if (n)
 			{
@@ -1680,7 +1680,7 @@ void VT_Ide::BuildTreeControl(void)
 				pGroup->m_Node = n;
 			}
 
-			addStr += "%s";
+			addStr += (char *) "%s";
 			
 			// Loop through all objects and add to tree
 			int sublen = pGroup->m_Objects.GetSize();
@@ -1696,7 +1696,7 @@ void VT_Ide::BuildTreeControl(void)
 			pSource = (VT_IdeSource *) pObj;
 			
 			// Get just the filename
-			int index = pSource->m_Name.ReverseFind("/");
+			int index = pSource->m_Name.ReverseFind((char *) "/");
 			if (index == 0)
 				temp = pSource->m_Name;
 			else
@@ -1739,7 +1739,7 @@ void VT_Ide::AddGroupToTree(VTObject *pObj, const char *fmt)
 		// Object is a group add node to tree
 		pGroup = (VT_IdeGroup *) pObj;
 		addStr.Format(fmt, (const char *) pGroup->m_Name);
-		addStr += "/";
+		addStr += (char *) "/";
 		n = m_ProjTree->add(addStr);
 		if (n)
 		{
@@ -1747,7 +1747,7 @@ void VT_Ide::AddGroupToTree(VTObject *pObj, const char *fmt)
 			pGroup->m_Node = n;
 		}
 
-		addStr += "%s";
+		addStr += (char *) "%s";
 		
 		// Loop through all objects and add to tree
 		len = pGroup->m_Objects.GetSize();
@@ -1763,7 +1763,7 @@ void VT_Ide::AddGroupToTree(VTObject *pObj, const char *fmt)
 		pSource = (VT_IdeSource *) pObj;
 
 		// Get just the filename
-		int index = pSource->m_Name.ReverseFind("/");
+		int index = pSource->m_Name.ReverseFind((char *) "/");
 		if (index == 0)
 			temp = pSource->m_Name;
 		else
@@ -1832,7 +1832,7 @@ int VT_Ide::ParsePrjFile(const char *name)
 		else
 		{
 			line[c] = 0;
-			value = "";
+			value = (char *) "";
 		}
 		
 		// Check for error in line
@@ -2008,7 +2008,7 @@ int VT_Ide::ParsePrjFile(const char *name)
 	// Set the RootPath
 	temp = name;
 	// Get just the path
-	index = temp.ReverseFind("/");
+	index = temp.ReverseFind((char *) "/");
 	if (index == 0)
 		m_ActivePrj->m_RootPath = path;
 	else
@@ -2212,7 +2212,7 @@ void VT_Ide::NewFolder(Flu_Tree_Browser::Node* n)
 	pNewGrp->m_Filespec = filespec;
 
 	// Convert name to a branch
-	name += "/";
+	name += (char *) "/";
 
 	// Test if inserting at root
 	if (n == 0)
@@ -2634,7 +2634,7 @@ MString VT_Ide::MakePathRelative(const MString& path, const MString& relTo)
 	// Determine if path is already relative
 	if ((path.Left(2) == "./") || (path.Left(3) == "../"))
 		return path;
-	if (path.Find("/", 0) == -1)
+	if (path.Find((char *) "/", 0) == -1)
 		return path;
 	if (path[1] == ':')
 		slashIndex = 2;
@@ -2671,13 +2671,13 @@ MString VT_Ide::MakePathRelative(const MString& path, const MString& relTo)
 	{
 		if (c == lastRelBranch)
 		{
-			temp += "../";				// Add another 'prev dir' indicator
+			temp += (char *) "../";				// Add another 'prev dir' indicator
 			break;						// At last branch...exit
 		}
 		// Check for a directory specifier
 		if (relTo[c] == '/')
 		{
-			temp += "../";
+			temp += (char *) "../";
 		}
 		c++;
 	}

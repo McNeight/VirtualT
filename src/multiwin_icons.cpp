@@ -1,6 +1,6 @@
 /* multiwin_icons.cpp */
 
-/* $Id: multiwin_icons.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multiwin_icons.cpp,v 1.1 2007/03/31 22:09:18 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -32,7 +32,7 @@
 #include <FL/Fl_Pixmap.H>
 
 /* XPM */
-char * gMultiWinDoc_xpm[] = {
+const char * gMultiWinDoc_xpm[] = {
 "15 18 5 1",
 " 	c None",
 ".	c #848484",
@@ -59,7 +59,7 @@ char * gMultiWinDoc_xpm[] = {
 "               "};
 
 /* XPM */
-char * gCloseBox[] = {
+const char * gCloseBox[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #FF0000",
@@ -85,7 +85,7 @@ char * gCloseBox[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gCloseBoxSelected[] = {
+const char * gCloseBoxSelected[] = {
 "20 19 5 1",
 " 	c None",
 ".	c #A00000",
@@ -112,7 +112,7 @@ char * gCloseBoxSelected[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gCloseBoxInactive[] = {
+const char * gCloseBoxInactive[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #FF8080",
@@ -138,7 +138,7 @@ char * gCloseBoxInactive[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gMinimizeBox[] = {
+const char * gMinimizeBox[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000FF",
@@ -163,7 +163,7 @@ char * gMinimizeBox[] = {
 " +................+ ",
 "  ++++++++++++++++  ",
 "                    "};
-char * gMinimizeBoxSelected[] = {
+const char * gMinimizeBoxSelected[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000A0",
@@ -189,7 +189,7 @@ char * gMinimizeBoxSelected[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gMinimizeBoxInactive[] = {
+const char * gMinimizeBoxInactive[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #8080FF",
@@ -215,7 +215,7 @@ char * gMinimizeBoxInactive[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gMaximizeBox[] = {
+const char * gMaximizeBox[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000FF",
@@ -241,7 +241,7 @@ char * gMaximizeBox[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gMaximizeBoxSelected[] = {
+const char * gMaximizeBoxSelected[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000A0",
@@ -267,7 +267,7 @@ char * gMaximizeBoxSelected[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gMaximizeBoxInactive[] = {
+const char * gMaximizeBoxInactive[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #8080FF",
@@ -293,7 +293,7 @@ char * gMaximizeBoxInactive[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gRestoreBox[] = {
+const char * gRestoreBox[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000FF",
@@ -319,7 +319,7 @@ char * gRestoreBox[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gRestoreBoxSelected[] = {
+const char * gRestoreBoxSelected[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #0000A0",
@@ -345,7 +345,7 @@ char * gRestoreBoxSelected[] = {
 "  ++++++++++++++++  ",
 "                    "};
 
-char * gRestoreBoxInactive[] = {
+const char * gRestoreBoxInactive[] = {
 "20 19 4 1",
 " 	c None",
 ".	c #8080FF",

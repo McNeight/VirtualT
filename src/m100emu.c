@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.23 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.24 2009/04/06 02:16:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -667,7 +667,6 @@ This routine processes CPU interrupts.
 __inline void check_interrupts(void)
 {
 	static UINT64	last_rst75=0;
-	static DWORD    last_rst_ms = 0;
 
 	if (((last_rst75 + rst7cycles) < cycles) && !INTDIS)
 	{
@@ -889,8 +888,6 @@ void emulate(void)
 {
 	unsigned int	i,j;
 	unsigned int	v;
-	int				top=0;
-//har			*p;
 	int				nxtmaint=1;
 	int				ins;
 
@@ -1098,14 +1095,16 @@ is done by looking at the argv[0] argument and removing the app name.
 void setup_working_path(char **argv)
 {
 #if defined(__unix__) || defined(__APPLE__)
-	int			i, found;
+	int			i; 
+    
+#if defined(__APPLE__)
+    int         found;
 	char		temp[512];
 	struct stat romStat;
 
 	getcwd(path, sizeof(path));
 
 	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
-#if defined(__APPLE__)
 	found = FALSE;
 		
 	/* Recursively search up the path until we find the ROMs directory */

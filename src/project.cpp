@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.2 2008/03/09 16:33:56 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -736,53 +736,53 @@ VT_Project implementation routines.
 void VT_Project::AsmDebugInfo(int enable)
 {
 	if (enable)
-		AddAsmOption("-g");
+		AddAsmOption((char *) "-g");
 	else
-		RemoveAsmOption("-g");
+		RemoveAsmOption((char *) "-g");
 }
 
 int VT_Project::AsmDebugInfo(void) const
 {
-	return m_AsmOptions.Find("-g", 0) != -1;
+	return m_AsmOptions.Find((char *) "-g", 0) != -1;
 }
 
 void VT_Project::AsmListing(int enable)
 {
 	if (enable)
-		AddAsmOption("-l");
+		AddAsmOption((char *) "-l");
 	else
-		RemoveAsmOption("-l");
+		RemoveAsmOption((char *) "-l");
 }
 
 int VT_Project::AsmListing(void) const
 {
-	return m_AsmOptions.Find("-l", 0) != -1;
+	return m_AsmOptions.Find((char *) "-l", 0) != -1;
 }
 
 void VT_Project::BrowseInfo(int enable)
 {
 	if (enable)
-		AddAsmOption("-b");
+		AddAsmOption((char *) "-b");
 	else
-		RemoveAsmOption("-b");
+		RemoveAsmOption((char *) "-b");
 }
 
 int VT_Project::BrowseInfo(void) const
 {
-	return m_AsmOptions.Find("-b", 0) != -1;
+	return m_AsmOptions.Find((char *) "-b", 0) != -1;
 }
 
 void VT_Project::AutoExtern(int enable)
 {
 	if (enable)
-		AddAsmOption("-e");
+		AddAsmOption((char *) "-e");
 	else
-		RemoveAsmOption("-e");
+		RemoveAsmOption((char *) "-e");
 }
 
 int VT_Project::AutoExtern(void) const
 {
-	return m_AsmOptions.Find("-e", 0) != -1;
+	return m_AsmOptions.Find((char *) "-e", 0) != -1;
 }
 
 void VT_Project::AddAsmOption(char* pOpt)
@@ -795,7 +795,7 @@ void VT_Project::AddAsmOption(char* pOpt)
 		return;
 
 	// Append option to end of the m_AsmOptions string
-	m_AsmOptions = m_AsmOptions + " " + pOpt;
+	m_AsmOptions = m_AsmOptions + (char *) " " + pOpt;
 }
 
 void VT_Project::RemoveAsmOption(char* pOpt)
@@ -828,7 +828,7 @@ void VT_Project::AddLinkOption(char* pOpt)
 		return;
 
 	// Append option to end of the m_AsmOptions string
-	m_LinkOptions = m_LinkOptions + " " + pOpt;
+	m_LinkOptions = m_LinkOptions + (char *) " " + pOpt;
 }
 
 void VT_Project::RemoveLinkOption(char* pOpt)
@@ -854,39 +854,39 @@ void VT_Project::RemoveLinkOption(char* pOpt)
 void VT_Project::LinkDebugInfo(int enable)
 {
 	if (enable)
-		AddLinkOption("-g");
+		AddLinkOption((char *) "-g");
 	else
-		RemoveLinkOption("-g");
+		RemoveLinkOption((char *) "-g");
 }
 
 int VT_Project::LinkDebugInfo(void) const
 {
-	return m_LinkOptions.Find("-g", 0) != -1;
+	return m_LinkOptions.Find((char *) "-g", 0) != -1;
 }
 
 void VT_Project::MapFile(int enable)
 {
 	if (enable)
-		AddLinkOption("-m");
+		AddLinkOption((char *) "-m");
 	else
-		RemoveLinkOption("-m");
+		RemoveLinkOption((char *) "-m");
 }
 
 int VT_Project::MapFile(void) const
 {
-	return m_LinkOptions.Find("-m", 0) != -1;
+	return m_LinkOptions.Find((char *) "-m", 0) != -1;
 }
 
 void VT_Project::IgnoreStdLibs(int enable)
 {
 	if (enable)
-		AddLinkOption("-i");
+		AddLinkOption((char *) "-i");
 	else
-		RemoveLinkOption("-i");
+		RemoveLinkOption((char *) "-i");
 }
 
 int VT_Project::IgnoreStdLibs(void) const
 {
-	return m_LinkOptions.Find("-i", 0) != -1;
+	return m_LinkOptions.Find((char *) "-i", 0) != -1;
 }
 

@@ -1,6 +1,6 @@
 /* vtpaper.cpp */
 
-/* $Id: vtpaper.cpp,v 1.1 2008/03/05 13:25:27 kpettit1 Exp $ */
+/* $Id: vtpaper.cpp,v 1.11 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -1526,7 +1526,7 @@ int VTlprPaper::Print(void)
 
 	// Test if stderr redirection is part of cmd line
 	if (strstr((const char *) cmd, "2>&1") == NULL)
-		cmd += " 2>&1";
+		cmd += (char *) " 2>&1";
 
 	// Now spool the job
 	//if (fork() == 0)

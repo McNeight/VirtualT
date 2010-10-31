@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.13 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.14 2008/12/31 05:11:05 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -289,7 +289,7 @@ void cb_setup_OK(Fl_Widget* w, void*)
 
 	if (setup_ctrl.com.pNone->value() == 1)
 	{
-		ser_set_port("No Emulation");
+		ser_set_port((char *) "No Emulation");
 		setup.com_mode = SETUP_COM_NONE;
 	}
 	else if (setup_ctrl.com.pSim->value() == 1)

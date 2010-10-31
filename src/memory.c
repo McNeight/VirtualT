@@ -709,7 +709,7 @@ void save_remem_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH 
+		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH */
 
 		/* Write ReMem RAM first */
 		fwrite(gReMemRam, 1, size, fd);
@@ -740,7 +740,7 @@ void save_rampac_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 256;		/* Copy 256 K of RAM 
+		size = 1024 * 256;		/* Copy 256 K of RAM */
 
 		/* Write ReMem RAM first */
 		fwrite(gRampacRam, 1, size, fd);
@@ -856,7 +856,7 @@ void load_remem_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH 
+		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH */
 
 		/* Read ReMem RAM first */
 		fread(gReMemRam, 1, size, fd);
@@ -918,7 +918,7 @@ void load_rampac_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 256;		/* Copy 256 K of RAM 
+		size = 1024 * 256;		/* Copy 256 K of RAM */
 
 		/* Write ReMem RAM first */
 		fread(gRampacRam, 1, size, fd);
@@ -1350,7 +1350,7 @@ void set_rom_bank(unsigned char bank)
 
 			// Save any writes to OptROM space
 			if ((gOptRomRW) && (gRomBank == 2))
-				memcpy(gOptROM, gBaseMemory, ROMSIZE);
+				memcpy(gOptROM, gBaseMemory, OPTROMSIZE);
 
 			// Save ROM bank
 			gRomBank = bank;

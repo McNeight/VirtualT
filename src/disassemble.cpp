@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.8 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.9 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -67,7 +67,7 @@ void close_cb(Fl_Widget* w, void*)
 }
 
 // Table of OPCODE
-char * gStrTable[256] = {
+const char * gStrTable[256] = {
 	"NOP",     "LXI B,",  "STAX B",  "INX B",   "INR B",   "DCR B",    "MVI B,",  "RLC",
 	"DSUB",    "DAD B",   "LDAX B",  "DCX B",   "INR C",   "DCR C",    "MVI C,",  "RRC", 
 
