@@ -5,10 +5,58 @@ VirtualT Release.txt
 
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
+====================
+v1.5  July 9th, 2011
+====================
 
-=======================
-v1.4  Not released yet
-=======================
+1.  Added REX memory module emulation.
+
+2.  Added ability to set custome LCD / Bezel colors.
+
+3.  Updated makefile to compile properly under Mac OSX.  The FLTK library must be built
+    separately and installed (via 'make install') prior to compiling VirtualT
+
+4.  Added new File Browse dialog boxes with nicer look and more features.
+
+5.  Modified the directory structure organization under Mac OSX to be the same as the
+    Linux and Windows versions:
+    
+        Working Dir
+             |
+             +--M10
+             +--M100
+             +--M102
+             +--ROMs
+            etc.
+      
+6.  Updated emulation timing control to provide more accurate timing to support sound
+    generation routines.
+    
+7.  Added sound support under Windows.  This is still very early stage and needs work as
+    the sound is "choppy".  This is caused by rapid changes to the sound that occur during
+    the middle of a "sound buffer" being played.  The code needs to be updated to detect
+    these changes and deal with already-queued buffers.
+  
+8.  Added mouse detection events to main window to allow point and click, double click, 
+    and right-click actions.
+   
+9.  Reworked Assembler / IDE interface.  IDE doesn't seem to work under OSX yet.
+
+10. Completed the Assembler and have about 90% of the linker done.  The assembler will
+    actually geneate output files given a single input file.
+    
+11. Added Socket Interface configuration dialog box.
+
+12. Added telnet interface mode to socket interface.
+
+13. Added a shortcut to the socket interface to allow setting register values using a simple
+    "a=4", "hl=12h" syntax.
+    
+14. Added detection of hex values via trailing 'H' or 'h' to socket interface.
+
+===============================
+v1.4  Never officially released
+===============================
 
 1.  The COM data log on the Peripherals Window was not allowing selection of data to show
     time delta between 2 bytes when the top line in the window was not the first line of 
