@@ -3,7 +3,7 @@
 	ProjectType="Visual C++"
 	Version="8.00"
 	Name="VirtualT"
-	ProjectGUID="{823B96D9-CEF2-4B9D-8B90-A6F0DEC5B97A}"
+	ProjectGUID="{4B62EF01-B8D4-4C99-BC7B-661B97684568}"
 	>
 	<Platforms>
 		<Platform
@@ -73,11 +73,12 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="fltkd.lib fltkimagesd.lib wsock32.lib comctl32.lib fltkjpegd.lib fltkpngd.lib fltkzd.lib"
+				AdditionalDependencies="fltkd.lib fltkimagesd.lib wsock32.lib comctl32.lib fltkjpegd.lib fltkpngd.lib fltkz.lib"
 				OutputFile=".\Debug/VirtualT.exe"
 				LinkIncremental="2"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="..\lib; $(FLTKDIR)\lib"
+				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames="libcmtd"
 				GenerateDebugInformation="true"
 				ProgramDatabaseFile=".\Debug/VirtualT.pdb"
@@ -144,17 +145,16 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="0"
+				Optimization="2"
 				AdditionalIncludeDirectories="$(FLTKDIR)"
-				PreprocessorDefinitions="WIN32;_WINDOWS;_CRT_SECURE_NO_DEPRECATE"
-				RuntimeLibrary="0"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE"
+				RuntimeLibrary="2"
 				PrecompiledHeaderFile=".\Release/VirtualT.pch"
 				AssemblerListingLocation=".\Release/"
 				ObjectFile=".\Release/"
 				ProgramDataBaseFileName=".\Release/"
 				WarningLevel="3"
 				SuppressStartupBanner="true"
-				DebugInformationFormat="0"
 			/>
 			<Tool
 				Name="VCManagedResourceCompilerTool"
@@ -174,8 +174,8 @@
 				LinkIncremental="1"
 				SuppressStartupBanner="true"
 				AdditionalLibraryDirectories="..\lib; $(FLTKDIR)\lib"
+				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames="libcmt"
-				GenerateDebugInformation="false"
 				ProgramDatabaseFile=".\Release/VirtualT.pdb"
 				SubSystem="2"
 				TargetMachine="1"
@@ -652,6 +652,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\socketdlg.cpp"
+				>
+			</File>
+			<File
 				RelativePath="src\sound.c"
 				>
 				<FileConfiguration
@@ -723,6 +727,10 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\src\linker.cpp"
+					>
 				</File>
 				<File
 					RelativePath="src\MString.cpp"
@@ -817,6 +825,22 @@
 				Name="ide"
 				>
 				<File
+					RelativePath=".\src\Flu_Button.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Combo_Box.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Combo_List.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Combo_Tree.cpp"
+					>
+				</File>
+				<File
 					RelativePath="src\Flu_DND.cpp"
 					>
 					<FileConfiguration
@@ -837,6 +861,18 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\src\Flu_File_Chooser.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\flu_file_chooser_pixmaps.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Label.cpp"
+					>
 				</File>
 				<File
 					RelativePath="src\flu_pixmaps.cpp"
@@ -861,6 +897,14 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath=".\src\Flu_Return_Button.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Separator.cpp"
+					>
+				</File>
+				<File
 					RelativePath="src\Flu_Tree_Browser.cpp"
 					>
 					<FileConfiguration
@@ -881,6 +925,10 @@
 							PreprocessorDefinitions=""
 						/>
 					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\src\Flu_Wrap_Group.cpp"
+					>
 				</File>
 				<File
 					RelativePath="src\FluSimpleString.cpp"
@@ -905,6 +953,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath=".\src\highlight.cpp"
+					>
+				</File>
+				<File
 					RelativePath="src\ide.cpp"
 					>
 					<FileConfiguration
@@ -927,26 +979,12 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\multieditwin.cpp"
+					RelativePath=".\src\idetabs.cpp"
 					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\src\multieditwin.cpp"
+					>
 				</File>
 				<File
 					RelativePath="src\multiwin.cpp"
@@ -993,26 +1031,20 @@
 					</FileConfiguration>
 				</File>
 				<File
-					RelativePath="src\project.cpp"
+					RelativePath=".\src\My_Text_Display.cpp"
 					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							AdditionalIncludeDirectories=""
-							PreprocessorDefinitions=""
-						/>
-					</FileConfiguration>
+				</File>
+				<File
+					RelativePath=".\src\My_Text_Editor.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\pref_form.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\src\project.cpp"
+					>
 				</File>
 			</Filter>
 			<Filter
@@ -1145,7 +1177,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\resource.h"
+				RelativePath=".\src\remote.h"
 				>
 			</File>
 			<File
@@ -1169,15 +1201,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\src\socket.h"
-				>
-			</File>
-			<File
-				RelativePath=".\src\socketexception.h"
-				>
-			</File>
-			<File
 				RelativePath="src\sound.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tpddclient.h"
 				>
 			</File>
 			<File
@@ -1204,6 +1232,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\src\linker.h"
+					>
+				</File>
+				<File
 					RelativePath="src\MString.h"
 					>
 				</File>
@@ -1224,6 +1256,22 @@
 				Name="ide.h"
 				>
 				<File
+					RelativePath=".\src\FLU\Flu_Button.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Combo_Box.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Combo_List.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Combo_Tree.h"
+					>
+				</File>
+				<File
 					RelativePath="src\FLU\Flu_DND.h"
 					>
 				</File>
@@ -1236,11 +1284,31 @@
 					>
 				</File>
 				<File
+					RelativePath=".\src\FLU\Flu_File_Chooser.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Label.h"
+					>
+				</File>
+				<File
 					RelativePath="src\FLU\flu_pixmaps.h"
 					>
 				</File>
 				<File
+					RelativePath=".\src\FLU\Flu_Return_Button.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Separator.h"
+					>
+				</File>
+				<File
 					RelativePath="src\FLU\Flu_Tree_Browser.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\FLU\Flu_Wrap_Group.h"
 					>
 				</File>
 				<File
@@ -1252,7 +1320,11 @@
 					>
 				</File>
 				<File
-					RelativePath="src\multieditwin.h"
+					RelativePath=".\src\idetabs.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\multieditwin.h"
 					>
 				</File>
 				<File
@@ -1264,7 +1336,15 @@
 					>
 				</File>
 				<File
-					RelativePath="src\project.h"
+					RelativePath=".\src\My_Text_Display.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\My_Text_Editor.h"
+					>
+				</File>
+				<File
+					RelativePath=".\src\project.h"
 					>
 				</File>
 			</Filter>
@@ -1313,10 +1393,6 @@
 			Name="Resource Files"
 			Filter="ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe"
 			>
-			<File
-				RelativePath=".\ModelT.ico"
-				>
-			</File>
 		</Filter>
 	</Files>
 	<Globals>

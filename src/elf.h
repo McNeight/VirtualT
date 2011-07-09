@@ -1,6 +1,6 @@
 /* elf.h */
 
-/* $Id: elf.h,v 1.1.1.1 2006/05/01 06:46:12 pettitkd Exp $ */
+/* $Id: elf.h,v 1.1 2007/03/31 22:09:18 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -63,21 +63,77 @@ typedef struct {
 #define		ET_EXEC		2		// Executable file
 #define		ET_DYN		3		// Shared object file
 #define		ET_CORE		4		// Core file
-#define		ET_LOPROC	0xFF00
-#define		ET_HIPROC	0xFFFF
+#define		ET_LOOS		0xFE00	// Operating system specific
+#define		ET_HIOS		0xFEFF	// Operating system specific
+#define		ET_LOPROC	0xFF00	// Processor specific
+#define		ET_HIPROC	0xFFFF	// Processor specific
 
 
 // Define machine types
-#define		ET_NONE			0		// No machine type
-#define		ET_M32			1		// AT&T WE 32100
-#define		ET_SPARC		2		// SPARC
-#define		ET_386			3		// Intel
-#define		ET_68K			4		// Motorola
-#define		ET_88K			5		// Motorola
-#define		ET_860			7		// Intel i860
-#define		ET_MIPS			8		// MIPS RS3000
-#define		ET_MIPS_RS4_BE	10		// MIPS RS4000
-#define		ET_8085			12		// Model T - 8085
+#define		EM_NONE			0		// No machine type
+#define		EM_M32			1		// AT&T WE 32100
+#define		EM_SPARC		2		// SPARC
+#define		EM_386			3		// Intel
+#define		EM_68K			4		// Motorola
+#define		EM_88K			5		// Motorola
+#define		EM_860			7		// Intel i860
+#define		EM_MIPS			8		// MIPS RS3000
+#define		EM_S370			9		// IBM System/370 Processor
+#define		EM_MIPS_RS4_BE	10		// MIPS RS4000
+// Codes 11-14 reserved for future use, so we use #12
+#define		EM_8085			12		// Model T - 8085
+#define		EM_PARISC		15		// HP PA-RISC
+#define		EM_VPP500		17		// Fujitsu VPP500
+#define		EM_SPARC32PLUS	18		// Enhanced instruction set SPARC
+#define		EM_960			19		// Intel 80960
+#define		EM_PPC			20		// PowerPC
+#define		EM_PPC64		21		// 64-bit PowerPC
+// Codes 22-35 reserved for future use
+#define		EM_V800			36		// NEC V800
+#define		EM_FR20			37		// Fujitsu FR20
+#define		EM_RH32			38		// TRW RH-32
+#define		EM_RCE			39		// Motorola RCE
+#define		EM_ARM			40		// Advanced RISC Machines ARM
+#define		EM_ALPHA		41		// Digital Alpha
+#define		EM_SH			42		// Hitachi SH
+#define		EM_SPARCV9		43		// SPARC Version 9
+#define		EM_TRICORE		44		// Siemens Tricore embedded processor
+#define		EM_ARC			45		// Argonaut RISC core
+#define		EM_H8_300		46		// Hitachi H8/30
+#define		EM_H8_300H		47		// Hitachi H8/300H
+#define		EM_H8S			48		// Hitachi H8S
+#define		EM_H8_500		49		// Hitachi H8/500
+#define		EM_IA_64		50		// Intel IA-64 processor architecture
+#define		EM_MIPS_X		51		// Stanford MIPS-X
+#define		EM_COLDFIRE		52		// Motorola ColdFire
+#define		EM_68HC12		53		// Motorola M68HC12
+#define		EM_MMA			54		// Fujitsu MMA Multimedia Accelerator
+#define		EM_PCP			55		// Siemens PCP
+#define		EM_NCPU			56		// Sony nCPU embedded RISC processor
+#define		EM_NDR1			57		// Denso NDR1 microprocessor
+#define		EM_STARCORE		58		// Motorola Star*Core processor
+#define		EM_ME16			59		// Toyota ME16 processor
+#define		EM_ST100		60		// STMicroelectronics ST100 processor
+#define		EM_TINYJ		61		// Advanced Logic Corp. TinyJ embedded processor
+// Codes 52-65 reserved for future use
+#define		EM_FX66			66		// Siemens FX66 microcontroller
+#define		EM_ST9PLUS		67		// STMicroelectronics ST9+ 8/16 bit microcontroller
+#define		EM_ST7			68		// STMicroelectronics ST7 8-bit microcontroller
+#define		EM_68HC16		69		// Motorola MC68HC16 microcontroller
+#define		EM_68HC11		70		// Motorola MC68HC11 microcontroller
+#define		EM_68HC08		71		// Motorola MC68HC08 microcontroller
+#define		EM_68HC05		72		// Motorola MC68HC05 microcontroller
+#define		EM_SVX			73		// Silicon Graphics SVx
+#define		EM_ST19			74		// STMicroelectronics ST19 8-bit microcontroller
+#define		EM_VAX			75		// Digital VAX
+#define		EM_CRIS			76		// Axis Communications 32-bit embedded processor
+#define		EM_JAVELIN		77		// Infineon Technologies 32-bit embedded processor
+#define		EM_FIREPATH		78		// Element 14 64-bit DSP processor
+#define		EM_ZSP			79		// LSI Logic 16-bit DSP processor
+#define		EM_MMIX			80		// Donald Knuth's educational 64-bit processor
+#define		EM_HAUNY		81		// Harvard University machine-independent object files
+#define		EM_PRISM		82		// SiTera Prism
+
 
 // Define version
 #define		EV_NONE			0		// Invalid version
@@ -102,8 +158,6 @@ typedef struct {
 #define		ELFCLASSNONE	0		// Invalid class
 #define		ELFCLASS32		1		// 32-bit objects
 #define		ELFCLASS64		2		// 64-bit objects
-#define		ELFCLASS16		3		// 16-bit objects
-#define		ELFCLASS8		4		// 8-bit objects
 
 #define		ELFDATANONE		0		// Invalid data encoding
 #define		ELFDATA2LSB		1		// LSB first
@@ -132,28 +186,43 @@ typedef struct {
 	Elf32_Word	sh_entsize;
 } Elf32_Shdr;
 
-#define		SHT_NULL		0
-#define		SHT_PROGBITS	1
-#define		SHT_SYMTAB		2
-#define		SHT_STRTAB		3
-#define		SHT_RELA		4
-#define		SHT_HASH		5
-#define		SHT_DYNAMIC		6
-#define		SHT_NOTE		7
-#define		SHT_NOBITS		8
-#define		SHT_REL			9
-#define		SHT_SHLIB		10
-#define		SHT_DYNSYM		11
-#define		SHT_LOPROC		0x7000000
-#define		SHT_HIPROC		0x7ffffff
-#define		SHT_LOUSER		0x8000000
-#define		SHT_HIUSER		0xfffffff
+#define		SHT_NULL			0
+#define		SHT_PROGBITS		1
+#define		SHT_SYMTAB			2
+#define		SHT_STRTAB			3
+#define		SHT_RELA			4
+#define		SHT_HASH			5
+#define		SHT_DYNAMIC			6
+#define		SHT_NOTE			7
+#define		SHT_NOBITS			8
+#define		SHT_REL				9
+#define		SHT_SHLIB			10
+#define		SHT_DYNSYM			11
+#define		SHT_INIT_ARRAY		14
+#define		SHT_FINI_ARRAY		15
+#define		SHT_PREINIT_ARRAY	16
+#define		SHT_GROUP			17
+#define		SHT_SYMTAB_SHNDX	18
+#define		SHT_LOOS			0x6000000
+#define		SHT_HIOS			0x6ffffff
+#define		SHT_LOPROC			0x7000000
+#define		SHT_HIPROC			0x7ffffff
+#define		SHT_LOUSER			0x8000000
+#define		SHT_HIUSER			0xfffffff
 
 // Define Flags
-#define		SHF_WRITE		0x01
-#define		SHF_ALLOC		0x02
-#define		SHF_EXECINSTR	0x04
-#define		SFH_MASKPROC	0xf0000000
+#define		SHF_WRITE				0x01
+#define		SHF_ALLOC				0x02
+#define		SHF_EXECINSTR			0x04
+#define		SHF_MERGE				0x10
+#define		SHF_STRINGS				0x20
+#define		SHF_INFO_LINK			0x40
+#define		SHF_LINK_ORDER			0x80
+#define		SHF_OS_NONCONFORMING	0x100
+#define		SHF_GROUP				0x200
+#define		SHF_8085_ABSOLUTE		0x00100000
+#define		SHF_MASKOS				0x0ff00000
+#define		SFH_MASKPROC			0xf0000000
 
 // Define Symbol table items
 #define		STN_UNDEF		0

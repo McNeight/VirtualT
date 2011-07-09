@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: m100emu.h,v 1.9 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: m100emu.h,v 1.10 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -89,7 +89,7 @@ void	get_rom_path(char* file, int model);
 void	init_cpu(void);
 //void	cpu_delay(int cy);
 void	resetcpu(void);
-void	cb_int65(void);
+void	cb_int65(int pinLevel);
 
 #ifdef __cplusplus
 }

@@ -1,6 +1,6 @@
 /* multiwin.h */
 
-/* $Id: multiwin.h,v 1.2 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: multiwin.h,v 1.3 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -35,6 +35,7 @@
 #define	MW_BORDER_WIDTH	4
 #define	MW_MINIMIZE_WIDTH	150
 
+#include <FL/Fl_Group.H>
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Pixmap.H>
 #include <FL/Fl_Text_Editor.H>
@@ -48,8 +49,8 @@ public:
 	Fl_Multi_Window(int x=0, int y=0, int w=600, int h=500, const char *label = 0);
 	~Fl_Multi_Window();
 
-//	Fl_Window*		ClientArea() { return m_pClientArea; };
-	Fl_Window*		ClientArea() { return this; };
+	Fl_Window*		ClientArea() { return m_pClientArea; };
+//	Fl_Window*		ClientArea() { return this; };
 
 	int				m_NoResize;
 

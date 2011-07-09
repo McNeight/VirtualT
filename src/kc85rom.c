@@ -1,6 +1,6 @@
 /* k85rom.c */
 
-/* $Id: k85rom.c,v 1.4 2008/03/06 14:39:46 kpettit1 Exp $ */
+/* $Id: kc85rom.c,v 1.3 2008/03/26 09:38:33 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Jerome Vernet and Ken Pettit
@@ -971,6 +971,8 @@ RomDescription_t gKC85_Desc = {
 	0xFF5A,						/* KP Keyscan location */
 	0x73BF,						/* Character generator table */
 	0xF934,						/* KP Location of Year storage */
+	0xFE00,						/* LCD Buffer Area */
+	0xF644,						/* Label line enable flag */
 
 	24,							/* Number of directory entries */
 	6,							/* Index of first Dir entry */

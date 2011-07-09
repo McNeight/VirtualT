@@ -1,6 +1,6 @@
 /* m100rom.c */
 
-/* $Id: m100rom.c,v 1.4 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: m100rom.c,v 1.6 2008/03/26 09:38:33 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1001,6 +1001,8 @@ RomDescription_t gM100_Desc = {
 	0xFF9A,						/* Keyscan location */
 	0x7711,						/* Character generator table */
 	0xF92D,						/* Loacation of Year storage */
+	0xFE00,						/* LCD Buffer storage area */
+	0xf63d,						/* Label line enable flag */
 
 	24,							/* Number of directory entries */
 	8,							/* Index of first Dir entry */

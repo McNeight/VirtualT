@@ -1,6 +1,6 @@
 /* clock.h */
 
-/* $Id: clock.h,v 1.2 2008/03/31 22:09:17 kpettit1 Exp $ */
+/* $Id: clock.h,v 1.1 2008/09/25 15:24:07 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -59,7 +59,7 @@ typedef struct
 	Fl_Round_Button*	pEmulTime;
 	Fl_Check_Button*	pReload;
 	Fl_Check_Button*	pTimeElapse;
-} clock_ctrl_t;
+} vt_clock_ctrl_t;
 
 #define	CLOCK_MODE_SYS		1
 #define	CLOCK_MODE_EMUL		2

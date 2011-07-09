@@ -1,6 +1,6 @@
 /* ide.h */
 
-/* $Id: display.h,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: ide.h,v 1.2 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -31,9 +31,17 @@
 #ifndef _IDE_H_
 #define _IDE_H_
 
+#include <FL/Fl.H>
+#include <FL/Fl_Choice.H>
+#include "FLU/Flu_Combo_List.h"
+#include "FLU/Flu_Return_Button.h"
+#include "FLU/Flu_Button.h"
+
 #include "MString.h"
 #include "vtobj.h"
 #include "project.h"
+#include "My_Text_Editor.h"
+#include "idetabs.h"
 
 void cb_Ide(Fl_Widget* w, void*) ;
 
@@ -58,20 +66,20 @@ class VT_IdeGroup : public VTObject
 	DECLARE_DYNCREATE(VT_IdeGroup);
 
 public:
-	VT_IdeGroup()	{};
+	VT_IdeGroup()	{m_Node = NULL; m_pParent = NULL; };
 	~VT_IdeGroup();
 
 	MString						m_Name;
 	MString						m_Filespec;
 	VTObArray					m_Objects;
 	Flu_Tree_Browser::Node*		m_Node;
+	VT_IdeGroup*				m_pParent;
 };
 
 class VT_ReplaceDlg
 {
 public:
 	VT_ReplaceDlg(class VT_Ide* pParent);
-	~VT_ReplaceDlg();
 
 	Fl_Window*		m_pReplaceDlg;
 	Fl_Input*		m_pFind;
@@ -89,14 +97,15 @@ class VT_FindDlg
 {
 public:
 	VT_FindDlg(class VT_Ide* pParent);
-	~VT_FindDlg();
 
 	Fl_Window*			m_pFindDlg;
-	Fl_Input*			m_pFind;
-	Fl_Round_Button*	m_pForward;
-	Fl_Round_Button*	m_pBackward;
-	Fl_Button*			m_pNext;
-	Fl_Button*			m_pCancel;
+	Flu_Combo_List*		m_pFind;
+	Fl_Choice*			m_pFindIn;
+	Fl_Check_Button*	m_pBackward;
+	Fl_Check_Button*	m_pMatchCase;
+	Fl_Check_Button*	m_pWholeWord;
+	Flu_Button*			m_pNext;
+	Flu_Button*			m_pCancel;
 
 	class VT_Ide*		m_pParent;
 
@@ -107,6 +116,7 @@ class VT_Ide : public Fl_Window
 {
 public:
 	VT_Ide(int x, int y, int w, int h, const char *title = 0);
+	~VT_Ide();
 
 // Methods
 	virtual void	show();
@@ -114,7 +124,10 @@ public:
 
 	void			NewProject(void);
 	void			OpenProject(void);
+	void			OpenProject(const char *filename);
 	void			SaveProject(void);
+	void			SaveProjectIdeSettings(void);
+	void			ReadProjectIdeSettings(void);
 	void			BuildTreeControl(void);
 	int				ParsePrjFile(const char *name);
 	void			RightClick(Flu_Tree_Browser::Node* n);
@@ -123,9 +136,11 @@ public:
 	void			SaveFile(void);
 	void			SaveAs(void);
 	void			OpenFile(void);
+	void			OpenFile(const char *file);
 	void			Copy(void);
 	void			Cut(void);
 	void			Paste(void);
+	void			Undo(void);
 	void			Find(void);
 	void			FindNext(void);
 	void			Replace(void);
@@ -139,27 +154,34 @@ public:
 	void			TreeFileProperties(Flu_Tree_Browser::Node* n);
 	void			BuildProject(void);
 	void			CleanProject(void);
+	void			SetColors(int fg, int bg);
 	void			ShowProjectSettings(void);
+	void			LoadPrefs(void);
+	void			SavePrefs(void);
 	MString			MakePathRelative(const MString& path, const MString& relTo);
 	MString			MakePathAbsolute(const MString& path, const MString& relTo);
+	MString			MakeTitle(const MString& path);
 	MString			ProjectName(void);
+	void			Stdout(const char *msg);
 	int				ProjectDirty(void);
 
 	Fl_Window*		m_EditWindow;
+	Fl_Ide_Tabs*	m_EditTabs;
 	VT_ReplaceDlg*	m_pReplaceDlg;
 	VT_FindDlg*		m_pFindDlg;
 
 protected:
 	virtual void	draw();
 	void			AddGroupToTree(VTObject *pObj, const char *fmt);
-	void			NewEditWindow(const MString& title, const MString& file);
+	class Fl_Multi_Edit_Window*	NewEditWindow(const MString& title, const MString& file,
+						int addToRecentFiles = TRUE);
 
 	Fl_Window*					m_ProjWindow;
 	Flu_Tree_Browser*			m_ProjTree;
 	Fl_Window*					m_TabWindow;
 	Fl_Tabs*					m_Tabs;
 	Fl_Group*					m_BuildTab;
-	Fl_Text_Display*			m_BuildTextDisp;
+	My_Text_Display*			m_BuildTextDisp;
 	Fl_Text_Buffer*				m_BuildTextBuf;
 	Fl_Group*					m_DebugTab;
 	Fl_Group*					m_WatchTab;
@@ -167,6 +189,8 @@ protected:
 	VT_Project*					m_ActivePrj;
 	MString						m_LastDir;
 	int							m_OpenLocation;
+	StatusBar_t					m_StatusBar;
+	MString						m_Search;
 };
 
 #endif

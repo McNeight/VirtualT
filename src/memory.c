@@ -48,17 +48,11 @@ unsigned char	*gReMemSectPtr = 0;	/* Pointer to current Sector memory */
 unsigned short	gReMemMap[64];		/* Map of 1K blocks - 64 total */
 unsigned int	gReMemMapLower = 0; /* Lower address of actively mapped MMU Map */
 unsigned int	gReMemMapUpper = 0; /* Upper address of actively mapped MMU Map */
-int				gReMemFlash1State = FLASH_STATE_RO;
-int				gReMemFlash2State = FLASH_STATE_RO;
-UINT64			gReMemFlash1Time = 0;
-UINT64			gReMemFlash2Time = 0;
-int				gReMemFlash1Busy = FALSE;
-int				gReMemFlash2Busy = FALSE;
 int				gReMemFlashReady = TRUE;
+amd_flash_t		gReMemFlash1 = { FLASH_STATE_RO, 0, FALSE, 0 };
+amd_flash_t		gReMemFlash2 = { FLASH_STATE_RO, 0, FALSE, 0 };
 
 uchar			*gReMemRam = 0;		/* Pointer to ReMem RAM space */
-uchar			*gReMemFlash1 = 0;	/* Pointer to ReMem Flash1 space */
-uchar			*gReMemFlash2 = 0;	/* Pointer to ReMem Flash2 space */
 
 int				gRampac = 0;		/* Rampac Enable flag */
 unsigned char	*gRampacRam = 0;	/* Rampac RAM pointer */
@@ -70,9 +64,17 @@ int				gRampacSaveCounter = 0;	/* Rampac emulation Counter */
 unsigned char	*gRampacSaveSectPtr = 0;/* Pointer to current Sector memory */
 int				gRampacEmulation = 0;/* ReMem's Rampac emulation active? */
 
-int				gRex;				/* Rex Emulation Enable flag */
-unsigned char	*gRexRam;			/* Rex RAM pointer */
-
+int				gRex = 0;			/* Rex Emulation Enable flag */
+unsigned char	*gRex2Ram = NULL;	/* Rex2 RAM pointer */
+int				gRexSector = 0;		/* Active sector */
+int				gRexState = 7;		/* Rex Command State */
+unsigned char	gRexReturn = 0;		/* Return value for Status & HW reads */
+unsigned char	gRexModel = 0;		/* Rex model */
+unsigned char	gRexFlashSel = 1;	/* Rex Flash enable signal */
+int				gRexKeyState = 0;	/* Rex Key State */
+int				gRexFlashPA = 0;	/* REX Flash Address Line during programing */
+amd_flash_t		gRexFlash = { FLASH_STATE_RO, 0, FALSE, 0 };
+unsigned char	gRexKeyTable[6] = { 184, 242, 52, 176, 49, 191 };
 int				gIndex[65536];
 
 extern RomDescription_t		gM100_Desc;
@@ -84,6 +86,7 @@ extern RomDescription_t		gKC85_Desc;
 
 extern int					gShowVersion;
 extern UINT64				cycles;
+extern int					cycle_delta;
 
 uchar	gFlashCFIData[] = {
 	0x51, 0x52, 0x59, 0x02, 0x00, 0x40, 0x00, 0x00, 0x00, 0x00, 0x00, 0x27, 0x36, 0x00, 0x00, 0x04,
@@ -96,10 +99,15 @@ unsigned char get_memory8(unsigned short address)
 {
 	if (gReMem)
 	{
-		if (gReMemFlashReady)
-			return gMemory[address >> 10][address & 0x3FF];
-		/* Process Flash state machine and return the value */
-		return remem_flash_sm_read(address);
+		if  (gRex)
+			return rex_read(address);
+		else
+		{
+			if (gReMemFlashReady)
+				return gMemory[address >> 10][address & 0x3FF];
+			/* Process Flash state machine and return the value */
+			return remem_flash_sm_read(address);
+		}
 	}
 	else
 		return gBaseMemory[address];
@@ -108,7 +116,11 @@ unsigned char get_memory8(unsigned short address)
 unsigned short get_memory16(unsigned short address)
 {
 	if (gReMem)
+	{
+		if (gRex)
+			return rex_read(address) | (rex_read(address+1) << 8);
 		return gMemory[address>>10][address&0x3FF] + (gMemory[(address+1)>>10][(address+1)&0x3FF] << 8);
+	}
 	else
 		return gBaseMemory[address] + (gBaseMemory[address+1] << 8);
 }
@@ -116,7 +128,12 @@ unsigned short get_memory16(unsigned short address)
 void set_memory8(unsigned short address, unsigned char data)
 {
 	if (gReMem)
-		remem_set8(address, data);
+	{
+		if (gRex)
+			rex_set8(address, data);
+		else
+			remem_set8(address, data);
+	}
 	else
 		gBaseMemory[address] = data;
 }
@@ -146,7 +163,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = RAMSTART + address;
 		for (c = 0; c < count; c++)
 		{
-			if (gReMem)
+			if (gReMem && !gRex)
 				data[c] = gMemory[addr>>10][addr&0x3FF];
 			else
 				data[c] = gBaseMemory[addr];
@@ -158,7 +175,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = address;
 		for (c = 0; c < count; c++)
 		{
-			if (gReMem)
+			if (gReMem && !gRex)
 				data[c] = gMemory[addr>>10][addr&0x3FF];
 			else
 				data[c] = gBaseMemory[addr];
@@ -185,7 +202,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					data[c] = gMemory[addr>>10][addr&0x3FF];
 				else
 					data[c] = gBaseMemory[addr];
@@ -207,7 +224,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					data[c] = gMemory[addr>>10][addr&0x3FF];
 				else
 					data[c] = gBaseMemory[addr];
@@ -232,7 +249,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					data[c] = gMemory[addr>>10][addr&0x3FF];
 				else
 					data[c] = gBaseMemory[addr];
@@ -273,7 +290,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 	case REGION_FLASH1:
 	case REGION_FLASH2:
 		// First check that the ReMem RAM has been allocated
-		if ((gReMemRam == NULL) || (gReMemFlash1 == NULL) || (gReMemFlash2 == NULL))
+		if ((gReMemRam == NULL) || (gReMemFlash1.pFlash == NULL) || (gReMemFlash2.pFlash == NULL))
 			break;
 
 		// Indicate zero bytes copied so far
@@ -283,9 +300,31 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		if (region == REGION_REMEM_RAM)
 			ptr = gReMemRam;
 		else if (region == REGION_FLASH1)
-			ptr = gReMemFlash1;
+			ptr = gReMemFlash1.pFlash;
 		else 
-			ptr = gReMemFlash2;
+			ptr = gReMemFlash2.pFlash;
+
+		// Block is not mapped -- copy from 2Meg Region (RAM or FLASH)
+		addr = address;
+		for (;(cp_ptr < count); cp_ptr++)
+			data[cp_ptr] = ptr[addr++];
+		break;
+
+		/*
+		================================================================
+		The following deals with REX emulation of FLASH.
+		================================================================
+		*/
+	case REGION_REX_FLASH:
+		// First check that the ReMem RAM has been allocated
+		if (gRexFlash.pFlash == NULL)
+			break;
+
+		// Indicate zero bytes copied so far
+		cp_ptr = 0;
+
+		// Determine which location to copy memory from
+		ptr = gRexFlash.pFlash;
 
 		// Block is not mapped -- copy from 2Meg Region (RAM or FLASH)
 		addr = address;
@@ -316,7 +355,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = RAMSTART + address;
 		for (c = 0; c < count; c++)
 		{
-			if (gReMem)
+			if (gReMem && !gRex)
 				gMemory[addr>>10][addr&0x3FF] = data[c];
 			else
 				gBaseMemory[addr] = data[c];
@@ -355,7 +394,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					gMemory[addr>>10][addr&0x3FF] = data[c];
 				else
 					gBaseMemory[addr] = data[c];
@@ -377,7 +416,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					gMemory[addr>>10][addr&0x3FF] = data[c];
 				else
 					gBaseMemory[addr] = data[c];
@@ -402,7 +441,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			addr = address + RAMSTART;
 			for (c = 0; c < count; c++)
 			{
-				if (gReMem)
+				if (gReMem && !gRex)
 					gMemory[addr>>10][addr&0x3FF] = data[c];
 				else
 					gBaseMemory[addr] = data[c];
@@ -443,8 +482,9 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 	case REGION_FLASH1:
 	case REGION_FLASH2:
 		// First check that the ReMem RAM has been allocated
-		if ((gReMemRam == NULL) || (gReMemFlash1 == NULL) || (gReMemFlash2 == NULL))
-			break;
+		if ((gReMemRam == NULL) || (gReMemFlash1.pFlash == NULL) || 
+			(gReMemFlash2.pFlash == NULL))
+				break;
 
 		// Check ReMem emulation mode
 		// If REMEM_MODE_NORMAL bit is set then ReMem is mapping 1K 
@@ -485,9 +525,9 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			if (region == REGION_REMEM_RAM)
 				ptr = gReMemRam;
 			else if (region == REGION_FLASH1)
-				ptr = gReMemFlash1;
+				ptr = gReMemFlash1.pFlash;
 			else if (region == REGION_FLASH2)
-				ptr = gReMemFlash2;
+				ptr = gReMemFlash2.pFlash;
 
 			addr = address;
 
@@ -496,7 +536,146 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 				ptr[addr++] = data[cp_ptr];
 		}
 		break;
+
+		/*
+		================================================================
+		The following deals with REX emulation of FLASH.
+		================================================================
+		*/
+	case REGION_REX_FLASH:
+		/* Do sanity check on the pointer */
+		if (gRexFlash.pFlash == NULL)
+			return;
+
+		/* Get pointer to the REX flash */
+		ptr = gRexFlash.pFlash;
+
+		/* Setup to copy */
+		addr = address;
+
+		// Copy bytes up to the limit to allocation
+		for (cp_ptr = 0; cp_ptr < count; cp_ptr++)
+			ptr[addr++] = data[cp_ptr];
+
+		break;
 	}
+}
+
+/*
+========================================================================
+amd_flash_init:		This routine initializes an amd_flash_t structure
+					and allocates memory of the specified size.
+========================================================================
+*/
+void amd_flash_init(amd_flash_t *pFlash, int size, int type)
+{
+	int		c;
+
+	/* Allocate RAM for the flash and initiaize its state */
+	if (pFlash->pFlash == NULL)
+	{
+		pFlash->pFlash = malloc(size);
+	}
+	pFlash->iFlashState = FLASH_STATE_RO;
+	pFlash->iFlashBusy = FALSE;
+	pFlash->iFlashTime = 0;
+	pFlash->iFlashType = type;
+	pFlash->iFlashSize = size;
+
+	/* Initialize memory to zero */
+	if (pFlash->pFlash != NULL)
+	{
+		for (c = 0; c < size; c++)
+		{
+			pFlash->pFlash[c] = 0xff;
+		}
+	}
+}
+
+/*
+=============================================================================
+amd_flash_read_sm:	This routine processes FLASH read events while a timer
+					is active, such as during a write or erase operation.
+=============================================================================
+*/
+int amd_flash_read_sm(amd_flash_t *pFlash, unsigned short address)
+{
+	int		index;
+
+	/* The flash is busy during a read - process as State Machine */
+	if (pFlash->iFlashBusy && (pFlash->iFlashState == FLASH_STATE_RO))
+	{
+		/* Waiting for timeout of erase / program */
+		if (pFlash->iFlashTime > 0)
+		{
+			if (cycles + cycle_delta >= pFlash->iFlashTime)
+				pFlash->iFlashTime = 0;
+		}
+
+		/* Test if timeout expired */
+		if (pFlash->iFlashTime == 0)
+		{
+			pFlash->iFlashBusy = FALSE;
+			return -1;
+		}
+	}
+	else if (pFlash->iFlashState == FLASH_STATE_AUTOSELECT)
+	{
+		if ((address & 0xFF) == 0)
+			return FLASH_MANUF_ID;
+		else if ((address & 0xFF) == 1)
+			return FLASH_PRODUCT_ID;
+		else
+			return 0;
+	}
+	else if (pFlash->iFlashState == FLASH_STATE_CFI_QUERY)
+	{
+		/* Test Query address */
+		if ((address < 32) || (address > 0x98))
+			return 0xFF;
+
+		/* Calculate index for CFI address */
+		index = (address - 0x20) >> 1;
+		return gFlashCFIData[index];
+	}
+
+	/* Test for failed command sequence */
+	if (pFlash->iFlashState != FLASH_STATE_RO)
+	{
+		/* Reset back to read state */
+		pFlash->iFlashState = FLASH_STATE_RO;
+		pFlash->iFlashBusy = FALSE;
+		pFlash->iFlashTime = 0;
+		return -1;
+	}
+
+	return 0xFF;
+}
+
+/*
+========================================================================
+amd_flash_proc_timer:	This routine processes timed events, such as
+						write and erase to determine when they are
+						complete.
+========================================================================
+*/
+int amd_flash_proc_timer(amd_flash_t *pFlash)
+{
+	/* Check if FLASH1 is busy */
+	if (pFlash->iFlashTime > 0)
+	{
+		if (cycles + cycle_delta >= pFlash->iFlashTime)
+		{
+			/* Clear busy bit for Flash1 */
+			pFlash->iFlashTime = 0;
+			pFlash->iFlashBusy = FALSE;
+			return AMD_ACTION_DEVICE_READY;
+		}
+
+		return AMD_ACTION_BUSY;
+	}
+
+	return AMD_ACTION_DEVICE_READY;
 }
 
 /*
@@ -513,6 +692,12 @@ void init_mem(void)
 	/* Set gReMem and gRampac based on preferences */
 	gReMem = (mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
 	gRampac = (mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
+	gRex = (mem_setup.mem_mode == SETUP_MEM_REX) ? REX : (mem_setup.mem_mode == SETUP_MEM_REX2) ? REX2 : 0;
+	if (gRex)
+	{
+		gRexModel = REX | gRex;		
+		gReMem = 1;
+	}
 	gRampacEmulation = 0;
 	gRampacSectPtr = NULL;
 
@@ -533,16 +718,15 @@ void init_mem(void)
 
 			/* Allocate space for RAM and FLASH */
 			gReMemRam = malloc(size);
-			gReMemFlash1 = malloc(size);
-			gReMemFlash2 = malloc(size);
 
 			/* Initialize memory to zero */
 			for (c = 0; c < size; c++)
 			{
 				gReMemRam[c] = 0;
-				gReMemFlash1[c] = 0;
-				gReMemFlash2[c] = 0;
 			}
+
+			amd_flash_init(&gReMemFlash1, size, AMD_FLASH_TYPE_REMEM);
+			amd_flash_init(&gReMemFlash2, size, AMD_FLASH_TYPE_REMEM);
 		}
 
 		remem_copy_normal_to_system();
@@ -568,6 +752,34 @@ void init_mem(void)
 
 		for (; c < 64; c++)
 			gMemory[c] = &gBaseMemory[next++ * 1024];
+	}
+
+	/* Test if Rex emulation enabled */
+	if (gRex)
+	{
+		/* Allocate memory only if not already allocated */
+		if  (gRexFlash.pFlash == 0)
+		{
+			/* Size of allocation for RAM and FLASH */
+			size = 1024 * 1024;
+
+			/* Allocate space for Rex FLASH */
+			amd_flash_init(&gRexFlash, size, AMD_FLASH_TYPE_REX);
+		}
+
+		/* Test if Rex2 enabled and allocate RAM */
+		if  ((gRex == REX2) && (gRex2Ram == 0))
+		{
+			/* Size of allocation for RAM and FLASH */
+			size = 1024 * 128;
+
+			/* Allocate space for Rex2 RAM */
+			gRex2Ram = malloc(size);
+
+			/* Initialize memory to zero */
+			for (c = 0; c < size; c++)
+				gRex2Ram[c] = 0;
+		}
 	}
 
 	/* Test if Rampac emulation enabled */
@@ -615,10 +827,25 @@ void reinit_mem(void)
 		memcpy(gBaseMemory,gSysROM,ROMSIZE);
 	}
 
+	/* Test if Rex needs to be reinitialized */
+	if (gRex)
+	{
+		/* Initialize Rex state varialbles */
+		gRexState = 7;
+		gRexFlash.iFlashState = FLASH_STATE_RO;
+		gRexSector = 0;
+		gRexKeyState = 0;
+	}
+
+	// Clear the RAM
+//	for (x = ROMSIZE; x < 65536; x++)
+//		set_memory8(x, 0);
+
 	gRamBank = 0;
 	gRomBank = 0;
 
 }
+
 /*
 ============================================================================
 Clear RAM to emulate a cold-boot based on Memory mode selected.
@@ -648,13 +875,13 @@ void free_remem_mem(void)
 {
 	/* Delete memory allocated for RAM and FLASH */
 	free(gReMemRam);
-	free(gReMemFlash1);
-	free(gReMemFlash2);
+	free(gReMemFlash1.pFlash);
+	free(gReMemFlash2.pFlash);
 
 	/* Set memory pointers to NULL */
 	gReMemRam = 0;
-	gReMemFlash1 = 0;
-	gReMemFlash2 = 0;
+	gReMemFlash1.pFlash = 0;
+	gReMemFlash2.pFlash = 0;
 
 	gReMemMapLower = 0;
 	gReMemMapLower = 0;
@@ -677,6 +904,22 @@ void free_rampac_mem(void)
 
 /*
 ========================================================================
+free_rex_mem:	This routine frees the memory used by the Rex 
+				emulation and resets the pointers to zero.
+========================================================================
+*/
+void free_rex_mem(void)
+{
+	/* Delete memory allocated for RAM and FLASH */
+	if (gRexFlash.pFlash != NULL)
+		free(gRexFlash.pFlash);
+
+	/* Set memory pointers to NULL */
+	gRexFlash.pFlash = 0;
+}
+
+/*
+========================================================================
 free_mem:	This routine frees ReMem and/or Rampac memory allocated 
 			during the emulation session.
 ========================================================================
@@ -690,6 +933,9 @@ void free_mem(void)
 	/* Test if Rampac RAM currently allocated */
 	if (gRampacRam != 0)
 		free_rampac_mem();
+
+	if (gRex != 0)
+		free_rex_mem();
 }
 
 /*
@@ -715,8 +961,8 @@ void save_remem_ram(void)
 		fwrite(gReMemRam, 1, size, fd);
 
 		/* Now write Flash */
-		fwrite(gReMemFlash1, 1, size, fd);
-		fwrite(gReMemFlash2, 1, size, fd);
+		fwrite(gReMemFlash1.pFlash, 1, size, fd);
+		fwrite(gReMemFlash2.pFlash, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
@@ -752,6 +998,63 @@ void save_rampac_ram(void)
 
 /*
 ========================================================================
+save_rex2_ram:	This routine saves the Rex2 emulation RAM to the Rex2
+				AM file.
+========================================================================
+*/
+void save_rex2_ram(void)
+{
+	FILE	*fd;
+	int		size;
+
+	if (gRex != REX2)
+		return;
+
+	/* Open ReMem file */
+	fd = fopen(mem_setup.rex2_ram_file, "wb+");
+
+	/* Check if file opened successfully */
+	if (fd != 0)
+	{
+		size = 1024 * 128;		/* Copy 256K of RAM 
+
+		/* Write ReMem RAM first */
+		fwrite(gRex2Ram, 1, size, fd);
+
+		/* Close the file */
+		fclose(fd);
+	}
+}
+
+/*
+========================================================================
+save_rex_flash:	This routine saves the Rex emulation flash to the Rex
+				flash file.
+========================================================================
+*/					
+void save_rex_flash(void)
+{
+	FILE	*fd;
+	int		size;
+
+	/* Open ReMem file */
+	fd = fopen(mem_setup.rex_flash_file, "wb+");
+
+	/* Check if file opened successfully */
+	if (fd != 0)
+	{
+		size = 1024 * 1024;		/* Copy 1 Meg of flash 
+
+		/* Write ReMem RAM first */
+		fwrite(gRexFlash.pFlash, 1, size, fd);
+
+		/* Close the file */
+		fclose(fd);
+	}
+}
+
+/*
+========================================================================
 save_ram:	This routine saves the contens of the RAM after
 			emulation has completed (or anytime it is called).
 
@@ -769,7 +1072,7 @@ void save_ram(void)
 	FILE	*fd;
 
 	/* Check if ReMem emulation enabled or Base Memory emulation */
-	if (gReMem)
+	if (gReMem & !gRex)
 	{
 		save_remem_ram();		/* Save ReMem data to file */
 	}
@@ -836,6 +1139,17 @@ void save_ram(void)
 	{
 		save_rampac_ram();		/* Save Rampac RAM to file */
 	}
+
+	/*
+	===========================================
+	Save Rex Flash & RAM if enabled
+	===========================================
+	*/
+	if (gRex)
+	{
+		save_rex_flash();		/* Save the flash */
+		save_rex2_ram();		/* Save Rex2 RAM to file */
+	}
 }
 
 /*
@@ -854,7 +1168,7 @@ void load_remem_ram(void)
 	fd = fopen(mem_setup.remem_file, "rb+");
 
 	/* Check if file opened successfully */
-	if (fd != 0)
+	if ((fd != 0) && (gReMemFlash1.pFlash != NULL) && (gReMemFlash2.pFlash != NULL))
 	{
 		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH */
 
@@ -862,35 +1176,38 @@ void load_remem_ram(void)
 		fread(gReMemRam, 1, size, fd);
 
 		/* Now read Flash */
-		fread(gReMemFlash1, 1, size, fd);
-		fread(gReMemFlash2, 1, size, fd);
+		fread(gReMemFlash1.pFlash, 1, size, fd);
+		fread(gReMemFlash2.pFlash, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
 
 		/* Now update the VirtualT version if needed */
-		patch_vt_version(gReMemFlash1, ROMSIZE);
+		patch_vt_version(gReMemFlash1.pFlash, ROMSIZE);
 	}
 
 	/* Test if ReMem FLASH "Normal" region is empty */
-	for (x = 0; x < 10; x++)
+	if (gReMemFlash1.pFlash != NULL)
 	{
-		/* Check for any non-zero bytes in normal ROM area */
-		if (gReMemFlash1[x] != 0)
-			empty = 0;
+		for (x = 0; x < 10; x++)
+		{
+			/* Check for any non-zero bytes in normal ROM area */
+			if (gReMemFlash1.pFlash[x] != 0)
+				empty = 0;
+		}
 	}
 
 	if (empty)
 	{
 		/* Rom area is empty - initialize with SYSROM */
 		for (x = 0; x < ROMSIZE; x++)
-			gReMemFlash1[x] = gSysROM[x];
+			gReMemFlash1.pFlash[x] = gSysROM[x];
 	}
 
 	/* Initalize MsplanROM area */
 	if (gModel == MODEL_T200)
 		for (x = 0; x < sizeof(gMsplanROM); x++)
-			gReMemFlash1[0x10000 + x] = gMsplanROM[x];
+			gReMemFlash1.pFlash[0x10000 + x] = gMsplanROM[x];
 }
 
 void reload_sys_rom(void)
@@ -898,7 +1215,7 @@ void reload_sys_rom(void)
 	int		x;
 	
 	for (x = 0; x < ROMSIZE; x++)
-		gReMemFlash1[x] = gSysROM[x];
+		gReMemFlash1.pFlash[x] = gSysROM[x];
 }
 
 /*
@@ -930,6 +1247,65 @@ void load_rampac_ram(void)
 
 /*
 ========================================================================
+load_rex_flash:	This routine loads the Rex emulation flash from the 
+				Rex flash file.
+========================================================================
+*/					
+void load_rex_flash(void)
+{
+	FILE	*fd;
+	int		size;
+	int		empty = 1;
+
+	/* Open ReMem file */
+	fd = fopen(mem_setup.rex_flash_file, "rb+");
+
+	/* Check if file opened successfully */
+	if ((fd != 0) && (gRexFlash.pFlash != NULL))
+	{
+		size = 1024 * 1024;		/* Copy 1 meg of FLASH 
+
+		/* Read Rex Flash first */
+		fread(gRexFlash.pFlash, 1, size, fd);
+
+		/* Close the file */
+		fclose(fd);
+
+		/* Now update the VirtualT version if needed */
+		patch_vt_version(gRexFlash.pFlash, ROMSIZE);
+	}
+}
+
+/*
+========================================================================
+load_rex2_ram:	This routine loads the Rex2 emulation RAM from the 
+				Rex2 RAM file.
+========================================================================
+*/					
+void load_rex2_ram(void)
+{
+	FILE	*fd;
+	int		size;
+	int		empty = 1;
+
+	/* Open ReMem file */
+	fd = fopen(mem_setup.rex2_ram_file, "rb+");
+
+	/* Check if file opened successfully */
+	if (fd != 0)
+	{
+		size = 1024 * 128;		/* Copy 128K of RAM 
+
+		/* Read Rex2 RAM */
+		fread(gRex2Ram, 1, size, fd);
+
+		/* Close the file */
+		fclose(fd);
+	}
+}
+
+/*
+========================================================================
 load_ram:	This routine loads the contens of the RAM in preparation
 			for emulation (or anytime it is called).
 
@@ -948,8 +1324,9 @@ void load_ram(void)
 	int				x;
 
 	/* Check if ReMem emulation enabled or Base Memory emulation */
-	if (gReMem)
+	if (gReMem & !gRex)
 	{
+		/* In ReMem mode - load RAM */
 		load_remem_ram();		/* Call routine to load ReMem */
 		remem_copy_normal_to_system();
 	}
@@ -1035,6 +1412,19 @@ void load_ram(void)
 	{
 		load_rampac_ram();		/* Call routine to load Rampac */
 	}
+
+	/*
+	===========================================
+	Load Rex Flash and RAM if enabled
+	===========================================
+	*/
+	if (gRex)
+	{
+		/* Load Rex Flash and RAM if needed */
+		load_rex_flash();
+		if (gRex == REX2)
+			load_rex2_ram();
+	}
 }
 
 /*
@@ -1074,7 +1464,7 @@ void patch_vt_version(char* pMem, int size)
 		address = gStdRomDesc->sMSCopyright;
 
 		/* Check if the address contains a (possibly previous version) VT string */
-		if (strncmp((char*) &pMem[address], "VirtualT", strlen("VirtualT")) == 0)
+		if (strncmp((char*) &pMem[address], "VirtualT ", strlen("VirtualT ")) == 0)
 			found = TRUE;
 
 		/* Check if the copyright string is where we expect it to be */
@@ -1098,7 +1488,7 @@ void patch_vt_version(char* pMem, int size)
 					break;
 				}
 				/* Search for VirtualT string */
-				if (strncmp((char*) &pMem[c], "VirtualT", strlen("VirtualT")) == 0)
+				if (strncmp((char*) &pMem[c], "VirtualT ", strlen("VirtualT ")) == 0)
 				{
 					address = (unsigned short) c;
 					break;
@@ -1208,10 +1598,10 @@ void load_opt_rom(void)
 		{
 			if (gModel == MODEL_T200)
 				for (c = 0; c < len; c++)
-					gReMemFlash1[0x18000 + c] = buf[c];
+					gReMemFlash1.pFlash[0x18000 + c] = buf[c];
 			else
 				for (c = 0; c < len; c++)
-					gReMemFlash1[0x8000 + c] = buf[c];
+					gReMemFlash1.pFlash[0x8000 + c] = buf[c];
 		}
 
 	}
@@ -1229,10 +1619,10 @@ void load_opt_rom(void)
 		{
 			if (gModel == MODEL_T200)
 				for (c = 0; c < OPTROMSIZE; c++)
-					gReMemFlash1[0x18000 + c] = gOptROM[c];
+					gReMemFlash1.pFlash[0x18000 + c] = gOptROM[c];
 			else
 				for (c = 0; c < OPTROMSIZE; c++)
-					gReMemFlash1[0x8000 + c] = gOptROM[c];
+					gReMemFlash1.pFlash[0x8000 + c] = gOptROM[c];
 		}
 	}
 }
@@ -1248,7 +1638,7 @@ void set_ram_bank(unsigned char bank)
 {
 	int		block;
 
-	if (!gReMem)
+	if (!(gReMem && !gRex))
 	{
 		/* Deal with Non-Remem Banks */
 		switch (gModel)
@@ -1318,7 +1708,7 @@ void set_rom_bank(unsigned char bank)
 {
 	int		block, blocks;
 
-	if (!gReMem)
+	if (!(gReMem && !gRex))
 	{
 		/* Deal with non-ReMem emulation */
 		switch (gModel)
@@ -1430,6 +1820,249 @@ void set_rom_bank(unsigned char bank)
 
 /*
 =============================================================================
+amd_flash_write:	This function processes 8-bit write operatsions to the
+					AMD flash and manages portions of the FLASH state machine
+					for controlling Erase Read Only modes, etc.
+=============================================================================
+*/
+int amd_flash_write(amd_flash_t *pFlash, unsigned int address, unsigned char data)
+{
+	int		sectOffset;
+	int		sectSize, c;
+	int		sector;
+	int		retval = AMD_ACTION_RESET;
+	char	*ptr;
+
+	/* Look for Reset command.  If it's reset, set the FLASH to Read Only mode and clear BUSY */
+	if ((data == FLASH_CMD_RESET) && (pFlash->iFlashState != FLASH_STATE_PROG))
+	{
+		pFlash->iFlashState = FLASH_STATE_RO;
+		pFlash->iFlashTime = 0;
+		pFlash->iFlashBusy = FALSE;
+		return AMD_ACTION_RESET;
+	}
+
+	/* Switch on the current flash state and operate on data appropriatey */
+	switch (pFlash->iFlashState)
+	{
+	case FLASH_STATE_RO:
+		/* Proocess write as command */
+		if ((data == FLASH_CMD_CFI_QUERY) && (address == 0xAA))
+		{
+			pFlash->iFlashState = FLASH_STATE_CFI_QUERY;
+			pFlash->iFlashBusy = TRUE;
+		}
+
+		/* Test for transition to UNLK1 State */
+		else if ((data == 0xAA) && ((address & 0xFF) == 0xAA))
+			pFlash->iFlashState = FLASH_STATE_UNLK1;
+
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UNLK1:
+		// Check for 2nd byte of unlock sequence
+		if ((data == 0x55) && ((address & 0xFF) == 0x55))
+			pFlash->iFlashState = FLASH_STATE_CMD;
+		else
+			pFlash->iFlashState = FLASH_STATE_RO;
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UNLK2:
+		// Get 1st byte of 2nd Unlock
+		if ((data == 0xAA) && ((address & 0xFF) == 0xAA))
+			pFlash->iFlashState = FLASH_STATE_UNLK3;
+		else
+			pFlash->iFlashState = FLASH_STATE_RO;
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UNLK3:
+		// Check for double unlock 2nd byte
+		if ((data == 0x55) && ((address & 0xFF) == 0x55))
+			pFlash->iFlashState = FLASH_STATE_CMD2;
+		else
+			pFlash->iFlashState = FLASH_STATE_RO;
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UNLK_BYPASS:
+		/* We are in Unlock Bypass mode.  We only accept 0xA0 and 0x90 in this mode */
+		/* Test for transition to program state */
+		if (data == FLASH_CMD_PROG)
+			pFlash->iFlashState = FLASH_STATE_UB_PROG;
+		else if (data == FLASH_CMD_AUTOSELECT)
+			pFlash->iFlashState = FLASH_STATE_UB_EXIT;
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UB_EXIT:
+		/* Look for 2nd byte of exit sequence from Unlock Bypass */
+		if (data == 0)
+		{
+			pFlash->iFlashState = FLASH_STATE_RO;
+		}
+		else
+		{
+			pFlash->iFlashState = FLASH_STATE_UNLK_BYPASS;
+		}
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_UB_PROG:
+		/* Program in Unlock Bypass mode. Allow write and go back to UNLK_BYPASS state */
+		pFlash->iFlashState = FLASH_STATE_UNLK_BYPASS;
+		pFlash->iFlashBusy = TRUE;
+		pFlash->iFlashTime = cycles + cycle_delta + FLASH_CYCLES_PROG;
+
+		/* May need to add code here to write to the FLASH */
+		if (pFlash->iFlashType == AMD_FLASH_TYPE_REX)
+		{
+			/* Write data to the flash */
+			pFlash->pFlash[address] &= data;
+
+			/* If trying to change a 1 to a 0, then go to BUSY until reset */
+			if (pFlash->pFlash[address] != data)
+				pFlash->iFlashBusy = TRUE;
+		}
+
+		retval = AMD_ACTION_ALLOW_WRITE;
+		break;
+
+
+	case FLASH_STATE_PROG:
+		/* Change state back to Read Only and return code indicating write allowed */
+		pFlash->iFlashState = FLASH_STATE_RO;
+		pFlash->iFlashBusy = TRUE;
+		pFlash->iFlashTime = cycles + cycle_delta + FLASH_CYCLES_PROG;
+
+		/* May need to add code here to write to the FLASH */
+		if (pFlash->iFlashType == AMD_FLASH_TYPE_REX)
+		{
+			/* Write data to the flash */
+			pFlash->pFlash[address] &= data;
+
+			/* If trying to change a 1 to a 0, then go to BUSY until reset */
+			if (pFlash->pFlash[address] != data)
+				pFlash->iFlashBusy = TRUE;
+		}
+
+		retval = AMD_ACTION_ALLOW_WRITE;
+		break;
+
+	case FLASH_STATE_CMD:
+		if ((address & 0xFF) == 0xAA)
+		{
+			// Get the command
+			if (data == FLASH_CMD_PROG)
+				pFlash->iFlashState = FLASH_STATE_PROG;
+			else if (data == FLASH_CMD_UNLK_BYPASS)
+				pFlash->iFlashState = FLASH_STATE_UNLK_BYPASS;
+			else if (data == FLASH_CMD_UNLK2)
+				pFlash->iFlashState = FLASH_STATE_UNLK2;
+			else if (data == FLASH_CMD_AUTOSELECT)
+				pFlash->iFlashState = FLASH_STATE_AUTOSELECT;
+			else
+				pFlash->iFlashState = FLASH_STATE_RO;
+		}
+		else
+		{
+			pFlash->iFlashState = FLASH_STATE_RO;
+			retval = AMD_ACTION_RESET;
+			break;
+		}
+		retval = AMD_ACTION_CMD;
+		break;
+
+	case FLASH_STATE_CMD2:
+		// Test for Erase Chip command
+		if ((data == FLASH_CMD_CHIP_ERASE) && ((address & 0xFF) == 0xAA))
+		{
+			pFlash->iFlashState = FLASH_STATE_RO;
+			pFlash->iFlashTime = cycles + cycle_delta + FLASH_CYCLES_CHIP_ERASE;
+			pFlash->iFlashBusy = TRUE;
+
+			/* Erase the Flash */
+			ptr = pFlash->pFlash;
+			for (c = 0; c < 2048 * 1024; c++)
+				*ptr++ = 0xFF;
+
+			retval = AMD_ACTION_ERASING;
+			break;
+		}
+
+		/* Test if data is a Sect Erase command */
+		else if (data != FLASH_CMD_SECT_ERASE)
+		{
+			pFlash->iFlashState = FLASH_STATE_RO;
+			retval = AMD_ACTION_RESET;
+			break;
+		}
+
+		/* Process Sector erase */
+		sector = address >> 16;
+
+		/* Calculate sector offset and size */
+		if (sector == 0)
+		{
+			/* Test for sector zero */
+			if ((address & 0xFFC000) == 0)
+			{
+				/* Sector zero is 16K */
+				sectOffset = 0;
+				sectSize = 16384;
+			}
+			else if ((address & 0xFF8000) != 0)
+			{
+				/* Sector 3 is a 32K sector */
+				sectOffset = 0x8000;
+				sectSize = 32768;
+			}
+			else
+			{
+				sectOffset = address & 0xFFF000;
+				sectSize = 8192;
+			}
+		}
+		else
+		{
+			/* Setup for 64K sector */
+			sectOffset = address & 0xFF0000;
+			sectSize = 0x10000;
+		}
+
+		/* Point to the correct memory space */
+		ptr = pFlash->pFlash + sectOffset;
+
+		/* Erase the sector */
+		for (c = 0; c < sectSize; c++)
+			*ptr++ = 0xFF;
+
+		/* Update state and set busy flag */
+		pFlash->iFlashState = FLASH_STATE_RO;
+		pFlash->iFlashBusy = TRUE;
+		pFlash->iFlashTime = cycles + cycle_delta + FLASH_CYCLES_SECT_ERASE;
+		retval = AMD_ACTION_ERASING;
+		break;
+
+	case FLASH_STATE_CHIP_ERASE:
+	case FLASH_STATE_SECT_ERASE:
+		retval = AMD_ACTION_BUSY;
+
+	default:
+		pFlash->iFlashState = FLASH_STATE_RO;
+		pFlash->iFlashTime = 0;
+		pFlash->iFlashBusy = FALSE;
+		retval = AMD_ACTION_RESET;
+		break;
+	}
+
+	return retval;
+}
+
+/*
+=============================================================================
 remem_set8:		This function services memory writes while in ReMem emulation
 				mode.  It validates if the 1K block	of memory being accessed 
 				is set to Read-Only and traps writes to the MMU section of 
@@ -1444,10 +2077,6 @@ void remem_set8(unsigned int address, unsigned char data)
 	int		bank;			/* Bank with map that is being modified */
 	int		romBank;		/* The currently mapped romBank within the Map */
 	int		ramBank;		/* The currently mapped ramBank within the Map */
-	int		sectOffset;
-	int		sectSize, c;
-	int		sector;
-	uchar	*ptr;
 
  	/* Calculate which block is being accessed */
 	block = gIndex[address];	
@@ -1504,119 +2133,48 @@ void remem_set8(unsigned int address, unsigned char data)
 
 	/* Do FLASH state machine management */
 	if ((gReMemMode & REMEM_MODE_NORMAL) && 
-		(gReMemMap[block] & (REMEM_VCTR_FLASH1_CS | REMEM_VCTR_FLASH2_CS)) != 0x1800)
+		((gReMemMap[block] & (REMEM_VCTR_FLASH1_CS | REMEM_VCTR_FLASH2_CS)) != 0x1800))
 	{
-		int		*pFlashState;
-		UINT64	*pFlashTime;
-		int		*pFlashBusy;
-		uchar	mask;
+		amd_flash_t		*pFlash;
+		uchar			mask;
+		int				iFlashAction;
+		unsigned int	flashAddress;
 
 		/* Writing to FLASH.  Do FLASH State machine processing */
 		if (!(gReMemMap[block] & REMEM_VCTR_FLASH1_CS))
 		{
-			pFlashState = &gReMemFlash1State;
-			pFlashTime = &gReMemFlash1Time;
-			pFlashBusy = &gReMemFlash1Busy;
+			pFlash = &gReMemFlash1;
 			mask = REMEM_MODE_FLASH1_RDY;
 		}
 		else
 		{
-			pFlashState = &gReMemFlash2State;
-			pFlashTime = &gReMemFlash2Time;
-			pFlashBusy = &gReMemFlash2Busy;
+			pFlash = &gReMemFlash2;
 			mask = REMEM_MODE_FLASH2_RDY;
 		}
 
-		/* Look for Reset command */
-		if ((data == FLASH_CMD_RESET) && (*pFlashState != FLASH_STATE_PROG))
+		/* Call into the amd_flash_t object and issue the write.  Let the amd_flash_t
+		   state manager take care of state transitions within the FALSH
+		 */
+		flashAddress = ((gReMemMap[block] & REMEM_VCTR_ADDRESS) << 10) + (address & 0x3FF);
+		iFlashAction = amd_flash_write(pFlash, flashAddress, data);
+
+		/* If the amd_flash indicates a write is allowd, or that an erase is in progress */
+		/* then update our global ReMemMode variable to indicate FLASH not ready. */
+		if ((iFlashAction == AMD_ACTION_ALLOW_WRITE) || (iFlashAction == AMD_ACTION_ERASING))
 		{
-			*pFlashState = FLASH_STATE_RO;
-			*pFlashTime = 0;
-			*pFlashBusy = FALSE;
-			gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
-			return;
+			gReMemMode &= ~mask;
+
+			/* Set our local FlashReady variable to FALSE so we know flash is busy */
+			gReMemFlashReady = FALSE;
 		}
 
-		switch (*pFlashState)
+		/* If writing to FLASH is allowed, then break to allow write to global memory */
+		if (iFlashAction != AMD_ACTION_ALLOW_WRITE)
 		{
-		case FLASH_STATE_RO:
-			/* Proocess write as command */
-			if ((data == FLASH_CMD_CFI_QUERY) && (address == 0xAA))
-			{
-				*pFlashState = FLASH_STATE_CFI_QUERY;
-				*pFlashBusy = TRUE;
-				gReMemFlashReady = FALSE;
-			}
-			return;
-
-		case FLASH_STATE_PROG:
-			/* Change state back to Read Only and break to perform the write */
-			*pFlashState = FLASH_STATE_RO;
-			*pFlashBusy = TRUE;
-			*pFlashTime = cycles + FLASH_CYCLES_PROG;
-			gReMemMode &= ~mask;
-			gReMemFlashReady = FALSE;
-			break;
-
-		case FLASH_STATE_CMD2:
-			/* Test if data is a Sect Erase command */
-			if (data != FLASH_CMD_SECT_ERASE)
-			{
-				*pFlashState = FLASH_STATE_RO;
-				return;
-			}
-
-			/* Process Sector erase */
-			sector = address >> 15;
-
-			/* Calculate sector offset and size */
-			if (sector == 0)
-			{
-				/* Test for sector zero */
-				if ((address & 0xFE000) == 0)
-				{
-					/* Sector zero is 16K */
-					sectOffset = 0;
-					sectSize = 16384;
-				}
-				else if ((address & 0xFC00) != 0)
-				{
-					/* Sector 3 is a 32K sector */
-					sectOffset = 0x4000;
-					sectSize = 32768;
-				}
-				else
-				{
-					sectOffset = address & 0xFF000;
-					sectSize = 8192;
-				}
-			}
-			else
-			{
-				/* Setup for 64K sector */
-				sectOffset = address & 0xF8000;
-				sectSize = 0x10000;
-			}
-
-			/* Point to the correct memory space */
-			if (pFlashState == &gReMemFlash1State)
-				ptr = gReMemFlash1 + sectOffset;
-			else
-				ptr = gReMemFlash2 + sectOffset;		
-
-			/* Erase the sector */
-			for (c = 0; c < sectSize; c++)
-				*ptr++ = 0xFF;
-
-			/* Update state and set busy flag */
-			*pFlashState = FLASH_STATE_RO;
-			*pFlashBusy = TRUE;
-			*pFlashTime = cycles + FLASH_CYCLES_SECT_ERASE;
-			gReMemMode &= ~mask;
-			gReMemFlashReady = FALSE;
-
+			/* Writes to memory not allowed ... return */
 			return;
 		}
+		gMemory[block][address & 0x3FF] = data;
 	}	
 
 	/* Update memory with data */
@@ -1735,9 +2293,8 @@ int remem_out(unsigned char port, unsigned char data)
 	int				romSector, ramSector;
 	int				bank, block, mmuBlock;
 	int				map;
-	int				*pFlashState;
-	uchar			*ptr;
-	int				c;
+	amd_flash_t		*pFlash;
+	int				action;
 
 	/* Test if ReMem emulation is enabled */
 	if (!(gReMem | gRampac))
@@ -2009,105 +2566,53 @@ int remem_out(unsigned char port, unsigned char data)
 	case REMEM_FLASH1_AAA_PORT:
 	case REMEM_FLASH2_AAA_PORT:
 		if (port == REMEM_FLASH1_AAA_PORT)
-			pFlashState = &gReMemFlash1State;
+			pFlash = &gReMemFlash1;
 		else
-			pFlashState = &gReMemFlash2State;
+			pFlash = &gReMemFlash2;
 
-		switch (*pFlashState)
+		/* Simulate a write to address 0xAA */
+		action = amd_flash_write(pFlash, 0xAA, data);
+
+		if ((action == AMD_ACTION_ERASING) || (action == AMD_ACTION_ALLOW_WRITE))
 		{
-		case FLASH_STATE_RO:
-			if (data == 0xAA)
-				*pFlashState = FLASH_STATE_UNLK1;
-
-			// Check for other states, such as Erase Pause, etc.
-
-			break;
-
-		case FLASH_STATE_CMD:
-			// Get the command
-			if (data == FLASH_CMD_PROG)
-				*pFlashState = FLASH_STATE_PROG;
-			else if (data == FLASH_CMD_UNLK_BYPASS)
-				*pFlashState = FLASH_STATE_UNLK_BYPASS;
-			else if (data == FLASH_CMD_UNLK2)
-				*pFlashState = FLASH_STATE_UNLK2;
-			else if (data == FLASH_CMD_AUTOSELECT)
-				*pFlashState = FLASH_STATE_AUTOSELECT;
-			else
-				*pFlashState = FLASH_STATE_RO;
-			break;
-
-		case FLASH_STATE_UNLK2:
-			// Get 1st byte of 2nd Unlock
-			if (data == 0xAA)
-				*pFlashState = FLASH_STATE_UNLK3;
-			else
-				*pFlashState = FLASH_STATE_RO;
-			break;
-
-		case FLASH_STATE_CMD2:
-			// Test for Erase Chip command
-			if (data == FLASH_CMD_CHIP_ERASE)
+			if (port == REMEM_FLASH1_AAA_PORT)
 			{
-				*pFlashState = FLASH_STATE_RO;
-				if (port == REMEM_FLASH1_AAA_PORT)
-				{
-					gReMemFlash1Time = cycles + FLASH_CYCLES_CHIP_ERASE;
-					gReMemMode &= ~REMEM_MODE_FLASH1_RDY;
-					gReMemFlashReady = FALSE;
-					gReMemFlash1Busy = TRUE;
-					ptr = gReMemFlash1;
-				}
-				else
-				{
-					gReMemFlash2Time = cycles + FLASH_CYCLES_CHIP_ERASE;
-					gReMemMode &= ~REMEM_MODE_FLASH2_RDY;
-					gReMemFlashReady = FALSE;
-					gReMemFlash2Busy = TRUE;
-					ptr = gReMemFlash2;
-				}
-				/* Erase the Flash */
-				for (c = 0; c < 2048 * 1024; c++)
-					*ptr++ = 0xFF;
+				gReMemMode &= ~REMEM_MODE_FLASH1_RDY;
 			}
-			break;
+			else
+			{
+				gReMemMode &= ~REMEM_MODE_FLASH2_RDY;
+			}
 
-		default:
-			*pFlashState = FLASH_STATE_RO;
-			break;
+			/* Set our local FlashReady variable to FALSE so we know flash is busy */
+			gReMemFlashReady = FALSE;
 		}
 		break;
 
 	case REMEM_FLASH1_555_PORT:
 	case REMEM_FLASH2_555_PORT:
 		if (port == REMEM_FLASH1_555_PORT)
-			pFlashState = &gReMemFlash1State;
+			pFlash = &gReMemFlash1;
 		else
-			pFlashState = &gReMemFlash2State;
+			pFlash = &gReMemFlash2;
 
-		switch (*pFlashState)
+		/* Write to the FLASH and let it manage the state machine */
+		action = amd_flash_write(pFlash, 0x55, data);
+
+		if ((action == AMD_ACTION_ERASING) || (action == AMD_ACTION_ALLOW_WRITE))
 		{
-		case FLASH_STATE_UNLK1:
-			// Check for 2nd byte of unlock sequence
-			if (data == 0x55)
-				*pFlashState = FLASH_STATE_CMD;
+			if (port == REMEM_FLASH1_AAA_PORT)
+			{
+				gReMemMode &= ~REMEM_MODE_FLASH1_RDY;
+			}
 			else
-				*pFlashState = FLASH_STATE_RO;
-			break;
+			{
+				gReMemMode &= ~REMEM_MODE_FLASH2_RDY;
+			}
 
-		case FLASH_STATE_UNLK3:
-			// Check for double unlock 2nd byte
-			if (data == 0x55)
-				*pFlashState = FLASH_STATE_CMD2;
-			else
-				*pFlashState = FLASH_STATE_RO;
-			break;
-
-		default:
-			*pFlashState = FLASH_STATE_RO;
-			break;
+			/* Set our local FlashReady variable to FALSE so we know flash is busy */
+			gReMemFlashReady = FALSE;
 		}
-
 		break;
 
 		/* Other Ports not supported */
@@ -2206,9 +2711,10 @@ void remem_copy_normal_to_system(void)
 	/* First copy ROM to system memory */
 	blocks = gModel == MODEL_T200 ? 40 : 32;
 	if (gModel != MODEL_T200)
-		pSrc = (gReMemBoot ? gReMemFlash2 : gReMemFlash1) + 0x8000 * gRomBank;
+		pSrc = (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + 0x8000 * gRomBank;
 	else
-		pSrc = (gReMemBoot ? gReMemFlash2 : gReMemFlash1) + (gRomBank == 0 ? 0 : 0x10000 + 0x8000 * (gRomBank - 1));
+		pSrc = (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + (gRomBank == 0 ? 0 : 
+			0x10000 + 0x8000 * (gRomBank - 1));
 	dest = 0;
 
 	/* Copy the ROM bytes */
@@ -2258,9 +2764,9 @@ void remem_copy_mmu_to_block(int block)
 	if ((gReMemMap[block] & REMEM_VCTR_RAM_CS) == 0)
 		pSrc = gReMemRam;
 	else if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
-		pSrc = gReMemFlash1;
+		pSrc = gReMemFlash1.pFlash;
 	else if ((gReMemMap[block] & REMEM_VCTR_FLASH2_CS) == 0)
-		pSrc = gReMemFlash2;
+		pSrc = gReMemFlash2.pFlash;
 	else
 		return;
 
@@ -2282,11 +2788,9 @@ remem_flash_sm_read:	This routine performs a read operation when there is
 unsigned char remem_flash_sm_read(unsigned short address)
 {
 	int				block;
-	int				*pFlashState;
-	UINT64			*pFlashTime;
-	int				*pFlashBusy;
+	amd_flash_t		*pFlash;
 	unsigned char	mask;
-	int				index;
+	int				action;
 
 	/* Calculate block number */
 	block = address >> 10;
@@ -2294,75 +2798,29 @@ unsigned char remem_flash_sm_read(unsigned short address)
 	/* Test if this is the flash that is not ready */
 	if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
 	{
-		if (!gReMemFlash1Busy && (gReMemFlash1State == FLASH_STATE_RO))
+		if (!gReMemFlash1.iFlashBusy && (gReMemFlash1.iFlashState == FLASH_STATE_RO))
 			return gMemory[block][address & 0x3FF];
 
 		/* Set variables for state machine processing */
-		pFlashState = &gReMemFlash1State;
-		pFlashTime = &gReMemFlash1Time;
-		pFlashBusy = &gReMemFlash1Busy;
+		pFlash = &gReMemFlash1;
 		mask = REMEM_MODE_FLASH1_RDY;
 	}
 	else
 	{
-		if (!gReMemFlash2Busy && (gReMemFlash2State == FLASH_STATE_RO))
+		if (!gReMemFlash2.iFlashBusy && (gReMemFlash2.iFlashState == FLASH_STATE_RO))
 			return gMemory[block][address & 0x3FF];
 
 		/* Set variables for state machine processing */
-		pFlashState = &gReMemFlash2State;
-		pFlashTime = &gReMemFlash2Time;
-		pFlashBusy = &gReMemFlash2Busy;
+		pFlash = &gReMemFlash2;
 		mask = REMEM_MODE_FLASH2_RDY;
 	}
 
-	/* The flash is busy during a read - process as State Machine */
-	if (*pFlashBusy && (*pFlashState == FLASH_STATE_RO))
-	{
-		/* Waiting for timeout of erase / program */
-		if (*pFlashTime > 0)
-		{
-			if (cycles >= *pFlashTime)
-				*pFlashTime = 0;
-		}
+	action = amd_flash_read_sm(pFlash, address);
 
-		/* Test if timeout expired */
-		if (*pFlashTime == 0)
-		{
-			*pFlashBusy = FALSE;
-			gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
-			gReMemMode |= mask;
-			return gMemory[block][address & 0x3FF];
-		}
-	}
-	else if (*pFlashState == FLASH_STATE_AUTOSELECT)
+	if (action == -1)
 	{
-		if ((address & 0xFF) == 0)
-			return FLASH_MANUF_ID;
-		else if ((address & 0xFF) == 1)
-			return FLASH_PRODUCT_ID;
-		else
-			return 0;
-	}
-	else if (*pFlashState == FLASH_STATE_CFI_QUERY)
-	{
-		/* Test Query address */
-		if ((address < 32) || (address > 0x98))
-			return 0xFF;
-
-		/* Calculate index for CFI address */
-		index = (address - 0x20) >> 1;
-		return gFlashCFIData[index];
-	}
-
-	/* Test for failed command sequence */
-	if (*pFlashState != FLASH_STATE_RO)
-	{
-		/* Reset back to read state */
-		*pFlashState = FLASH_STATE_RO;
+		gReMemFlashReady = !gReMemFlash1.iFlashBusy | !gReMemFlash2.iFlashBusy;
 		gReMemMode |= mask;
-		*pFlashBusy = FALSE;
-		*pFlashTime = 0;
-		gReMemFlashReady = !gReMemFlash1Busy | !gReMemFlash2Busy;
 		return gMemory[block][address & 0x3FF];
 	}
 
@@ -2377,53 +2835,185 @@ remem_flash_proc_timer:	This routine processes FLASH timers.
 void remem_flash_proc_timer(void)
 {
 	/* Check if FLASH1 is busy */
-	if (gReMemFlash1Time > 0)
+	if (amd_flash_proc_timer(&gReMemFlash1) == AMD_ACTION_DEVICE_READY)
 	{
-		if (cycles >= gReMemFlash1Time)
-		{
-			/* Clear busy bit for Flash1 */
-			gReMemMode |= REMEM_MODE_FLASH1_RDY;
-			gReMemFlash1Time = 0;
-			gReMemFlash1Busy = FALSE;
-		}
+		/* Clear busy bit for Flash1 */
+		gReMemMode |= REMEM_MODE_FLASH1_RDY;
 	}
 
 	/* Check if FLASH2 is busy */
-	if (gReMemFlash2Time > 0)
+	if (amd_flash_proc_timer(&gReMemFlash2) == AMD_ACTION_DEVICE_READY)
 	{
-		if (cycles >= gReMemFlash2Time)
-		{
-			/* Clear busy bit for Flash1 */
-			gReMemMode |= REMEM_MODE_FLASH2_RDY;
-			gReMemFlash2Time = 0;
-			gReMemFlash2Busy = FALSE;
-		}
+		/* Clear busy bit for Flash1 */
+		gReMemMode |= REMEM_MODE_FLASH2_RDY;
 	}
 
 	/* Check if either flash is busy */
-	if (gReMemFlash1Busy || gReMemFlash2Busy)
+	if (gReMemFlash1.iFlashBusy || gReMemFlash2.iFlashBusy)
 		gReMemFlashReady = FALSE;
 	else
 		gReMemFlashReady = TRUE;
 }
 
+/*
+=============================================================================
+rex_read:	This routine processes reads during REX emulation mode.
+=============================================================================
+*/
+unsigned char rex_read(unsigned short address)
+{
+	/* Reads from primary ROM are processed as usual */
+	if ((gRomBank == 0) || ((gRomBank == 1) && (gModel == MODEL_T200)))
+	{
+		return gBaseMemory[address];
+	}
+	else
+	{
+		if (address & 0x8000)
+			return gBaseMemory[address];
+	}
 
+	// If the RexFlash is busy, we need to process the timer
+	if (gRexFlash.iFlashTime > 0)
+		amd_flash_proc_timer(&gRexFlash);
+
+	// Process read as a REX State machine read
+	switch (gRexState)
+	{
+	case 7:				/* Read State */
+		if ((address & 0xFF) == gRexKeyTable[gRexKeyState])
+		{
+			if (++gRexKeyState == 6)
+			{
+				/* Key sequence detected - switch to state zero */
+				gRexState = 0;
+			}
+		}
+		else
+			/* Key state not detected - clear keystate */
+			gRexKeyState =  0;
+		return gRexFlash.pFlash[gRexSector | address];
+
+	case 0:				/* Command mode */
+		switch (address & 0x07)
+		{
+		case 3:		/* Read Status CMD */
+			gRexReturn =(gRexFlash.iFlashBusy ? 0 : 0x80) |
+						(gRexFlashSel ? 0x40 : 0) |
+						(gRexSector >> 15);
+			gRexState = address & 0x07;
+			return gRexReturn;
+
+		case 1:		/* Set Sector CMD */
+		case 2:		/* Send AAA,AA CMD */
+		case 4:		/* Read from flash */
+		case 5:		/* Send 555,55 CMD */
+		case 6:		/* Send PA, PD */
+			gRexState = address & 0x07;
+			gRexFlashPA = address & 0xFF;
+			break;
+
+		case 7:		/* Read FW/HW ID */
+			gRexReturn = (gRex == REX2 ? 0x40 : 0) |
+						 (0x10) | gRexModel;
+			gRexState = 3;
+			return gRexReturn;
+
+		default:
+			gRexState = 7;
+			break;
+		}
+		break;
+
+	case 1:		/* Set Sector state */
+		/* Test if RAM mode is enabled and set sector based on result */
+		if (gModel && REX2_RAM_MODE)
+			gRexSector = (address & 0x3F) << 15;
+		else
+			gRexSector = (address & 0x1F) << 15;
+
+		/* Save Flash Select bit */
+		gRexFlashSel = address & 0x40 ? 0 : 1;
+
+		/* Back to state 0 for next command */
+		gRexState = 0;
+		break;
+
+	case 2:		/* Send AAA, AD to Flash */
+		/* Write to the REX Flash object.  LSB of address is actually data */
+		amd_flash_write(&gRexFlash, gRexSector | gRexFlashPA, address & 0xFF);
+
+		/* Back to state 0 for next command */
+		gRexState = 0;
+		break;
+
+	case 3:
+		/* Switch back to state 0 */
+		gRexState = 0;
+		return gRexReturn;
+
+	case 4:		/* Read from flash */
+		/* Test if reading from RAM sector */
+		gRexState = 8;		/* Holding state */
+
+		/* Read from either RAM for Flash */
+		if  (gRexSector & 0x100000)
+		{
+			/* Read from RAM if REX2 */
+			if (gRex == REX2)
+				gRexReturn = gRex2Ram[(gRexSector & 0x18000) | (address & 0x7FFF)];
+			else
+				gRexReturn = 0xFF;
+		}
+		else
+		{
+			/* Read from Flash if enabled */
+			if (gRexFlashSel)
+				gRexReturn = gRexFlash.pFlash[gRexSector | (address & 0x7FFF)];
+			else
+				gRexReturn = 0xFF;
+		}
+		return gRexReturn;
+
+	case 8:		/* Temp holding state for state 4 */
+		gRexState = 0;		/* Back to state 0 */
+		return gRexReturn;
+
+	case 5:		/* Send 555,data to flash */
+		gRexState = 0;		/* Back to state 0 */
+
+		/* Send 555,data to flash */
+		amd_flash_write(&gRexFlash, 0x55, 0x55);
+
+		break;
+
+	case 6:		/* Send PA,PD to flash, first we receive PA */
+		/* Save the address from this read as our Flash PA */
+		gRexFlashPA = address & 0x7FFF;
+
+		/* Go to State 2 to await the data */
+		gRexState = 2;
+		break;
+	}
+	return (unsigned char) (address & 0xFF);
+}
+
+/*
+=============================================================================
+rex_set8:	This routine processes writes during REX emulation mode.
+=============================================================================
+*/
 void rex_set8(unsigned short address, unsigned char val)
 {
+	if (address >= ROMSIZE)
+		gBaseMemory[address] = val;
+	else
+	{
+		if (gRex == REX2)
+		{
+			/* Add logic here to write to the selected RAM sector */
+			gBaseMemory[address] = val;
+		}
+	}
 }
 
-void load_rex2_ram(void)
-{
-}
-
-void save_rex2_ram(void)
-{
-}
-
-void load_rex_flash(void)
-{
-}
-
-void save_rex_flash(void)
-{
-}

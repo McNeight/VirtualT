@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.11 2009/01/04 06:43:14 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.12 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -41,6 +41,8 @@
 #include <FL/Fl_File_Chooser.H>
 #include <FL/Fl_Hold_Browser.H>
 
+#include "FLU/Flu_File_Chooser.h"
+
 extern "C"
 {
 #include "memory.h"
@@ -62,9 +64,15 @@ extern	char gsMenuROM[40];
 
 void cb_LoadRam (Fl_Widget* w, void*)
 {
-	Fl_File_Chooser *FileWin;
-	
-	FileWin = new Fl_File_Chooser(".","*.bin",1,"Load RAM file");
+	Flu_File_Chooser *FileWin;
+
+	fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__	
+	FileWin = new Flu_File_Chooser(path,"*.bin",1,"Load RAM file");
+#else
+	FileWin = new Flu_File_Chooser(".","*.bin",1,"Load RAM file");
+#endif
+	fl_cursor(FL_CURSOR_DEFAULT);
 	FileWin->preview(0);
 	FileWin->show();
 	
@@ -72,9 +80,15 @@ void cb_LoadRam (Fl_Widget* w, void*)
 
 void cb_SaveRam (Fl_Widget* w, void*)
 {
-	Fl_File_Chooser *FileWin;
+	Flu_File_Chooser *FileWin;
 	
-	FileWin = new Fl_File_Chooser(".","*.bin",1,"Save RAM file");
+	fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__
+	FileWin = new Flu_File_Chooser(path,"*.bin",1,"Save RAM file");
+#else
+	FileWin = new Flu_File_Chooser(".","*.bin",1,"Save RAM file");
+#endif
+	fl_cursor(FL_CURSOR_DEFAULT);
 	FileWin->preview(0);
 	// FileWin.value(0)="RAM.bin"
 	FileWin->show();
@@ -132,12 +146,18 @@ int load_optrom_file(const char* filename)
 
 void cb_LoadOptRom (Fl_Widget* w, void*)
 {
-	Fl_File_Chooser		*FileWin;
+	Flu_File_Chooser		*FileWin;
 	int					count;
 	int					ret;
 	const char			*filename;
 	
-	FileWin = new Fl_File_Chooser(".","*.{bin,hex}",1,"Load Optional ROM file");
+	fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__
+	FileWin = new Flu_File_Chooser(".","*.{bin,hex}",1,"Load Optional ROM file");
+#else
+	FileWin = new Flu_File_Chooser(".","*.{bin,hex}",1,"Load Optional ROM file");
+#endif
+	fl_cursor(FL_CURSOR_DEFAULT);
 	FileWin->preview(0);
 	FileWin->show();
 
@@ -152,7 +172,7 @@ void cb_LoadOptRom (Fl_Widget* w, void*)
 	}
 
 	// Get Filename
-	filename = FileWin->value(1);
+	filename = FileWin->value();
 	if (filename == 0)
 	{
 		delete FileWin;
@@ -514,7 +534,7 @@ int gLoadError;
 void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 {
 	int					count, i, x;
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser	*fc = NULL;
 	const char			*filename;
 	const char			*filename_name;
 	char                mt_file[8];
@@ -532,7 +552,13 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	
 	if (w != NULL)
 	{
-		fc = new Fl_File_Chooser(".","Model T Files (*.{do,txt,ba,co,hex})",1,"Load file from Host");
+		fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__
+		fc = new Flu_File_Chooser(path,"Model T Files (*.{do,txt,ba,co,hex})",1,"Load file from Host");
+#else
+		fc = new Flu_File_Chooser(".","Model T Files (*.{do,txt,ba,co,hex})",1,"Load file from Host");
+#endif
+		fl_cursor(FL_CURSOR_DEFAULT);
 		fc->preview(0);
 		fc->show();
 
@@ -547,7 +573,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		}
 
 	// Get Filename
-		filename = fc->value(1);
+		filename = fc->value();
 		if (filename == 0)
 		{
 			delete fc;
@@ -555,7 +581,6 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		}
 
 		len = strlen(filename);
-		delete fc;
 	}
 	else
 	{
@@ -574,6 +599,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			fl_message("Unable to open file %s", filename);
 		else
 			gLoadError = 1;
+		if (fc != NULL)
+			delete fc;
 		return;
 	}
 
@@ -581,6 +608,10 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	file_type = TYPE_DO;
 	if (((filename[len-1] | 0x20) == 'o') &&
 		((filename[len-2] | 0x20) == 'c'))
+			file_type = TYPE_CO;
+	// Deal with other binary types
+	if (((filename[len-2] | 0x20) == 'c') &&
+		(filename[len-3] == '.'))
 			file_type = TYPE_CO;
 	if (((filename[len-1] | 0x20) == 'a') &&
 		((filename[len-2] | 0x20) == 'b'))
@@ -610,12 +641,16 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		mt_file[6] = 'D';
 		mt_file[7] = 'O';
 	}
-	else if ((file_type == TYPE_CO) || (file_type == TYPE_HEX))
+	else if (file_type == TYPE_CO)
+	{
+		mt_file[6] = 'C';
+		mt_file[7] = toupper(filename[len-1]);
+	}	
+	else if (file_type == TYPE_HEX)
 	{
 		mt_file[6] = 'C';
 		mt_file[7] = 'O';
 	}	
-
 	
 	// Determine "RAW" length of file (w/o CRLF expansion)
 	fseek(fd, 0, SEEK_END);
@@ -627,6 +662,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			fl_message(gTooLargeMsg);
 		else
 			gLoadError = 1;
+		if (fc != NULL)
+			delete fc;
 		return;
 	}
 
@@ -667,6 +704,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 					fl_message(gTooLargeMsg);
 				else
 					gLoadError = 1;
+				if (fc != NULL)
+					delete fc;
 				return;
 			}
 		}
@@ -726,7 +765,11 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	}
 
 	if (len == 0)
+	{
+		if (fc != NULL)
+			delete fc;
 		return;
+	}
 
 	// Determine if file will fit in memory
 	addr3 = get_memory16(gStdRomDesc->sBasicStrings);
@@ -737,6 +780,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			fl_message(gTooLargeMsg);
 		else
 			gLoadError = 1;
+		if (fc != NULL)
+			delete fc;
 		return;
 	}
 
@@ -766,6 +811,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 				fl_message("File %s already exists", filename_name);
 			else
 				gLoadError = 1;
+			if (fc != NULL)
+				delete fc;
 			return;
 		}
 
@@ -786,6 +833,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 				fl_message("Too many files in directory");
 			else
 				gLoadError = 1;
+			if (fc != NULL)
+				delete fc;
 			return;
 		}
 	}
@@ -898,6 +947,8 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	// Reset the system so file will show up
 	jump_to_zero();
 
+	if (fc != NULL)
+		delete fc;
 }
 
 int remote_load_from_host(const char *filename)
@@ -944,7 +995,7 @@ void save_file(model_t_files_t *pFile)
 	unsigned char	type;
 	unsigned short	line;
 	FILE			*fd;
-	Fl_File_Chooser *fc;
+	Flu_File_Chooser *fc;
 	char            filename[12];
 
 	if (pFile == 0)
@@ -962,7 +1013,13 @@ void save_file(model_t_files_t *pFile)
 		}
 	}
 	
-	fc = new Fl_File_Chooser(filename,"*.*",Fl_File_Chooser::CREATE,"Save file as");
+	fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__
+	fc = new Flu_File_Chooser(filename,"*.*",Fl_File_Chooser::CREATE,"Save file as");
+#else
+	fc = new Flu_File_Chooser(filename,"*.*",Fl_File_Chooser::CREATE,"Save file as");
+#endif
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	// FileWin.value(0)="RAM.bin"
 	fc->show();
@@ -1237,7 +1294,7 @@ char* ChooseWorkDir()
 {
 	char *ret=NULL;
 	
-	ret = fl_dir_chooser("Choose Working Directory",".",0);
+	ret = fl_dir_chooser("Choose Working Directory",path,0);
 
 	return ret;
 }

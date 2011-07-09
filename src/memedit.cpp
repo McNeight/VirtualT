@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.7 2009/02/05 04:39:59 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.8 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -39,6 +39,9 @@
 #include <FL/Fl_Round_Button.H>
 #include <FL/Fl_Choice.H>
 #include <FL/Fl_Input.H>  
+#include <FL/Fl_File_Chooser.H>
+
+#include "FLU/Flu_File_Chooser.h"
 
 #if defined(WIN32)
 #include <windows.h>
@@ -323,7 +326,7 @@ void load_file_to_mem(const char *filename, int address)
 	{
 		// Open file as binary
 		FILE* fd;
-		if ((fd = fopen(filename, "r")) != NULL)
+		if ((fd = fopen(filename, "rb")) != NULL)
 		{
 			int read_len;
 
@@ -335,6 +338,11 @@ void load_file_to_mem(const char *filename, int address)
 			while (len != 0)
 			{
 				read_len = fread(buffer, 1, len, fd);
+				if (read_len == 0)
+				{
+					fl_alert("Error reading file!");
+					break;
+				}
 				set_memory8_ext(region, address, read_len, buffer);
 				len -= read_len;
 				address += read_len;
@@ -393,17 +401,24 @@ void load_browseButton_cb(Fl_Widget* w, void*)
 	int					count;
 	const char *		filename;
 
-	Fl_File_Chooser file(".","*.{bin,hex}",1,"Select File to Open");
-	file.show();
+	fl_cursor(FL_CURSOR_WAIT);
+	Flu_File_Chooser file(".","*.{bin,hex}",1,"Select File to Open");
+	gDialog.pWin->set_non_modal();
+	file.set_modal();
 
+	fl_cursor(FL_CURSOR_DEFAULT);
+	file.show();
 	while (file.visible())
 		Fl::wait();
 
 	// Get filename
 	count = file.count();
 	if (count != 1)
+	{
+		gDialog.pWin->set_modal();
 		return;
-	filename = file.value(1);
+	}
+	filename = file.value();
 	if (filename == 0)
 		return;
 
@@ -426,21 +441,32 @@ void save_browseButton_cb(Fl_Widget* w, void*)
 		strcpy(filespec, "*.hex");
 	else
 		strcpy(filespec, "*.bin");
-	Fl_File_Chooser file(".", filespec, Fl_File_Chooser::CREATE, "Select File to Open");
+	fl_cursor(FL_CURSOR_WAIT);
+	Flu_File_Chooser file(".", filespec, 1, "Select File to Open");
+	fl_cursor(FL_CURSOR_DEFAULT);
 
+	gDialog.pWin->set_non_modal();
+	file.set_modal();
 	while (1)
 	{
 		file.show();
+		file.take_focus();
 		while (file.visible())
 			Fl::wait();
 
 		// Get filename
 		count = file.count();
 		if (count != 1)
+		{
+			gDialog.pWin->set_modal();
 			return;
-		filename = file.value(1);
+		}
+		filename = file.value();
 		if (filename == 0)
+		{
+			gDialog.pWin->set_modal();
 			return;
+		}
 
 		// Try to open the ouput file
 		fd = fopen(filename, "rb+");
@@ -453,12 +479,16 @@ void save_browseButton_cb(Fl_Widget* w, void*)
 
 			// Test if Cancel selected
 			if (c == 0)
+			{
+				gDialog.pWin->set_modal();
 				return;
+			}
 
 			if (c == 1)
 				break;
 		}
 	}
+	gDialog.pWin->set_modal();
 
 	// Check if filename ends with ".hex"
 	len = strlen(filename);
@@ -552,6 +582,9 @@ void cb_load(Fl_Widget* w, void*)
 	while (gDialog.pWin->visible())
 		Fl::wait();
 
+	gmew->take_focus();
+	gmew->show();
+
 	// Check if OK button was pressed
 	if (gDialog.iOk)
 	{
@@ -565,7 +598,6 @@ void cb_load(Fl_Widget* w, void*)
 	}
 
 	delete gDialog.pWin;
-	gmew->take_focus();
 }
 
 /*
@@ -776,11 +808,17 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 		return;
 
 	// Create Peripheral Setup window
+#ifdef WIN32
 	gmew = new Fl_Window(585, 400, "Memory Editor");
-	gmew->callback(cb_memeditwin);
-
 	// Create a menu for the new window.
 	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 585, MENU_HEIGHT-2);
+#else
+	gmew = new Fl_Window(735, 400, "Memory Editor");
+	// Create a menu for the new window.
+	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 735, MENU_HEIGHT-2);
+#endif
+
+	gmew->callback(cb_memeditwin);
 	memedit_ctrl.pMenu->menu(gMemEdit_menuitems);
 
 	// Create static text boxes
@@ -798,9 +836,14 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 	memedit_ctrl.pMemRange->callback(cb_memory_range);
 //	memedit_ctrl.pMemRange->deactivate();
 
+#ifdef WIN32
 	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40+MENU_HEIGHT, 545, 350-MENU_HEIGHT);
-
 	memedit_ctrl.pScroll = new Fl_Scrollbar(555, 40+MENU_HEIGHT, 15, 350-MENU_HEIGHT, "");
+#else
+	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40+MENU_HEIGHT, 695, 350-MENU_HEIGHT);
+	memedit_ctrl.pScroll = new Fl_Scrollbar(705, 40+MENU_HEIGHT, 15, 350-MENU_HEIGHT, "");
+#endif
+
 	memedit_ctrl.pScroll->type(FL_VERTICAL);
 	memedit_ctrl.pScroll->linesize(2);
 	memedit_ctrl.pScroll->maximum(2);
@@ -864,6 +907,11 @@ T100_MemEditor::T100_MemEditor(int x, int y, int w, int h) :
 	m_SelActive = 0;
 	m_SelEndRow = 0;
 	m_SelEndCol = 0;
+#ifdef WIN32
+	m_FontSize = 12;
+#else
+	m_FontSize = 14;
+#endif
 	SetRegionOptions();
 }
 
@@ -878,10 +926,33 @@ void T100_MemEditor::SetRegionOptions(void)
 	// Update the Regions control with appropriate options
 	if (gReMem)
 	{
-		memedit_ctrl.pRegion->add("RAM");
-		memedit_ctrl.pRegion->add("Flash 1");
-		memedit_ctrl.pRegion->add("Flash 2");
-		memedit_ctrl.pRegion->value(0);
+		if (gRex)
+		{
+			if (gModel == MODEL_T200)
+			{
+				memedit_ctrl.pRegion->add("RAM 1");
+				memedit_ctrl.pRegion->add("RAM 2");
+				memedit_ctrl.pRegion->add("RAM 3");
+			}
+			else
+			{
+				memedit_ctrl.pRegion->add("RAM");
+			}
+			memedit_ctrl.pRegion->add("ROM");
+			if (gModel == MODEL_T200)
+				memedit_ctrl.pRegion->add("ROM 2");
+			memedit_ctrl.pRegion->add("Flash");
+			if (gRex == REX2)
+				memedit_ctrl.pRegion->add("128K SRAM");
+			memedit_ctrl.pRegion->value(0);
+		}
+		else 
+		{
+			memedit_ctrl.pRegion->add("RAM");
+			memedit_ctrl.pRegion->add("Flash 1");
+			memedit_ctrl.pRegion->add("Flash 2");
+			memedit_ctrl.pRegion->value(0);
+		}
 	}
 	else
 	{
@@ -930,8 +1001,48 @@ void T100_MemEditor::SetScrollSize(void)
 	// Test for ReMem emulation mode
 	if (gReMem)
 	{
-		// All ReMem blocks are 2Meg = 128K lines * 16 bytes
-		m_Max = 1024 * 2048 / 16;
+		/* Test if the ReMem emulation is really REX */
+		if (gRex)
+		{
+			region = memedit_ctrl.pRegion->value();
+			if (gModel == MODEL_T200)
+			{
+				switch (region)
+				{
+				case 0:
+				case 1:
+				case 2:
+					m_Max = RAMSIZE / 16;
+					break;
+				case 3:
+				case 4:
+					m_Max = ROMSIZE / 16;
+					break;
+				case 5:
+					m_Max = 1024 * 1024 / 16;
+					break;
+				case 6:
+					m_Max = 128 * 1024 / 16;			
+					break;
+				}
+			}
+			else
+			{
+				if (region == 0)
+					m_Max = RAMSIZE / 16;
+				else if (region == 1)
+					m_Max = ROMSIZE / 16;
+				else if (region == 2)
+					m_Max = 1024 * 1024 / 16;			
+				else if (region == 3)
+					m_Max = 128 * 1024 / 16;			
+			}
+		}
+		else
+		{
+			// All ReMem blocks are 2Meg = 128K lines * 16 bytes
+			m_Max = 1024 * 2048 / 16;
+		}
 	}
 	else
 	{
@@ -963,7 +1074,7 @@ void T100_MemEditor::SetScrollSize(void)
 		m_Max = 1024 * 256 / 16;
 
 	// Select 12 point Courier font
-	fl_font(FL_COURIER, 12);
+	fl_font(FL_COURIER, m_FontSize);
 
 	// Get character width & height
 	m_Height = fl_height();
@@ -989,7 +1100,7 @@ int T100_MemEditor::GetRegionEnum(void)
 	// Test if RAM region is selected
 	if (strcmp(reg_text, "RAM") == 0)
 	{
-		if (gReMem)
+		if (gReMem && !gRex)
 			m_Region = REGION_REMEM_RAM;
 		else
 			m_Region = REGION_RAM;
@@ -1031,6 +1142,14 @@ int T100_MemEditor::GetRegionEnum(void)
 	if (strcmp(reg_text, "Flash 2") == 0)
 		m_Region = REGION_FLASH2;
 
+	// Test if REX Flash region is selected
+	if (strcmp(reg_text, "Flash") == 0)
+		m_Region = REGION_REX_FLASH;
+
+	// Test if REX Flash region is selected
+	if (strcmp(reg_text, "128K SRAM") == 0)
+		m_Region = REGION_REX2_RAM;
+
 	return m_Region;
 
 }
@@ -1053,7 +1172,7 @@ void T100_MemEditor::UpdateDispMem(void)
 	window()->make_current();
 
 	// Select 12 point Courier font
-	fl_font(FL_COURIER, 12);
+	fl_font(FL_COURIER, m_FontSize);
 
 	// Check for changes
 	for (c = 0; c < count; c++)
@@ -1107,7 +1226,7 @@ void T100_MemEditor::draw()
 	int				region;				// Region where memory is being drawn from
 
 	// Select 12 point Courier font
-	fl_font(FL_COURIER, 12);
+	fl_font(FL_COURIER, m_FontSize);
 
 	// Get character width & height
 	m_Width = fl_width("W", 1);
@@ -1293,7 +1412,7 @@ int T100_MemEditor::handle(int event)
 			window()->make_current();
 
 			// Select 12 point Courier font
-			fl_font(FL_COURIER, 12);
+			fl_font(FL_COURIER, m_FontSize);
 
 			// Erase current cursor
 			EraseCursor();
@@ -1444,7 +1563,7 @@ int T100_MemEditor::handle(int event)
 						else
 						{
 							// Select 12 point Courier font
-							fl_font(FL_COURIER, 12);
+							fl_font(FL_COURIER, m_FontSize);
 
 							// Get character width & height
 							m_Height = fl_height();
@@ -1478,7 +1597,7 @@ int T100_MemEditor::handle(int event)
 						else
 						{
 							// Select 12 point Courier font
-							fl_font(FL_COURIER, 12);
+							fl_font(FL_COURIER, m_FontSize);
 
 							// Get character width & height
 							m_Height = fl_height();
@@ -1794,7 +1913,7 @@ int T100_MemEditor::handle(int event)
 
 					// Display new text
 					// Select 12 point Courier font
-					fl_font(FL_COURIER, 12);
+					fl_font(FL_COURIER, m_FontSize);
 
 					sprintf(string, "%02X", data);
 
@@ -1848,7 +1967,7 @@ int T100_MemEditor::handle(int event)
 								// Cursor at bottom of screen.  Need to scroll 
 
 								// Select 12 point Courier font
-								fl_font(FL_COURIER, 12);
+								fl_font(FL_COURIER, m_FontSize);
 
 								// Get character width & height
 								m_Height = fl_height();
@@ -1897,7 +2016,7 @@ int T100_MemEditor::handle(int event)
 
 					// Display new text
 					// Select 12 point Courier font
-					fl_font(FL_COURIER, 12);
+					fl_font(FL_COURIER, m_FontSize);
 
 					sprintf(string, "%02X", data);
 
@@ -1944,7 +2063,7 @@ int T100_MemEditor::handle(int event)
 							// Cursor at bottom of screen.  Need to scroll 
 
 							// Select 12 point Courier font
-							fl_font(FL_COURIER, 12);
+							fl_font(FL_COURIER, m_FontSize);
 
 							// Get character width & height
 							m_Height = fl_height();
@@ -1973,6 +2092,9 @@ int T100_MemEditor::handle(int event)
 			
 		}
 		break;
+
+	case FL_MOUSEWHEEL:
+		return memedit_ctrl.pScroll->handle(event);
 
 	default:
 		Fl_Widget::handle(event);
@@ -2003,7 +2125,7 @@ void T100_MemEditor::ScrollUp(int lines)
 
 
 	// Select 12 point Courier font
-	fl_font(FL_COURIER, 12);
+	fl_font(FL_COURIER, m_FontSize);
 
 	// Get height of screen in lines
 	m_Height = fl_height();
@@ -2045,7 +2167,7 @@ void T100_MemEditor::MoveTo(int address)
 	EraseCursor();
 
 	// Select 12 point Courier font
-	fl_font(FL_COURIER, 12);
+	fl_font(FL_COURIER, m_FontSize);
 
 	// Get height of screen in lines
 	m_Height = fl_height();

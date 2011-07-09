@@ -1,4 +1,4 @@
-// $Id: Flu_Tree_Browser.cpp,v 1.98 2003/12/21 20:52:00 jbryan Exp $
+// $Id: Flu_Tree_Browser.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -586,7 +586,7 @@ Flu_Tree_Browser::Node* Flu_Tree_Browser :: NodeList :: find( const char* n, int
 #define SCROLL_SIZE 15
 
 Flu_Tree_Browser :: Flu_Tree_Browser( int x, int y, int w, int h, const char *l )
-  : Fl_Group( x, y, w, h )
+  : Fl_Double_Window( x, y, w, h )
 #ifdef USE_FLU_DND
   , Flu_DND( "Flu_Tree_Browser" )
 #endif
@@ -713,7 +713,7 @@ void Flu_Tree_Browser :: leaf_icon( Fl_Image *icon )
 
 void Flu_Tree_Browser :: resize( int X, int Y, int W, int H )
 {
-  Fl_Group::resize( X, Y, W, H );
+  Fl_Double_Window::resize( X, Y, W, H );
 
   int dx = Fl::box_dx(box()), dy = Fl::box_dy(box()), dw = Fl::box_dw(box()), dh = Fl::box_dh(box());
 
@@ -990,6 +990,11 @@ int Flu_Tree_Browser :: handle( int event )
     return 1;
 #endif
 
+  if ((Fl::focus() != this) && rdata.lastHilighted)
+  {
+	  set_hilighted(NULL);
+  }
+
   if( event == FL_NO_EVENT || event == FL_MOVE )
     return 0;
 
@@ -997,10 +1002,16 @@ int Flu_Tree_Browser :: handle( int event )
     {
       set_hilighted( rdata.lastHilighted );
       lastEvent = event;
-      Fl_Group::handle( event );
+	  Fl_Double_Window::handle( event );
       redraw();
       return 1;
     }
+
+  if (event == FL_FOCUS)
+  {
+	  Fl::focus(this);
+	  return 1;
+  }
 
   if( event == FL_UNFOCUS )
     {
@@ -1010,16 +1021,27 @@ int Flu_Tree_Browser :: handle( int event )
 	}
       set_hilighted( NULL );
       lastEvent = event;
-      Fl_Group::handle( event );
+      Fl_Double_Window::handle( event );
       redraw();
       return 1;
     }
 
+  if (event == FL_PUSH)
+	  Fl::focus(this);
+
+  if (Fl::focus() != this)
+  {
+	  if ((event == FL_KEYUP) || (event == FL_KEYDOWN))
+		return 1;
+  }
+
   if( !rdata.dragging )
     {
-      if( ! (event == FL_MOVE || event == FL_ENTER || event == FL_LEAVE ) )
-	_box->redraw();
-      if( Fl_Group::handle( event ) )
+//      if( ! (event == FL_MOVE || event == FL_ENTER || event == FL_LEAVE ) )
+//		_box->redraw();
+
+
+      if( Fl_Double_Window::handle( event ) )
 	{
 	  //if( event == FL_KEYDOWN || event == FL_KEYUP )
 	    // redraw();
@@ -1029,11 +1051,11 @@ int Flu_Tree_Browser :: handle( int event )
 
   if( event == FL_RELEASE )
     {
-      Fl::focus(this);
+//      Fl::focus(this);
       rdata.dragging = false;
       rdata.grabbed = 0;
       rdata.dragNode = 0;
-      redraw();
+//      redraw();
     }
 
   int dx = Fl::box_dx(box()), dy = Fl::box_dy(box());
@@ -1053,6 +1075,9 @@ int Flu_Tree_Browser :: handle( int event )
   // catch cursor keys for moving the hilighted entry or selecting all entries
   if( event == FL_KEYDOWN )
     {
+	  if (Fl::focus() != this)
+		  return 1;
+
       // move hilighted entry up
       if( Fl::event_key() == FL_Up )
 	{
@@ -1146,10 +1171,16 @@ void Flu_Tree_Browser :: set_hilighted( Flu_Tree_Browser::Node* n )
     return;
 
   if( rdata.hilighted )
+  {
     rdata.hilighted->do_callback( FLU_UNHILIGHTED );
+	rdata.hilighted->select(false);
+  }
   rdata.hilighted = n;
-  if( rdata.hilighted )
+  if ( rdata.hilighted )
+  {
     rdata.hilighted->do_callback( FLU_HILIGHTED );
+	n->select(true);
+  }
 
   if( rdata.hilighted )
     {
@@ -1165,6 +1196,7 @@ void Flu_Tree_Browser :: set_hilighted( Flu_Tree_Browser::Node* n )
       if( rdata.hilighted->currentY-y() < scrollV->value() )
 	((Fl_Valuator*)scrollV)->value( rdata.hilighted->currentY-y() );
     }
+
   redraw();
 }
 
@@ -1540,6 +1572,7 @@ void Flu_Tree_Browser :: draw()
 
   // set up the recursive data structure
   rdata.x = x()+dx; rdata.y = y()+dy;
+  rdata.firstConnector = 0;
   // account for the positions of the scrollbars
   if( scrollH->visible() )
     rdata.x -= scrollH->value();
@@ -1742,7 +1775,20 @@ void Flu_Tree_Browser :: Node :: draw( RData &rdata, bool measure )
 		draw_Rdash( X-halfHGap, Y-halfVGap, rdata.collapseIcons[which]->w()+4+rdata.hGap, currentH+rdata.vGap );
 	    }
 	  else if( rdata.last )
+	  {
+//	    if (parent() != NULL)
+//		{
+//			if (parent()->parent() != NULL)
+//			{
+		  if (depth()-1 == rdata.firstConnector)
+			  rdata.firstConnector++;
+//			if ((depth() - 1 == rdata.firstConnector) && parent() !=
+//					parent()->parent()->child(parent()->parent()->children() -1))
+//						rdata.firstConnector++;
+//			}
+//		}
 	    draw_L( X-halfHGap, Y-halfVGap, rdata.branchIconW+rdata.hGap, currentH+rdata.vGap );
+	  }
 	  else
 	    draw_T( X-halfHGap, Y-halfVGap, rdata.branchIconW+rdata.hGap, currentH+rdata.vGap );
 	}
@@ -2149,7 +2195,7 @@ int Flu_Tree_Browser :: Node :: recurse( RData &rdata, int type, int event )
 	    int d = depth()-1;
 	    for( i = 0; i < rdata.branchConnectors.size(); i++ )
 	      {
-		if( i != d )
+		if( i != d - rdata.firstConnector )
 		  {
 		    fl_color( rdata.lineColor );
 		    fl_line_style( rdata.lineStyle, rdata.lineWidth );
@@ -2258,15 +2304,21 @@ int Flu_Tree_Browser :: Node :: recurse( RData &rdata, int type, int event )
 
 	    // check for the left/right cursor keys opening/closing this entry
 	    else if( (Fl::event_key() == FL_Left) && (rdata.hilighted == this) )
-	      {
-		open( false );
-		return 1;
-	      }
+	    {
+			open( false );
+			return 1;
+	    }
 	    else if( (Fl::event_key() == FL_Right) && (rdata.hilighted == this) )
-	      {
-		open( true );
-		do_callback(FLU_RIGHT_CLICK);
-		return 1;
+	    {
+			open( true );
+			do_callback(FLU_RIGHT_CLICK);
+			return 1;
+	    }
+	    else if( (Fl::event_key() == FL_Delete) && (rdata.hilighted == this) )
+	    {
+			open( true );
+			do_callback(FLU_DELETE);
+			return 1;
 	      }
 	  }
 
@@ -2416,6 +2468,7 @@ int Flu_Tree_Browser :: Node :: recurse( RData &rdata, int type, int event )
 	    if( Fl::event_button() == FL_RIGHT_MOUSE)
 		{
 			do_callback( FLU_RIGHT_CLICK );
+			return 1;
 		}
 		if( is_leaf() )
 		  {

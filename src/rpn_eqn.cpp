@@ -25,6 +25,18 @@ void CRpnEquation::Add(int operation)
 	m_OperationArray.Add(op);
 }
 
+void CRpnEquation::Add(int operation, const char *var)
+{
+	CRpnOperation*	op = new CRpnOperation;
+
+	// Fill operation with operation code
+	op->m_Operation = operation;
+	op->m_Variable = var;
+
+	// Add operation to array
+	m_OperationArray.Add(op);
+}
+
 void CRpnEquation::Add(double value)
 {
 	CRpnOperation*	op = new CRpnOperation;
@@ -48,3 +60,16 @@ void CRpnEquation::Add(const char *var)
 	// Add operation to array
 	m_OperationArray.Add(op);
 }
+
+void CRpnEquation::Add(VTObject* pMacro)
+{
+	CRpnOperation*	op = new CRpnOperation;
+
+	// Fill operation with operation code
+	op->m_Operation = RPN_MACRO;
+	op->m_Macro = pMacro;
+
+	// Add operation to array
+	m_OperationArray.Add(op);
+}
+

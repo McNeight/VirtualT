@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.12 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.13 2009/04/05 08:18:35 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -29,8 +29,12 @@
 
 #include <FL/Fl.H>
 #include <FL/Fl_Window.H>
+#include <FL/Fl_Preferences.H>
 #include <string.h>
 #include <stdio.h>
+#include <string>
+
+using namespace std;
 
 #include <algorithm>
 
@@ -77,8 +81,6 @@ int					gLcdTimeoutCycles;	// Number of cycles for the string timeout
 int					gLcdRow = -1;		// Current LCD update row
 int					gLcdCol = -1;		// Current LCD update col
 int					gLcdColStart = -1;	// Column where current string started
-ServerSocket 		gOpenSock;
-int					gSocketOpened = FALSE;
 lcd_rect_t			gIgnoreRects[10];
 int					gIgnoreCount = 0;
 int					gLastDisAddress = 0;
@@ -89,10 +91,37 @@ int					gTraceActive = 0;
 std::string			gTraceFile;
 FILE*				gTraceFileFd;
 VTDis				gTraceDis;
+char				gTelnetCR;
 std::string			gLineTerm = "\n";
 std::string			gOk = "Ok";
 std::string			gParamError = "Parameter Error\nOk";
 std::string			gTelnetCmd;
+
+// Socket interface management structure
+typedef struct  
+{
+	ServerSocket		*serverSock;
+	unsigned char		socketShutdown;
+	unsigned char		socketOpened;
+	unsigned char		socketError;
+	unsigned char		socketInitDone;
+	unsigned char		telnet;
+	unsigned char		cmdLineTelnet;
+	unsigned char		enabled;
+	unsigned char		termMode;
+	unsigned char		iacState;
+	unsigned char		sbState;
+	unsigned char		sbOption;
+    unsigned char       closeSocket;
+	int					listenPort;
+	int					socketPort;
+	int					cmdLinePort;
+	ServerSocket 		openSock;
+	std::string			socketErrorMsg;
+} socket_ctrl_t;
+
+static socket_ctrl_t	gSocket = { NULL, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+char gTelnetTerminal[256];
 
 int remote_cpureg_stop(void);
 int remote_cpureg_run(void);
@@ -107,6 +136,7 @@ extern int fullspeed;
 extern int fl_wait(double);
 extern void simulate_keydown(int key);
 extern void simulate_keyup(int key);
+extern	Fl_Preferences virtualt_prefs;
 
 extern "C"
 {
@@ -126,10 +156,12 @@ Help command:  Send list of supported commands
 std::string cmd_help(ServerSocket& sock)
 {
 	sock << "Help" << gLineTerm << "====" << gLineTerm;
+	sock << "  bye" << gLineTerm;
 	sock << "  clear_break(cb) address" << gLineTerm;
 	sock << "  cold_boot" << gLineTerm;
 	sock << "  debug_isr(isr) [on off]" << gLineTerm;
 	sock << "  dis address [lines]" << gLineTerm;
+	sock << "  exit" << gLineTerm;
 	sock << "  flags [all S Z ac P=1 s=0 ...]" << gLineTerm;
 	sock << "  halt" << gLineTerm;
 	sock << "  in port" << gLineTerm;
@@ -146,6 +178,7 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "  read_reg(rr) [all A B h m DE ...]" << gLineTerm;
 	sock << "  reset" << gLineTerm;
 	sock << "  run" << gLineTerm;
+	sock << "  screen_dump(sd)" << gLineTerm;
 	sock << "  set_break(sb) address [main opt mplan ram ram2 ram3 read write]" << gLineTerm;
 	sock << "  speed [2.4 friendly max]" << gLineTerm;
 	sock << "  status" << gLineTerm;
@@ -176,8 +209,8 @@ void handle_lcd_timeout()
 			gLcdString.c_str(), gLineTerm.c_str());
 
 		if ((gLcdRow != -1) && (gLcdColStart != -1))
-			if (gSocketOpened)
-				gOpenSock << str;
+			if (gSocket.socketOpened)
+				gSocket.openSock << str;
 		gLcdUpdateCycle = (UINT64) -1;	
 		gLcdRow = -1;
 		gLcdColStart = -1;
@@ -226,8 +259,8 @@ void handle_lcd_trap()
 			// New string being written.  Send the old one
 			sprintf(str, "event, lcdwrite, (%d,%d),%s%s", gLcdRow, gLcdColStart,
 				gLcdString.c_str(), gLineTerm.c_str());
-			if (gSocketOpened)
-				gOpenSock << str;
+			if (gSocket.socketOpened)
+				gSocket.openSock << str;
 		}
 
 		// Start a new string
@@ -475,13 +508,13 @@ void cb_remote_debug(int reason)
 			// Report break to client socket
 			if (gStopped)
 			{
-				if (gSocketOpened)
+				if (gSocket.socketOpened)
 				{
 					if (gRadix == 10)
 						sprintf(str, "event, break, PC=%d%s", PC, gLineTerm.c_str());
 					else
 						sprintf(str, "event, break, PC=%04X%s", PC, gLineTerm.c_str());
-					gOpenSock << str;
+					gSocket.openSock << str;
 				}
 			}
 		}
@@ -494,13 +527,13 @@ void cb_remote_debug(int reason)
 				gStopped = 1;
 
 				// Report breakpoint to socket interface
-				if (gSocketOpened)
+				if (gSocket.socketOpened)
 				{
 					if (gRadix == 10)
 						sprintf(str, "event, break, PC=%d%s", PC, gLineTerm.c_str());
 					else
 						sprintf(str, "event, break, PC=%04X%s", PC, gLineTerm.c_str());
-					gOpenSock << str;
+					gSocket.openSock << str;
 				}
 			}
 		}
@@ -576,7 +609,7 @@ Status command:  Report status of CPU and any async
 */
 std::string cmd_status(ServerSocket& sock)
 {
-	char	modelStr[10];
+	char	modelStr[15];
 	char	retStr[80];
 
 	get_model_string(modelStr, gModel);
@@ -873,7 +906,7 @@ std::string cmd_read_mem(ServerSocket& sock, std::string& args)
 	std::string 	next_arg;
 	std::string 	more_args;
 	std::string 	ret;
-	char			str[10];
+	char			str[20];
 
 	// Separate arguments
 	more_args = args;
@@ -897,10 +930,10 @@ std::string cmd_read_mem(ServerSocket& sock, std::string& args)
 		else
 			sprintf(str, "%02X ", get_memory8(address++));
 	
-		ret += str;
+		ret = ret + str;
 	}
 	unlock_remote();
-	ret += gLineTerm;
+	ret = ret + gLineTerm;
 	
 	return ret + gOk;
 }
@@ -958,77 +991,77 @@ std::string cmd_read_reg(ServerSocket& sock, std::string& args)
 			if (next_arg == "a")
 			{
 				sprintf(reg_str, format_str.c_str(), A);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "b")
 			{
 				sprintf(reg_str, format_str.c_str(), B);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "c")
 			{
 				sprintf(reg_str, format_str.c_str(), C);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "d")
 			{
 				sprintf(reg_str, format_str.c_str(), D);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "e")
 			{
 				sprintf(reg_str, format_str.c_str(), E);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "h")
 			{
 				sprintf(reg_str, format_str.c_str(), H);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "l")
 			{
 				sprintf(reg_str, format_str.c_str(), L);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "f")
 			{
 				sprintf(reg_str, format_str.c_str(), F);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "m")
 			{
 				sprintf(reg_str, format_str.c_str(), get_memory8(HL));
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "bc")
 			{
 				sprintf(reg_str, format_str16.c_str(), BC);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "de")
 			{
 				sprintf(reg_str, format_str16.c_str(), DE);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "hl")
 			{
 				sprintf(reg_str, format_str16.c_str(), HL);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "pc")
 			{
 				sprintf(reg_str, format_str16.c_str(), PC);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 			else if (next_arg == "sp")
 			{
 				sprintf(reg_str, format_str16.c_str(), SP);
-				ret += reg_str;
+				ret = ret + reg_str;
 			}
 
 			else
 			{
-				ret += "xx ";
+				ret = ret + "xx ";
 			}
 		}
 		unlock_remote();
@@ -1190,7 +1223,7 @@ Radix command:  Changes the radix
 */
 std::string cmd_radix(ServerSocket& sock, std::string& args)
 {
-	char		str[10];
+	char		str[15];
 
 	if (args == "")
 	{
@@ -1244,22 +1277,22 @@ std::string cmd_flags(ServerSocket& sock, std::string& args)
 	std::string		str;
 	int				pos;
 	int				value;
-	char			cstr[10];
+	char			cstr[20];
 
 	// Test if flags should be set or printed
 	lock_remote();
 	if (args == "")
 	{
 		// Print all flags that are set
-		if (ZF) str += "Z ";
-		if (SF) str += "S ";
-		if (CF) str += "C ";
-		if (PF) str += "P ";
-		if (OV) str += "OV ";
-		if (AC) str += "AC ";
-		if (TS) str += "TS ";
+		if (ZF) str = str + "Z ";
+		if (SF) str = str + "S ";
+		if (CF) str = str + "C ";
+		if (PF) str = str + "P ";
+		if (OV) str = str + "OV ";
+		if (AC) str = str + "AC ";
+		if (TS) str = str + "TS ";
 		if (str == "")  str = "(none)";
-		str += gLineTerm;
+		str = str + gLineTerm;
 	}
 	else
 	{
@@ -1282,13 +1315,13 @@ std::string cmd_flags(ServerSocket& sock, std::string& args)
 			{
 				// Report the status of this flag
 				cstr[0] = 0;
-				if ((next_arg == "z") || (next_arg == "all")) {sprintf(cstr, "Z=%d ", ZF);str+=cstr;}
-				if ((next_arg == "s") || (next_arg == "all")) {sprintf(cstr, "S=%d ", SF);str+=cstr;}
-				if ((next_arg == "c") || (next_arg == "all")) {sprintf(cstr, "C=%d ", CF);str+=cstr;}
-				if ((next_arg == "p") || (next_arg == "all")) {sprintf(cstr, "P=%d ", PF);str+=cstr;}
-				if ((next_arg == "ov") || (next_arg == "all")) {sprintf(cstr, "OV=%d ", OV);str+=cstr;}
-				if ((next_arg == "ac") || (next_arg == "all")) {sprintf(cstr, "AC=%d ", AC);str+=cstr;}
-				if ((next_arg == "ts") || (next_arg == "all")) {sprintf(cstr, "TS=%d ", TS);str+=cstr;}
+				if ((next_arg == "z") || (next_arg == "all")) {sprintf(cstr, "Z=%d ", ZF);str= str +cstr;}
+				if ((next_arg == "s") || (next_arg == "all")) {sprintf(cstr, "S=%d ", SF);str= str +cstr;}
+				if ((next_arg == "c") || (next_arg == "all")) {sprintf(cstr, "C=%d ", CF);str= str +cstr;}
+				if ((next_arg == "p") || (next_arg == "all")) {sprintf(cstr, "P=%d ", PF);str= str +cstr;}
+				if ((next_arg == "ov") || (next_arg == "all")) {sprintf(cstr, "OV=%d ", OV);str= str +cstr;}
+				if ((next_arg == "ac") || (next_arg == "all")) {sprintf(cstr, "AC=%d ", AC);str= str +cstr;}
+				if ((next_arg == "ts") || (next_arg == "all")) {sprintf(cstr, "TS=%d ", TS);str= str +cstr;}
 			}
 			else
 			{
@@ -1328,9 +1361,9 @@ std::string cmd_flags(ServerSocket& sock, std::string& args)
 				}
 			}
 		}
-		str += gLineTerm;
+		str = str + gLineTerm;
 	}
-	str += gOk;
+	str = str + gOk;
 
 	unlock_remote();
 	return str;
@@ -1885,7 +1918,7 @@ Model command:  Sets the emulation model
 std::string cmd_model(ServerSocket& sock, std::string& args)
 {
 	char		str[30];
-	char		model[10];
+	char		model[20];
 	std::string	more_args = args;
 
 	if (args == "")
@@ -2098,7 +2131,7 @@ Show reg command:  Outputs the specified value
 */
 std::string cmd_show_reg(ServerSocket& sock, int value, int size)
 {
-	char		str[10];
+	char		str[20];
 
 	if (gRadix == 10)
 		sprintf(str, "%d%s%s", value, gLineTerm.c_str(), gOk.c_str());
@@ -2112,6 +2145,27 @@ std::string cmd_show_reg(ServerSocket& sock, int value, int size)
 
 	return str;
 }
+
+
+/*
+=======================================================
+Read IM command:  Outputs the current interrupt mask
+=======================================================
+*/
+std::string cmd_rim(ServerSocket& sock, std::string& args)
+{
+	char		str[20];
+
+	if (gRadix == 10)
+		sprintf(str, "%d%s%s", IM, gLineTerm.c_str(), gOk.c_str());
+	else
+	{
+		sprintf(str, "%02X%s%s", IM, gLineTerm.c_str(), gOk.c_str());
+	}
+
+	return str;
+}
+
 /*
 =======================================================
 Lcd_mon command:  Enables or disables LCD monitoring.
@@ -2254,7 +2308,7 @@ std::string cmd_string(ServerSocket& sock, std::string& args)
 {
 	int			address;
 	int			ch;
-	char		build[10];
+	char		build[20];
 	std::string	str;
 
 	address = get_address(args);
@@ -2266,14 +2320,14 @@ std::string cmd_string(ServerSocket& sock, std::string& args)
 				sprintf(build, "<%d>", ch);
 			else
 				sprintf(build,"<%02X>", ch);
-			str += build;
+			str = str + build;
 		}
 		else
 			str += ch;
 		address++;
 	}
 
-	str += gLineTerm + gOk;
+	str = str + gLineTerm + gOk;
 	return str;
 }
 
@@ -2323,6 +2377,73 @@ std::string cmd_disassemble(ServerSocket& sock, std::string& args)
 	}
 	gLastDisAddress = dis_addr;
 	gLastDisCount = lineCount;
+
+	return gOk;
+}
+
+/*
+=======================================================
+Trace command:  Enables instruction tracing for all or
+				specific address ranges.
+=======================================================
+*/
+std::string cmd_screen_dump(ServerSocket& sock, std::string& args)
+{
+	int				lines, col, line, first_line = 0;
+	unsigned short	lcdAddr, curAddr;
+
+	lines = gModel == MODEL_T200 ? 16 : 8;
+	
+	// For Model 200, the 1st byte of the LCD character buffer isn't
+	// always the first row on the LCD.  There is a 1st row offset
+	// variable at FEAEh that tells which row is the 1st row
+	if (gModel == MODEL_T200)
+		first_line = get_memory8(0xFEAE);
+
+	// Now find the address of the LCD Row storage
+#if 0
+	for (c = 0; ;c++)
+	{
+		// Test for end of table
+		if (gStdRomDesc->pVars[c].strnum == -1)
+		{
+			std::string ret = "Couldn't locate LCD buffer" + gLineTerm + gOk;
+			return ret;
+		}
+
+		// Search for the Level 6 plotting function
+		if (gStdRomDesc->pVars[c].strnum == R_LCD_CHAR_BUF)
+		{
+			lcdAddr = gStdRomDesc->pVars[c].addr;
+			break;
+		}
+	}
+#endif
+
+	lcdAddr = gStdRomDesc->sLcdBuf;
+
+	// Now loop through each row and build a string to send
+	curAddr = lcdAddr + first_line * 40;
+	unsigned short maxAddr = lcdAddr + lines * 40;
+	for (line = 0; line < lines; line++)
+	{
+		std::string line_buf = "";
+		unsigned char ch;
+		for (col = 0; col < 40; col++)
+		{
+			ch = get_memory8(curAddr++);
+			if ((ch < ' ') || (ch > '~'))
+				ch = ' ';
+			line_buf += ch;
+		}
+
+		// Terminate this line and send to the socket
+		line_buf += gLineTerm;
+		sock << line_buf;
+
+		if (curAddr >= maxAddr)
+			curAddr = lcdAddr;
+	}
 
 	return gOk;
 }
@@ -2457,41 +2578,194 @@ std::string cmd_trace(ServerSocket& sock, std::string& args)
 
 /*
 =======================================================
+Routine to process TELNET bytes during subnegotiation.
+=======================================================
+*/
+void handle_telnet_sb(unsigned char ch)
+{
+	char	temp[10];
+
+	switch (gSocket.sbState)
+	{
+	// Handle first entry into SB state.  The first byte is
+	// The option code being negotiatied
+	case 0:
+		// Just save the TELNET option byte and exit
+		gSocket.sbOption = ch;
+		gSocket.sbState = 1;
+
+		// If TERMINAL-TYPE option, clear the terminal type
+		if (ch == TELNET_TERMTYPE)
+			gTelnetTerminal[0] = 0;
+
+		break;
+
+	// Now we have the option byte, check for IS, etc
+	case 1:
+		switch (ch)
+		{
+		// We receive the TELNET_IS byte.  Go get the parameter
+		case TELNET_IS:
+			gSocket.sbState = 2;
+			break;
+		
+		// Unknown...go back to non-telnet IAC mode
+		default:
+			gSocket.sbState = 0;
+			gSocket.iacState = 0;
+			break;
+		}
+
+	// Receiving the option parameter
+	case 2:
+		switch (gSocket.sbOption)
+		{
+		// For TERMTYPE option, save terminal type to global string
+		case TELNET_TERMTYPE:
+			// Test if TELNET_IAC code during reception of terminal type
+			if (ch == TELNET_IAC)
+			{
+				printf("Term-type: %s\n", gTelnetTerminal);
+				gSocket.sbState = 0;
+				gSocket.iacState = ch;
+				break;
+			}
+
+			// Not TELNET_IAC, save to terminal-type
+			strcat(gTelnetTerminal, temp);
+			break;
+
+		// Other options not supported
+		default:
+			gSocket.sbState = 0;
+			gSocket.iacState = 0;
+			break;
+		}
+
+	// Unknown case...abort back to non IAC mode
+	default:
+		gSocket.sbState = 0;
+		gSocket.iacState = 0;
+		break;
+	}
+}
+
+/*
+=======================================================
 Routine to process remote commands
 =======================================================
 */
-int telnet_command_ready(ServerSocket& sock, std::string &cmd)
+int telnet_command_ready(ServerSocket& sock, std::string &cmd, char* sockData, int len)
 {
-	int		len, x, cmd_term;
+	int		x, cmd_term;
+	char	temp[10];
 
-	len = cmd.length();
 	cmd_term = FALSE;
 	for (x = 0; x < len; x++)
 	{
-		char ch = cmd.c_str()[x];
-		printf("<%02Xh> ", ch);
+		unsigned char ch = sockData[x];
 
-		/* Test for 0x0D and ignore it */
-		if (ch == 0x0D)
-			continue;
-		/* Test for 0x0a command line terminaor */
-		if (ch == 0x0A)
+		/* Test if we are in an IAC mode */
+		if (gSocket.iacState != 0)
 		{
+			switch (gSocket.iacState)
+			{
+			case TELNET_IAC:
+				switch (ch)
+				{
+				case TELNET_DO:
+				case TELNET_DONT:
+				case TELNET_WILL:
+				case TELNET_WONT:
+					gSocket.iacState = ch;
+					continue;
+				case TELNET_SB:
+					gSocket.iacState = ch;
+					gSocket.sbState = 0;
+					continue;
+				case TELNET_AYT:
+					sprintf(temp, "%c%c", TELNET_IAC, TELNET_GA);
+					sock << temp;
+					gSocket.iacState = ch;
+					continue;
+
+				default:
+					gSocket.iacState = 0;
+				}
+				continue;
+
+			case TELNET_WILL:
+				switch (ch)
+				{
+					// Process response from our IAC DO TERMINAL_TYPE query
+				case TELNET_TERMTYPE:
+					sprintf(temp, "%c%c%c%c%c%c", TELNET_IAC, TELNET_SB, TELNET_TERMTYPE,
+						TELNET_SEND, TELNET_IAC, TELNET_SE);
+					sock << temp;
+					gSocket.iacState = 0;
+					continue;
+				
+				default:
+					gSocket.iacState = 0;
+					continue;
+				}
+			case TELNET_SB:
+				handle_telnet_sb(ch);
+				continue;
+
+			default:
+				gSocket.iacState = 0;
+				continue;
+			}
+		}
+		else if (ch == TELNET_IAC)
+		{
+			gSocket.iacState = TELNET_IAC;
+			continue;
+		}
+
+		/* Test for 0x0a command line terminaor */
+		if (ch == gTelnetCR)
+		{
+			char temp[2];
 			cmd_term = TRUE;
 			cmd = gTelnetCmd;
 			gTelnetCmd = "";
+			temp[0] = ch;
+			temp[1] = 0;
+#ifdef WIN32
+			sock << temp;
+			temp[0] = 0x0A;
+			sock << temp;
+#endif
 			break;
+		}
+		/* Test for 0x0D and ignore it */
+		if (ch == 0x0D)
+		{
+			char temp[2];
+			temp[0] = ch;
+			temp[1] = 0;
+			temp[1] = 0;
+#ifdef WIN32
+			sock << temp;
+#endif
+			continue;
 		}
 		// Test for backspace
 		if (ch == 0x08)
 		{
 			if (gTelnetCmd.length() == 0)
 			{
+#ifdef WIN32
 				sock << " ";
+#endif
 				continue;
 			}
 			gTelnetCmd = gTelnetCmd.substr(0, gTelnetCmd.length()-1);
-			sock << " \x08";
+#ifdef WIN32
+			sock << "\x08 \x08";
+#endif
 			continue;
 			
 		}
@@ -2502,10 +2776,13 @@ int telnet_command_ready(ServerSocket& sock, std::string &cmd)
 			temp[0] = ch;
 			temp[1] = 0;
 			gTelnetCmd = gTelnetCmd + temp;
+#ifdef WIN32
+			sock << temp;
+#endif
 		}
 		else
 		{
-			// TODO:  Process telnet out-of band characters
+			// we don't need these chars in our command line
 		}
 	}
 
@@ -2517,17 +2794,32 @@ int telnet_command_ready(ServerSocket& sock, std::string &cmd)
 Routine to process remote commands
 =======================================================
 */
-std::string process_command(ServerSocket& sock, std::string cmd)
+void send_telnet_greeting(ServerSocket& sock)
+{
+	sock << gLineTerm << "Welcome to the VirtualT v" << VERSION << " TELNET interface." << gLineTerm;
+	sock << "Use decimal, C hex (0x2a) or Asm hex (14h) for input." << gLineTerm;
+	sock << "Return data reported according to specified radix." << gLineTerm;
+	sock << "Type 'help' for a list of supported comands." << gLineTerm;
+	sock << gOk;
+}
+
+/*
+=======================================================
+Routine to process remote commands
+=======================================================
+*/
+std::string process_command(ServerSocket& sock, char *sockdata, int len)
 {
 	std::string ret = "Syntax error";
 	std::string cmd_word;
 	std::string args;
+	std::string cmd = sockdata;
 
 	// Test for telnet protocol bytes
-	if (gTelnet)
+	if (gSocket.telnet)
 	{
-		ret += gLineTerm + gOk;
-		if (!telnet_command_ready(sock, cmd))
+		ret = ret + gLineTerm + gOk;
+		if (!telnet_command_ready(sock, cmd, sockdata, len))
 			return "";
 		if (cmd == "")
 		{
@@ -2553,7 +2845,7 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	if (cmd == "help")				// Check for help
 		ret = cmd_help(sock);
 
-	else if (cmd == "run")			// Check for run
+	else if ((cmd == "run") || (cmd == "go"))	// Check for run
 		ret = cmd_run(sock);
 
 	else if (cmd == "reset")		// Check for reset
@@ -2562,10 +2854,17 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	else if (cmd == "terminate")	// Check for terminate
 		ret = cmd_terminate(sock);
 
+	else if ((cmd == "exit") || (cmd == "bye"))	// Check for terminate
+    {
+	    sock << "Thank you for contacting VirtualT v" << VERSION << ".  Bye." << gLineTerm;
+        ret = "";
+        gSocket.closeSocket = TRUE;
+    }
+
 	else if (cmd == "cold_boot")	// Check for terminate
 		ret = cmd_cold_boot(sock);
 
-	else if (cmd == "halt")			// Check for halt
+	else if ((cmd == "halt") || (cmd == "stop"))	// Check for halt
 		ret = cmd_halt(sock);
 
 	else if (cmd == "status")		// Report status and any events
@@ -2582,6 +2881,12 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 
 	else if ((cmd_word == "read_reg") || (cmd_word == "rr"))
 		ret = cmd_read_reg(sock, args);
+
+	else if (cmd_word == "regs")
+	{
+		args = "all";
+		ret = cmd_read_reg(sock, args);
+	}
 
 	else if ((cmd_word == "write_reg") || (cmd_word == "wr"))
 		ret = cmd_write_reg(sock, args);
@@ -2689,6 +2994,12 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 	else if ((cmd_word == "debug_isr") || (cmd_word == "isr"))
 		ret = cmd_debug_isr(sock, args);
 
+	else if ((cmd_word == "screen_dump") || (cmd_word == "sd"))
+		ret = cmd_screen_dump(sock, args);
+
+	else if (cmd_word == "rim")
+		ret = cmd_rim(sock, args);
+
 	else if (cmd_word == "x")
 	{
 		args = "pc " + args;
@@ -2696,12 +3007,22 @@ std::string process_command(ServerSocket& sock, std::string cmd)
 		gLastCmdDis = TRUE;
 		return ret;
 	}
+	else if (cmd_word.find('=') != -1)
+		ret = cmd_write_reg(sock, cmd);
 
 	gLastCmdDis = FALSE;
 
 	return ret;
 }
 
+void initiate_termtype_negotiation(ServerSocket& sock)
+{
+	char		buf[4];
+
+	sprintf(buf, "%c%c%c", TELNET_IAC ,TELNET_DO, TELNET_TERMTYPE);
+	sock << buf;
+	gSocket.termMode = REMOTE_TERM_INIT;
+}
 
 /*
 =======================================================
@@ -2711,48 +3032,145 @@ Routine that will become the remote control thread.
 void* remote_control(void* arg)
 {
 	std::string  ret;
+	char		 errmsg[80];
+	char		 sockData[128];
+	int			 len;
 
-	gSocketOpened = FALSE;
+	// Create a listener socket on the desired port number
+	gSocket.listenPort = 0;
+	gSocket.socketOpened = FALSE;
+	gSocket.closeSocket = FALSE;
+	gSocket.serverSock = new ServerSocket(gSocket.socketPort);
+	gSocket.socketErrorMsg = "";
+	if (gSocket.serverSock == NULL)
+	{
+		gSocket.socketError = TRUE;
+		sprintf(errmsg, "Unable to open port %d", gSocket.socketPort);
+		gSocket.socketErrorMsg = errmsg;
+		return NULL;
+	}
+	gSocket.listenPort = gSocket.socketPort;
+
+	// Now listen on the listener port for connections
 	try
 	{
-		ServerSocket	server(gSocketPort);
-		while (!gExitApp)
+		while (!gExitApp && !gSocket.socketShutdown)
 		{
-			server.accept(gOpenSock);
+			gSocket.serverSock->accept(gSocket.openSock);
 			try
 			{
-				gSocketOpened = TRUE;
-				while (!gExitApp)
+				gSocket.socketError = FALSE;
+				gSocket.socketErrorMsg = "";
+				gSocket.socketOpened = TRUE;
+                gSocket.closeSocket = FALSE;
+
+				// Negotiate for the terminal type
+//				initiate_termtype_negotiation(gSocket.openSock);
+
+				// Send greeting if in telnet mode
+				if (gSocket.telnet)
+					send_telnet_greeting(gSocket.openSock);
+
+				while (!gExitApp && !gSocket.socketShutdown && !gSocket.closeSocket)
 				{
 					std::string data;
-					gOpenSock >> data;
-					ret = process_command(gOpenSock, data);
-					if (gTelnet)
+//					gSocket.openSock >> data;
+
+					len = gSocket.openSock.recv(sockData, sizeof(sockData));
+
+					if (gSocket.socketShutdown)
+						break;
+					ret = process_command(gSocket.openSock, sockData, len);
+
+                    /* Test for exit / bye command to close the socket */
+                    if (gSocket.closeSocket)
+                    {
+                        gSocket.openSock << ret;
+                        gSocket.openSock.shutdown();
+                    }
+                    else if (gSocket.telnet)
 					{
 						if (ret != "")
-							gOpenSock << ret;
+							gSocket.openSock << ret;
 					}
 					else
-						gOpenSock << ret;
+						gSocket.openSock << ret;
 				}
 			}
 			catch (SocketException&)
 			{
-				gSocketOpened = FALSE;
+				gSocket.socketOpened = FALSE;
 			}
 		}
 	}
 	catch (SocketException& e)
 	{
-		printf("Exception was caught: %s\nExiting thread\n",e.description().c_str());
+		if (!gSocket.socketShutdown)
+		{
+			gSocket.socketError  = TRUE;
+			gSocket.socketErrorMsg = e.description();
+		}
 	}
-
-	gSocketOpened = FALSE;
 
 	// Unhook from the debug callback processor
 	debug_clear_monitor_callback(cb_remote_debug);
+
+	// Shutdown and close the server listener socket
+	gSocket.socketOpened = FALSE;
+	delete gSocket.serverSock;
+	gSocket.serverSock = NULL;
+	gSocket.listenPort = 0;
+	gSocket.enabled = FALSE;
 	
 	return NULL;
+}
+
+/*
+=======================================================
+Tears down the remote control socket inerface.
+=======================================================
+*/
+void deinit_remote(void)
+{
+	// First teardown the listener socket so we don't accept anything new
+	gSocket.socketShutdown = TRUE;
+	if (gSocket.serverSock != NULL)
+	{
+		// Just shutdown the socket.  The remote thread will delete it
+		try {
+			gSocket.serverSock->shutdown();
+			gSocket.listenPort = 0;
+		}
+		catch (SocketException &e)
+		{
+			gSocket.socketError = TRUE;
+			gSocket.socketErrorMsg = e.description();
+		}
+	}
+
+	// Now check for an opened socket.  If none opened, then we are done
+	if (gSocket.socketOpened == FALSE)
+		return;
+
+	// Try to shutdown the open socket
+	try {
+		gSocket.openSock.shutdown();
+	}
+	catch (SocketException &e)
+	{
+		gSocket.socketError = TRUE;
+		gSocket.socketErrorMsg = e.description();
+		gSocket.socketOpened = FALSE;
+	}
+
+	// Wait for the thread to report shutdown
+	int retry = 0;
+	while (retry < 200)
+	{
+		if (gSocket.socketOpened == FALSE)
+			break;
+		Fl::wait(.01);
+	}
 }
 
 /*
@@ -2764,12 +3182,26 @@ void init_remote(void)
 {
 	int 	c;
 
+	/*
+	Test if we need to override the preferences settings
+    with the command line settings during the 1st 
+	invocation of init_remote
+	*/
+	if (gSocket.cmdLinePort)
+	{
+		gSocket.socketPort = gSocket.cmdLinePort;
+		gSocket.telnet = gSocket.cmdLineTelnet;
+		gSocket.cmdLinePort = 0;
+		gSocket.cmdLineTelnet = 0;
+		gSocket.enabled = TRUE;
+	}
+	
 	// Check if Remote Socket interface enabled
-	if (gSocketPort == 0)
+	if ((gSocket.socketPort == 0) || (gSocket.enabled == FALSE))
 		return;
 
 	// Initialize breakpoints
-	for (c = 0; c < 32768; c++)
+	for (c = 0; c < 65536; c++)
 	{
 		// Zero all breakpoints
 		gRemoteBreak[c] = 0;
@@ -2779,63 +3211,84 @@ void init_remote(void)
 	debug_set_monitor_callback(cb_remote_debug);
 
 	// Setup the line termination for \r\n if in telnet mode
-	if (gTelnet)
+	if (gSocket.telnet)
 	{
 		gLineTerm = "\r\n";
 		gOk = "Ok> ";
 		gParamError = "Parameter Error" + gLineTerm + "Ok> ";
+#ifdef WIN32
+		gTelnetCR = '\r';
+#else
+		gTelnetCR = '\n';
+#endif
 	}
+
+	// Clear the shutdown flag
+	gSocket.socketShutdown = FALSE;
 
 	// Create the thread
 #ifdef WIN32
 	DWORD id;
-	gRemoteLock = CreateMutex(NULL, FALSE, NULL);
 	WORD wVersionRequested; 
 	WSADATA wsaData; 
 	int err; 
 
-	wVersionRequested = MAKEWORD( 1, 1 ); 
+	if (!gSocket.socketInitDone)
+	{
+		gRemoteLock = CreateMutex(NULL, FALSE, NULL);
 
-	err = WSAStartup( wVersionRequested, &wsaData ); 
-	if ( err != 0 ) 
-	{ 
-        /* Tell the user that we couldn't find a useable */ 
-        /* winsock.dll.                                  */ 
-		return; 
-	} 
+		wVersionRequested = MAKEWORD( 1, 1 ); 
 
-    /* Confirm that the Windows Sockets DLL supports 1.1.*/ 
-    /* Note that if the DLL supports versions greater    */ 
-    /* than 1.1 in addition to 1.1, it will still return */ 
-    /* 1.1 in wVersion since that is the version we      */ 
-    /* requested.                                        */ 
+		err = WSAStartup( wVersionRequested, &wsaData ); 
+		if ( err != 0 ) 
+		{ 
+			/* Tell the user that we couldn't find a useable */ 
+			/* winsock.dll.                                  */ 
+			return; 
+		} 
 
-    if ( LOBYTE( wsaData.wVersion ) != 1 || 
-            HIBYTE( wsaData.wVersion ) != 1 ) 
-	{ 
-        /* Tell the user that we couldn't find a useable */ 
-        /* winsock.dll.                                  */ 
-        WSACleanup( ); 
-        return;    
-    } 
+		/* Confirm that the Windows Sockets DLL supports 1.1.*/ 
+		/* Note that if the DLL supports versions greater    */ 
+		/* than 1.1 in addition to 1.1, it will still return */ 
+		/* 1.1 in wVersion since that is the version we      */ 
+		/* requested.                                        */ 
+
+		if ( LOBYTE( wsaData.wVersion ) != 1 || 
+				HIBYTE( wsaData.wVersion ) != 1 ) 
+		{ 
+			/* Tell the user that we couldn't find a useable */ 
+			/* winsock.dll.                                  */ 
+			WSACleanup( ); 
+			return;    
+		} 
+	}
 
 	gRemoteThread = CreateThread( NULL, 0,
 			(LPTHREAD_START_ROUTINE) remote_control,
 			NULL, 0, &id);
 
 #else
-	// Initialize thread processing
-	pthread_mutex_init(&gRemoteLock, NULL);
+	if (!gSocket.socketInitDone)
+	{
+		// Initialize thread processing
+		pthread_mutex_init(&gRemoteLock, NULL);
+	}
 
 	pthread_create(&gRemoteThread, NULL, remote_control, NULL);
 #endif
+
+	// Set Init flag so we only init once
+	gSocket.socketInitDone = TRUE;
 }
+
+volatile long gRemoteThreadId = 0L;
 
 void lock_remote(void)
 {
-	if (gSocketPort != 0)
+	if (gSocket.socketPort != 0)
 #ifdef WIN32
-		WaitForSingleObject(gRemoteLock, INFINITE);
+//		WaitForSingleObject(gRemoteLock, INFINITE);
+		InterlockedCompareExchange(&gRemoteThreadId, GetCurrentThreadId(), 0);
 #else
 		pthread_mutex_lock(&gRemoteLock);
 #endif
@@ -2843,11 +3296,167 @@ void lock_remote(void)
 
 void unlock_remote(void)
 {
-	if (gSocketPort != 0)
+	if (gSocket.socketPort != 0)
 #ifdef WIN32
-		ReleaseMutex(gRemoteLock);
+//		ReleaseMutex(gRemoteLock);
+		InterlockedCompareExchange(&gRemoteThreadId, 0, GetCurrentThreadId());
 #else
 		pthread_mutex_unlock(&gRemoteLock);
 #endif
 }
 
+
+/*
+=======================================================
+Set socket port from command line.  Overrides initial
+setting from preferences.
+=======================================================
+*/
+void set_remote_cmdline_port(int port)
+{
+	gSocket.cmdLinePort = port;
+	gSocket.enabled = TRUE;
+}
+
+/*
+=======================================================
+Set socket telnet from command line.  Overrides initial
+setting from preferences.
+=======================================================
+*/
+void set_remote_cmdline_telnet(int telnet)
+{
+	gSocket.cmdLineTelnet = telnet;
+}
+
+/*
+=======================================================
+Set socket port from preferences.
+=======================================================
+*/
+void set_remote_port(int port)
+{
+	gSocket.socketPort = port;
+}
+
+/*
+=======================================================
+Set socket telnet from preferences.
+=======================================================
+*/
+void set_remote_telnet(int telnet)
+{
+	gSocket.telnet = telnet;
+}
+
+/*
+=======================================================
+Get the socket listening port.  This will return zero
+if the listener port is not open.
+=======================================================
+*/
+int get_remote_listen_port(void)
+{
+	return gSocket.listenPort;
+}
+
+/*
+=======================================================
+Get the socket telnet enable status
+=======================================================
+*/
+int get_remote_telnet(void)
+{
+	return gSocket.telnet;
+}
+
+/*
+=======================================================
+Get the socket error status.  If this returns TRUE, then
+the error string will contain the error message.
+=======================================================
+*/
+int get_remote_error_status(void)
+{
+	return gSocket.socketError;
+}
+
+/*
+=======================================================
+Get the socket error message.
+=======================================================
+*/
+std::string get_remote_error(void)
+{
+	return gSocket.socketErrorMsg;
+}
+
+/*
+=======================================================
+Get the socket connection status.  This will return
+TRUE if a client is connected.
+=======================================================
+*/
+int get_remote_connect_status(void)
+{
+	return gSocket.socketOpened;
+}
+
+/*
+=======================================================
+Get the telnet enable status.
+=======================================================
+*/
+int get_remote_connect_telnet(void)
+{
+	return gSocket.telnet;
+}
+
+/*
+=======================================================
+Get the target listener port.  This may be different
+than the listen port if the port cannot be opened.
+=======================================================
+*/
+int get_remote_port(void)
+{
+	return gSocket.socketPort;
+}
+
+/*
+=======================================================
+Gets the user preference for the socket enabled setting
+=======================================================
+*/
+int get_remote_enabled(void)
+{
+	return gSocket.enabled;
+}
+
+/*
+=======================================================
+Gets the user preference for the socket enabled setting
+=======================================================
+*/
+void enable_remote(int enabled)
+{
+	gSocket.enabled = enabled;
+}
+
+/*
+=======================================================
+Loads the user preferences for the socket interface.
+=======================================================
+*/
+void load_remote_preferences()
+{
+	int		enabled, telnet;
+
+	virtualt_prefs.get("SocketPort", gSocket.socketPort, get_remote_port());
+	virtualt_prefs.get("SocketTelnetMode", telnet, get_remote_telnet());
+	int default_enabled = gSocket.cmdLinePort != 0;
+	virtualt_prefs.get("SocketEnabled", enabled, default_enabled);
+
+	gSocket.enabled = enabled;
+	gSocket.telnet = telnet;
+}

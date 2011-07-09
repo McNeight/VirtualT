@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.14 2008/12/31 05:11:05 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.15 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -46,6 +46,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+
+#include "FLU/Flu_File_Chooser.h"
 
 #include "m100emu.h"
 #include "serial.h"
@@ -144,6 +146,11 @@ memory_ctrl_t		mem_ctrl;	// Memory setup window
 peripheral_setup_t	setup;		// Setup options
 memory_setup_t		mem_setup;	// Memory setup options
 
+extern "C"
+{
+extern int			sound_enable;	// C-style variable to enable sound
+}
+
 /*
 ============================================================================
 Routines to load and save setup structure to the user preferences
@@ -168,6 +175,7 @@ void save_setup_preferences(void)
 	// Save BCR emulation settings
 
 	// Save Sound emulation settings
+	virtualt_prefs.set("SoundEnable", setup.sound_enable);
 
 	// Save Clock preference settings
 	save_clock_preferences(&virtualt_prefs);
@@ -199,6 +207,7 @@ void load_setup_preferences(void)
 	// Load BCR emulation settings
 
 	// Load Sound emulation settings
+	virtualt_prefs.get("SoundEnable", setup.sound_enable, 0);
 
 	// Load Clock emulation settings
 	load_clock_preferences(&virtualt_prefs);
@@ -211,7 +220,7 @@ void load_setup_preferences(void)
 	{
 		ret=ChooseWorkDir(); // return the directory
 		if(ret==NULL) 
-			exit(-1); //nothing choose: do nothing....
+			return; //nothing choose: do nothing....
 		else 
 		{
 			strcpy(path,ret);
@@ -921,7 +930,7 @@ void cb_memory_OK(Fl_Widget* w, void*)
 void cb_remem_browse(Fl_Widget* w, void*)
 {
 	int					count;
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser		*fc;
 	const char			*filename;
 	const char			*filename_name;
 	int					len;
@@ -932,7 +941,9 @@ void cb_remem_browse(Fl_Widget* w, void*)
 	
 	// Create chooser window to pick file
 	strcpy(path, mem_ctrl.pReMemFile->value());
-	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose ReMem File");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(path,"Binary Files (*.bin)",2,"Choose ReMem File");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
 
@@ -978,7 +989,7 @@ void cb_remem_browse(Fl_Widget* w, void*)
 void cb_rex_browse(Fl_Widget* w, void*)
 {
 	int					count;
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser		*fc;
 	const char			*filename;
 	const char			*filename_name;
 	int					len;
@@ -989,7 +1000,9 @@ void cb_rex_browse(Fl_Widget* w, void*)
 	
 	// Create chooser window to pick file
 	strcpy(path, mem_ctrl.pRexFlashFile->value());
-	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex Flash File");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex Flash File");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
 
@@ -1035,7 +1048,7 @@ void cb_rex_browse(Fl_Widget* w, void*)
 void cb_rex2_browse(Fl_Widget* w, void*)
 {
 	int					count;
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser		*fc;
 	const char			*filename;
 	const char			*filename_name;
 	int					len;
@@ -1046,7 +1059,9 @@ void cb_rex2_browse(Fl_Widget* w, void*)
 	
 	// Create chooser window to pick file
 	strcpy(path, mem_ctrl.pRex2RamFile->value());
-	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex2 RAM File");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rex2 RAM File");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
 
@@ -1182,7 +1197,7 @@ void cb_memory_cancel (Fl_Widget* w, void*)
 void cb_rampac_browse (Fl_Widget* w, void*)
 {
 	int					count;
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser		*fc;
 	const char			*filename;
 	const char			*filename_name;
 	int					len;
@@ -1193,7 +1208,9 @@ void cb_rampac_browse (Fl_Widget* w, void*)
 	
 	// Create chooser window to pick file
 	strcpy(path, mem_ctrl.pRampacFile->value());
-	fc = new Fl_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rampac File");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(path,"Binary Files (*.bin)",2,"Choose Rampac File");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
 
@@ -1312,14 +1329,14 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	}
 
 	// Create Rex radio button
-	mem_ctrl.pRex = new Fl_Round_Button(20, 210, 270, 20, "Rex     (1 Meg Flash Option ROM)");
+	mem_ctrl.pRex = new Fl_Round_Button(20, 210, 270, 20, "Rex     (1M Flash Option ROM)");
 	mem_ctrl.pRex->type(FL_RADIO_BUTTON);
 	mem_ctrl.pRex->callback(cb_radio_rex);
 	if (mem_setup.mem_mode == SETUP_MEM_REX)
 		mem_ctrl.pRex->value(1);
 
 	// Create Rex radio button
-	mem_ctrl.pRex2 = new Fl_Round_Button(20, 235, 270, 20, "Rex2   (1 Meg Opt ROM + 256K SRAM)");
+	mem_ctrl.pRex2 = new Fl_Round_Button(20, 235, 270, 20, "Rex2   (1M Opt ROM + 128K SRAM)");
 	mem_ctrl.pRex2->type(FL_RADIO_BUTTON);
 	mem_ctrl.pRex2->callback(cb_radio_rex2);
 	if (mem_setup.mem_mode == SETUP_MEM_REX2)

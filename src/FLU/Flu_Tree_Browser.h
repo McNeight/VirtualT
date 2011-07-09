@@ -1,4 +1,4 @@
-// $Id: Flu_Tree_Browser.h,v 1.72 2003/11/13 18:10:50 jbryan Exp $
+// $Id: Flu_Tree_Browser.h,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -29,6 +29,7 @@
 #include <FL/Fl_Image.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Group.H>
+#include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Menu_Button.H>
 
 /* flu includes */
@@ -42,9 +43,9 @@ typedef struct { bool dummy; } Flu_DND_Event;  // for compatibilty when not comp
 
 //! This class provides a browser for hierarchical data representation (i.e. a "tree")
 #ifdef USE_FLU_DND
-class FLU_EXPORT Flu_Tree_Browser : public Fl_Group, public Flu_DND
+class FLU_EXPORT Flu_Tree_Browser : public Fl_Double_Window, public Flu_DND
 #else
-class FLU_EXPORT Flu_Tree_Browser : public Fl_Group
+class FLU_EXPORT Flu_Tree_Browser : public Fl_Double_Window
 #endif
 {
 
@@ -638,6 +639,7 @@ class FLU_EXPORT Flu_Tree_Browser : public Fl_Group
     void *cbd;
     unsigned int when, cbReason;
     Node *cbNode, *lastOpenBranch;
+	int firstConnector;
     //int (*sortCB)(Node*,Node*);
   };
 
@@ -699,7 +701,10 @@ class FLU_EXPORT Flu_Tree_Browser : public Fl_Group
 
 	Node* insert_at( Node* p, Node* i, const char* path, RData &rdata, Fl_Widget *w, bool showLabel );
 
-		//! Add the entry specified by \b fullpath to this node. If \b w is not \c NULL then that widget is the entry and the label (as specified in \b fullPath) is visible depending on the value of \b showLabel. Note that the widget is destroyed by the tree/node on clear() or the destructor
+		//! Add the entry specified by \b fullpath to this node. If \b w is not \c NULL then 
+		// that widget is the entry and the label (as specified in \b fullPath) is visible 
+		// depending on the value of \b showLabel. Note that the widget is destroyed by the 
+		// tree/node on clear() or the destructor
       /*! \return a pointer to the Node of the added entry or NULL if the add failed */
       inline Node* add( const char* fullpath, Fl_Widget *w = 0, bool showLabel = true )
 	{ return( modify( fullpath, ADD, tree->rdata, w, showLabel ) ); }

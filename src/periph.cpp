@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.13 2008/12/31 05:06:15 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.14 2008/12/31 06:49:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -40,6 +40,7 @@
 #include <FL/Fl_Text_Buffer.H>
 #include <FL/Fl_Text_Display.H>
 
+#include "FLU/Flu_File_Chooser.h"
 
 #if defined(WIN32)
 #include <windows.h>
@@ -227,7 +228,7 @@ Callback routine for saving the LPT log
 */
 void cb_lpt_save (Fl_Widget* w, void*)
 {
-	Fl_File_Chooser*	fc;
+	Flu_File_Chooser*	fc;
 	const char *		pText;
 
 	// Check if there is text in the buffer
@@ -242,8 +243,10 @@ void cb_lpt_save (Fl_Widget* w, void*)
 	free((void*) pText);
 	
 	// Create a file chooser
-	fc = new Fl_File_Chooser(".", "*.*", Fl_File_Chooser::CREATE, 
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(".", "*.*", Fl_File_Chooser::CREATE, 
 		"Choose file for Hex Log");
+	fl_cursor(FL_CURSOR_DEFAULT);
 
 	while (1)
 	{
@@ -674,6 +677,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 				periph_ctrl.com.pDSR->color(FL_BLACK);
 
 			periph_ctrl.com.pLog = new T100_ComMon(20, 200, 495, 190-MENU_HEIGHT);
+			periph_ctrl.com.g->resizable(periph_ctrl.com.pLog);
 //			periph_ctrl.com.pLog->color(FL_WHITE);
 
 			periph_ctrl.com.pScroll = new Fl_Scrollbar(515, 200, 20, 190-MENU_HEIGHT, "");
@@ -707,6 +711,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 			periph_ctrl.com.g->end();
 
+			periph_ctrl.pTabs->resizable(periph_ctrl.com.g);
 			update_com_port_settings();
 
 		}
@@ -738,6 +743,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			periph_ctrl.lpt.pHexLogDisplay->buffer(periph_ctrl.lpt.pHexLogBuffer);
 			periph_ctrl.lpt.pHexLogDisplay->wrap_mode(1, 48);
 			periph_ctrl.lpt.pHexLogDisplay->textfont(FL_COURIER);
+			periph_ctrl.lpt.g->resizable(periph_ctrl.lpt.pHexLogDisplay);
 
 			// Create control for enabling capture
 			periph_ctrl.lpt.pEnable = new Fl_Check_Button(20, 357, 130, 20, "Enable Hex Log");
@@ -762,6 +768,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 			// End of control for this tab
 			periph_ctrl.lpt.g->end();
+			periph_ctrl.pTabs->resizable(periph_ctrl.lpt.g);
 		}
 
 		// Modem Port Tab
@@ -776,6 +783,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 			// End of control for this tab
 			periph_ctrl.mdm.g->end();
+			periph_ctrl.pTabs->resizable(periph_ctrl.mdm.g);
 		}
 
 		// Cassette Port Tab
@@ -789,6 +797,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 			// End of control for this tab
 			periph_ctrl.cas.g->end();
+			periph_ctrl.pTabs->resizable(periph_ctrl.cas.g);
 		}
 
 		// BCR Port Tab
@@ -802,6 +811,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 
 			// End of control for this tab
 			periph_ctrl.bcr.g->end();
+			periph_ctrl.pTabs->resizable(periph_ctrl.bcr.g);
 		}
 
 		periph_ctrl.pTabs->value(periph_ctrl.com.g);
@@ -831,6 +841,7 @@ void cb_PeripheralDevices (Fl_Widget* w, void*)
 			// End the tab
 			pDev->pTab->end();
 			pDev->pTab->hide();
+			periph_ctrl.pTabs->resizable(pDev->pTab);
 
 			// Add the tab to list so we can hide / show it
 			periph_ctrl.lptDevices.Add(pDev);
@@ -1578,14 +1589,16 @@ void T100_ComMon::SaveLog(void)
 	TcomLogBlock		*clb;
 	int					index;
 	char				string[4], outLine[90];
-	Fl_File_Chooser		*fc;
+	Flu_File_Chooser		*fc;
 	const char			*filename;
 	FILE*				fd;
 	unsigned char		bytes[16];
 	
 	// Create a file chooser
-	fc = new Fl_File_Chooser(".","*.{txt,log}", Fl_File_Chooser::CREATE,
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(".","*.{txt,log}", Fl_File_Chooser::CREATE,
 		"Choose file for Serial Log");
+	fl_cursor(FL_CURSOR_DEFAULT);
 
 	while (1)
 	{

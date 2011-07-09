@@ -1,6 +1,6 @@
 /* remote.h */
 
-/* $Id: remote.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: remote.h,v 1.2 2008/02/08 13:32:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -32,15 +32,34 @@
 #define _REMOTE_H_
 
 #ifdef __cplusplus
+
+#include <string>
+
 extern "C" {
 #endif
 
 void	init_remote(void);
+void	deinit_remote(void);
 void	lock_remote(void);
 void	unlock_remote(void);
+void	enable_remote(int enabled);
+void	set_remote_cmdline_port(int port);
+void	set_remote_cmdline_telnet(int telnet);
+int		get_remote_listen_port();
+int		get_remote_connect_status();
+int		get_remote_error_status(void);
+int		get_remote_telnet(void);
+int		get_remote_port(void);
+int		get_remote_enabled(void);
+void	set_remote_port(int port);
+void	set_remote_telnet(int telnet);
+void	load_remote_preferences();
 
 #ifdef __cplusplus
 }
+
+std::string get_remote_error();
+
 #endif
 
 #define	BPTYPE_MAIN		0x01
@@ -59,5 +78,31 @@ typedef struct
 	int		bottom_row;
 	int		bottom_col;
 } lcd_rect_t;
+
+#define REMOTE_TERM_INIT		1
+
+/* Define TELNET option codes */
+#define	TELNET_IS			0
+#define	TELNET_SEND			1		/* Send */
+#define	TELNET_ECHO			1		/* Send and echo are the same */
+#define	TELNET_SUPPRESS_GA	3		/* Suppres go ahead */
+#define	TELNET_TERMTYPE		24		/* Terminal-type option */
+#define	TELNET_WINDOW_SIZE	31		/* Window size negotiation */
+
+/* Define TELNET Command Codes */
+#define	TELNET_SE		240		/* End of sub-negotiation parameters */
+#define	TELNET_DM		242		/* Data Mark */
+#define	TELNET_IP		244
+#define	TELNET_AO		245
+#define	TELNET_AYT		246		/* Are You There */
+#define	TELNET_EC		247		/* Erase Character */
+#define	TELNET_EL		248		/* Erase Line */
+#define	TELNET_GA		249		/* Go Ahead */
+#define	TELNET_SB		250		/* Subnegotiation */
+#define	TELNET_WILL		251		/* Will send */
+#define	TELNET_WONT		252		/* Won't send (not willing) */
+#define	TELNET_DO		253		/* Do support receive */
+#define	TELNET_DONT		254		/* Don't support receive */
+#define	TELNET_IAC		255		/* Intrepret As Command */
 
 #endif

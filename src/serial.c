@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.16 2008/12/31 05:13:10 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.17 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -59,7 +59,11 @@ ser_params_t	sp;
 extern int   gModel;
 
 
-#ifndef WIN32
+#ifdef WIN32
+
+void read_port_flags(ser_params_t *sp);
+
+#else
 /*
 ===========================================================================
 ser_tx_remaining:	Get # bytes remaining to transmit
@@ -108,6 +112,9 @@ int ser_init(void)
 	sp.rxOut = 0;
 	sp.txIn = 0;			// Initialize TX buffer
 	sp.txOut = 0;
+	sp.flags = 0;
+	read_port_flags(&sp);
+
 
 	// Create overlapped read event. Must be closed before exiting
 	// to avoid a handle leak.
@@ -335,6 +342,74 @@ void ErrorReporter(char* text)
 
 /*
 ===========================================================================
+read_port_flags: Reads the serial port's CTS, RTS, etc flags and updates
+				 the flags variable within the structure.  This is called
+				 at initialization and fromt the ReadProc when a change
+				 in state is detected.  This prevents the emulation from
+				 having to call the very expensive GetCommmModemStatus 
+				 routine from the main ROM's menu routine.
+===========================================================================
+*/
+void read_port_flags(ser_params_t *sp)
+{
+	long modem_status;
+
+	if (!GetCommModemStatus(sp->hComm, &modem_status))
+	{
+		sp->flags = 0;
+		if (sp->tx_empty)
+			sp->flags |= SER_FLAG_TX_EMPTY;
+	}
+	else
+	{
+		sp->flags = 0;
+		if (setup.com_ignore_flow)
+		{
+			if (sp->dtrState == DTR_CONTROL_ENABLE);
+				sp->flags |= SER_FLAG_CTS;
+			if (sp->rtsState == RTS_CONTROL_ENABLE)
+				sp->flags |= SER_FLAG_CTS;
+		}
+
+		// Set CTS flag
+		if (gModel == MODEL_T200)
+		{
+			if (modem_status & MS_CTS_ON)
+				sp->flags |= SER_FLAG_CTS;
+		}
+		else
+		{
+			if ((modem_status & MS_CTS_ON) == 0)
+				sp->flags |= SER_FLAG_CTS;
+		}
+
+		// Set DSR flag
+		if (gModel == MODEL_T200)
+		{
+			if (modem_status & MS_DSR_ON)
+				sp->flags |= SER_FLAG_DSR;
+		}
+		else
+		{
+			if ((modem_status & MS_DSR_ON) == 0)
+				sp->flags |= SER_FLAG_DSR;
+		}
+	}
+
+	// RING flag
+	if (modem_status & MS_RING_ON)
+		sp->flags |= SER_FLAG_RING;
+
+	// TX_EMPTY flag
+	if (sp->tx_empty)
+		sp->flags |= SER_FLAG_TX_EMPTY;
+
+	// OVERRUN flag
+
+	// FRAMING Error flag
+}
+/*
+===========================================================================
 process_read_byte: Called when a byte is received by the COM port.  This
 		routine adds the byte to the buffer and calls he callback function.
 ===========================================================================
@@ -357,7 +432,7 @@ void process_read_byte(ser_params_t *sp, char byte)
 	// Call callback to indicate receipt of data
 	if (sp->pCallback != NULL)
 	{
-		sp->pCallback();
+		sp->pCallback(TRUE);
 		sp->fIntPending = TRUE;
 	}
 
@@ -474,8 +549,12 @@ DWORD ReadProc(LPVOID lpv)
 					sp->pMonCallback(SER_MON_COM_SIGNAL, 0);
 				ResetEvent(osStatus.hEvent);
 			}
-		}
 
+			if (dwCommEvent & (EV_CTS | EV_DSR | EV_RING))
+			{
+				read_port_flags(sp);
+			}
+		}
 
 		// wait for pending operations to complete
 		if ( fWaitingOnRead || fWaitingOnStat ) 
@@ -601,7 +680,13 @@ DWORD WINAPI WriteProc(LPVOID lpv)
 						}
 
 						sp->tx_empty = TRUE;
+						sp->flags |= SER_FLAG_TX_EMPTY;
 					}
+				}
+				else
+				{
+					sp->tx_empty = TRUE;
+					sp->flags |= SER_FLAG_TX_EMPTY;
 				}
 
 				break;
@@ -1263,60 +1348,7 @@ int ser_get_flags(unsigned char *flags)
 		}
 
 		#ifdef WIN32
-			if (!GetCommModemStatus(sp.hComm, &modem_status))
-			{
-				*flags = 0;
-				if (sp.tx_empty)
-					*flags |= SER_FLAG_TX_EMPTY;
-				return SER_IO_ERROR;
-			}
-			
-			*flags = 0;
-
-			if (setup.com_ignore_flow)
-			{
-				if (sp.dtrState == DTR_CONTROL_ENABLE);
-					*flags |= SER_FLAG_CTS;
-				if (sp.rtsState == RTS_CONTROL_ENABLE)
-					*flags |= SER_FLAG_CTS;
-			}
-			{
-				// Set CTS flag
-				if (gModel == MODEL_T200)
-				{
-					if (modem_status & MS_CTS_ON)
-						*flags |= SER_FLAG_CTS;
-				}
-				else
-				{
-					if ((modem_status & MS_CTS_ON) == 0)
-						*flags |= SER_FLAG_CTS;
-				}
-
-				// Set DSR flag
-				if (gModel == MODEL_T200)
-				{
-					if (modem_status & MS_DSR_ON)
-						*flags |= SER_FLAG_DSR;
-				}
-				else
-				{
-					if ((modem_status & MS_DSR_ON) == 0)
-						*flags |= SER_FLAG_DSR;
-				}
-			}
-
-			// RING flag
-			if (modem_status & MS_RING_ON)
-				*flags |= SER_FLAG_RING
-				;
-			// TX_EMPTY flag
-			if (sp.tx_empty)
-				*flags |= SER_FLAG_TX_EMPTY;
-
-			// OVERRUN flag
-
-			// FRAMING Error flag
+			*flags = sp.flags;
 
 			WaitForSingleObject(sp.hReadMutex, 2000);
 
@@ -1324,7 +1356,7 @@ int ser_get_flags(unsigned char *flags)
 			{
 				if (sp.pCallback != NULL)
 				{
-					sp.pCallback();
+					sp.pCallback(TRUE);
 					sp.fIntPending = TRUE;
 				}
 			}
@@ -1482,6 +1514,8 @@ int ser_read_byte(char* data)
 		// Check if any bytes in RX buffer
 		if (sp.rxIn == sp.rxOut)
 		{
+			if (sp.pCallback != NULL)
+				sp.pCallback(FALSE);				/* Clear the INT6.5 input pin */
 			ReleaseMutex(sp.hReadMutex);
 			// No data in buffer!
 			*data = 0;
@@ -1499,7 +1533,12 @@ int ser_read_byte(char* data)
 		sp.rxOut = new_rxOut;
 
 		ReleaseMutex(sp.hReadMutex);
-		sp.fIntPending = FALSE;
+		if (sp.rxIn == sp.rxOut)
+		{
+			if (sp.pCallback != NULL)
+				sp.pCallback(FALSE);				/* Clear the INT6.5 input pin */
+			sp.fIntPending = FALSE;
+		}
 
 	#else
 	{
@@ -1512,6 +1551,8 @@ int ser_read_byte(char* data)
 			return SER_NO_DATA;
 		}
 
+		/* Perform a ser_poll to test for more bytes and maybe clear INT6.5 */
+		ser_poll();
 	}
 	#endif
 	}
@@ -1548,6 +1589,7 @@ int ser_write_byte(char data)
 
 			// Update tx_empy flag indicating byte to write
 			sp.tx_empty = FALSE;
+			sp.flags &= ~SER_FLAG_TX_EMPTY;
 
 			ReleaseMutex(sp.hWriteMutex);
 
@@ -1588,8 +1630,9 @@ int ser_poll ()
 
 	ioctl(sp.fd, FIONREAD, &bytes);
 
-	if (bytes && sp.pCallback) {
-		sp.pCallback();
+	if (sp.pCallback)
+	{
+		sp.pCallback(bytes);
 	}
     return 0;
 

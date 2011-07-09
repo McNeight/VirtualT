@@ -1,6 +1,6 @@
 /* fx80print.cpp */
 
-/* $Id: fx80print.cpp,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: fx80print.cpp,v 1.14 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -39,6 +39,8 @@
 #include <FL/Fl_Preferences.H>
 #include <FL/Fl_File_Chooser.H>
 #include <FL/fl_ask.H>
+
+#include "FLU/Flu_File_Chooser.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -92,9 +94,12 @@ VTFX80Print::VTFX80Print(void)
 	m_pUseRomFile = NULL;
 	m_pUseRamFile = NULL;
 	m_pPaperChoice = NULL;
-
+    
+    m_useRomFile = FALSE;
 	m_useRamFile = FALSE;
 	m_marksMade = FALSE;
+    m_defSkipPerf = TRUE;
+    m_defCompressed = FALSE;
 
 	// Add all papers to the m_paper object
 	m_papers.Add(new VTVirtualPaper());
@@ -259,7 +264,7 @@ Property Dialog callbacks
 */
 void VTFX80Print::CharRomBrowse(Fl_Widget* w)
 {
-	Fl_File_Chooser* 	fc;
+	Flu_File_Chooser* 	fc;
 	char				defaultfile[256];
 
 	// Get default filename for browse
@@ -278,7 +283,9 @@ void VTFX80Print::CharRomBrowse(Fl_Widget* w)
 	}
 
 	// Create a file browser for .fcr files
-	fc = new Fl_File_Chooser(defaultfile, "*.fcr", 1, "Choose FX-80 Char ROM File");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser(defaultfile, "*.fcr", 1, "Choose FX-80 Char ROM File");
+	fl_cursor(FL_CURSOR_DEFAULT);
 
 	// Show the dialog
 	fc->show();
@@ -881,7 +888,7 @@ void VTFX80Print::Deinit(void)
 {
 	// Delete page memory
 	if (m_pPage != NULL)
-		delete m_pPage;
+		delete[] m_pPage;
 	m_pPage = NULL;
 
 	// Deinitialize the paper

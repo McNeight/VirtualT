@@ -3,6 +3,7 @@
 
 #include "socket.h"
 #include "string.h"
+#include <stdio.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
@@ -162,6 +163,20 @@ int Socket::recv ( std::string& s ) const
     }
 }
 
+int Socket::recv ( char* rxBuf, int rxLen ) const
+{
+  memset ( rxBuf, 0, rxLen );
+
+  int status = ::recv ( m_sock, rxBuf, rxLen, 0 );
+
+  if ( status == -1 )
+    {
+	  printf("status == -1  errno == %d in Socket::recv\n", errno);
+      return 0;
+    }
+
+  return status;
+}
 
 
 bool Socket::connect ( const std::string host, const int port )
@@ -181,6 +196,18 @@ bool Socket::connect ( const std::string host, const int port )
     return true;
   else
     return false;
+}
+
+bool Socket::shutdown()
+{
+	if (!is_valid())
+		return false;
+#ifdef WIN32
+	  ::closesocket ( m_sock );
+#else
+	  ::close ( m_sock );
+#endif
+	  return true;
 }
 
 /*void Socket::set_non_blocking ( const bool b )

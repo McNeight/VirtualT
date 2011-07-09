@@ -1,6 +1,6 @@
 /* n8201rom.c */
 
-/* $Id: n8201rom.c,v 1.3 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: n8201rom.c,v 1.4 2008/03/01 15:41:11 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -167,6 +167,8 @@ Std_ROM_Addresses_t gN8201_Vars[] = {
 	{ 0xF45B, R_CUR_BASIC_LINE_NUM },   	
 	{ 0xF45D, R_START_BASIC_PGM_PTR },  	
 	{ 0xF461, R_END_OF_STMT_MARKER },   	
+	{ 0xF590, R_CUR_MENU_DIR_LOC },     	
+	{ 0xF591, R_MAX_MENU_DIR_LOC },     	
 	{ 0xF5A1, R_KEYBOARD_BUF },         	
 	{ 0xF6A4, R_CURSOR_H_POS },         	
 	{ 0xF6A5, R_FKEY_DEF_BUF },         	
@@ -232,7 +234,7 @@ Std_ROM_Addresses_t gN8201_Vars[] = {
 	{ 0xFB78, R_BASIC_FILENAME },       	
 	{ 0xFB81, R_LAST_LOAD_FILENAME },   	
 	{ 0xFBC0, R_ALT_LCD_CHAR_BUF },     	
-//	{ 0xFDEF, R_MAX_MENU_DIR_LOC },     	
+	{ 0xFD00, R_LCD_CHAR_BUF },
 	{ 0xFE40, R_XON_XOFF_CTRL },        	
 	{ 0xFE41, R_XON_XOFF_CTRL },        	
 	{ 0xFE42, R_XON_XOFF_ENABLE },      	
@@ -912,6 +914,8 @@ RomDescription_t gN8201_Desc = {
 	0xFE58,						/* Keyscan array */
 	0x78B7,						/* Character generator array */
 	0xF83C,						/* Location of Year storage */
+	0xFD00,						/* LCD Buffer storage area */
+	0xF3E9,						/* Label line enable flag (not defined) */
 
 	24,							/* Number of directory entries */
 	8,							/* Index of first Dir entry */

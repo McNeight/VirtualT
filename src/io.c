@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.15 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: io.c,v 1.16 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -49,6 +49,8 @@ uchar lcd[10][256];
 uchar lcdpointers[10]={0,0,0,0,0,0,0,0,0,0};
 uchar lcddriver=0;
 uchar lcd_fresh_ptr[10] = {1,1,1,1,1,1,1,1,1,1 };
+uchar io21;			/* Real-time milisecond countdown */
+double gPort21Time;	/* Starting time for io21 from previous out */
 uchar io90;
 uchar ioA1;
 uchar ioBA;
@@ -60,8 +62,10 @@ uchar ioD0;		/* D0-DF io for T200 */
 uchar t200_ir;  /* Instruction register */
 uchar t200_mcr; /* Mode Control Register */
 uchar t200_uart_state = 0;
+int		gInMsPlanROM = FALSE;
 uchar keyscan[9] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 char  keyin[9];
+extern int		sound_enable;
 
 uint			lcdbits=0;
 unsigned long	gSpecialKeys = 0;
@@ -71,7 +75,37 @@ int				gDelayCount = 0;
 extern uchar	clock_serial_out;
 extern int		gRomBank;
 extern RomDescription_t	*gStdRomDesc;
+void handle_wheel_keys(void);
 
+/*
+=============================================================================
+This routine supplies an OS independant high-resolution timer for use with
+emulation speed calculations and throttling.
+=============================================================================
+*/
+#ifdef _WIN32
+double hirestimer(void)
+{
+    static LARGE_INTEGER pcount, pcfreq;
+    static int initflag = 0;
+
+    if (!initflag)
+	{
+	    QueryPerformanceFrequency(&pcfreq);
+        initflag++;
+    }
+
+    QueryPerformanceCounter(&pcount);
+    return (double)pcount.QuadPart / (double)pcfreq.QuadPart;
+}
+#else
+__inline double hirestimer(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
+}
+#endif
 
 void update_keys(void)
 {
@@ -85,6 +119,7 @@ void update_keys(void)
 
 	buf_index = gStdRomDesc->sKeyscan;
 
+	equal = 1;
 	/* Insure keystroke was recgonized by the system */
 	for (c = 0; c < 9; c++)
 	{
@@ -227,7 +262,7 @@ void update_keys(void)
 
 	gDelayUpdateKeys = 0;
 	gDelayCount = 0;
-	
+	handle_wheel_keys();
 }
 
 void init_io(void)
@@ -251,6 +286,8 @@ void init_io(void)
 	/* Setup callback for serial I/O */
 	ser_set_callback(cb_int65);
 
+	io21 = 0;
+	gPort21Time = 0.0;
 	ioA1 = 0;
 	io90 = 0;
 	ioA1 = 0;
@@ -274,7 +311,7 @@ void show_remem_mode(void)
 	char	temp[20];
 
 	/* Update Display map if output to Mode Port */
-	if (gReMem)
+	if (gReMem && !gRex)
 	{
 		if (inport(REMEM_MODE_PORT) & 0x01)
 		{
@@ -297,6 +334,27 @@ void out(uchar port, uchar val)
 	unsigned char flags;
 
 	switch(port) {
+		/* 
+		==========================================================
+		Extended I/O - Real-time Delay port set value
+		==========================================================
+		*/
+		case 0x21:					/* Delay port */
+			io21 = val;
+			gPort21Time = hirestimer();
+			break;
+		case 0x22:
+			sound_enable = val;
+			break;
+
+		/* 
+		==========================================================
+		Extended I/O - Debug log
+		==========================================================
+		*/
+		case 0x23:
+			break;
+
 		case REMEM_MODE_PORT:		/* ReMem Mode port */
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
 		case REMEM_DATA_PORT:		/* ReMem Data Port */
@@ -646,6 +704,9 @@ void out(uchar port, uchar val)
 				if ((ioD0 & 0x03) != (val & 0x03))
 				{
 					set_rom_bank((uchar) (val & 0x03));
+					// Test if in MSPLAN rom for mouse events
+					if ((val & 0x03) == 1)
+						gInMsPlanROM = 10;
 				}
 
 				ioD0 = val;
@@ -667,7 +728,8 @@ void out(uchar port, uchar val)
 		case 0xEC:
 		case 0xED:
 		case 0xEE:
-		case 0xEF:
+		case 
+			0xEF:
 			/*
 			Bits:
 			    0 - ROM select (0-Standard ROM, 1-Option ROM)
@@ -701,19 +763,12 @@ void out(uchar port, uchar val)
 			return;
 
 		case 0xF0:	/* LCD display data bus (F0H-FFH same) */
-		case 0xF1:
 		case 0xF2:
-		case 0xF3:
 		case 0xF4:
-		case 0xF5:
 		case 0xF6:
-		case 0xF7:
 		case 0xF8:
-		case 0xF9:
 		case 0xFA:
-		case 0xFB:
 		case 0xFC:
-		case 0xFD:
 		case 0xFE:	/* Row select */
 			if (gModel != MODEL_T200)
 			{
@@ -738,6 +793,13 @@ void out(uchar port, uchar val)
 				t200_command(t200_ir, val);
 			}
 			return;
+		case 0xF1:
+		case 0xF3:
+		case 0xF5:
+		case 0xF7:
+		case 0xF9:
+		case 0xFB:
+		case 0xFD:
 		case 0xFF:	/* Data output */
 			if (gModel != MODEL_T200)
 			{
@@ -745,17 +807,22 @@ void out(uchar port, uchar val)
 				{
 					if (lcdbits & (1 << c))
 					{
+						int maxPixels = 50;
+						if ((c == 4) || (c == 9))
+							maxPixels = 40;
+
 						if ((lcdpointers[c]&0x3f) < 50)
 						{
 							/* Save Byte in LCD memory */
 							lcd[c][lcdpointers[c]]=A;
 
 							/* Draw the byte on the display */
-							drawbyte(c,lcdpointers[c],A);
+							if ((lcdpointers[c]&0x3f) < maxPixels)
+								drawbyte(c,lcdpointers[c],A);
 
 							/* Update the pointer if */
 							lcdpointers[c]++;
-							if ((lcdpointers[c] & 0x3F) >= 50)
+							if ((lcdpointers[c] & 0x3F) > 50)
 								lcdpointers[c] &= 0xC0;	
 
 							/* We just changed the pointer so it isn't fresh any more */
@@ -781,8 +848,36 @@ int inport(uchar port)
 	int c;
 	unsigned char	 ret;
 	unsigned char	flags;
+	double			timeNow, timeLeft;
 
 	switch(port) {
+
+		/* Special VirtualT emulation ports */
+		case 0x20:
+			return 'V';				/* Tell host app it's running on VirtualT */
+
+		case 0x21:					/* Real-time timing support */
+			/* If the io21 value is zero, then timeing is done */
+			if (io21 == 0)
+				return 0;
+
+			/* Get the timeNow so we can test if time has expired */
+			timeNow = hirestimer();
+			timeLeft = timeNow - gPort21Time;
+
+			/* Convert timeLeft (in ms) to int */
+			c = (char) (timeLeft * 1000.0);
+
+			/* Test if time has expired and clear io21 if it has */
+			if (c >= io21)
+			{
+				io21 = 0;
+				return 0;
+			}
+
+			/* Return number of ms remaining */
+			return io21 - c;
+
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */
 		case REMEM_DATA_PORT:		/* ReMem Data Port */
 		case REMEM_MODE_PORT:		/* ReMem Mode port */

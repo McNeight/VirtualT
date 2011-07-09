@@ -1,6 +1,6 @@
 /* cpu.h */
 
-/* $Id: cpu.h,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: cpu.h,v 1.7 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -47,7 +47,7 @@ extern "C" {
 #define OPTROMSIZE		32768
 #define ADDRESSSPACE	65536
 
-extern uchar cpu[14];
+extern volatile uchar cpu[14];
 extern uchar *gMemory[64];
 extern int gRomSize;
 

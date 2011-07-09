@@ -73,7 +73,7 @@ struct MStringData {
 	char * pcStr;
 	int precision;
 	int iBufLen; // length of buffer minus 1 for null terminator
-	int iBufferInUse;
+//	int iBufferInUse;
 };
 
 class MString {
@@ -367,7 +367,7 @@ private:
 
 	int precision;
 	int iBufLen; // length of buffer minus 1 for null terminator
-	int iBufferInUse;
+//	int iBufferInUse;
 
    // flag to indicate that the MString has been modified since the
    // last time char* GetBuffer() was called

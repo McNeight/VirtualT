@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.2 2008/03/09 16:33:56 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.3 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -32,21 +32,28 @@
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_File_Chooser.H>
+#include <FL/Fl_Text_Display.H>
+#include <FL/Fl_Text_Buffer.H>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 
+#include "FLU/Flu_File_Chooser.h"
+
 #include "VirtualT.h"
+#include "ide.h"
 #include "project.h"
+#include "m100emu.h"
 
 #ifdef _WIN32
 extern "C"
 #endif
 extern char path[];
+extern char	gProjectTypes[][6];
 
 void cb_SelLocation(Fl_Widget* w, void*)
 {
-	Fl_File_Chooser		*fileWin;
+	Flu_File_Chooser		*fileWin;
 	int					count;
 	Fl_Round_Button*	pButton;
 	VT_NewProject*		pNewProj;
@@ -58,8 +65,10 @@ void cb_SelLocation(Fl_Widget* w, void*)
 	pNewProj = (VT_NewProject*) pButton->user_data();
 
 	// Create a File chooser
-	fileWin = new Fl_File_Chooser(pNewProj->getLocation(), "", 
-		Fl_File_Chooser::DIRECTORY, "Choose Project Location");
+	fl_cursor(FL_CURSOR_WAIT);
+	fileWin = new Flu_File_Chooser(pNewProj->getLocation(), "", 
+		Flu_File_Chooser::DIRECTORY, "Choose Project Location");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fileWin->preview(0);
 	fileWin->show();
 
@@ -76,7 +85,7 @@ void cb_SelLocation(Fl_Widget* w, void*)
 	}
 
 	// Get the path of the new location
-	pNewLoc = fileWin->value(1);
+	pNewLoc = fileWin->value();
 
 	printf("Path = %s\n", path);
 	printf("New  = %s\n", pNewLoc);
@@ -284,7 +293,7 @@ int VT_NewProject::getProjType(void)
 	if (m_pProjType == NULL)
 		return 0;
 
-	return m_pProjType->value();
+	return m_pProjType->value() - 1;
 }
 
 int VT_NewProject::visible(void)
@@ -377,8 +386,7 @@ void cb_settings_ok(Fl_Widget* w, void*)
 	pProject->IgnoreStdLibs(pProj->getIgnoreStdLibs());
 	pProject->m_LinkPath = pProj->getLinkPath();
 	pProject->m_LinkLibs = pProj->getLinkObjs();
-	pProject->m_CodeAddr = pProj->getCodeAddr();
-	pProject->m_DataAddr = pProj->getDataAddr();
+	pProject->m_LinkScript = pProj->getLinkScript();
 
 	// Hide the window to end the session
 	pProj->m_pProject->m_Dirty = 1;
@@ -424,7 +432,7 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pProjType->add("Assembly ROM");
 	m_pProjType->add("BASIC");
 	m_pProjType->callback(browse_cb);
-	m_pProjType->value(m_pProject->m_ProjectType);
+	m_pProjType->value(m_pProject->m_ProjectType+1);
 
 	// Text for target device
 	o = new Fl_Box(180, 50, 100, 20, "Target Model");
@@ -502,40 +510,33 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pLinkDebugInfo->value(m_pProject->LinkDebugInfo());
 	m_pMapFile = new Fl_Check_Button(20, 75, 170, 20, "Generate Map File");
 	m_pMapFile->value(m_pProject->MapFile());
-	m_pIgnoreStdLibs = new Fl_Check_Button(20, 100, 165, 20, "Ingore Std Libraries");
+	m_pIgnoreStdLibs = new Fl_Check_Button(200, 50, 165, 20, "Ingore Std Libraries");
 	m_pIgnoreStdLibs->value(m_pProject->IgnoreStdLibs());
 
-	// Create Edit field for Output Name
-	o = new Fl_Box(20, 125, 100, 20, "Output Name");
+	// Add edit fields for Code and Data segment addresses
+	o = new Fl_Box(20, 95, 100, 20, "Linker Script");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	m_pOutputName = new Fl_Input(20, 145, 320, 20, "");
+	m_pLinkScript = new Fl_Input(20, 115, 320, 20, "");
+	m_pLinkScript->value((const char *) m_pProject->m_LinkScript);
+
+	// Create Edit field for Output Name
+	o = new Fl_Box(20, 135, 100, 20, "Output Name");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pOutputName = new Fl_Input(20, 155, 320, 20, "");
 	m_pOutputName->value(m_pProject->m_Name);
 
 	// Create Edit field for Link libs
-	o = new Fl_Box(20, 170, 100, 20, "Additional Link Objects");
+	o = new Fl_Box(20, 180, 100, 20, "Additional Link Objects");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	m_pLinkObjs = new Fl_Input(20, 190, 320, 20, "");
+	m_pLinkObjs = new Fl_Input(20, 200, 320, 20, "");
 	m_pLinkObjs->value(m_pProject->m_LinkLibs);
 
 	// Create Edit field for Link Dirs
-	o = new Fl_Box(20, 215, 100, 20, "Additional Object Directories");
+	o = new Fl_Box(20, 220, 100, 20, "Additional Object Directories");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	m_pObjPath = new Fl_Input(20, 235, 320, 20, "");
+	m_pObjPath = new Fl_Input(20, 240, 320, 20, "");
 	m_pObjPath->value(m_pProject->m_LinkPath);
 
-	// Add edit fields for Code and Data segment addresses
-	o = new Fl_Box(235, 50, 100, 20, "Segment Address");
-	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	o = new Fl_Box(200, 75, 40, 20, "Code");
-	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	o = new Fl_Box(200, 100, 40, 20, "Data");
-	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	
-	m_pCodeAddr = new Fl_Input(250, 75, 90, 20, "");
-	m_pCodeAddr->value("test");
-	m_pCodeAddr->value((const char *) m_pProject->m_CodeAddr);
-	m_pDataAddr = new Fl_Input(250, 100, 90, 20, "");
-	m_pDataAddr->value((const char *) m_pProject->m_DataAddr);
 
 	// End the Linker tab
 	g->end();
@@ -577,7 +578,7 @@ int VT_ProjectSettings::getProjType(void)
 	if (m_pProjType == NULL)
 		return 0;
 
-	return m_pProjType->value();
+	return m_pProjType->value() - 1;
 }
 
 int VT_ProjectSettings::getTargetModel()
@@ -700,20 +701,12 @@ MString VT_ProjectSettings::getLinkObjs(void)
 	return m_pLinkObjs->value();
 }
 
-MString VT_ProjectSettings::getCodeAddr(void)
+MString VT_ProjectSettings::getLinkScript(void)
 {
-	if (m_pCodeAddr == NULL)
+	if (m_pLinkScript == NULL)
 		return "";
 
-	return m_pCodeAddr->value();
-}
-
-MString VT_ProjectSettings::getDataAddr(void)
-{
-	if (m_pDataAddr == NULL)
-		return "";
-
-	return m_pDataAddr->value();
+	return m_pLinkScript->value();
 }
 
 void VT_ProjectSettings::EnableUpdateHIMEM(int enable)
@@ -749,14 +742,14 @@ int VT_Project::AsmDebugInfo(void) const
 void VT_Project::AsmListing(int enable)
 {
 	if (enable)
-		AddAsmOption((char *) "-l");
+		AddAsmOption((char *) "-t");
 	else
-		RemoveAsmOption((char *) "-l");
+		RemoveAsmOption((char *) "-t");
 }
 
 int VT_Project::AsmListing(void) const
 {
-	return m_AsmOptions.Find((char *) "-l", 0) != -1;
+	return m_AsmOptions.Find((char *) "-t", 0) != -1;
 }
 
 void VT_Project::BrowseInfo(int enable)
@@ -890,3 +883,244 @@ int VT_Project::IgnoreStdLibs(void) const
 	return m_LinkOptions.Find((char *) "-i", 0) != -1;
 }
 
+/*
+========================================================================
+Saves the project to the project file.
+========================================================================
+*/
+void VT_Project::SaveProject(void)
+{
+	FILE*			fd;
+	char			fullPath[512];
+	char			model[10];
+	int				count, c;
+	VT_IdeGroup*	pGroup;
+
+	// Create the path
+	sprintf(fullPath, "%s/%s.prj", (const char *) m_RootPath,
+		(const char *) m_Name);
+
+	// Try to open the file for write mode
+	if ((fd = fopen(fullPath, "w+")) == NULL)
+	{
+		// Error opening file!!
+		fl_alert("Error opening project file for write mode!");
+		return;
+	}
+
+	// Write header information
+	fprintf(fd, "NAME=%s\n", (const char *) m_Name);
+	fprintf(fd, "INCLPATH=%s\n", (const char *) m_IncludePath);
+	fprintf(fd, "DEFINES=%s\n", (const char *) m_Defines);
+	fprintf(fd, "LINKPATH=%s\n", (const char *) m_LinkPath);
+	fprintf(fd, "LINKLIBS=%s\n", (const char *) m_LinkLibs);
+	fprintf(fd, "LINKSCRIPT=%s\n", (const char *) m_LinkScript);
+	fprintf(fd, "ASMOPT=%s\n", (const char *) m_AsmOptions);
+	fprintf(fd, "LINKOPT=%s\n", (const char *) m_LinkOptions);
+	fprintf(fd, "TYPE=%s\n", gProjectTypes[m_ProjectType]);
+	get_model_string(model, m_TargetModel);
+	fprintf(fd, "TARGET=%s\n", model);
+	fprintf(fd, "AUTOLOAD=%d\n", m_AutoLoad);
+	fprintf(fd, "UPDATEHIMEM=%d\n", m_UpdateHIMEM);
+	fprintf(fd, "\n");
+
+	// Write group information to the file
+	count = m_Groups.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pGroup = (VT_IdeGroup*) m_Groups[c];
+		WriteGroupToFile(pGroup, fd);
+	}
+
+	m_Dirty = 0;
+	fclose(fd);
+}
+
+/*
+========================================================================
+Write a VT_Group to the file along with all childreen.  Called 
+recursively.
+========================================================================
+*/
+void VT_Project::WriteGroupToFile(VT_IdeGroup* pGroup, FILE* fd)
+{
+	int				x, objs;
+	VT_IdeSource*	pObj;
+	MString			temp;
+
+	fprintf(fd, "GROUP=%s\n", (const char *) pGroup->m_Name);
+	fprintf(fd, "FILESPEC=%s\n", (const char *) pGroup->m_Filespec);
+
+	// Write objects
+	objs = pGroup->m_Objects.GetSize();
+	for (x = 0; x < objs; x++)
+	{
+		pObj = (VT_IdeSource*) pGroup->m_Objects[x];
+		if (strcmp(pObj->GetClass()->m_ClassName, "VT_IdeGroup") == 0)
+			WriteGroupToFile((VT_IdeGroup *) pObj, fd);
+		else
+		{
+			pObj->m_Name.Replace('\\', '/');
+			temp = MakePathRelative(pObj->m_Name, m_RootPath);
+			fprintf(fd, "SOURCE=%s\n", (const char *) temp);
+		}
+	}
+
+	// End the group
+	fprintf(fd, "ENDGROUP\n\n");
+}
+
+/*
+===============================================================================
+This routine returns a string which is the relative form of the given path
+realtive to the relTo path.  The routine detects both relativeness in bot
+directions and uses '..' as necessary in the returned string.
+===============================================================================
+*/
+MString VT_Project::MakePathRelative(const MString& path, const MString& relTo)
+{
+	int				c;
+	int				lenPath, lenRel;	// Length of each string
+	int				lastRelBranch;		// Index of last '/' in relTo
+	int				lastMatch;
+	MString			temp;
+	int				slashIndex = 0;
+
+	// Determine if path is already relative
+	if ((path.Left(2) == "./") || (path.Left(3) == "../"))
+		return path;
+	if (path.Find((char *) "/", 0) == -1)
+		return path;
+	if (path[1] == ':')
+		slashIndex = 2;
+	if (path[slashIndex] != '/')
+		return path;
+
+	// Find the location of the last '/' in each string
+	lastRelBranch = relTo.ReverseFind('/');
+	lenPath = path.GetLength();
+	lenRel = relTo.GetLength();
+
+	// Start at beginning of string and compare each path segment
+	// to find the first location where they don't match
+	c = lastMatch = 0;
+	while ((c != lenPath) && (c != lenRel))
+	{
+		// Test 
+#ifdef WIN32
+		if (tolower(path[c]) != tolower(relTo[c]))
+			break;
+#else
+		if (path[c] != relTo[c])
+			break;
+#endif
+		if (path[c] == '/')
+			lastMatch = c;
+		c++;
+	}
+	// Determine if the last branch is identical.  This must be done because
+	// the loop could have exited simply becuase we came to the end of one of
+	// the 2 strings:
+	if (((c == lenPath) && (relTo[c] == '/')) || ((path[c] == '/') && (c == lenRel)))
+		lastMatch = c;
+
+	// Okay, now we know where the path's are different, scan through the
+	// relTo path to determine how many '../' entries we need, if any
+	c = lastMatch;
+	while (c != lenRel)
+	{
+		if (c == lastRelBranch)
+		{
+			temp += (char *) "../";				// Add another 'prev dir' indicator
+			break;						// At last branch...exit
+		}
+		// Check for a directory specifier
+		if (relTo[c] == '/')
+		{
+			temp += (char *) "../";
+		}
+		c++;
+	}
+
+	// Now append the remainder of the path from the lastMatch point
+	c = lastMatch;
+	if (path[c] == '/')
+		c++;
+	while (c < lenPath)
+	{
+		temp += path[c++];
+	}
+
+	return temp;
+}
+
+/*
+========================================================================
+Tests if the specified filename is in the project under any group or
+subgroup.
+========================================================================
+*/
+int VT_Project::TestIfFileInProject(MString& filename)
+{
+	int				c, count;
+	VT_IdeGroup*	pGroup;
+
+	// Loop for all the parent group entries
+	count = m_Groups.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pGroup = (VT_IdeGroup *) m_Groups[c];
+		if (TestIfFileInGroup(pGroup, filename))
+			return TRUE;
+	}
+
+	return FALSE;
+//	return m_LinkOptions.Find((char *) "-i", 0) != -1;
+}
+
+/*
+========================================================================
+Tests if the specified filename is in the group specified or in any
+subgroups.
+========================================================================
+*/
+int VT_Project::TestIfFileInGroup(VT_IdeGroup* pGroup, MString& filename)
+{
+	int				c, count;
+	VT_IdeGroup*	pSubGroup;
+	VT_IdeSource*	pSource;
+	MString			file;
+
+	// Convert filename to lowercase if WIN32
+	file = MakePathRelative(filename, m_RootPath);
+#ifdef WIN32
+	file.MakeLower();
+	file.Replace('\\', '/');
+#endif
+	// Loop for all the parent group entries
+	count = pGroup->m_Objects.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		if (strcmp(pGroup->m_Objects[c]->GetClass()->m_ClassName, "VT_IdeGroup") == 0)
+		{
+			// Item is a sub  group.  Search the subgroup
+			pSubGroup = (VT_IdeGroup *) pGroup->m_Objects[c];
+			if (TestIfFileInGroup(pSubGroup, filename))
+				return TRUE;
+		}
+		else
+		{
+			// Item is a source.  Test for match
+			pSource = (VT_IdeSource *) pGroup->m_Objects[c];
+			MString temp = pSource->m_Name;
+
+#ifdef WIN32
+			temp.MakeLower();
+#endif
+			if (temp == file)
+				return TRUE;
+		}
+	}
+
+	return FALSE;
+}

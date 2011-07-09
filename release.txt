@@ -44,6 +44,13 @@ v1.4  Not released yet
     where the first keystroke would sometimes be dropped.
     
 11. Modified remote socket interface to support telnet character based transfer and line endings.
+    Added "-t" comand line option to enable telnet protocol.
+
+12. Modified MacOSX working directory detection and ROM installation to automatically detect
+    the location of the ROMs directory within path of the application bundle.
+    
+13. Modified the MacOSX maintenance update timing to provide faster execution speed during
+    FLTK drawing updates to the LCD.
 
  
 

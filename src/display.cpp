@@ -40,8 +40,10 @@
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
 #include <FL/Fl_Preferences.H>
+#include <FL/fl_show_colormap.H>
 
-
+#include "FLU/Flu_Button.h"
+#include "FLU/Flu_Return_Button.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -61,6 +63,7 @@
 #include "fl_action_icon.h"
 #include "clock.h"
 #include "fileview.h"
+#include "romstrings.h"
 //#include "tpddclient.h"
 
 extern "C" {
@@ -76,6 +79,8 @@ extern RomDescription_t		*gStdRomDesc;
 extern int					gRomSize;
 extern int					gMaintCount;
 extern int					gOsDelay;
+extern int					gInMsPlanROM;
+void	set_target_frequency(int freq);
 }
 
 void cb_Ide(Fl_Widget* w, void*) ;
@@ -99,16 +104,40 @@ int				gRectsize = 2;
 int				gXoffset;
 int				gYoffset;
 int				gSimKey = 0;
+int				gFrameColor = FL_BLACK;
+int				gDetailColor = FL_WHITE;
+int				gBackgroundColor = FL_GRAY;
+int				gPixelColor = FL_BLACK;
+int				gLabelColor = FL_WHITE;
+
+Fl_Double_Window*	gDisplayColors;
+Fl_Button*			gLcdBkButton;
+Fl_Button*			gLcdPixelButton;
+Fl_Button*			gFrameButton;
+Fl_Button*			gDetailButton;
+Fl_Button*			gFkeyLabelsButton;
+
 extern char*	print_xpm[];
 extern Fl_Menu_Item	gPrintMenu[];
 
 extern Fl_Pixmap	gPrinterIcon;
 
 void switch_model(int model);
+void key_delay(void);
+int remote_load_from_host(const char *filename);
+
+#include "FLU/flu_pixmaps.h"
+extern Fl_Pixmap littlehome, little_desktop, little_favorites, ram_drive;
 
 #ifndef	WIN32
 #define	min(a,b)	((a)<(b) ? (a):(b))
 #endif
+
+#define	VT_SPEED0_FREQ	2457600
+#define	VT_SPEED1_FREQ	8000000
+#define	VT_SPEED2_FREQ	20000000
+#define	VT_SPEED3_FREQ	50000000
+
 
 void setMonitorWindow(Fl_Window* pWin)
 {
@@ -196,18 +225,23 @@ void disassembler_cb(Fl_Widget* w, void*);
 
 void rspeed(Fl_Widget* w, void*) 
 {
-	fullspeed=0;
+	fullspeed = 0;
+	set_target_frequency(VT_SPEED0_FREQ);
 	gMaintCount = 4096;
     virtualt_prefs.set("fullspeed",0);
 
 }
 void fspeed(Fl_Widget* w, void*) 
 {
-	fullspeed=3;
-#ifdef WIN32
-	gMaintCount = 300000;
+	fullspeed = 3;
+	set_target_frequency(VT_SPEED3_FREQ);
+#ifdef WIN32 
+	gMaintCount = 100000;
+///	gMaintCount = 4096;
+#elif defined(__APPLE__)
+	gMaintCount = 65536;
 #else
-	gMaintCount = 131272;
+	gMaintCount = 131072;
 #endif
 	virtualt_prefs.set("fullspeed",3);
 
@@ -215,9 +249,11 @@ void fspeed(Fl_Widget* w, void*)
 
 void pf1speed(Fl_Widget* w, void*) 
 {
-	fullspeed=1;
+	fullspeed = 1;
+	set_target_frequency(VT_SPEED1_FREQ);
 #ifdef WIN32
 	gMaintCount = 16384;
+//	gMaintCount = 4096;
 #else
 	gMaintCount = 4096;
 #endif
@@ -227,9 +263,11 @@ void pf1speed(Fl_Widget* w, void*)
 
 void pf2speed(Fl_Widget* w, void*) 
 {
-	fullspeed=2;
+	fullspeed = 2;
+	set_target_frequency(VT_SPEED2_FREQ);
 #ifdef WIN32
 	gMaintCount = 100000;
+//	gMaintCount = 4096;
 #else
 	gMaintCount = 16384;
 #endif
@@ -257,9 +295,14 @@ resize_window:	This function resizes the main window and repositions
 */
 void resize_window()
 {
+#ifdef WIN32
+	int		hiddenTaskBarAdjust = 0;
+#endif
+
 	if (gpDisp == NULL)
 		return;
 
+	/* Determine the height of the display based on model */
 	if (gModel == MODEL_T200)
 	{
 		gpDisp->DispHeight = 128;
@@ -270,9 +313,20 @@ void resize_window()
 		gpDisp->DispHeight = 64;
 		DispHeight = 64;
 	}
+
+#ifdef ZIPIT_Z2
+	MainWin->fullscreen();
+#else
 	if (Fullscreen)
 	{
 		MainWin->fullscreen();
+#ifdef WIN32
+		int sx, sy, sw, sh;
+		Fl::screen_xywh(sx, sy, sw, sh);
+		if ((sh == 480) || (sh == 800) || (sh == 600) || (sh == 768) || (sh == 1024) || (sh == 1280))
+			hiddenTaskBarAdjust = 4;
+		MainWin->resize(sx, sy, sw, sh - hiddenTaskBarAdjust);
+#endif	/* WIN32 */
 		MultFact = min(MainWin->w()/240, MainWin->h()/128);
 		gpDisp->MultFact = MultFact;
 	}
@@ -288,6 +342,7 @@ void resize_window()
 				50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
 	}
 
+	/* Ensure the window isn't off the top of the screen */
 	if (MainWin->y() <= 0)
 	{
 		if (!Fullscreen)
@@ -301,25 +356,31 @@ void resize_window()
 			90*gpDisp->DisplayMode+2,gpDisp->DispHeight*gpDisp->MultFact + 
 			50*gpDisp->DisplayMode + MENU_HEIGHT + 22);
 	}
+#endif	/* ZIPIT_Z2 */
 
 	Menu->resize(0, 0, MainWin->w(), MENU_HEIGHT-2);
 	gpDisp->resize(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
-	gpGraph->resize(0, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpCode->resize(60, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpCaps->resize(120, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpKey->resize(180, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 120, 20);
-	gpSpeed->resize(300, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpMap->resize(360, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpPrint->resize(420, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, 60, 20);
-	gpKeyInfo->resize(480, MENU_HEIGHT+gpDisp->DispHeight*gpDisp->MultFact + 
-		50*gpDisp->DisplayMode+2, MainWin->w()-480, 20);
+	int ctrlY = MainWin->h() - 20;
+
+#ifdef ZIPIT_Z2
+	/* Running on Zipit Z2!  Make the status items a bit smaller */
+	gpGraph->resize(0, ctrlY, 60, 20);
+	gpCode->resize(60, ctrlY, 60, 20);
+	gpCaps->resize(-120, ctrlY, 60, 20);	/* Remove this from display completely */
+	gpKey->resize(-180, ctrlY, 120, 20);	/* Remove this from display completely */
+	gpSpeed->resize(120, ctrlY, 60, 20);
+	gpMap->resize(180, ctrlY, 60, 20);
+	gpPrint->resize(240, ctrlY, 60, 20);
+	gpKeyInfo->resize(-480, ctrlY, MainWin->w()-480, 20);
+#else
+	gpGraph->resize(0, ctrlY, 60, 20);
+	gpCode->resize(60, ctrlY, 60, 20);
+	gpCaps->resize(120, ctrlY, 60, 20);
+	gpKey->resize(180, ctrlY, 120, 20);
+	gpSpeed->resize(300, ctrlY, 60, 20);
+	gpMap->resize(360, ctrlY, 60, 20);
+	gpPrint->resize(420, ctrlY, 60, 20);
+	gpKeyInfo->resize(480, ctrlY, MainWin->w()-480, 20);
 	if (gpDisp->MultFact < 3)
 	{
 		gpKeyInfo->label("F Keys");
@@ -330,22 +391,124 @@ void resize_window()
 		gpKeyInfo->tooltip("");
 		gpKeyInfo->label("F9:Label  F10:Print  F11:Paste  F12:Pause");
 	}
+#endif	/* ZIPIT_Z2 */
 
-	gRectsize = MultFact - (1 - SolidChars);
-	if (gRectsize == 0)
-		gRectsize = 1;
-	gXoffset = 45*DisplayMode+1;
-	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
-
-	gpDisp->gRectsize = gRectsize;
-	gpDisp->gXoffset = gXoffset;
-	gpDisp->gYoffset = gYoffset;
+	gpDisp->CalcScreenCoords();
 
 	Fl::check();
 	MainWin->redraw();
 }
 
-/* use this Function to display a pop up box */
+/*
+=======================================================
+Calculate the xoffset, yoffset, border locations, etc.
+=======================================================
+*/
+void T100_Disp::CalcScreenCoords(void)
+{
+	// Calculatet the pixel rectangle size
+	::gRectsize = MultFact - (1 - SolidChars);
+	if (::gRectsize == 0)
+		::gRectsize = 1;
+
+	// Calculate xoffset and yoffset
+#ifdef ZIPIT_Z2
+	{
+		::gXoffset = 0;
+		::gYoffset = (MainWin->h() - MENU_HEIGHT - 20 - (int) (float) DispHeight * 1.3333) / 3 + MENU_HEIGHT+1;
+	}
+#else
+	if (Fullscreen)
+	{
+		::gXoffset = MainWin->w() / 2 - 120 * MultFact;
+		::gYoffset = (MainWin->h() - MENU_HEIGHT - 20 - DispHeight * MultFact) / 3 + MENU_HEIGHT+1;
+	}
+	else
+	{
+		::gXoffset = 45*DisplayMode+1;
+		::gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
+	}
+#endif
+
+	gRectsize = ::gRectsize;
+	gXoffset = ::gXoffset;
+	gYoffset = ::gYoffset;
+
+	// If the display is framed, then calculate the frame coords
+	if (DisplayMode)
+	{
+		// Calculate the Bezel location
+		int		wantedH = 20;
+		int		wantedW = 40;
+//		int		topH, bottomH, leftW, rightW;
+		int		bottomSpace;
+		int		rightSpace;
+
+		// Calculate the top height of the Bezel
+		m_HasTopChassis = TRUE;
+		if (gYoffset-1 - MENU_HEIGHT-1 >= wantedH + 5)
+			m_BezelTopH = wantedH;
+		else
+		{
+			// Test if there's room for both Bezel and chassis detail
+			if (gYoffset > 6)
+				m_BezelTopH = gYoffset - MENU_HEIGHT - 1 - 6;
+			else
+			{
+				m_BezelTopH = gYoffset - MENU_HEIGHT - 1 - 1;
+				m_HasTopChassis = FALSE;
+			}
+		}
+		m_BezelTop = gYoffset - m_BezelTopH - 1;
+
+		// Calculate the bottom height of the Bezel
+		m_BezelBottom = gYoffset + DispHeight * MultFact + 1;
+		bottomSpace = MainWin->h() - m_BezelBottom - 20;
+		m_HasBottomChassis = TRUE;
+		if (bottomSpace >= wantedH + 5)
+			m_BezelBottomH = wantedH;
+		else
+		{
+			m_BezelBottomH = bottomSpace;
+			m_HasBottomChassis = FALSE;
+		}
+
+		// Calculate the left Bezel border width
+		m_HasLeftChassis = TRUE;
+		if (gXoffset-1 >= wantedW + 5)
+			m_BezelLeftW = wantedW;
+		else
+		{
+			// Test if there's room for Bezel plus chassis
+			if (gXoffset > 6)
+				m_BezelLeftW = gXoffset - 6;
+			else
+			{
+				m_BezelLeftW = gXoffset - 1;
+				m_HasLeftChassis = FALSE;
+			}
+		}
+		m_BezelLeft = gXoffset - m_BezelLeftW - 1;
+
+		// Calculate the Bezel right width
+		m_BezelRight = gXoffset + 240 * MultFact + 1;
+		rightSpace = w() - m_BezelRight;
+		m_HasRightChassis = TRUE;
+		if (rightSpace >= wantedW + 5)
+			m_BezelRightW = wantedW;
+		else
+		{
+			// Test if there's room for Bezel plus chassis
+			if (rightSpace > 5)
+				m_BezelRightW = rightSpace - 5;
+			else
+			{
+				m_BezelRightW = rightSpace;
+				m_HasRightChassis = FALSE;
+			}
+		}
+	}
+}
 
 void show_error (const char *st)
 {
@@ -583,23 +746,226 @@ void cb_choosewkdir(Fl_Widget* w, void*)
 	/* Choose the working directory (ROM, RAM Files... */
 	char *ret;
 	
-	
-          ret=ChooseWorkDir();
-		  if(ret==NULL) exit(-1); 
-			else 
-			{
-				strcpy(path,ret);
-				//#ifdef __unix__
-				//strcat(path,"/");
-				//#else
-				//strcat(path,"\\");
-				//#endif
-				virtualt_prefs.set("Path",path);
-			}
-        	
+	/* Get working directory from chooser */
+    ret=ChooseWorkDir();
+	if(ret==NULL) 
+		return; 
+	else 
+	{
+		strcpy(path,ret);
+		//#ifdef __unix__
+		//strcat(path,"/");
+		//#else
+		//strcat(path,"\\");
+		//#endif
+		virtualt_prefs.set("Path",path);
+	}
 }
 //--JV
 #endif
+
+/*
+=======================================================
+cb_frame_btn:	Process the frame color button.
+=======================================================
+*/
+void cb_frame_btn (Fl_Widget* w, void*)
+{
+  gFrameButton->color(fl_show_colormap(gFrameButton->color()));
+}
+
+/*
+=======================================================
+cb_detail_btn:	Process the detail color button.
+=======================================================
+*/
+void cb_detail_btn (Fl_Widget* w, void*)
+{
+  gDetailButton->color(fl_show_colormap(gDetailButton->color()));
+}
+
+/*
+=======================================================
+cb_background_btn:	Process the background color button.
+=======================================================
+*/
+void cb_background_btn (Fl_Widget* w, void*)
+{
+  gLcdBkButton->color(fl_show_colormap(gLcdBkButton->color()));
+}
+
+/*
+=======================================================
+cb_pixel_btn:	Process the pixel color button.
+=======================================================
+*/
+void cb_pixels_btn (Fl_Widget* w, void*)
+{
+  gLcdPixelButton->color(fl_show_colormap(gLcdPixelButton->color()));
+}
+
+/*
+=======================================================
+cb_fkey_labels_btn:	Process the pixel color button.
+=======================================================
+*/
+void cb_fkey_labels_btn (Fl_Widget* w, void*)
+{
+  gFkeyLabelsButton->color(fl_show_colormap(gFkeyLabelsButton->color()));
+}
+
+/*
+=======================================================
+cb_colors_ok_btn:	Process the colors OK button.
+=======================================================
+*/
+void cb_colors_ok_btn (Fl_Widget* w, void*)
+{
+	if (gDisplayColors != NULL)
+		gDisplayColors->hide();
+
+	gFrameColor = gFrameButton->color();
+	gDetailColor = gDetailButton->color();
+	gBackgroundColor = gLcdBkButton->color();
+	gPixelColor = gLcdPixelButton->color();
+	gLabelColor = gFkeyLabelsButton->color();
+    virtualt_prefs.set("BackgroundColor",gBackgroundColor);
+    virtualt_prefs.set("PixelColor",gPixelColor);
+    virtualt_prefs.set("FrameColor",gFrameColor);
+    virtualt_prefs.set("DetailColor",gDetailColor);
+    virtualt_prefs.set("LabelColor",gLabelColor);
+
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_BackgroundColor = gBackgroundColor;
+		gpDisp->m_PixelColor = gPixelColor;
+		gpDisp->m_FrameColor = gFrameColor;
+		gpDisp->m_DetailColor = gDetailColor;
+		gpDisp->m_LabelColor = gLabelColor;
+		gpDisp->redraw();
+	}
+}
+
+/*
+=======================================================
+cb_colors_cancel_btn:	Process the colors Cancel button
+=======================================================
+*/
+void cb_colors_cancel_btn (Fl_Widget* w, void*)
+{
+	if (gDisplayColors != NULL)
+		gDisplayColors->hide();
+
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_BackgroundColor = gBackgroundColor;
+		gpDisp->m_PixelColor = gPixelColor;
+		gpDisp->m_FrameColor = gFrameColor;
+		gpDisp->m_DetailColor = gDetailColor;
+		gpDisp->m_LabelColor = gLabelColor;
+		gpDisp->redraw();
+	}
+}
+
+/*
+=======================================================
+cb_colors_cancel_btn:	Process the colors Cancel button
+=======================================================
+*/
+void cb_colors_preview_btn (Fl_Widget* w, void*)
+{
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_BackgroundColor = gLcdBkButton->color();
+		gpDisp->m_PixelColor = gLcdPixelButton->color();
+		gpDisp->m_FrameColor = gFrameButton->color();
+		gpDisp->m_DetailColor = gDetailButton->color();
+		gpDisp->m_LabelColor = gFkeyLabelsButton->color();
+		gpDisp->redraw();
+	}
+}
+/*
+=======================================================
+cb_colors_defaults_btn:	Process the default colors btn
+=======================================================
+*/
+void cb_colors_defaults_btn (Fl_Widget* w, void*)
+{
+	gLcdBkButton->color(FL_GRAY);
+	gLcdPixelButton->color(FL_BLACK);
+	gFrameButton->color(FL_BLACK);
+	gDetailButton->color(FL_WHITE);
+	gFkeyLabelsButton->color(FL_WHITE);
+	gLcdBkButton->redraw();
+	gLcdPixelButton->redraw();
+	gFrameButton->redraw();
+	gDetailButton->redraw();
+	gFkeyLabelsButton->redraw();
+}
+
+/*
+=======================================================
+cb_colors:	This routine creates a dialog box for 
+selecting the main display colors.
+=======================================================
+*/
+void cb_display_colors (Fl_Widget* w, void*)
+{
+	gDisplayColors = new Fl_Double_Window(330, 170, "Display Colors");
+	gDisplayColors->callback(cb_colors_cancel_btn);
+
+    gDisplayColors->align(FL_ALIGN_TOP_LEFT);
+
+     { Flu_Button* o = new Flu_Button(20, 130, 80, 25, "Cancel");
+      o->callback((Fl_Callback*)cb_colors_cancel_btn);
+    }
+    { Flu_Button* o = new Flu_Button(120, 130, 80, 25, "Preview");
+      o->callback((Fl_Callback*)cb_colors_preview_btn);
+    }
+    { Flu_Return_Button* o = new Flu_Return_Button(220, 130, 85, 25, "OK");
+      o->callback((Fl_Callback*)cb_colors_ok_btn);
+    }
+    { Flu_Button* o = new Flu_Button(220, 60, 85, 25, "Defaults");
+      o->callback((Fl_Callback*)cb_colors_defaults_btn);
+    }
+
+    { Fl_Button* o = gLcdBkButton = new Fl_Button(30, 20, 15, 15, "LCD Background");
+      o->callback((Fl_Callback*)cb_background_btn);
+      o->align(FL_ALIGN_RIGHT);
+    }
+    { Fl_Button* o = gLcdPixelButton = new Fl_Button(30, 40, 15, 15, "LCD Pixels");
+      o->callback((Fl_Callback*)cb_pixels_btn);
+      o->align(FL_ALIGN_RIGHT);
+    }
+    { Fl_Button* o = gFrameButton = new Fl_Button(30, 60, 15, 15, "Bezel");
+      o->callback((Fl_Callback*)cb_frame_btn);
+      o->align(FL_ALIGN_RIGHT);
+    }
+    { Fl_Button* o = gDetailButton = new Fl_Button(30, 80, 15, 15, "Chassis");
+      o->callback((Fl_Callback*)cb_detail_btn);
+      o->align(FL_ALIGN_RIGHT);
+    }
+    { Fl_Button* o = gFkeyLabelsButton = new Fl_Button(30, 100, 15, 15, "FKey Labels");
+      o->callback((Fl_Callback*)cb_fkey_labels_btn);
+      o->align(FL_ALIGN_RIGHT);
+    }
+
+	gFrameButton->color(gFrameColor);
+	gDetailButton->color(gDetailColor);
+	gLcdBkButton->color(gBackgroundColor);
+	gLcdPixelButton->color(gPixelColor);
+	gFkeyLabelsButton->color(gLabelColor);
+
+    gDisplayColors->set_modal();
+    gDisplayColors->end();
+	gDisplayColors->show();
+
+	while (gDisplayColors->visible())
+		Fl::wait();
+
+	delete gDisplayColors;
+	gDisplayColors = NULL;
+}
 
 /*
 =======================================================
@@ -686,7 +1052,76 @@ void cb_about (Fl_Widget* w, void*)
     o->show();   
 }
 
+/*
+=======================================================
+cb_select_copy:	This routine handles the copy menu 
+item from the select menu
+=======================================================
+*/
+void cb_select_copy (Fl_Widget* w, void*)
+{
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_SimulatedCtrl = TRUE;
+		gpDisp->WheelKey(FL_F + 5);
+	}
+}
 
+/*
+=======================================================
+cb_select_cut:	This routine handles the copy menu 
+item from the select menu
+=======================================================
+*/
+void cb_select_cut (Fl_Widget* w, void*)
+{
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_SimulatedCtrl = TRUE;
+		gpDisp->WheelKey(FL_F + 6);
+	}
+}
+
+/*
+=======================================================
+cb_select_cut:	This routine handles the copy menu 
+item from the select menu
+=======================================================
+*/
+void cb_select_cancel (Fl_Widget* w, void*)
+{
+	if (gpDisp != NULL)
+	{
+		gpDisp->m_SimulatedCtrl = TRUE;
+		gpDisp->WheelKey(FL_Control_L);
+		gpDisp->WheelKey('c');
+	}
+}
+
+void cb_menu_fkey (Fl_Widget* w, void* key)
+{
+	int		fkey = (int) key;
+
+	if (gpDisp != NULL)
+	{
+		gpDisp->WheelKey(fkey);
+	}
+}
+
+Fl_Menu_Item	gCopyCutMenu[] = {
+	{ " Copy ", 0, cb_select_copy, 0, 0 },
+	{ " Cut ", 0, cb_select_cut, 0, FL_MENU_DIVIDER },
+	{ " Cancel ", 0, cb_select_cancel, 0, 0 },
+	{ 0 }
+};
+
+Fl_Menu_Item	gLeftClickMenu[] = {
+	{ " Paste ", 0, cb_menu_fkey, (void *) (FL_F + 11), FL_MENU_DIVIDER },
+	{ " Label ", 0, cb_menu_fkey, (void *) (FL_F + 9), 0 },
+	{ " Print ", 0, cb_menu_fkey, (void *) (FL_F + 10), 0 },
+	{ " Pause ", 0, cb_menu_fkey, (void *) (FL_F + 12), 0 },
+	{ 0 }
+};
 
 Fl_Menu_Item menuitems[] = {
   { "&File", 0, 0, 0, FL_SUBMENU },
@@ -727,7 +1162,8 @@ Fl_Menu_Item menuitems[] = {
 		{ "4x",  0, cb_4x, (void *) 4, FL_MENU_RADIO },
 		{ "Fullscreen",  0, cb_fullscreen, (void *) 5, FL_MENU_RADIO | FL_MENU_DIVIDER},
 		{ "Framed",  0, cb_framed, (void *) 1, FL_MENU_TOGGLE|FL_MENU_VALUE },
-		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE},
+		{ "Solid Chars",  0, cb_solidchars, (void *) 1, FL_MENU_TOGGLE | FL_MENU_DIVIDER},
+		{ "Display Colors",  0, cb_display_colors, 0, 0 },
 		{ 0 },
 	{ "Peripheral Setup...",     0, cb_PeripheralSetup, 0, 0 },
 #ifdef	__APPLE__
@@ -749,15 +1185,18 @@ Fl_Menu_Item menuitems[] = {
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "ReMem Configuration",   0, cb_RememCfg, 0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, cb_FileView },
+	{ "Socket Configuration",  0, cb_SocketSetup },
 //	{ "TPDD Client",           0, cb_TpddClient },
 	{ 0 },
-  { "&Help", 0, 0, 0, FL_SUBMENU },
+  { "&Help", 0, 0, 0, FL_SUBMENU}, // | FL_MENU_DIVIDER},
 	{ "Help", 0, cb_help },
 	{ "About VirtualT", 0, cb_about },
 	{ 0 },
-
+//  { "HomeIcon", 0, 0, 0, 0 },
+//  { "Icon2", 0, 0, 0, 0 },
+//  { "Icon3", 0, 0, 0, 0 },
+//  { "Icon4", 0, 0, 0, 0 },
   { 0 }
 };
 
@@ -776,16 +1215,35 @@ void remote_set_speed(int speed)
 	switch (fullspeed)
 	{
 #ifdef WIN32
-		case 0: gMaintCount = 4096; break;
-		case 1: gMaintCount = 16384; break;
-		case 2: gMaintCount = 100000; break;
-		case 3: gMaintCount = 300000; break;
-		default: gMaintCount = 4096; break;
+		case 0: 
+			gMaintCount = 4096; 
+			set_target_frequency(VT_SPEED0_FREQ);
+			break;
+		case 1: 
+			set_target_frequency(VT_SPEED1_FREQ);
+			gMaintCount = 16384; 
+			break;
+		case 2: 
+			set_target_frequency(VT_SPEED2_FREQ);
+			gMaintCount = 100000; 
+			break;
+		case 3: 
+			set_target_frequency(VT_SPEED3_FREQ);
+			gMaintCount = 100000; 
+			break;
+		default: 
+			set_target_frequency(VT_SPEED0_FREQ);
+			gMaintCount = 4096; 
+			break;
 #else
 		case 0: gMaintCount = 4096; break;
-		case 1: gMaintCount = 4096; break;
+		case 1: gMaintCount = 8192; break;
 		case 2: gMaintCount = 16384; break;
-		case 3: gMaintCount = 131272; break;
+#ifdef __APPLE__
+		case 3: gMaintCount = 65536; break;
+#else
+		case 3: gMaintCount = 131072; break;
+#endif
 		default: gMaintCount = 4096; break;
 #endif
 	}
@@ -898,7 +1356,19 @@ void switch_model(int model)
 	fileview_model_changed();
 }
 
-
+/*
+=======================================================
+cb_select_cut:	This routine handles the copy menu 
+item from the select menu
+=======================================================
+*/
+void cb_leftclick_cancel (Fl_Widget* w, void*)
+{
+	if (gpDisp != NULL)
+	{
+		gpDisp->take_focus();
+	}
+}
 
 /*
 =======================================================
@@ -908,25 +1378,64 @@ T100:Disp:	This is the class construcor
 T100_Disp::T100_Disp(int x, int y, int w, int h) :
   Fl_Widget(x, y, w, h)
 {
-	  int driver, c;
+	int driver, c;
 
-	  for (driver = 0; driver < 10; driver++)
-	  {
-		  for (int c = 0; c < 256; c++)
+	m_FrameColor = gFrameColor;
+	m_DetailColor = gDetailColor;
+	m_BackgroundColor = gBackgroundColor;
+	m_PixelColor = gPixelColor;
+	m_LabelColor = gLabelColor;
+	m_HaveMouse = FALSE;
+	m_Select = FALSE;
+	m_SelectComplete = FALSE;
+	m_SimulatedCtrl = FALSE;
+
+	for (driver = 0; driver < 10; driver++)
+	{
+		for (int c = 0; c < 256; c++)
 			  lcd[driver][c] = 0;
-		  top_row[driver] = 0;
-	  }
-	  for (c = 0; c < 32; c++)
+		top_row[driver] = 0;
+	}
+	for (c = 0; c < 32; c++)
 		m_simKeys[c] = 0;
 
-	  m_MyFocus = 0;
-	  m_DebugMonitor = 0;
+	m_MyFocus = 0;
+	m_DebugMonitor = 0;
 
-	  MultFact = 3;
-	  DisplayMode = 1;
-	  SolidChars = 0;
-	  DispHeight = 64;
-	  gRectsize = 2;
+#ifdef ZIPIT_Z2
+	MultFact = 1;
+	DisplayMode = 1;
+	SolidChars = 1;
+	DispHeight = 64;
+	gRectsize = 1;
+#else
+	MultFact = 3;
+	DisplayMode = 1;
+	SolidChars = 0;
+	DispHeight = 64;
+	gRectsize = 2;
+#endif	/* ZIPIT_Z2 */
+
+	m_WheelKeyIn = 0;
+	m_WheelKeyOut = 0;
+	m_BezelTop = m_BezelLeft = m_BezelBottom = m_BezelRight = 0;
+	m_BezelTopH = m_BezelLeftW = m_BezelBottomH = m_BezelRightW = 0;
+	m_CopyCut = new Fl_Menu_Button(x, y, w, h, "Action");
+	m_CopyCut->type(Fl_Menu_Button::POPUP123);
+	m_CopyCut->hide();
+	m_CopyCut->callback(cb_select_cancel);
+
+	m_LeftClick = new Fl_Menu_Button(x, y, w, h, "Action");
+	m_LeftClick->menu(gLeftClickMenu);
+	m_LeftClick->type(0);
+	m_LeftClick->callback(cb_leftclick_cancel);
+	m_LeftClick->hide();
+}
+
+T100_Disp::~T100_Disp()
+{
+	delete m_LeftClick;
+	delete m_CopyCut;
 }
 
 const T100_Disp& T100_Disp::operator=(const T100_Disp& srcDisp)
@@ -956,12 +1465,19 @@ Command:	This function processes commands sent to
 void T100_Disp::Command(int instruction, uchar data)
 {
 	int driver = instruction;
+	int cmd = data & 0x3F;
 
-	if ((data & 0x3F) == 0x3E)
+	if (cmd == 0x3E)
 	{
 		if (top_row[driver] != data >> 6)
 			damage(1, gXoffset, gYoffset, 240*MultFact, 64*MultFact);
 		top_row[driver] = data >> 6;
+	}
+	else if (cmd == 0x3B)
+	{
+	}
+	else if (cmd == 0x3C)
+	{
 	}
 }
 
@@ -1008,10 +1524,15 @@ drawpixel:	This routine is called by the system to draw a single
 // Draw the black pixels on the LCD
 __inline void T100_Disp::drawpixel(int x, int y, int color)
 {
+#ifdef ZIPIT_Z2
+	if (color)
+		fl_rectf(m_xCoord[x],m_yCoord[y], m_rectSize[x], m_rectSize[y]);
+#else
 	// Check if the pixel color is black and draw if it is
 	if (color)
 		fl_rectf(x*MultFact + gXoffset,y*MultFact + gYoffset,
 		gRectsize, gRectsize);
+#endif
 }
 
 /*
@@ -1030,53 +1551,65 @@ void T100_Disp::draw_static()
 	int	num_labels;
 
 	// Draw gray "screen"
-    fl_color(FL_GRAY);
+    fl_color(m_BackgroundColor);
     fl_rectf(x(),y(),w(),h());
 
 	/* Check if the user wants the display "framed" */
 	if (DisplayMode == 1)
 	{
 		// Color for outer border
-		fl_color(FL_WHITE);
+		fl_color(m_DetailColor);
 
 		// Draw border along the top
-		fl_rectf(x(),y(),240*MultFact+92,5);
+		if (m_HasTopChassis)
+			fl_rectf(x(),y(),w(),m_BezelTop - MENU_HEIGHT - 1);
 
 		// Draw border along the bottom
-		fl_rectf(x(),y()+DispHeight*MultFact+45,240*MultFact+92,5);
+		if (m_HasBottomChassis)
+			fl_rectf(x(),m_BezelBottom + m_BezelBottomH,w(),MainWin->h() - m_BezelBottom - m_BezelBottomH - 20);
 
 		// Draw border along the left
-		fl_rectf(x(),y()+5,5,DispHeight*MultFact+42);
+		if (m_HasLeftChassis)
+			fl_rectf(x(),y(),m_BezelLeft,h());
 
 		// Draw border along the right
-		fl_rectf(x()+240*MultFact+87,y()+5,5,DispHeight*MultFact+42);
+		if (m_HasRightChassis)
+			fl_rectf(m_BezelRight + m_BezelRightW,y(),w()-m_BezelRight,h());
 
 
 		// Color for inner border
-		fl_color(FL_BLACK);
+		fl_color(m_FrameColor);
 												    
 		// Draw border along the top
-		fl_rectf(x()+5,y()+5,240*MultFact+42,20);
+		if (m_BezelTopH > 0)
+			fl_rectf(m_BezelLeft,m_BezelTop,m_BezelRight - m_BezelLeft + m_BezelRightW,m_BezelTopH);
 
 		// Draw border along the bottom
-		fl_rectf(x()+5,y()+DispHeight*MultFact+27,240*MultFact+82,20);
+		if (m_BezelBottomH > 0)
+			fl_rectf(m_BezelLeft,m_BezelBottom,m_BezelRight - m_BezelLeft + m_BezelRightW,m_BezelBottomH);
 
 		// Draw border along the left
-		fl_rectf(x()+5,y()+5,40,DispHeight*MultFact+32);
+		if (m_BezelLeftW > 0)
+			fl_rectf(m_BezelLeft, m_BezelTop, m_BezelLeftW, m_BezelBottom - m_BezelTop + m_BezelBottomH);
 
 		// Draw border along the right
-		fl_rectf(x()+240*MultFact+47,y()+5,40,DispHeight*MultFact+32);
+		if (m_BezelRightW > 0)
+			fl_rectf(m_BezelRight,m_BezelTop, m_BezelRightW, m_BezelBottom - m_BezelTop + m_BezelBottomH);
 
 
-		width = w() - 90;
+#ifdef ZIPIT_Z2
+		width = 320;
+#else
+		width = 240 * MultFact;
+#endif
 		num_labels = gModel == MODEL_PC8201 ? 5 : 8;
 		inc = width / num_labels;
-		start = 28 + width/16 + (4-MultFact)*2;
-		fl_color(FL_WHITE);
+		start = gXoffset + width/16 - 2 * (5- (MultFact > 5? 5 : MultFact));
+		fl_color(m_LabelColor);
 		fl_font(FL_COURIER,12);
 		char  text[3] = "F1";
 //		y_pos = h()+20;
-		y_pos = y()+DispHeight*MultFact+40;
+		y_pos = m_BezelBottom + 13; //y()+DispHeight*MultFact+40;
 		xl_start = 2*MultFact;
 		xl_end = 7*MultFact;
 
@@ -1148,10 +1681,14 @@ void T100_Disp::draw()
 				value = lcd[driver][row*64+col];
 
 				// Erase line so it is grey, then fill in with black where needed
-				fl_color(FL_GRAY);
+				fl_color(m_BackgroundColor);
+#ifdef ZIPIT_Z2
+				fl_rectf(m_xCoord[x],m_yCoord[y], m_rectSize[x],10+m_rectSize[y+8] == 2?0:1);
+#else
 				fl_rectf(x*MultFact + gXoffset,y*MultFact + 
 					gYoffset,gRectsize,8*MultFact);
-				fl_color(FL_BLACK);
+#endif
+				fl_color(m_PixelColor);
 
 				// Draw the black pixels
 				drawpixel(x,y++, value&0x01);
@@ -1167,6 +1704,12 @@ void T100_Disp::draw()
 	}
 }
 
+/*
+================================================================================
+SetByte:	Updates the LCD with a byte of data as written from the I/O 
+			interface from the 8085.
+================================================================================
+*/
 void T100_Disp::SetByte(int driver, int col, uchar value)
 {
 	int x;
@@ -1199,10 +1742,10 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		// Set the display
 		window()->make_current();
 
-		fl_color(FL_GRAY);
+		fl_color(m_BackgroundColor);
 		fl_rectf(x*MultFact + gXoffset, y*MultFact + 
 			gYoffset, gRectsize,MultFact<<3);
-		fl_color(FL_BLACK);
+		fl_color(m_PixelColor);
 
 		// Draw each pixel of byte
 		drawpixel(x,y++,value&0x01);
@@ -1214,9 +1757,14 @@ void T100_Disp::SetByte(int driver, int col, uchar value)
 		drawpixel(x,y++,(value&0x40)>>6);
 		drawpixel(x,y++,(value&0x80)>>7);
 }
-// read Pref File
-// J. VERNET
 
+/*
+================================================================================
+init_pref:	Reads Preferences File with all saved information.  
+
+			Initial implementation added by J. VERNET
+================================================================================
+*/
 void init_pref(void)
 {
 	char	option_name[32];
@@ -1228,6 +1776,11 @@ void init_pref(void)
 	virtualt_prefs.get("BasicSaveMode",BasicSaveMode,0);
 	virtualt_prefs.get("COSaveMode",COSaveMode,0);
 	virtualt_prefs.get("Model",gModel, MODEL_M100);
+	virtualt_prefs.get("BackgroundColor",gBackgroundColor, FL_GRAY);
+	virtualt_prefs.get("PixelColor",gPixelColor, FL_BLACK);
+	virtualt_prefs.get("FrameColor",gFrameColor, FL_BLACK);
+	virtualt_prefs.get("DetailColor",gDetailColor, FL_WHITE);
+	virtualt_prefs.get("LabelColor",gLabelColor, FL_WHITE);
 	
 	Fullscreen = 0;
 	if (MultFact == 5)
@@ -1241,16 +1794,35 @@ void init_pref(void)
 	switch (fullspeed)
 	{
 #ifdef WIN32
-		case 0: gMaintCount = 4096; break;
-		case 1: gMaintCount = 16384; break;
-		case 2: gMaintCount = 100000; break;
-		case 3: gMaintCount = 300000; break;
-		default: gMaintCount = 4096; break;
+		case 0: 
+			set_target_frequency(VT_SPEED0_FREQ);
+			gMaintCount = 4096; 
+			break;
+		case 1: 
+			set_target_frequency(VT_SPEED1_FREQ);
+			gMaintCount = 16384; 
+			break;
+		case 2: 
+			set_target_frequency(VT_SPEED2_FREQ);
+			gMaintCount = 100000; 
+			break;
+		case 3: 
+			set_target_frequency(VT_SPEED3_FREQ);
+			gMaintCount = 100000; 
+			break;
+		default: 
+			set_target_frequency(VT_SPEED0_FREQ);
+			gMaintCount = 4096; 
+			break;
 #else
 		case 0: gMaintCount = 4096; break;
-		case 1: gMaintCount = 4096; break;
+		case 1: gMaintCount = 8192; break;
 		case 2: gMaintCount = 16384; break;
-		case 3: gMaintCount = 131272; break;
+#ifdef __APPLE__
+		case 3: gMaintCount = 65536; break;
+#else
+		case 3: gMaintCount = 131072; break;
+#endif
 		default: gMaintCount = 4096; break;
 #endif
 	}
@@ -1264,24 +1836,62 @@ void init_pref(void)
 		strcpy(gsMenuROM, fl_filename_name(gsOptRomFile));
 	}
 }
-// Create the main display window and all children (status, etc.)
+
+/*
+================================================================================
+deinit_display:	Hide and destroy the main window
+================================================================================
+*/
+void deinit_display(void)
+{
+	if (MainWin != NULL)
+	{
+		MainWin->hide();
+		delete MainWin;
+		MainWin = NULL;
+	}
+}
+
+/*
+================================================================================
+init_display:	Creates the main display window and all children (status, etc.).  
+				This routine takes into account the current model, display
+				size setting, and the platform (Zipit, etc.).
+================================================================================
+*/
 void init_display(void)
 {
-	int	mIndex;
-	int	i;
+	int			mIndex;
+	int			i;
 	char		temp[20];
+#ifdef WIN32
+	int			hiddenTaskBarAdjust = 0;
+#endif
+
+	Fl::visual(FL_DOUBLE|FL_INDEX);
 
 	if (gModel == MODEL_T200)
 		DispHeight = 128;
 	else
 		DispHeight = 64;
+#ifdef ZIPIT_Z2
 	MainWin = new Fl_Window(240*MultFact + 90*DisplayMode+2,DispHeight*MultFact +
 		50*DisplayMode + MENU_HEIGHT + 22, "Virtual T");
+	MainWin->fullscreen();
+#else	/* ZIPIT_Z2 */
+	MainWin = new Fl_Window(320, 240, "Virtual T");
 
 	// Check if we are running in full screen mode
 	if (MultFact == 5)
 	{
 		MainWin->fullscreen();
+#ifdef WIN32
+		int sx, sy, sw, sh;
+		Fl::screen_xywh(sx, sy, sw, sh);
+		if ((sh == 480) || (sh == 800) || (sh == 600) || (sh == 768) || (sh == 1024) || (sh == 1280))
+			hiddenTaskBarAdjust = 4;
+		MainWin->resize(sx, sy, sw, sh-hiddenTaskBarAdjust);
+#endif	/* WIN32 */
 		MultFact = min(MainWin->w()/240, MainWin->h()/128);
 	}
 	else
@@ -1291,12 +1901,38 @@ void init_display(void)
 			240*MultFact + 90*DisplayMode+2,DispHeight*MultFact +
 			50*DisplayMode + MENU_HEIGHT + 22);
 	}
+#endif	/* ZIPIT_Z2 */
 
 	Menu = new Fl_Menu_Bar(0, 0, MainWin->w(), MENU_HEIGHT-2);
 	if (gModel == MODEL_T200)
 		gpDisp = new T200_Disp(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
 	else
 		gpDisp = new T100_Disp(0, MENU_HEIGHT, MainWin->w(), MainWin->h() - MENU_HEIGHT - 20);
+
+	int subMenuDepth = 0;
+	for (i = 0; ; i++)
+	{
+		if (menuitems[i].text != NULL)
+		{
+			if (strcmp(menuitems[i].text, "HomeIcon") == 0)
+			{
+				menuitems[i++].image(littlehome);
+				menuitems[i++].image(little_favorites);
+				menuitems[i++].image(little_desktop);
+				menuitems[i++].image(ram_drive);
+				break;
+			}
+			if (menuitems[i].flags & FL_SUBMENU)
+				subMenuDepth++;
+		}
+		else
+		{
+			if (subMenuDepth == 0)
+				break;
+			else
+				subMenuDepth--;
+		}
+	}
 
 	MainWin->callback(close_disp_cb);
 	Menu->menu(menuitems);
@@ -1328,9 +1964,12 @@ void init_display(void)
 		mIndex++;
 	mIndex--;
 
+	int mf = MultFact;
+	if (Fullscreen)
+		mf = 5;
     for(i=1;i<6;i++)
     {
-        if(i==MultFact) 
+        if(i==mf) 
 		{
             if(i==5) 
                 menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE | FL_MENU_DIVIDER;
@@ -1385,7 +2024,7 @@ void init_display(void)
 		mIndex = 0;
 		while (menuitems[mIndex].callback_ != cb_solidchars)
 			mIndex++;
-        menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE;
+        menuitems[mIndex].flags=FL_MENU_TOGGLE|FL_MENU_VALUE|FL_MENU_DIVIDER;
 	}
         
 	/*
@@ -1419,51 +2058,58 @@ void init_display(void)
 	Create Status boxes for various things
 	========================================
 	*/
-	gpGraph = new Fl_Box(FL_DOWN_BOX,0, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 60, 20,"GRAPH");
+	int ctrlY = MainWin->h() - 20;
+#ifdef ZIPIT_Z2
+	gpGraph = new Fl_Box(FL_DOWN_BOX,0, ctrlY, 60, 20,"GRAPH");
+	gpCode = new Fl_Box(FL_DOWN_BOX,60, ctrlY, 60, 20,"CODE");
+	gpCaps = new Fl_Box(FL_DOWN_BOX,-120, ctrlY, 60, 20,"CAPS");
+	gpKey = new Fl_Box(FL_DOWN_BOX,-180, ctrlY, 120, 20,"");
+	gpSpeed = new Fl_Box(FL_DOWN_BOX,120, ctrlY, 60, 20,"");
+	gpMap = new Fl_Box(FL_DOWN_BOX,180, ctrlY, 60, 20,"");
+	gpPrint = new Fl_Action_Icon(240, ctrlY, 60, 20, "Print Menu");
+#else
+	gpGraph = new Fl_Box(FL_DOWN_BOX,0, ctrlY, 60, 20,"GRAPH");
+	gpCode = new Fl_Box(FL_DOWN_BOX,60, ctrlY, 60, 20,"CODE");
+	gpCaps = new Fl_Box(FL_DOWN_BOX,120, ctrlY, 60, 20,"CAPS");
+	gpKey = new Fl_Box(FL_DOWN_BOX,180, ctrlY, 120, 20,"");
+	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, ctrlY, 60, 20,"");
+	gpMap = new Fl_Box(FL_DOWN_BOX,360, ctrlY, 60, 20,"");
+	gpPrint = new Fl_Action_Icon(420, ctrlY, 60, 20, "Print Menu");
+#endif
+
+	/* 
+	=============================================
+	Assign labels and label sizes to status boxes
+	=============================================
+	*/
 	gpGraph->labelsize(10);
 	gpGraph->deactivate();
-	gpCode = new Fl_Box(FL_DOWN_BOX,60, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 60, 20,"CODE");
 	gpCode->labelsize(10);
 	gpCode->deactivate();
-	gpCaps = new Fl_Box(FL_DOWN_BOX,120, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 60, 20,"CAPS");
 	gpCaps->labelsize(10);
 	gpCaps->deactivate();
-	gpKey = new Fl_Box(FL_DOWN_BOX,180, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 120, 20,"");
 	gpKey->labelsize(10);
-	gpSpeed = new Fl_Box(FL_DOWN_BOX,300, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 60, 20,"");
 	gpSpeed->labelsize(10);
-	gpMap = new Fl_Box(FL_DOWN_BOX,360, MENU_HEIGHT+DispHeight*MultFact +
-		50*DisplayMode+2, 60, 20,"");
 	gpMap->labelsize(10);
-	gpPrint = new Fl_Action_Icon(420, MENU_HEIGHT+DispHeight*MultFact + 
-		50*DisplayMode+2, 60, 20, "Print Menu");
 	gpPrint->align(FL_ALIGN_TOP | FL_ALIGN_INSIDE | FL_ALIGN_LEFT);
 	gpPrint->set_image(&gPrinterIcon);
 	gpPrint->menu(gPrintMenu);
+
+#ifdef ZIPIT_Z2
+	gpKeyInfo = new Fl_Box(FL_DOWN_BOX,-480, ctrlY, 20, 20, "");
+#else
 	if (MultFact < 3)
 	{
-		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, MENU_HEIGHT+DispHeight*MultFact +
-			50*DisplayMode+2, MainWin->w()-480, 20,
+		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, ctrlY, MainWin->w()-480, 20,
 			"F Keys");
 		gpKeyInfo->tooltip("F9:Label  F10:Print  F11:Paste  F12:Pause");
 	}
 	else
-		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, MENU_HEIGHT+DispHeight*MultFact +
-			50*DisplayMode+2, MainWin->w()-480, 20,
+		gpKeyInfo = new Fl_Box(FL_DOWN_BOX,480, ctrlY, MainWin->w()-480, 20,
 			"F9:Label  F10:Print  F11:Paste  F12:Pause");
+#endif
 	gpKeyInfo->labelsize(10);
 	gSimKey = 0;
-
-	gXoffset = 45*DisplayMode+1;
-	gYoffset = 25*DisplayMode + MENU_HEIGHT+1;
-	gRectsize = MultFact - (1 - SolidChars);
-	if (gRectsize == 0)
-		gRectsize = 1;
 
 	if (gpDisp != 0)
 	{
@@ -1471,18 +2117,25 @@ void init_display(void)
 		gpDisp->DisplayMode = DisplayMode;
 		gpDisp->MultFact = MultFact;
 		gpDisp->SolidChars = SolidChars;
-		gpDisp->gRectsize = gRectsize;
-		gpDisp->gXoffset = gXoffset;
-		gpDisp->gYoffset = gYoffset;
+		gpDisp->CalcScreenCoords();
 	}
 
 	/* End the Window and show it */
 	MainWin->end();
 	MainWin->show();
 
+#ifdef WIN32
+	// On Win32 platforms, the show() routine causes the window to shrink. Reset it if fullscreen.
+	if (Fullscreen)
+	{
+		int sx, sy, sw, sh;
+		Fl::screen_xywh(sx, sy, sw, sh);
+		MainWin->resize(sx, sy, sw, sh - hiddenTaskBarAdjust);
+	}
+#endif
 	// Set the initial string for ReMem
 	show_remem_mode();
-	if (gReMem)
+	if (gReMem && !gRex)
 	{
 		// Check if ReMem is in "Normal" mode or MMU mode
 		if (inport(REMEM_MODE_PORT) & 0x01)
@@ -1508,8 +2161,41 @@ void init_display(void)
 	}
 
 	gpPrint->label("Idle");
+
+	/* 
+	=====================================================================
+	For Zipit Z2, create an array of x and y offsets plus pixel sizes for
+	"stretched" display mode.
+	=====================================================================
+	*/
+#ifdef ZIPIT_Z2
+	int		size = 1;
+	int		x, m, cur;
+
+	m = 0;
+	cur = 0;
+	for (x = 0; x <= 240; x++)
+	{
+		gpDisp->m_xCoord[x] = cur;
+		gpDisp->m_rectSize[x] = size;
+		gpDisp->m_yCoord[x] = cur + gYoffset;
+		cur += size;
+		if (++m == 3)
+		{
+			size = 1;
+			m = 0;
+		}
+		else if (m == 2)
+			size = 2;
+	}
+#endif
 }
 
+/*
+================================================================================
+display_cpu_speed:	Updates the emulated CPU speed status box.
+================================================================================
+*/
 static char	label[40];
 static char mapStr[40];
 
@@ -1566,8 +2252,8 @@ void process_windows_event()
 	if (gOsDelay)
 #ifdef WIN32
 		Fl::wait(0.001);
-#elif defined(__APPLE__)
-        Fl::check();
+//#elif defined(__APPLE__)
+//        Fl::check();
 #else
 		Fl::wait(0.00001);
 #endif
@@ -1582,7 +2268,7 @@ void T100_Disp::PowerDown()
 {
 	window()->make_current();
 	// Clear display
-    fl_color(FL_GRAY);
+    fl_color(m_BackgroundColor);
 	if (DisplayMode == 1)
 	    fl_rectf(45,25+30,w()-90,h()-49);
 	else
@@ -1606,7 +2292,7 @@ void T100_Disp::PowerDown()
 			lcd[driver][col] = 0;
 
 	// Display first line of powerdown message
-    fl_color(FL_BLACK);
+    fl_color(m_PixelColor);
 	col = 20 - strlen(msg) / 2;
 	for (x = 0; x < (int) strlen(msg); x++)
 	{
@@ -1666,6 +2352,15 @@ void handle_simkey(void)
 		gpDisp->HandleSimkey();
 }
 
+void do_wheel_key(void*)
+{
+	if (gpDisp == NULL)
+		return;
+
+	if (gSimKey)
+		gpDisp->HandleSimkey();
+}
+
 void T100_Disp::HandleSimkey(void)
 {
 	int	simkey = gSimKey;
@@ -1690,7 +2385,7 @@ void T100_Disp::SimulateKeydown(int key)
 	}
 
 	// Test if key needs to be added to simKeys
-	if (c != 32)
+	if (c == 32)
 	{
 		// Find first non-zero entry
 		for (c = 0; c < 32; c++)
@@ -1755,6 +2450,692 @@ int T100_Disp::sim_event_key(void)
 	return m_simEventKey;
 }
 
+/*
+==========================================================================
+Handle simulatged wheel keys (Function buttons, Enter, etc.)
+==========================================================================
+*/
+extern "C"
+void handle_wheel_keys(void*)
+{
+
+	// If no keys to process, just exit
+	if (gpDisp->m_WheelKeyIn == gpDisp->m_WheelKeyOut)
+		return;
+
+	// If the key wasn't processed yet, just return
+	if (gDelayUpdateKeys)
+	{
+//		Fl::repeat_timeout(0.01, cb_mousewheel, key);
+		return;
+	}
+
+	int		which_key = gpDisp->m_WheelKeys[gpDisp->m_WheelKeyOut];
+	if ((gpDisp->m_WheelKeyDown == VT_SIM_KEYDOWN) && (which_key != FL_Control_L))
+	{
+		// Handle CTRL-key sequences
+		if (gpDisp->m_SimulatedCtrl)
+		{
+			gpDisp->SimulateKeyup(FL_Control_L);
+			gpDisp->m_SimulatedCtrl = FALSE;
+			gpDisp->HandleSimkey();
+		}
+		gpDisp->SimulateKeyup(which_key);
+		gpDisp->m_WheelKeyDown = VT_SIM_KEYUP;
+		gpDisp->HandleSimkey();
+//		Fl::repeat_timeout(0.01, cb_mousewheel, (void *)VT_SIM_KEYUP);
+	}
+	else
+	{
+		if (++gpDisp->m_WheelKeyOut >= 32)
+			gpDisp->m_WheelKeyOut = 0;
+		if (gpDisp->m_WheelKeyOut != gpDisp->m_WheelKeyIn)
+		{
+			gpDisp->SimulateKeydown(gpDisp->m_WheelKeys[gpDisp->m_WheelKeyOut]);
+			gpDisp->m_WheelKeyDown = VT_SIM_KEYDOWN;
+			gpDisp->HandleSimkey();
+//			Fl::repeat_timeout(0.0, do_wheel_key, (void *)VT_SIM_KEYDOWN);
+		}
+	}
+}
+
+/*
+==========================================================================
+Simulate a keystroke as a result of Mouse events (Mouse wheel, clicks, etc)
+==========================================================================
+*/
+void T100_Disp::WheelKey(int key)
+{
+	int	startTimer = m_WheelKeyIn == m_WheelKeyOut;
+
+	// Add the wheel key event
+	m_WheelKeys[m_WheelKeyIn++] = key;
+	if (m_WheelKeyIn >= 32)
+		m_WheelKeyIn = 0;
+
+	if (startTimer)
+	{
+		SimulateKeydown(key);
+		m_WheelKeyDown = VT_SIM_KEYDOWN;
+		handle(VT_SIM_KEYDOWN);
+//		Fl::add_timeout(0.01, cb_mousewheel, (void *)VT_SIM_KEYDOWN);
+	}
+}
+
+/*
+==========================================================================
+Test if the emulation is currently in the MENU program or TS-DOS menu
+==========================================================================
+*/
+int T100_Disp::IsInMenu(void)
+{
+	int				lines, c, first_line = 0;
+	unsigned short	lcdAddr, curAddr;
+	char			lcdStr[21];
+
+	lines = gModel == MODEL_T200 ? 16 : 8;
+	
+	// For Model 200, the 1st byte of the LCD character buffer isn't
+	// always the first row on the LCD.  There is a 1st row offset
+	// variable at FEAEh that tells which row is the 1st row
+	if (gModel == MODEL_T200)
+		first_line = get_memory8(0xFEAE);
+	lcdAddr = gStdRomDesc->sLcdBuf;
+
+	// Now loop through each row and build a string to send
+	curAddr = lcdAddr + first_line * 40;
+
+	/* Test for TS-DOS menu */
+	/* Get first 20 bytes from LCD to test for " BASIC    TEXT    " */
+	for (c = 0; c < 9; c++)
+		lcdStr[c] = get_memory8(curAddr++);
+	lcdStr[c] = 0;
+
+	if (strcmp(" TS-DOS (", lcdStr) == 0)
+		return 2;
+
+	/* Skip to second line to test for main menu */
+	curAddr = lcdAddr + first_line * 40 + 40;	
+	unsigned short maxAddr = lcdAddr + lines * 40;
+	if (curAddr >= maxAddr)
+		curAddr = lcdAddr;
+
+	/* Get first 20 bytes from LCD to test for " BASIC    TEXT    " */
+	for (c = 0; c < 20; c++)
+		lcdStr[c] = get_memory8(curAddr++);
+	lcdStr[c] = 0;
+
+	if (strcmp(" BASIC     TEXT     ", lcdStr) == 0)
+		return 1;
+
+	return FALSE;
+}
+
+/*
+==========================================================================
+Locate the specified address entry in the StdRom descriptor
+==========================================================================
+*/
+unsigned short find_stdrom_addr(int entry)
+{
+	int	c;
+
+	for (c = 0; ;c++)
+	{
+		// Test for end of table
+		if (gStdRomDesc->pVars[c].strnum == -1)
+		{
+			return 0;
+		}
+
+		// Search for the Level 6 plotting function
+		if (gStdRomDesc->pVars[c].strnum == entry)
+		{
+			return gStdRomDesc->pVars[c].addr;
+		}
+	}
+
+	return 0;
+}
+
+/*
+==========================================================================
+Test if the emulation is currently in the TEXT program 
+==========================================================================
+*/
+int T100_Disp::IsInText(void)
+{
+	int		fkeyAddr, c, x, i;
+	char	fkeyStr[41];
+
+	// Find the adress of the FKey label buffer
+	fkeyAddr = find_stdrom_addr(R_FKEY_DEF_BUF);
+
+	// Read the Fkey labels
+	for (c = 0, i = 0; i < 8; i++)
+	{
+		for (x = 0; x < 4; x++)
+		{
+			fkeyStr[c] = get_memory8(fkeyAddr++);
+			if (fkeyStr[c] < 'A')
+				fkeyStr[c] = ' ';
+			c++;
+		}
+		fkeyStr[c++] = ' ';
+		fkeyAddr += 12;
+	}
+
+	// Test for TEXT "FIND" label
+	if (strncmp(fkeyStr, "Find Load", 9) == 0)
+		return 1;
+	if (strncmp(fkeyStr, "Find           Edit", 19) == 0)
+		return 1;
+	if (strncmp(fkeyStr, "Find Next", 9) == 0)
+		return 1;
+	return 0;
+}
+
+/*
+==========================================================================
+Waits for the selection to be complete and pops up the action menu
+==========================================================================
+*/
+void cb_await_selection_complete(void *pContext)
+{
+	if (!gpDisp->m_SelectComplete)
+	{
+		Fl::repeat_timeout(0.02, cb_await_selection_complete, NULL);
+		return;
+	}
+
+	gpDisp->m_CopyCut->menu(gCopyCutMenu);	
+	gpDisp->m_CopyCut->type(Fl_Menu_Button::POPUP123);
+	if (gpDisp->m_CopyCut->popup() == NULL)
+		cb_select_cancel(gpDisp, NULL);
+	gpDisp->m_CopyCut->type(0);
+}
+
+/*
+==========================================================================
+Adds a short delay after a selection to allow the display to update.
+==========================================================================
+*/
+void cb_select_delay(void *pContext)
+{
+	gpDisp->m_SelectComplete = TRUE;
+}
+
+/*
+==========================================================================
+Process word selection logic after the timeout for display update
+==========================================================================
+*/
+typedef struct
+{
+	unsigned short	addr;
+	char			col;
+	char			row;
+	char			delay;
+} WordSel_t;
+
+void cb_wordsel(void *pContext)
+{
+	WordSel_t	*pWordSel = (WordSel_t *) pContext;
+
+	if (gpDisp->m_WheelKeyIn != gpDisp->m_WheelKeyOut)
+	{
+		Fl::repeat_timeout(0.02, cb_wordsel, pContext);
+		return;
+	}
+
+	if (pWordSel->delay)
+	{
+		Fl::repeat_timeout(0.2 / (fullspeed + 1), cb_wordsel, pContext);
+		pWordSel->delay = 0;
+		return;
+	}
+	// Set the new col based on if the column is zero or not
+	if (pWordSel->col == 0)
+	{
+		set_memory8(pWordSel->addr, pWordSel->col + 1);
+		gpDisp->WheelKey(FL_Left);
+	}
+	else
+	{
+		set_memory8(pWordSel->addr, pWordSel->col - 1);
+		gpDisp->WheelKey(FL_Right);
+	}
+
+	Fl::add_timeout(0.2 / (fullspeed + 1), cb_select_delay);
+	delete (char *) pContext;
+}
+
+void cb_dragsel(void *pContext)
+{
+	unsigned short	cursorRow;
+	WordSel_t	*pWordSel = (WordSel_t *) pContext;
+
+	// Test if this dragsel object is still valid.  If a later dragsel was queued, then
+	// The position won't match any longer
+	if (pWordSel->row * 40 + pWordSel->col != gpDisp->m_LastPos)
+	{
+		delete pWordSel;
+		return;
+	}
+
+	// Test if the simulated keystroke buffer is empty
+	if (gpDisp->m_WheelKeyIn != gpDisp->m_WheelKeyOut)
+	{
+		Fl::repeat_timeout(0.02, cb_dragsel, pContext);
+		return;
+	}
+
+	// Delay to allow time for the emulation to perform highlighting
+	if (pWordSel->delay)
+	{
+		Fl::repeat_timeout(0.2 / (fullspeed + 1), cb_dragsel, pContext);
+		pWordSel->delay = 0;
+		return;
+	}
+
+	int lines = gModel == MODEL_T200 ? 16 : 8;
+	cursorRow = find_stdrom_addr(R_CURSOR_ROW);
+	int row = pWordSel->row;
+	if (row < 1)
+		row = 1;
+	if (row > lines)
+		row = lines;
+	set_memory8(cursorRow, row);
+ 
+	// Set the new col based on if the column is zero or not
+	if (pWordSel->col == 0)
+	{
+		set_memory8(pWordSel->addr, pWordSel->col + 1);
+		gpDisp->WheelKey(FL_Left);
+	}
+	else
+	{
+		set_memory8(pWordSel->addr, pWordSel->col - 1);
+		gpDisp->WheelKey(FL_Right);
+	}
+
+	// Test for scroll up
+	if (pWordSel->row < 1)
+		gpDisp->WheelKey(FL_Up);
+	if (pWordSel->row > lines)
+		gpDisp->WheelKey(FL_Down);
+
+	Fl::add_timeout(0.2 / (fullspeed + 1), cb_select_delay);
+	delete (char *) pContext;
+}
+
+/*
+==========================================================================
+Process mouse click events while the MsPlan ROM is active
+==========================================================================
+*/
+int T100_Disp::ButtonClickInText(int mx, int my)
+{
+	int		cursorRow, cursorCol;
+	int		newRow, newCol;
+
+	// Find address of cursor row and col
+	cursorRow = find_stdrom_addr(R_CURSOR_ROW);
+	cursorCol = find_stdrom_addr(R_CURSOR_COL);
+
+	// Calculate new row and col 
+	newCol = (mx - gXoffset) / MultFact / 6 + 1;
+	newRow = (my - gYoffset) / MultFact / 8 + 1;
+	m_LastPos = newRow * 40 + newCol;
+
+	// Set the new row
+	set_memory8(cursorRow, newRow);
+
+	if (Fl::event_clicks() == 0)
+	{
+		m_Select = FALSE;
+		// Set the new col based on if the column is zero or not
+		if (newCol == 0)
+		{
+			set_memory8(cursorCol, newCol + 1);
+			WheelKey(FL_Left);
+		}
+		else
+		{
+			set_memory8(cursorCol, newCol - 1);
+			WheelKey(FL_Right);
+		}
+	}
+	else
+	{
+		// Double click in a TEXT document.  Select the word
+		Fl::event_clicks(0);
+		m_Select = 2;
+
+		// Get the address of the LCD buffer
+		int				lines, first_line = 0;
+		unsigned short	lcdAddr, curAddr;
+
+		lines = gModel == MODEL_T200 ? 16 : 8;
+		
+		// For Model 200, the 1st byte of the LCD character buffer isn't
+		// always the first row on the LCD.  There is a 1st row offset
+		// variable at FEAEh that tells which row is the 1st row
+		if (gModel == MODEL_T200)
+			first_line = get_memory8(0xFEAE);
+		lcdAddr = gStdRomDesc->sLcdBuf;
+		unsigned short maxAddr = lcdAddr + lines * 40;
+		curAddr = lcdAddr + first_line * 40;
+		curAddr += 40 * (newRow-1) + newCol - 1;
+		if (curAddr >= maxAddr)
+			curAddr -= lines * 40;
+
+		// Read the character under the cursor
+		char	ch = get_memory8(curAddr);
+		
+		// Read backward to find the first character of the word / whitespace
+		while (newCol > 1)
+		{
+			newCol--;
+			curAddr--;
+			char nextCh = get_memory8(curAddr);
+			if (ch == ' ')
+			{
+				// Group all whitespace togeher
+				if (nextCh != ' ')
+				{
+					newCol++;
+					curAddr++;
+					break;
+				}
+			}
+			else if (((ch < 'A') || (ch > 'z')) && (ch != '_'))
+			{
+				// Group all control symbols together
+				if ((nextCh == ' ') || ((nextCh >= 'A') && (nextCh <= 'z')))
+				{
+					newCol++;
+					curAddr++;
+					break;
+				}
+			}
+			else
+			{
+				if (((nextCh < 'A') || (nextCh > 'z')) && (nextCh != '_'))
+				{
+					newCol++;
+					curAddr++;
+					break;
+				}
+			}
+		}
+		if (newCol == 0)
+		{
+			set_memory8(cursorCol, newCol + 1);
+			WheelKey(FL_Left);
+		}
+		else
+		{
+			set_memory8(cursorCol, newCol - 1);
+			WheelKey(FL_Right);
+		}
+
+		// Now send the key for 'Sel'
+		WheelKey(FL_F + 7);
+
+		// Now find the end of the word
+		while (newCol <= 40)
+		{
+			newCol++;
+			curAddr++;
+			char nextCh = get_memory8(curAddr);
+//			WheelKey(FL_Right);
+			if (ch == ' ')
+			{
+				// Group all whitespace togeher
+				if (nextCh != ' ')
+					break;
+			}
+			else if (((ch < 'A') || (ch > 'z')) && (ch != '_'))
+			{
+				// Group all control symbols together
+				if ((nextCh == ' ') || ((nextCh >= 'A') && (nextCh <= 'z')))
+					break;
+			}
+			else
+			{
+				if (((nextCh < 'A') || (nextCh > 'z')) && (nextCh != '_'))
+					break;
+			}
+		}
+		WordSel_t* pSelWord = new WordSel_t;
+		pSelWord->addr = cursorCol;
+		pSelWord->col = newCol;
+		pSelWord->row = newRow;
+		pSelWord->delay = 1;
+		m_SelectComplete = FALSE;
+		Fl::add_timeout(0.08, cb_wordsel, pSelWord);
+	}
+	return 1;
+}
+
+/*
+==========================================================================
+Process mouse click events while the MsPlan ROM is active
+==========================================================================
+*/
+int T100_Disp::ButtonClickInMsPlan(int mx, int my)
+{
+	int				lines, first_line = 0;
+	unsigned short	lcdAddr, curAddr;
+
+	lines = gModel == MODEL_T200 ? 16 : 8;
+	
+	// For Model 200, the 1st byte of the LCD character buffer isn't
+	// always the first row on the LCD.  There is a 1st row offset
+	// variable at FEAEh that tells which row is the 1st row
+	if (gModel == MODEL_T200)
+		first_line = get_memory8(0xFEAE);
+	lcdAddr = gStdRomDesc->sLcdBuf;
+
+	// Now loop through each row and build a string to send
+	curAddr = lcdAddr + first_line * 40;
+
+	// Point to last line
+	curAddr += 40 * (lines - 1);
+	unsigned short maxAddr = lcdAddr + lines * 40;
+	if (curAddr >= maxAddr)
+		curAddr -= lines * 40;
+
+	// Point to 2nd column to test for digit
+	curAddr++;
+	int ch = get_memory8(curAddr);
+	int labelActive = TRUE;
+	if ((ch >= '0') && (ch <= '9'))
+		labelActive = FALSE;
+
+	// Now perform click processing base on labelActive
+	if (labelActive && (my > gYoffset + (lines - 1) * 8 * MultFact))
+	{
+		int num_labels = gModel == MODEL_PC8201 ? 5 : 8;
+		int pixPerLabel = 240 / num_labels;
+		int fk = (mx - gXoffset) / MultFact / pixPerLabel + 1;
+		WheelKey(FL_F + fk);
+		Fl::event_clicks(0);
+	}
+	else
+	{
+		int topCell = get_memory8(0xEB58);
+		int leftCell = get_memory8(0xEB5A);
+		int curCellX = get_memory8(0xE910);
+		int curCellY = get_memory8(0xE90E);
+		int cellWidth = get_memory8(0xE920);
+		int charX = (mx - gXoffset) / MultFact / 6;
+		int charY = (my- gYoffset) / MultFact / 8;
+
+		if (cellWidth == 0)
+			cellWidth = 9;
+		int targetCellX = leftCell + (charX - 3) / cellWidth;
+		int targetCellY = topCell + charY - 1;
+		while (targetCellX > curCellX)
+		{
+			WheelKey(FL_Right);
+			curCellX++;
+		}
+		while (targetCellX < curCellX)
+		{
+			WheelKey(FL_Left);
+			curCellX--;
+		}
+		while (targetCellY > curCellY)
+		{
+			WheelKey(FL_Down);
+			curCellY++;
+		}
+		while (targetCellY < curCellY)
+		{
+			WheelKey(FL_Up);
+			curCellY--;
+		}
+	}
+
+	return 1;
+}
+
+/*
+==========================================================================
+Process mouse click events while the MENU program is active
+==========================================================================
+*/
+int T100_Disp::ButtonClickInMenu(int mx, int my)
+{
+	int lineHeight = MultFact * 8;
+	int charWidth = MultFact * 6;
+	int lines = gModel == MODEL_T200 ? 16 : 8;
+
+	// Determine which menu item was selected
+	if ((my > gYoffset + lineHeight) && (my <= gYoffset + lineHeight * (lines - 2)))
+	{
+		int row = (my - gYoffset - lineHeight) / lineHeight;
+		int col = (mx - gXoffset) / (charWidth * 10);
+		int entry = row * 4 + col;
+
+		// Test if this entry is larger than
+		int maxEntryAddr = find_stdrom_addr(R_MAX_MENU_DIR_LOC);
+		int curEntryAddr = find_stdrom_addr(R_CUR_MENU_DIR_LOC);
+		if ((maxEntryAddr != 0) && (curEntryAddr != 0))
+		{
+			// Read the max and current menu entries
+			int maxEntry = get_memory8(maxEntryAddr);
+			int curEntry = get_memory8(curEntryAddr);
+
+			// Test if clicked on current item and start drag-n-drop
+			if (curEntry == entry)
+			{
+//				Fl::copy("c:\test.do", 11, 1);
+//				Fl::dnd();
+			}
+
+			// Test if entry is a valid file
+			else if (entry <= maxEntry)
+			{
+				if (m_WheelKeyIn != m_WheelKeyOut)
+				{
+					m_WheelKeyIn = m_WheelKeyOut;
+					if (m_WheelKeyIn >= 32)
+						m_WheelKeyIn = 0;
+				}
+				// Send keystrokes to get to the entry
+				int curRow = curEntry / 4;
+				int curCol = curEntry - curRow * 4;
+				while (row < curRow)
+				{
+					WheelKey(FL_Up);
+					curRow--;
+				}
+				while (col < curCol)
+				{
+					WheelKey(FL_Left);
+					curCol--;
+				}
+				while (row > curRow)
+				{
+					WheelKey(FL_Down);
+					curRow++;
+				}
+				while (col > curCol)
+				{
+					WheelKey(FL_Right);
+					curCol++;
+				}
+			}
+		}
+	}
+
+	return 1;
+}
+
+/*
+==========================================================================
+Handle the mouse movement while emulation is in TEXT program.  Performs
+drag selection and word drag selection.
+==========================================================================
+*/
+int T100_Disp::MouseMoveInText(int mx, int my)
+{
+	int		lines = gModel == MODEL_T200 ? 16 : 8;
+	int		cursorRow, cursorCol;
+	int		newCol, newRow, pos;
+
+	// Calculate new row and col 
+	newCol = (mx - gXoffset) / MultFact / 6 + 1;
+	newRow = (my - gYoffset) / MultFact / 8 + 1;
+	if (newCol < 1)
+		newCol = 1;
+	if (newCol > 40)
+		newCol = 40;
+
+	pos = newRow * 40 + newCol;
+	// Find address of cursor row and col
+	cursorRow = find_stdrom_addr(R_CURSOR_ROW);
+	cursorCol = find_stdrom_addr(R_CURSOR_COL);
+
+	// Test if the cursor changed positions 
+	if (pos != m_LastPos)
+	{
+		m_LastPos = pos;
+
+		// If a selection wasn't started yet, then start it now
+		if (!m_Select)
+		{
+			// Simulate an F7 keystroke to start selection
+			WheelKey(FL_F + 7);
+			m_Select = 1;
+		}
+		
+		// Test if select mode is word select
+		if (m_Select == 2)
+		{
+		}
+
+		// Test if we are in word select mode and update new selection based on this
+		WordSel_t* pSelWord = new WordSel_t;
+		pSelWord->addr = cursorCol;
+		pSelWord->col = newCol;
+		pSelWord->row = newRow;
+		pSelWord->delay = 1;
+		m_SelectComplete = FALSE;
+		Fl::add_timeout(0.04, cb_dragsel, pSelWord);
+	}
+
+	return 1;
+}
+
+/*
+==========================================================================
+Window handler for all events.
+==========================================================================
+*/
 // Handle mouse events, key events, focus events, etc.
 char	keylabel[128];
 int T100_Disp::handle(int event)
@@ -1772,6 +3153,7 @@ int T100_Disp::handle(int event)
 	event_key = Fl::event_key;
 	simulated = FALSE;
 
+	// Test for simulated key events
 	if ((event == VT_SIM_KEYUP) || (event == VT_SIM_KEYDOWN))
 	{
 		get_key = sim_get_key;
@@ -1784,12 +3166,164 @@ int T100_Disp::handle(int event)
 			event = FL_KEYDOWN;
 	}
 
+	// Test for Mouse Wheel events
+	if (event == FL_MOUSEWHEEL)
+	{
+		int x = Fl::e_dx;
+		int y = Fl::e_dy;
+
+		// Test for up arrow
+		if (((gSpecialKeys & (MT_GRAPH | MT_CODE)) != (MT_GRAPH | MT_CODE)) || IsInMenu())
+		{
+			if (y < 0)
+				WheelKey(FL_Left);
+			else if (y > 0)
+				// Must be down arrow
+				WheelKey(FL_Right);
+		}
+		else
+		{
+			if (y < 0)
+				WheelKey(FL_Up);
+			else if (y > 0)
+				// Must be down arrow
+				WheelKey(FL_Down);
+		}
+		if (x < 0)
+			WheelKey(FL_Left);
+		else if (x > 0)
+			WheelKey(FL_Right);
+		return 1;
+	}
+
 	switch (event)
 	{
+	case FL_DND_DRAG:
+	case FL_DND_ENTER:
+	case FL_DND_RELEASE:
+		return 1;
+	case FL_PASTE:
+		printf("PASTE: %s", Fl::event_text());
+		if (IsInMenu() == 1)
+			remote_load_from_host(Fl::event_text());
+		return 1;
 	case FL_FOCUS:
 		m_MyFocus = 1;
 		break;
+
+	case FL_ENTER:
+	case FL_LEAVE:
+		return 1;
+
+	case FL_DRAG:
+		if (m_HaveMouse)
+		{
+			int mx = Fl::event_x();
+			int my = Fl::event_y();
+
+			if (IsInText())
+				MouseMoveInText(mx, my);
+
+		}
+		break;
+		
+	case FL_RELEASE:
+		// If text was selected, then popup the menu for copy/cut
+		if (m_Select)
+		{
+			if (m_WheelKeyIn == m_WheelKeyOut)
+				Fl::add_timeout(0.02, cb_await_selection_complete, NULL);
+		}
+
+		if (!Fl::event_clicks())
+			m_Select = FALSE;
+		m_HaveMouse = FALSE;
+		Fl::release();
+		break;
+
 	case FL_PUSH:
+		Fl::grab();
+		m_HaveMouse = TRUE;
+		if (Fl::event_button3())
+		{
+			m_LeftClick->type(Fl_Menu_Button::POPUP123);
+			m_LeftClick->popup();
+			m_LeftClick->type(0);
+			take_focus();
+			return 1;
+		}
+
+		if (m_MyFocus == 1)
+		{
+			int mx = Fl::event_x();
+			int my = Fl::event_y();
+			int wx = x();
+			int wy = y();
+			int procFkey = FALSE;
+			int whichMenu;
+			if ((mx >= m_BezelLeft  + m_BezelLeftW) && (mx <= m_BezelRight) &&
+				(my >= m_BezelTop + m_BezelTopH) && (my <= m_BezelBottom))
+			{
+				if (Fl::event_clicks())
+				{
+					if (IsInMenu())
+					{
+						WheelKey(FL_Enter);
+						Fl::event_clicks(0);
+						m_Select = FALSE;
+						return 1;
+					}
+				}
+				// Test if we are in the menu
+				if (whichMenu = IsInMenu())
+				{
+					m_Select = FALSE;
+					// Test if mouse is in FKey area
+					if (my >= m_BezelBottom - 1 - 8 * MultFact)
+						procFkey = TRUE;
+					else
+					{
+						if (whichMenu == 1)
+						{
+							return ButtonClickInMenu(mx, my);
+						}
+					}
+				}
+				else
+				{
+					if (gInMsPlanROM)
+						return ButtonClickInMsPlan(mx, my);
+					int labelEn = get_memory8(gStdRomDesc->sLabelEn);
+					if ((gStdRomDesc->sLabelEn && labelEn) &&
+						(my >= m_BezelBottom - 1 - 8 * MultFact))
+					{
+							procFkey = TRUE;
+					}
+
+					// Test if emulation is in Text mode
+					else if (IsInText())
+					{
+						return ButtonClickInText(mx, my);
+					}
+				}
+			}
+			else if ((mx >= gXoffset) && (mx <= m_BezelRight) && 
+				(my >= m_BezelBottom) && (my <= m_BezelBottom + m_BezelBottomH))
+			{
+				// In FKey area
+				procFkey = TRUE;
+			}
+
+			if (procFkey)
+			{
+				int num_labels = gModel == MODEL_PC8201 ? 5 : 8;
+				int pixPerLabel = 240 / num_labels;
+				int fk = (mx - gXoffset) / MultFact / pixPerLabel + 1;
+				WheelKey(FL_F + fk);
+				m_Select = FALSE;
+				Fl::event_clicks(0);
+			}
+		}
 		m_MyFocus = 1;
 		break;
 
@@ -2677,6 +4211,10 @@ int T100_Disp::handle(int event)
 		update_keys();
 		break;
 
+	default:
+		Fl_Widget::handle(event);
+		break;
+
 	}
 
 	// Display keystroke info on status line of display
@@ -2999,7 +4537,7 @@ void T200_Disp::draw()
 	/* Get RAM address where display should start */
 	addr = ((m_dstarth << 8) | m_dstartl) & (8192-1);
 
-	fl_color(FL_BLACK);
+	fl_color(m_PixelColor);
 
 	/* Check if the driver is in "graphics" mode */
 	if (m_mcr & 0x02)
@@ -3067,10 +4605,14 @@ void T200_Disp::SetByte(int driver, int col, uchar value)
 	// Set the display
 	window()->make_current();
 
-	fl_color(FL_GRAY);
+	fl_color(m_BackgroundColor);
+#ifdef ZIPIT_Z2
+	fl_rectf(m_xCoord[x], m_yCoord[y], 8, m_rectSize[y]);
+#else
 	fl_rectf(x*MultFact + gXoffset, y*MultFact + 
 		gYoffset, MultFact*6, gRectsize);
-	fl_color(FL_BLACK);
+#endif
+	fl_color(m_PixelColor);
 
 	// Draw each pixel of byte
 	drawpixel(x++,y,value&0x01);
@@ -3125,10 +4667,14 @@ void T200_Disp::redraw_active()
 		{
 			// Erase line so it is grey, then fill in with black where needed
 			y = row;
-			fl_color(FL_GRAY);
+			fl_color(m_BackgroundColor);
+#ifdef ZIPIT_Z2
+			fl_rectf(m_xCoord[x],m_yCoord[y], 320,m_rectSize[y]);
+#else
 			fl_rectf(gXoffset,y*MultFact + 
 				gYoffset,240*MultFact,gRectsize);
-			fl_color(FL_BLACK);
+#endif
+			fl_color(m_PixelColor);
 
 			/* Loop through all 40 LCD columns */
 			for (col = 0; col < 40; col++)

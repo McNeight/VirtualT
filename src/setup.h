@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.5 2008/02/25 03:20:16 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -34,6 +34,7 @@
 #ifdef __cplusplus
 void cb_PeripheralSetup (Fl_Widget* w, void*);
 void cb_MemorySetup (Fl_Widget* w, void*);
+void cb_SocketSetup (Fl_Widget* w, void*);
 extern "C" {
 #endif
 
@@ -60,6 +61,7 @@ typedef struct peripheral_setup
 	// BCR port emulation settings
 
 	// Sound emulation settings
+	int		sound_enable;				// Set TRUE when sound is enabled
 
 } peripheral_setup_t;
 

@@ -1,6 +1,6 @@
 /* m100rom.c */
 
-/* $Id: m200rom.c,v 1.3 2008/01/26 14:39:46 kpettit1 Exp $ */
+/* $Id: m200rom.c,v 1.5 2008/03/31 02:59:20 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -277,6 +277,7 @@ Std_ROM_Addresses_t gM200_Vars[] = {
 	{ 0xF7C9, R_MENU_TO_RAM_MAP },      	
 	{ 0xF848, R_CUR_MENU_DIR_LOC },     	
 	{ 0xF849, R_MAX_MENU_DIR_LOC },     	
+	{ 0xFA30, R_LCD_CHAR_BUF },
 	{ 0xFCF0, R_XON_XOFF_CTRL },        	
 	{ 0xFCF1, R_XON_XOFF_CTRL },        	
 	{ 0xFCF2, R_XON_XOFF_ENABLE },      	
@@ -986,6 +987,8 @@ RomDescription_t gM200_Desc = {
 	0xFD0E,						/* Keyscan array */
 	0x9063,						/* Character generator array */
 	0x0000,						/* Location of Year - not used for T200 */
+	0xFA30,						/* Location of LCD buffer area */
+	0xEF0A,						/* Label line enable flag */
 
 	52,							/* Number of directory entries */
 	9,							/* Index of first dir entry */

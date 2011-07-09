@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.1.1.1 2007/04/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -41,13 +41,45 @@
 #include <string.h>
 #include <ctype.h>
 
+#include "FLU/Flu_File_Chooser.h"
+
 #include "VirtualT.h"
 #include "m100emu.h"
 #include "multieditwin.h"
+#include "highlight.h"
+#include "idetabs.h"
 
 extern MString	gRootpath;
+extern int		gDisableHl;
 
-IMPLEMENT_DYNCREATE(Fl_Multi_Edit_Window, Fl_Multi_Window)
+//Editor colors
+extern Fl_Color hl_plain;
+extern Fl_Color hl_linecomment;
+extern Fl_Color hl_blockcomment ;
+extern Fl_Color hl_string ;
+extern Fl_Color hl_directive ;
+extern Fl_Color hl_type ;
+extern Fl_Color hl_keyword ;
+extern Fl_Color hl_character ;
+extern Fl_Color hl_label ;
+extern Fl_Color background_color ;
+
+My_Text_Display::Style_Table_Entry
+ gStyleTable[] = {	// Style table
+		     { hl_plain,      FL_COURIER,        TEXTSIZE }, // A - Plain
+		     { hl_linecomment, FL_COURIER_ITALIC, TEXTSIZE }, // B - Line comments
+		     { hl_blockcomment, FL_COURIER_ITALIC, TEXTSIZE }, // C - Block comments
+		     { hl_string,       FL_COURIER,        TEXTSIZE }, // D - Strings
+		     { hl_directive,   FL_COURIER,        TEXTSIZE }, // E - Directives
+		     { hl_type,   FL_COURIER_BOLD,   TEXTSIZE }, // F - Types
+		     { hl_keyword,       FL_COURIER_BOLD,   TEXTSIZE }, // G - Keywords
+		     { hl_character,    FL_COURIER,        TEXTSIZE },  // H - Character
+		     { hl_label,    FL_COURIER,        TEXTSIZE }  // H - Character
+		   };
+
+
+IMPLEMENT_DYNCREATE(Fl_Multi_Edit_Window, VTObject)
+//IMPLEMENT_DYNCREATE(Fl_Multi_Edit_Window, Fl_Multi_Window)
 
 void multiEditModCB(int pos, int nInserted, int nDeleted, int nRestyled, 
 	const char* deletedText, void* cbArg)
@@ -57,10 +89,16 @@ void multiEditModCB(int pos, int nInserted, int nDeleted, int nRestyled,
 	mw->ModifedCB(pos, nInserted, nDeleted, nRestyled, deletedText);
 }
 
-void cb_multieditwin(Fl_Widget* w, void *)
+void cb_multieditwin(Fl_Widget* w, void *args)
 {
 	Fl_Multi_Edit_Window* mw = (Fl_Multi_Edit_Window*) w;
 	int					ans;
+	int					event;
+
+	event = Fl::event();
+
+	if ((args != (void *) FL_IDE_TABS_CLOSE) && (event != FL_HIDE))
+		return;
 
 	// Check if buffer is modified & ask to close if it is
 	if (mw->IsModified())
@@ -71,29 +109,92 @@ void cb_multieditwin(Fl_Widget* w, void *)
 		if (ans == 1)
 			mw->SaveFile(gRootpath);
 	}
-	
+
 	mw->hide();
-	delete mw;
+	mw->parent()->do_callback(mw, FL_IDE_TABS_CLOSE);
+//	delete mw;
 }
 
 Fl_Multi_Edit_Window::Fl_Multi_Edit_Window(int x, int y, int w, int h, const char* title)
-: Fl_Multi_Window(x, y, w, h, title)
+ : My_Text_Editor(x, y, w, h, title)
 {
     /* Create window */
-    m_te = new Fl_Text_Editor(15, 0, ClientArea()->w()-15,
-        ClientArea()->h(), (const char *) title);
     m_tb = new Fl_Text_Buffer();
+	buffer(m_tb);
 	m_tb->add_modify_callback(multiEditModCB, this);
-    m_te->buffer(m_tb);
-    m_te->textfont(FL_COURIER);
-    m_te->end();
-    ClientArea()->resizable(m_te);
+
+	m_pHlCtrl = new HighlightCtrl_t;
+	if (m_pHlCtrl != NULL)
+	{
+		m_pHlCtrl->textbuf = m_tb;
+		m_pHlCtrl->te = this;
+		m_pHlCtrl->cppfile = TRUE;
+		m_pHlCtrl->stylebuf = NULL;
+	}
+
+	mStyleTable = gStyleTable;
+	mNStyles = sizeof(gStyleTable) / sizeof(My_Text_Display::Style_Table_Entry);
+	m_tb->add_modify_callback(style_update, m_pHlCtrl);
+
+	if (!gDisableHl)
+	{
+		style_init(m_pHlCtrl);
+		mStyleBuffer = m_pHlCtrl->stylebuf;
+	}
+
+	callback(cb_multieditwin);
+	when(FL_WHEN_RELEASE);
+
+	textfont(FL_COURIER);
+#ifndef WIN32
+	textsize(14);
+#endif
 	m_Modified = 0;
 	m_Title = title;
+	this->label((const char *) m_Title);
 }
+
 
 Fl_Multi_Edit_Window::~Fl_Multi_Edit_Window()
 {
+	// Free the Highlight control struct
+	if (m_pHlCtrl != NULL)
+	{
+		if (m_pHlCtrl->stylebuf != NULL)
+			delete m_pHlCtrl->stylebuf;
+
+		delete m_pHlCtrl;
+	}
+
+	// Delete the text buffer
+/*	if (m_tb != NULL)
+	{
+		delete m_tb;
+		m_tb = NULL;
+	} */
+}
+
+void Fl_Multi_Edit_Window::DisableHl(void)
+{
+	if (mStyleBuffer == NULL)
+		return;
+
+	mStyleBuffer = NULL;
+	if (m_pHlCtrl != NULL)
+	{
+		if (m_pHlCtrl->stylebuf != NULL)
+			delete m_pHlCtrl->stylebuf;
+		m_pHlCtrl->stylebuf = NULL;
+	}
+}
+
+void Fl_Multi_Edit_Window::EnableHl(void)
+{
+	if (mStyleBuffer != NULL)
+		return;
+
+	style_init(m_pHlCtrl);
+	mStyleBuffer = m_pHlCtrl->stylebuf;
 }
 
 /*
@@ -157,14 +258,16 @@ Routine to draw the border and title bar of the window
 */
 void Fl_Multi_Edit_Window::SaveAs(const MString& rootpath)
 {
-	Fl_File_Chooser*		fc;
+	Flu_File_Chooser*		fc;
 	int						count;
 
 	// Validate the Text Buffer is valid
 	if (m_tb == NULL)
 		return;
 
-	fc = new Fl_File_Chooser((const char *) rootpath, "*.asm,*.a85", Fl_File_Chooser::CREATE, "Save File As");
+	fl_cursor(FL_CURSOR_WAIT);
+	fc = new Flu_File_Chooser((const char *) rootpath, "*.asm,*.a85", Fl_File_Chooser::CREATE, "Save File As");
+	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
 
@@ -179,7 +282,7 @@ void Fl_Multi_Edit_Window::SaveAs(const MString& rootpath)
 		return;
 	}
 
-	m_FileName = fc->value(1);
+	m_FileName = fc->value();
 	m_tb->savefile((const char *) m_FileName);
 
 	delete fc;
@@ -194,6 +297,9 @@ Routine to handle modifications to the text buffer
 void Fl_Multi_Edit_Window::ModifedCB(int pos, int nInserted, int nDeleted, 
 	int nRestyled, const char* deletedText)
 {
+	if ((nInserted == 0) && (nDeleted == 0))
+		return;
+
 	// Check if buffer had already been modified before
 	if (m_Modified)
 		return;
@@ -255,12 +361,12 @@ int Fl_Multi_Edit_Window::ReplaceAll(const char* pFind,
 	int		replacement = 0;
 
 	// Start at the beginning of the buffer
-	m_te->insert_position(0);
+	insert_position(0);
 
 	// Loop while text found
 	for (int found = 1; found; )
 	{
-		int pos = m_te->insert_position();
+		int pos = insert_position();
 		found = m_tb->search_forward(pos, pFind, &pos);
 
 		if (found)
@@ -271,8 +377,8 @@ int Fl_Multi_Edit_Window::ReplaceAll(const char* pFind,
 			m_tb->remove_selection();
 			m_tb->insert(pos, pReplace);
 			m_tb->select(pos, pos+strlen(pReplace));
-			m_te->insert_position(pos+strlen(pReplace));
-			m_te->show_insert_position();
+			insert_position(pos+strlen(pReplace));
+			show_insert_position();
 		}
 	}
 
@@ -291,10 +397,10 @@ int Fl_Multi_Edit_Window::ReplaceNext(const char* pFind,
 	int		replacement = 0;
 
 	// Start at the beginning of the buffer
-	m_te->insert_position(0);
+	insert_position(0);
 
 	// Search for the pFind text
-	int pos = m_te->insert_position();
+	int pos = insert_position();
 	int found = m_tb->search_forward(pos, pFind, &pos);
 
 	if (found)
@@ -305,10 +411,32 @@ int Fl_Multi_Edit_Window::ReplaceNext(const char* pFind,
 		m_tb->remove_selection();
 		m_tb->insert(pos, pReplace);
 		m_tb->select(pos, pos+strlen(pReplace));
-		m_te->insert_position(pos+strlen(pReplace));
-		m_te->show_insert_position();
+		insert_position(pos+strlen(pReplace));
+		show_insert_position();
 	}
 
 	return replacement;
 }
 
+int Fl_Multi_Edit_Window::ForwardSearch(const char *pFind, int caseSensitive)
+{
+	int pos = insert_position();
+	int found = m_tb->search_forward(pos, pFind, &pos, caseSensitive);
+	if (found)
+	{
+		insert_position(pos+strlen(pFind));
+		show_insert_position();
+		take_focus();
+		m_tb->select(pos, pos+strlen(pFind));
+	}
+	else
+		return FALSE;
+
+	return TRUE;
+}
+
+void Fl_Multi_Edit_Window::show(void)
+{
+	My_Text_Display::show();
+	redraw();
+}

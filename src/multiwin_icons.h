@@ -1,6 +1,6 @@
 /* multiwin_icons.cpp */
 
-/* $Id: multiwin_icons.cpp,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: multiwin_icons.h,v 1.1 2007/03/31 22:09:18 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -48,7 +48,7 @@ extern Fl_Pixmap gRestoreIcon;
 extern Fl_Pixmap gRestoreIconSelected;
 extern Fl_Pixmap gRestoreIconInactive;
 
-extern char * gMultiWinDoc_xpm[];
+extern const char * gMultiWinDoc_xpm[];
 
 #endif
 

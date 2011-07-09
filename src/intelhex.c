@@ -1,6 +1,6 @@
 /* intelhex.c */
 
-/* $Id: intelhex.c,v 1.6 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: intelhex.c,v 1.7 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -226,6 +226,23 @@ void save_hex_file(int begin, int end, FILE* fd)
 		hexout(fd, get_memory8((unsigned short) addr), addr, 0);
 	hexout(fd, 0, 0, 1);
 }
+
+/* the command string format is "S begin end filename" where */
+/* "begin" and "end" are the locations to dump to the intel */
+/* hex file, specified in hexidecimal. */
+
+void save_hex_file_buf(char *buf, int begin, int end, FILE* fd)
+{
+	int  addr;
+
+	if (begin > end) {
+		return;
+	}
+	for (addr=begin; addr <= end; addr++)
+		hexout(fd, buf[(unsigned short) addr], addr, 0);
+	hexout(fd, 0, 0, 1);
+}
+
 
 
 /* produce intel hex file output... call this routine with */

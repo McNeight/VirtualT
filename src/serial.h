@@ -1,6 +1,6 @@
 /* serial.h */
 
-/* $Id: serial.h,v 1.6 2008/02/25 03:20:16 kpettit1 Exp $ */
+/* $Id: serial.h,v 1.7 2008/09/23 00:03:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -76,7 +76,7 @@ enum {
 extern "C" {
 #endif
 
-typedef void (*ser_callback)();
+typedef void (*ser_callback)(int pinLevel);
 typedef void (*ser_monitor_cb)(int fMonType, unsigned char data);
 
 /* Configuration functions */
@@ -148,6 +148,7 @@ typedef struct ser_params
 	int				txIn;				// Read buffer input location
 	int				txOut;				// Read buffer output location
 	int				tx_empty;			// Flag to indicate when TX is done
+	char			flags;				// Current COMM port state flags
 
 #else
 	int				fd;					// fd of open serial port

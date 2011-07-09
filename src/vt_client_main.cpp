@@ -2,6 +2,7 @@
 #include "socketexception.h"
 #include <iostream>
 #include <fstream>
+#include <string.h>
 #include <string>
 
 #include <stdlib.h>
@@ -10,11 +11,55 @@ using namespace std;
 
 int main ( int argc, char* argv[] )
 {
-	fstream	filestr;
+    fstream	filestr;
+	char	*hostArg, *portArg;
+	size_t	x, len;
 
-	if (argc != 2)
+	hostArg = portArg = NULL;
+	if (argc < 2)
 	{
-		printf("usage: %s port#\n", argv[0]);
+		printf("usage: %s [hostname] port#\n", argv[0]);
+		return 1;
+	}
+
+	/* Determine if argv[1] is the port number */
+	len = strlen(argv[1]);
+	for (x = 0; x < len; x++)
+	{
+		if ((argv[1][x] < '0') || (argv[1][x] > '9'))
+		{
+			hostArg = argv[1];
+			break;
+		}
+	}
+	/* If we reached the end of argv[1] and found all numbers, its port */
+	if (x == len)
+	{
+		portArg = argv[1];
+	}
+
+	/* Determine if argv[2] is the port number */
+	if (argc > 2)
+	{
+		len = strlen(argv[2]);
+		for (x = 0; x < len; x++)
+		{
+			if ((argv[2][x] < '0') || (argv[2][x] > '9'))
+			{
+				hostArg = argv[2];
+				break;
+			}
+		}
+		/* If we reached the end of argv[1] and found all numbers, its port */
+		if (x == len)
+		{
+			portArg = argv[2];
+		}
+	}
+
+	if (portArg == NULL)
+	{
+		printf("%s: must specifiy valid port number\n", argv[0]);
 		return 1;
 	}
 
@@ -55,13 +100,15 @@ int main ( int argc, char* argv[] )
 
   try
     {
+	  if (hostArg == NULL)
+		  hostArg = (char *) "localhost";
 
-      ClientSocket client_socket ( "localhost", atoi(argv[1]) );
+      ClientSocket client_socket ( hostArg , atoi(portArg) );
 
       std::string reply;
 	  std::string cmd;
 	  std::string outfile;
-	  int			pos,c;
+	  size_t			pos,c;
 	  std::cout << "Ok> ";
 
 	while (true)
@@ -117,7 +164,7 @@ int main ( int argc, char* argv[] )
 			}
 
 			// Check if response is "Ok" or contains "Ok" at the end
-			int len = reply.length();
+			size_t len = reply.length();
 			if ((reply[len-1] == 'k') && (reply[len-2] == 'O'))
 			{
 				// Check if output goes to a file

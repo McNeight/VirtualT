@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.9 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.10 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,7 +56,7 @@ void cb_Ide(Fl_Widget* w, void*) ;
 Fl_Window *gpDis;
 
 // Callback routine for the close box of the Disassembler window
-void close_cb(Fl_Widget* w, void*)
+static void close_cb(Fl_Widget* w, void*)
 {
 	if (gpDis != NULL)
 	{
@@ -213,6 +213,7 @@ void disassembler_cb(Fl_Widget* w, void*) {
 
 		// Give the disassembler something to disassemble
 		pDisassembler->CopyIntoMem(gSysROM, ROMSIZE);
+//		pDisassembler->CopyIntoMem((unsigned char*) gBaseMemory, 65536);
 
 		gpDis->resizable(m);
 		gpDis->resizable(td);
@@ -370,7 +371,7 @@ void VTDis::Disassemble()
 	{
 		// Search for C in the function table
 		x = 0;
-/*		while (m_pRom->pFuns[x].addr != -1)
+		while (m_pRom->pFuns[x].addr != -1)
 		{
 			if (m_pRom->pFuns[x].addr == c)
 			{
@@ -384,7 +385,7 @@ void VTDis::Disassemble()
 
 			x++;
 		}
-*/
+
 		// Check if address is a table instead of code
 		x = 0;
 		table = 0;

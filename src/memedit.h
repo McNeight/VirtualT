@@ -1,6 +1,6 @@
 /* memedit.h */
 
-/* $Id: memedit.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: memedit.h,v 1.3 2007/03/31 22:09:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -73,6 +73,7 @@ protected:
 	double			m_Height;
 	double			m_Width;
 	int				m_FirstAddress;
+	int				m_FontSize;
 
 	int				m_CursorAddress;
 	int				m_CursorCol;

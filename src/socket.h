@@ -35,6 +35,7 @@ class Socket
 
   // Server initialization
   bool create();
+  bool shutdown();
   bool bind ( const int port );
   bool listen() const;
   bool accept ( Socket& ) const;
@@ -45,6 +46,7 @@ class Socket
   // Data Transimission
   bool send ( const std::string ) const;
   int recv ( std::string& ) const;
+  int recv ( char* rxBuf, int rxLen ) const;
 
 
 //  void set_non_blocking ( const bool );

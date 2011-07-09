@@ -1,6 +1,6 @@
 /* project.h */
 
-/* $Id: project.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: project.h,v 1.2 2008/03/09 16:33:56 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -46,12 +46,16 @@
 
 void cb_NewProject (Fl_Widget* w, void*);
 
+#define		VT_PROJ_TYPE_CO			0
+#define		VT_PROJ_TYPE_OBJ		1
+#define		VT_PROJ_TYPE_ROM		2
+#define		VT_PROJ_TYPE_BA			3
+
 class VT_Project
 {
 public:
     VT_Project()     { m_Dirty = 0; m_AutoLoad = 0; m_ProjectType = 0; 
-						m_TargetModel = 0; m_UpdateHIMEM = 0; m_CodeAddr = "auto";
-						m_DataAddr = "auto"; };
+					m_TargetModel = 0; m_UpdateHIMEM = 0; m_LinkScript = ""; }
     ~VT_Project();
 
 	void			AsmDebugInfo(int enable);
@@ -76,6 +80,13 @@ public:
 	void			AddLinkOption(char *pOpt);
 	void			RemoveLinkOption(char *pOpt);
 
+	void			SaveProject(void);
+	void			LoadProject(void);
+	void			WriteGroupToFile(class VT_IdeGroup* pGroup, FILE* fd);
+	MString			MakePathRelative(const MString& path, const MString& relTo);
+	int				TestIfFileInProject(MString& filename);
+	int				TestIfFileInGroup(VT_IdeGroup* pGroup, MString& filename);
+
     MString         m_Name;				// Project name
     MString         m_RootPath;
     MString         m_IncludePath;
@@ -84,8 +95,7 @@ public:
 	MString			m_LinkLibs;
     MString         m_AsmOptions;
     MString         m_LinkOptions;
-	MString			m_CodeAddr;
-	MString			m_DataAddr;
+	MString			m_LinkScript;
     VTObArray       m_Groups;
     int             m_Dirty;			// Set true when project settings change
     int             m_ProjectType;		// Type of project
@@ -158,8 +168,7 @@ public:
 	MString				getLinkPath(void);
 	MString				getOutputName(void);
 	MString				getLinkObjs(void);
-	MString				getCodeAddr(void);
-	MString				getDataAddr(void);
+	MString				getLinkScript(void);
 
 	void				EnableUpdateHIMEM(int enable);
 
@@ -194,8 +203,7 @@ protected:
 	Fl_Input*			m_pObjPath;
 	Fl_Input*			m_pOutputName;
 	Fl_Input*			m_pLinkObjs;
-	Fl_Input*			m_pCodeAddr;
-	Fl_Input*			m_pDataAddr;
+	Fl_Input*			m_pLinkScript;
 
 	Fl_Button*			m_pOk;
 	Fl_Button*			m_pCancel;

@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: display.h,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -32,6 +32,7 @@
 #define _DISPLAY_H_
 
 #define MENU_HEIGHT	32
+#define	TAB_HEIGHT	24
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +40,7 @@ extern "C" {
 extern int gDelayUpdateKeys;
 void init_pref(void);
 void init_display(void);
+void deinit_display(void);
 void drawbyte(int driver, int column, int value);
 void lcdcommand(int driver, int value);
 void power_down();
@@ -56,6 +58,9 @@ typedef int (*event_key_t)(void);
 
 #ifdef __cplusplus
 
+//#include <FL/Fl.H>
+//#include <FL/Fl_Menu_Button.H>
+
 #define	VT_SIM_KEYUP	3120
 #define	VT_SIM_KEYDOWN	3121
 
@@ -63,15 +68,24 @@ class T100_Disp : public Fl_Widget
 {
 public:
 	T100_Disp(int x, int y, int w, int h);
+	~T100_Disp();
 
 	virtual void	PowerDown();
 	virtual void	SetByte(int driver, int col, uchar value);
 	virtual void	Command(int instruction, uchar data);
 	virtual void	Clear(void);
 	virtual void	Reset(void);
+	virtual void	CalcScreenCoords(void);
 	void			SimulateKeydown(int key);
 	void			SimulateKeyup(int key);
 	void			HandleSimkey(void);
+	void			WheelKey(int key);
+	int				IsInMenu(void);
+	int				IsInText(void);
+	int				ButtonClickInMenu(int mx, int my);
+	int				ButtonClickInMsPlan(int mx, int my);
+	int				ButtonClickInText(int mx, int my);
+	int				MouseMoveInText(int mx, int my);
 
 	int				MultFact;
 	int				DisplayMode;
@@ -81,8 +95,42 @@ public:
 	int				gRectsize;
 	int				gXoffset;
 	int				gYoffset;
+	int				m_BezelTop;
+	int				m_BezelLeft;
+	int				m_BezelBottom;
+	int				m_BezelRight;
+	int				m_BezelTopH;
+	int				m_BezelBottomH;
+	int				m_BezelLeftW;
+	int				m_BezelRightW;
+	int				m_HasTopChassis;
+	int				m_HasBottomChassis;
+	int				m_HasLeftChassis;
+	int				m_HasRightChassis;
+
+	int				m_FrameColor;
+	int				m_DetailColor;
+	int				m_BackgroundColor;
+	int				m_PixelColor;
+	int				m_LabelColor;
 
 	int				m_DebugMonitor;
+	int				m_WheelKeys[32];
+	int				m_WheelKeyIn;
+	int				m_WheelKeyOut;
+	int				m_WheelKeyDown;
+	class Fl_Menu_Button*	m_CopyCut;
+	class Fl_Menu_Button*	m_LeftClick;
+	char			m_SimulatedCtrl;
+	char			m_SelectComplete;
+	char			m_HaveMouse;
+	char			m_Select;
+	int				m_LastPos;
+#ifdef ZIPIT_Z2
+	int				m_xCoord[241];
+	int				m_yCoord[241];
+	int				m_rectSize[241];
+#endif
 
 	const virtual	T100_Disp& operator=(const T100_Disp& srcDisp);
 

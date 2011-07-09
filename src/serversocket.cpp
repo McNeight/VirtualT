@@ -57,3 +57,16 @@ void ServerSocket::accept ( ServerSocket& sock )
       throw SocketException ( "Could not accept socket." );
     }
 }
+
+int ServerSocket::recv ( char* rxBuf, int rxLen ) const
+{
+	int ret;
+
+	ret = Socket::recv(rxBuf, rxLen);
+
+	if (!ret)
+	{
+		throw SocketException ( "Could not read from socket.");
+	}
+	return ret;
+}

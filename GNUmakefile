@@ -13,7 +13,7 @@
 -include $(shell uname).mk
 
 CFLAGS		+=	-I $(FLTKDIR) -I src/FLU -g
-CPPFLAGS	+=	-I $(FLTKDIR)  -g
+CPPFLAGS	+=	-I $(FLTKDIR) -I src -g
 EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
@@ -32,6 +32,7 @@ OBJECTSCPP	=	$(SOURCESCPP:.cpp=.o)
 CLIENT_OBJS	=	$(CLIENT_SRC:.cpp=.o)
 OBJDIR		=   obj
 POSTBUILD	=   $(FLTKCONFIG) --post
+FLTKLIBS    =   $(FLTKDIR)/lib
 
 
 # =============================
@@ -45,7 +46,12 @@ SOURCESCPP	=	display.cpp setup.cpp periph.cpp disassemble.cpp file.cpp memedit.c
 				multiwin.cpp multiwin_icons.cpp	project.cpp multieditwin.cpp rememcfg.cpp \
 				fl_usage_box.cpp remote.cpp socket.cpp serversocket.cpp lpt.cpp printer.cpp \
 				fileprint.cpp hostprint.cpp fx80print.cpp chargen.cpp fl_action_icon.cpp fx80rom.cpp \
-				vtpaper.cpp autofile.cpp clock.cpp fileview.cpp
+				vtpaper.cpp autofile.cpp clock.cpp fileview.cpp Flu_Wrap_Group.cpp \
+				Flu_Button.cpp Flu_Combo_Box.cpp Flu_Combo_List.cpp Flu_Combo_Tree.cpp Flu_File_Chooser.cpp \
+				flu_file_chooser_pixmaps.cpp Flu_Label.cpp Flu_Return_Button.cpp Flu_Separator.cpp \
+				highlight.cpp idetabs.cpp linker.cpp My_Text_Display.cpp My_Text_Editor.cpp \
+				socketdlg.cpp tpddclient.cpp pref_form.cpp
+
 CLIENT_SRC	=	clientsocket.cpp vt_client_main.cpp socket.cpp
 
 # ===============================
@@ -56,7 +62,8 @@ all:			virtualt vt_client
 # ========================
 # Rule to build VirtualT
 # ========================
-$(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
+$(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP) $(FLTKLIBS)/libfltk.a \
+					$(FLTKLIBS)/libfltk_z.a $(FLTKLIBS)/libfltk_jpeg.a $(FLTKLIBS)/libfltk_png.a
 ifndef FLTKDIR
 	@echo "FLTKDIR environment variable must be set first!"
 	exit 1
@@ -120,6 +127,21 @@ else
 	-mkdir -p obj; gcc $(CFLAGS) -c $< -o obj/$@
 endif
 
+
+# ==========================================
+# Declare dependencies on FLTK libs
+# ==========================================
+$(FLTKLIBS)/libfltk.a:
+	$(MAKE) -C $(FLTKDIR)
+
+$(FLTKLIBS)/libfltk_z.a:
+	$(MAKE) -C $(FLTKDIR)/zlib
+
+$(FLTKLIBS)/libfltk_jpeg.a:
+	$(MAKE) -C $(FLTKDIR)/jpeg
+
+$(FLTKLIBS)/libfltk_png.a:
+	$(MAKE) -C $(FLTKDIR)/png
 
 # ==========================================
 # Declare dependencies on header files below

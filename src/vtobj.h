@@ -1,6 +1,6 @@
 /* vtobj.h */
 
-/* $Id: vtobj.h,v 1.1.1.1 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: vtobj.h,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -143,6 +143,7 @@ public:
 	int						Lookup(const char *key, VTObject*& rValue);
 	VTObject*&				operator[](const char *key);
 	void					RemoveAll();
+	void					RemoveAt(MString& rKey);
 	int						Size() { return m_Count; };
 	void					GetNextAssoc(POSITION& rNextPosition,
 								MString& rKey, VTObject*& rValue) const;
@@ -171,6 +172,13 @@ public:
 
 	int		x1() { return m_X + m_W; };
 	int		y1() { return m_Y + m_H; };
+
+	int		PointInRect(int x, int y) 
+			{ 
+				if ((x >= m_X) && (x <= m_X + m_W) &&
+				  (y >= m_Y) && (y <= m_Y + m_H)) return 1; 
+				else return 0;
+			}
 
 private:
 	int		m_X;

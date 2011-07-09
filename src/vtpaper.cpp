@@ -1,6 +1,6 @@
 /* vtpaper.cpp */
 
-/* $Id: vtpaper.cpp,v 1.11 2008/04/13 16:42:55 kpettit1 Exp $ */
+/* $Id: vtpaper.cpp,v 1.12 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -68,7 +68,7 @@ VTVirtualPaper:	This is the class construcor for the VTVirtualPaper class.
 ================================================================================
 */
 VTVirtualPaper::VTVirtualPaper() :
-	Fl_Double_Window(985, 500, "Virtual Paper Output")
+	Fl_Double_Window(1015, 500, "Virtual Paper Output")
 {
 	// Initialize pointers
 	m_pLineCnts = NULL;				// Line count storage not allocated
@@ -81,7 +81,7 @@ VTVirtualPaper::VTVirtualPaper() :
 	callback(cb_VirtualPaperWin, this);
 
 	// Create a scrollbar
-	m_pScroll = new Fl_Scrollbar(970, 0, 15, 500, "");
+	m_pScroll = new Fl_Scrollbar(1000, 0, 15, 500, "");
 	m_pScroll->type(FL_VERTICAL);
 	//m_pScroll->maximum(200);
 	//m_pScroll->slider_size(10);
@@ -220,7 +220,7 @@ void VTVirtualPaper::DrawPage(int pageNum)
 				{
 					if (data & mask)
 					{
-						xpos = (c<<3) + b;
+						xpos = (c<<3) + b + 15;
 						fl_point(xpos, ypos);
 						fl_point(xpos+1, ypos);
 						fl_point(xpos, ypos+1);
@@ -246,17 +246,25 @@ void VTVirtualPaper::draw(void)
 {
 	int				pages, page;
 	double			offset;
-	VTVirtualPage*	pVPage;
+	VTVirtualPage*	pVPage= NULL;
 	int				pageBottom;
 
 	// Draw child objects, etc
 	Fl_Double_Window::draw();
+
+	// Draw left border
+	fl_color(FL_GRAY);
+	fl_rectf(0, 0, 10, h());
+	fl_rectf(w()-25, 0, 10, h());
+	fl_color(FL_DARK3);
+	fl_rectf(w()-30, 0, 5, h());
 
 	// Check if page separator needs to be drawn at top
 	if (m_topPixel < 9)
 	{
 		fl_color(FL_GRAY);
 		fl_rectf(0, -m_topPixel, w()-15, 9);
+		fl_rectf(w()-30, -m_topPixel+9, 5, 5);
 	}
 
 	// Determine in which page m_topPixel falls
@@ -273,7 +281,7 @@ void VTVirtualPaper::draw(void)
 	DrawPage(page);
 
 	// Draw pages until window is full
-	while (TRUE)
+	while (pages)
 	{
 		pageBottom = (int) ((pVPage->m_topOffset + pVPage->m_pageHeight) * 144.0);
 
@@ -283,7 +291,9 @@ void VTVirtualPaper::draw(void)
 			fl_color(FL_GRAY);
 			fl_rectf(0,  pageBottom- m_topPixel, w()-15, 18);
 			fl_color(FL_DARK3);
-			fl_rectf(4,  pageBottom- m_topPixel+1, w()-19, 5);
+			fl_rectf(15,  pageBottom- m_topPixel, w()-40, 5);
+			fl_color(FL_GRAY);
+			fl_rectf(w()-30, pageBottom - m_topPixel + 18, 5, 5);
 		}
 
 		// Check if next page needs to be drawn
@@ -1593,8 +1603,6 @@ Initialize the page with preferences.
 */
 void VTWinPrintPaper::Init(Fl_Preferences* pPref)
 {
-	char		temp[512];
-
 	m_pPref = pPref;
 
 	// Load preferences

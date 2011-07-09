@@ -1,6 +1,6 @@
 /* fileview.cpp */
 
-/* $Id: fileview.cpp,v 1.9 2008/09/22 23:39:20 kpettit1 Exp $ */
+/* $Id: fileview.cpp,v 1.1 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -79,7 +79,7 @@ void jump_to_zero(void);
 // ===============================================
 extern	Fl_Preferences virtualt_prefs;
 extern	Fl_Menu_Item gCpuRegs_menuitems[];
-extern	char *gKeywordTable[];
+extern	const char *gKeywordTable[];
 Fl_Window*		gfvw = NULL;
 int				gLowmem = 0;
 int				gPrevUnused = 0;
@@ -758,16 +758,23 @@ Routine to create the Model T File viewer window
 void cb_FileView(Fl_Widget* w, void*)
 {
 	Fl_Box*			o;
+	int				width;
 
 	if (gfvw != NULL)
 		return;
 
+#ifdef WIN32
+	width = 650;
+#else
+	width = 760;
+#endif
+
 	// Create File Viewer window
-	gfvw = new Fl_Double_Window(650, 480, "Model T File Viewer");
+	gfvw = new Fl_Double_Window(width, 480, "Model T File Viewer");
 	gfvw->callback(cb_fvwin);
 
 	// Create a menu for the new window.
-	gFvCtrl.pMenu = new Fl_Menu_Bar(0, 0, 700, MENU_HEIGHT-2);
+	gFvCtrl.pMenu = new Fl_Menu_Bar(0, 0, width, MENU_HEIGHT-2);
 	gFvCtrl.pMenu->menu(gFileView_menuitems);
 
 	o = new Fl_Box(20, 40, 80, 20, "File Directory");
@@ -780,13 +787,17 @@ void cb_FileView(Fl_Widget* w, void*)
 	gFvCtrl.pFileSelect->callback(cb_FileSelect); 
 
 	// Create a Text Editor / Text Buffer for the file display
-	gFvCtrl.pView = new Fl_Hold_Browser(200, 65, 420, 270, "");
+	gFvCtrl.pView = new Fl_Hold_Browser(200, 65, width-230, 270, "");
 	gFvCtrl.pView->has_scrollbar(Fl_Browser_::VERTICAL );
 //    gFvCtrl.pView = new Fl_Text_Display(200, 65, 420, 270, "");
 //    gFvCtrl.pTb = new Fl_Text_Buffer();
 //    gFvCtrl.pView->buffer(gFvCtrl.pTb);
     gFvCtrl.pView->textfont(FL_COURIER);
+#ifdef WIN32
 	gFvCtrl.pView->textsize(12);
+#else
+	gFvCtrl.pView->textsize(14);
+#endif
 //	gFvCtrl.pView->wrap_mode(56, 56);
 //    gFvCtrl.pView->end();
 
@@ -795,7 +806,7 @@ void cb_FileView(Fl_Widget* w, void*)
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_NO_BOX, 40, 395, 100, 15, "Map");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	gFvCtrl.pRAM = new Fl_Usage_Box(100, 365, 516, 68);
+	gFvCtrl.pRAM = new Fl_Usage_Box(100, 365, width-134, 68);
 	gFvCtrl.pRAM->box(FL_BORDER_BOX);
 	gFvCtrl.pRAM->SetUsageColor(FV_SELECT_FILE_COLOR, fl_rgb_color(64, 64, 64));
 	gFvCtrl.pRAM->SetUsageColor(FV_BASIC_FILE_COLOR	, fl_rgb_color(96, 255,96));

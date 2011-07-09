@@ -75,6 +75,7 @@ extern "C" {
 #define FLASH_STATE_CMD2			10
 #define FLASH_STATE_CFI_QUERY		11
 #define FLASH_STATE_AUTOSELECT		12
+#define	FLASH_STATE_UB_EXIT			13
 
 #define	FLASH_CMD_PROG				0xA0
 #define	FLASH_CMD_UNLK_BYPASS		0x20
@@ -114,11 +115,23 @@ extern "C" {
 #include "gen_defs.h"
 
 typedef	struct {
-	int				gFlashState;
-	UINT64			gFlashTime;
-	int				gFlashBusy;
+	int				iFlashState;
+	UINT64			iFlashTime;
+	int				iFlashBusy;
 	char*			pFlash;
+	int				iFlashType;
+	int				iFlashSize;
 } amd_flash_t;	
+
+#define		AMD_ACTION_RESET		0
+#define		AMD_ACTION_ALLOW_WRITE	1
+#define		AMD_ACTION_CMD			2
+#define		AMD_ACTION_ERASING		3
+#define		AMD_ACTION_DEVICE_READY	4
+#define		AMD_ACTION_BUSY			5
+
+#define		AMD_FLASH_TYPE_REMEM	1
+#define		AMD_FLASH_TYPE_REX		2
 
 extern unsigned char	*gMemory[64];
 extern unsigned char	gSysROM[65536];

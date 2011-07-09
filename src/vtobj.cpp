@@ -1,6 +1,6 @@
 /* vtobj.cpp */
 
-/* $Id: vtobj.cpp,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $ */
+/* $Id: vtobj.cpp,v 1.2 2008/02/01 06:18:04 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -29,6 +29,7 @@
 
 #include	<memory.h>
 #include	<stdlib.h>
+#include    <string.h>
 #include	"VirtualT.h"
 #include	"vtobj.h"
 
@@ -77,7 +78,7 @@ VTObArray::VTObArray()
 VTObArray::~VTObArray()
 {
 	if (m_pData != 0)
-		delete (char*) m_pData;
+		delete[] (char*) m_pData;
 
 	m_pData = 0;
 }
@@ -172,11 +173,12 @@ void VTObArray::SetSize(int nNewSize, int nGrowBy)
 	if (nNewSize == m_Size)
 		return;
 
-	pNew = (void *) malloc(nNewSize * sizeof(VTObject*));
+	pNew = (void *) new char[nNewSize * sizeof(VTObject*)];
 	memcpy(pNew, m_pData, m_Count * sizeof(VTObject*));
 
 	// Delete old data
-	delete (char *)m_pData;
+    if (m_pData != NULL)
+        delete[] (char *)m_pData;
 
 	// Assign new data
 	m_pData = pNew;
@@ -239,6 +241,49 @@ int VTMapStringToOb::Lookup(const char *key, VTObject *&rValue)
 	}
 
 	return 0;
+}
+
+void VTMapStringToOb::RemoveAt(MString &rKey)
+{
+	POSITION		iter, iterPrev;
+	unsigned char	hash;
+	const char		*key;
+
+	// Calculate hash and get pointer to first entry in hash array
+	key = (const char *) rKey;
+	hash = HashKey(key);
+	iter = m_HashPtrs[hash];
+	// Save previous iter so we can delete
+	iterPrev = iter;
+
+	// Iterate through all items which have this hash
+	while (iter != 0)
+	{
+		// Test if this is the item to be deleted
+		if (strcmp(iter->pKey, key) == 0)
+		{
+			// First remove this item from the list
+			if (iterPrev == m_HashPtrs[hash])
+			{
+				// Assign new head pointer
+				m_HashPtrs[hash] = iter->pNext;
+			}
+			else
+			{
+				// Remove from list
+				iterPrev->pNext = iter->pNext;
+			}
+
+			// Free the resouces for this entry
+			free(iter->pKey);
+			delete iter;
+			return;
+		}
+
+		// Save previous iter so we can delete
+		iterPrev = iter;
+		iter = iter->pNext;
+	}
 }
 
 VTObject*& VTMapStringToOb::operator[](const char *key)

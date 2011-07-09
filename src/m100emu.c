@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.25 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.26 2010/10/31 05:42:58 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -35,11 +35,14 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
+#include <mmsystem.h>
 #endif
 
 #ifdef __unix__ 
 #include <signal.h>
 #include <unistd.h>
+#include <pthread.h>
+#include <semaphore.h>
 #endif
 
 #include "VirtualT.h"
@@ -61,46 +64,64 @@
 #include "clock.h"
 #include "fileview.h"
 
-int		fullspeed=0;
-int		gModel = MODEL_M100;
+int				gModel = MODEL_M100;
 
-uchar	cpu[14];
+volatile uchar	cpu[14];
 extern uchar	*gMemory[64];
 extern uchar	gMsplanROM[32768];
 extern uchar	gOptROM[32768];
+extern int		gInMsPlanROM;
 
 mem_monitor_cb	gMemMonitor1 = NULL;
 mem_monitor_cb	gMemMonitor2 = NULL;
 
-char	op[26];
-UINT64	cycles=0;
-int		cycle_delta;
-UINT64	instructs=0;
-static UINT64	last_isr_cycle=0;
-int		trace=0;
-int		starttime;
-FILE	*tracefile;
-DWORD	rst7cycles = 9830;
-DWORD	one_sec_cycle_count;
-DWORD	one_sec_time;
-DWORD	gLptTime;
-UINT64	one_sec_cycles;
-DWORD   update_secs = 0;
-float	cpu_speed;
-volatile int		gExitApp = 0;
-volatile int		gExitLoop = 0;
-char	gsOptRomFile[256];
-int		gShowVersion = 0;
-DWORD	last_one_sec_time;
-int		gMaintCount = 65536;
-int		gOsDelay = 0;
-int		gNoGUI = 0;
-int		gSocketPort = 0;
-int		gTelnet = FALSE;
-int		gRemoteSwitchModel = -1;
+char					op[26];
+int						fullspeed = 0;
+volatile UINT64			cycles=0;
+volatile int			cycle_delta;
+volatile UINT64			instructs = 0;
+volatile UINT64			gThrottleCycles = 0;
+DWORD					gThrottleDelta = 0;
+unsigned int			gThrottlePeriod = 0;
+int						gThrottlePeriodCount = 0;
+int						gThrottleTerminalCount = 0;
+DWORD					gTargetFrequency = 2457600;
+unsigned int			gThrottleId = 0;
+
+#ifdef WIN32
+static HANDLE			gThrottleEvent;
+static CRITICAL_SECTION	gThrottleCritSect;
+#else
+int                     gThrottleExit = 0;
+pthread_t			    gThrottleThread;		// The remote control thread
+pthread_mutex_t		    gThrottleLock;		    // Lock to access emulation
+sem_t                   gThrottleEvent;         // Throttle event semaphore
+#endif
+
+double					last_instruct = 0;
+static volatile UINT64	last_isr_cycle = 0;
+int						trace=0;
+int						starttime;
+FILE					*tracefile;
+volatile DWORD			rst7cycles = 9830;
+static time_t			gLptTime;
+static UINT64			one_sec_cycles;
+static DWORD			one_sec_cycle_count;
+static time_t			one_sec_time;
+static DWORD			last_one_sec_time;
+float					cpu_speed;
+float					gCpuSpeedAvg[4];
+int						gCpuSpeedAvgIndex = 0;
+volatile int			gExitApp = 0;
+volatile int			gExitLoop = 0;
+char					gsOptRomFile[256];
+int						gShowVersion = 0;
+int						gMaintCount = 65536;
+int						gOsDelay = 0;
+int						gNoGUI = 0;
+int						gRemoteSwitchModel = -1;
 
 //Added J. VERNET
-
 char path[512];
 char file[512];
 
@@ -108,8 +129,6 @@ extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
 extern RomDescription_t		gM10_Desc;
-//JV
-//extern RomDescription_t		gN8300_Desc;
 extern RomDescription_t		gKC85_Desc;
 
 
@@ -130,35 +149,158 @@ debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
 void					periph_mon_update_lpt_log(void);
 
 
+#ifdef WIN32
+void CALLBACK ThrottleProc(UINT uID, UINT uMsg, DWORD dwUser, DWORD dw1, DWORD dw2)
+{
+	/* Update the cycles counter */
+	EnterCriticalSection(&gThrottleCritSect);
+	
+	/* Update the gThrotleCycles count to allow the emulation to run
+	   a little during this timer tick.  We want to limit the amount
+	   gThrottleCycels is allowed to race beyond cycles in case the
+	   emulation is running slower than we think, like during window
+	   redraws or menu events
+    */
+	if ((gThrottleCycles - (gThrottleDelta << 1) <= cycles) || (fullspeed == 3))
+	{
+		gThrottleCycles += gThrottleDelta;
+	}
+	gThrottlePeriodCount++;
+	LeaveCriticalSection(&gThrottleCritSect);
+
+	/* Now pulse the event to allow the emulation to run */
+	PulseEvent(gThrottleEvent);
+}
+
+#else /* WIN32 */
+
+void * ThrottlePeriodProc(void *pParams)
+{
+    int     sleepUs = 1000 / gThrottlePeriod * 1000;
+
+    /* Loop until time to exit the app */
+    while (!gThrottleExit)
+    {
+        /* Update the gThrotleCycles count to allow the emulation to run
+           a little during this timer tick.  We want to limit the amount
+           gThrottleCycels is allowed to race beyond cycles in case the
+           emulation is running slower than we think, like during window
+           redraws or menu events
+        */
+        pthread_mutex_lock(&gThrottleLock);
+        if ((gThrottleCycles - (gThrottleDelta << 1) <= cycles) || (fullspeed == 3))
+        {
+            gThrottleCycles += gThrottleDelta;
+        }
+        gThrottlePeriodCount++;
+        pthread_mutex_unlock(&gThrottleLock);
+
+        /* Post the event semaphore to wake up the emulation thread */
+        sem_post(&gThrottleEvent);
+
+        /* Sleep the perscribed number of microseconds */
+		if(fullspeed != 3) 
+			usleep(sleepUs);
+		else
+			usleep(sleepUs * 2);
+    }
+}
+
+#endif
+
 /*
 =============================================================================
-This routine supplies an OS independant high-resolution timer for use with
-emulation speed calculations and throttling.
+This routine intializes the system timer used for throttling the emulation
+speed.
 =============================================================================
 */
-#ifdef _WIN32
-__inline double hirestimer(void)
+int init_throttle_timer(void)
 {
-    static LARGE_INTEGER pcount, pcfreq;
-    static int initflag = 0;
+#ifdef WIN32
+	TIMECAPS		tc;
 
-    if (!initflag)
+	/* Get the system's multimedia timer capabilties */
+	timeGetDevCaps(&tc, sizeof(tc)); 
+
+	/* On older systems, the minimum may be 55ms.  In this case, we just use 55ms as the tick */
+	if (tc.wPeriodMin > 50)
 	{
-	    QueryPerformanceFrequency(&pcfreq);
-        initflag++;
-    }
+		gThrottlePeriod = tc.wPeriodMin;
+		gThrottleTerminalCount = 1000 / gThrottlePeriod;
+	}
+	else if (tc.wPeriodMin <= 10)
+	{
+		/* We don't need 10ms of resolution.  Let's use 20ms instead */
+		gThrottlePeriod = 50;
 
-    QueryPerformanceCounter(&pcount);
-    return (double)pcount.QuadPart / (double)pcfreq.QuadPart;
-}
+		/* Set TC for 50 counts = 1sec */
+		gThrottleTerminalCount = 20;
+	}
+
+	/* Setup the throttle event for signalling */
+	gThrottleEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
+	InitializeCriticalSection(&gThrottleCritSect);
+
+	/* Calculate the period, Throttle Delta time and setup the timer */
+	gThrottleDelta = gTargetFrequency * gThrottlePeriod / 1000;
+	if (timeBeginPeriod(gThrottlePeriod) == TIMERR_NOCANDO)
+		return FALSE;
+	gThrottleId = timeSetEvent(gThrottlePeriod, tc.wPeriodMin, ThrottleProc, 
+		0, TIME_PERIODIC ); 
 #else
-__inline double hirestimer(void)
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return (double)tv.tv_sec + (double)tv.tv_usec / 1000000;
-}
+
+    /* We don't need 10ms of resolution.  Let's use 20ms instead */
+    gThrottlePeriod = 40;
+
+    /* Set TC for 50 counts = 1sec */
+    gThrottleTerminalCount = 25;
+    gThrottlePeriodCount = 0;
+	gThrottleDelta = gTargetFrequency * gThrottlePeriod / 1000;
+	gThrottleCycles = cycles + (gThrottleDelta << 1);
+
+    // Initialize thread processing
+    pthread_mutex_init(&gThrottleLock, NULL);
+    pthread_create(&gThrottleThread, NULL, ThrottlePeriodProc, NULL);
+    sem_init(&gThrottleEvent, 0, 0);
+
 #endif
+
+	return 1;
+}
+
+void set_target_frequency(int frequency)
+{
+	gTargetFrequency = frequency;
+	gThrottleDelta = gTargetFrequency * gThrottlePeriod / 1000;
+	gThrottleCycles = cycles + gThrottleDelta;
+}
+
+/*
+=============================================================================
+This routine de-intializes the system timer used for throttling the emulation
+speed.
+=============================================================================
+*/
+void deinit_throttle_timer(void)
+{
+#ifdef WIN32
+	/* Kill the timer event */
+	if (gThrottleId != 0)
+		timeKillEvent(gThrottleId);
+
+	/* End the timer period */
+	timeEndPeriod(gThrottlePeriod);
+
+	/* Destory the triggering event */
+	CloseHandle(gThrottleEvent);
+#else
+    /* Instruct the throttle thread to terminate */
+    gThrottleExit = 1;
+
+    /* Join our throttle thread to ensure a clean shutdown */
+    pthread_join(gThrottleThread, NULL);
+#endif
+}
 
 /*
 =============================================================================
@@ -166,35 +308,46 @@ This routine "throttles" the emulation speed based on the instruction cycle
 count.  This is used for 2.4 Mhz emulation speed.
 =============================================================================
 */
-double last_instruct=0;
 void throttle(int cy)
 {
-	double	hires;
 
-	if(!fullspeed) 
+	/* Update cycles counter */
+	cycles+=cy;
+	cycle_delta=0;
+
+	if(fullspeed != 3) 
 	{
+#ifdef WIN32
+		if (cycles >= gThrottleCycles)
+		{
+//			process_windows_event();
+			WaitForSingleObject(gThrottleEvent, INFINITE);
+		}
+#else
+		if (cycles >= gThrottleCycles)
+		{
+			sem_wait(&gThrottleEvent);
+		}
+#if 0
+		double	hires;
+
 		if(last_instruct==0)
 			last_instruct=hirestimer();
 
 		last_instruct+=cy*0.000000416666666667;
-
 		while((hires = hirestimer())<last_instruct) 
 		{
-	#ifdef _WIN32
-			Sleep(1);
-	#else
 			struct timespec ts;
 
 			ts.tv_sec=0;
 			ts.tv_nsec=10000;
 			nanosleep(&ts,NULL);
-	#endif
 		}
+#endif
+#endif
 	}
 	else
 		last_instruct = 0;
-	cycles+=cy;
-	cycle_delta=0;
 }
 
 /*
@@ -651,11 +804,21 @@ void resetcpu(void)
 	}
 #endif
 }
-void cb_int65(void)
+void cb_int65(int pinLevel)
 {
-	IM|=0x20;
-	if(trace && tracefile != NULL)
-		fprintf(tracefile,"RST 6.5 Issued\n");
+	/* The INT6.5 pin is level sensitive.  Set the interrupt pending bit based on current level */
+	if (pinLevel)
+	{
+		/* Set the INT6.5 pending bit high */
+		IM|=0x20;
+		if(trace && tracefile != NULL)
+			fprintf(tracefile,"RST 6.5 Issued\n");
+	}
+	else
+	{
+		/* Clear the INT6.5 pending bit */
+		IM &= 0xDF;
+	}
 }
 
 
@@ -664,49 +827,21 @@ void cb_int65(void)
 This routine processes CPU interrupts.
 ========================================================================
 */
-__inline void check_interrupts(void)
+void check_interrupts(void)
 {
-	static UINT64	last_rst75=0;
+	static volatile UINT64	last_rst75=0;
 
 	if (((last_rst75 + rst7cycles) < cycles) && !INTDIS)
 	{
-		IM|=0x40;
-		if(trace && tracefile != NULL)
-			fprintf(tracefile,"RST 7.5 Issued diff = %d\n", (DWORD) (cycles - last_rst75));
+		IM |= 0x40;
+//		if(trace && tracefile != NULL)
+//			fprintf(tracefile,"RST 7.5 Issued diff = %d\n", (DWORD) (cycles - last_rst75));
 		last_rst75=cycles;
 	}
 
 	/* TRAP should be first */
 
-	if(RST65PEND && !INTDIS && !RST65MASK) 
-	{
-		if(trace && tracefile != NULL)
-			fprintf(tracefile,"RST 6.5 CALLed\n");
-
-		if (gDebugInts)
-			gIntActive = TRUE;
-		gIntSP = SP;
-		DECSP2;
-		if (gReMem)
-		{
-			MEMSET(SP, PCL);
-			MEMSET(SP+1, PCH);
-		}
-		else
-		{
-			gBaseMemory[SP] = PCL;
-			gBaseMemory[SP+1] = PCH;
-		}
-
-		/* MEM16(SP)=PC; */
-		PCL=52;
-		PCH=0;
-		/* PC=52; */
-		cycle_delta += 10;	/* This may not be correct */
-		IM=IM&0xDF;
-		last_isr_cycle = cycles;
-	}
-	else if(RST75PEND && !INTDIS && !RST75MASK) {
+	if(RST75PEND && !INTDIS && !RST75MASK) {
 		if(trace && tracefile != NULL)
 			fprintf(tracefile,"RST 7.5 CALLed\n");
 
@@ -734,6 +869,34 @@ __inline void check_interrupts(void)
 
 		if (gDelayUpdateKeys == 1)
 			update_keys();
+	}
+	else if(RST65PEND && !INTDIS && !RST65MASK) 
+	{
+		if(trace && tracefile != NULL)
+			fprintf(tracefile,"RST 6.5 CALLed\n");
+
+		if (gDebugInts)
+			gIntActive = TRUE;
+		gIntSP = SP;
+		DECSP2;
+		if (gReMem)
+		{
+			MEMSET(SP, PCL);
+			MEMSET(SP+1, PCH);
+		}
+		else
+		{
+			gBaseMemory[SP] = PCL;
+			gBaseMemory[SP+1] = PCH;
+		}
+
+		/* MEM16(SP)=PC; */
+		PCL=52;
+		PCH=0;
+		/* PC=52; */
+		cycle_delta += 10;	/* This may not be correct */
+//		IM=IM&0xDF;
+		last_isr_cycle = cycles;
 	}
 	return;
 }
@@ -767,39 +930,78 @@ interrupts and processing FLTK window events.
 */
 void maint(void)
 {
-	static time_t systime;
-	static int    twice_flag = 0;
-	DWORD         new_rst7cycles;
-	static double last_hires = 0;
-	double		  hires;
-	static int    lpt_update = 0;
+	static int		rst7UpdateCnt = 0;
+	DWORD			new_rst7cycles;
+	static int		lpt_update = 0;
+	int				count;
+	static int		secsPeriod = 0;
+	static	int		secsCycles = 0;
+	DWORD			deltaCycles, oneSecCycleEstimate;
+	static UINT64	lastDeltaCycles = 0;
 
-	hires = hirestimer();
-	if (hires > last_hires + .05)
+	/* Adjust the background tick cycle estimate 25 times a second */
+	if (gThrottlePeriodCount > 0)
 	{
-		// Update the last_hires timer for next comparison
-		last_hires = hires;
-		one_sec_cycle_count = (DWORD) (cycles - one_sec_cycles) / 100;
-		one_sec_cycles = cycles;
-		new_rst7cycles = (DWORD) (0.39998 * 20 * one_sec_cycle_count);	  /* 0.39998 = 9830 / 24576 */
+		/* Get and reset the period count */
+		#ifdef WIN32
+			EnterCriticalSection(&gThrottleCritSect);
+        #else
+            pthread_mutex_lock(&gThrottleLock);
+		#endif
+
+		count = gThrottlePeriodCount;
+		gThrottlePeriodCount = 0;
+
+		#ifdef WIN32
+			LeaveCriticalSection(&gThrottleCritSect);
+        #else
+            pthread_mutex_unlock(&gThrottleLock);
+		#endif
+
+		// Calculate the delta in cycles since the last time we checked
+		deltaCycles = (DWORD) (cycles - lastDeltaCycles);
+		lastDeltaCycles = cycles;
+		oneSecCycleEstimate = (DWORD) ((UINT64) deltaCycles * gThrottleTerminalCount / count);
+		secsPeriod += count;
+		secsCycles += deltaCycles;
+		if (secsPeriod >= gThrottleTerminalCount)
+		{
+			one_sec_cycles = cycles;
+
+			/* Every second we want to update the CPU frequencey and do some maintenance */
+			gCpuSpeedAvg[gCpuSpeedAvgIndex++] = (float) secsCycles / (float) 1000000.0;
+			gCpuSpeedAvgIndex %= 4;
+			cpu_speed = (gCpuSpeedAvg[0] + gCpuSpeedAvg[1] + gCpuSpeedAvg[2] + gCpuSpeedAvg[3]) / (float) 4.0;
+			display_cpu_speed();
+
+			/* Check for errors on the LPT port and update the Peripherial Display if visible */
+			lpt_check_errors();
+			periph_mon_update_lpt_log();
+			time(&one_sec_time);
+
+			/* Clear variables so we only enter here once a second */
+			secsCycles = 0;
+			secsPeriod = 0;
+		}
+
+#ifdef WIN32
+		new_rst7cycles = (DWORD) (0.0039998 * oneSecCycleEstimate);	  /* 0.0039998 = 9830 / 2457600 */
+#else
+		if (fullspeed == 3)
+			new_rst7cycles = (DWORD) (oneSecCycleEstimate / 256);	  /* Fullspeed sleeps twice as long */
+		else
+			new_rst7cycles = (DWORD) (oneSecCycleEstimate / 128);
+#endif
 
 		// Check if the rst7cycles needs to be updated.  We only update this every 3rd time through
 		// The rst7cycles value is what controls the keyboard-timer interrupt rate and it
 		// changes based on host CPU speed to try to match the M100 scan rate
-		if ((new_rst7cycles > (rst7cycles * 0.8)) || (twice_flag == 2))
+		if ((new_rst7cycles > (rst7cycles * 0.8)) || (rst7UpdateCnt == 2))
 		{
 			rst7cycles = new_rst7cycles;
 			if (rst7cycles < 9830)
 				rst7cycles = 9830;
-			time(&systime);
-			if (systime != (time_t) one_sec_time)
-			{
-				cpu_speed = (float) (.000097656 * 20 * one_sec_cycle_count);  /* 2.4 Mhz / 24576 */
-				display_cpu_speed();
-				lpt_check_errors();
-				periph_mon_update_lpt_log();
-			}
-			twice_flag = 0;
+			rst7UpdateCnt = 0;
 
 			// Check if we need to update the Memory Editor monitor
 			if (gMemMonitor1 != NULL)
@@ -808,7 +1010,7 @@ void maint(void)
 				gMemMonitor2();
 		}
 		else
-			twice_flag++;
+			rst7UpdateCnt++;
 
 		// Check if we need to do lpt animation
 		if (++lpt_update >= 7)
@@ -817,13 +1019,10 @@ void maint(void)
 			lpt_update = 0;
 		}
 
-		// Update the last one_sec_time value to keep track of seconds for emulated speed reporting
-		last_one_sec_time = one_sec_time;
-		one_sec_time = (unsigned long) systime;
+		// Test if socket interface simulating a key press
+		handle_simkey();
+		process_windows_event();
 	}
-
-	// Do CPU throttling for 2.4Mhz mode
-	throttle(cycle_delta);
 
 	// Test if socket interface requested model switch
 	if (gRemoteSwitchModel != -1)
@@ -832,16 +1031,15 @@ void maint(void)
 		gRemoteSwitchModel = -1;
 	}
 
-	// Test if socket interface simulating a key press
-	handle_simkey();
-	process_windows_event();
-
 	// Handle LPT Timeout Activity
 	if (one_sec_time != gLptTime)
 	{
 		gLptTime = one_sec_time;
-		handle_lpt_timeout(one_sec_time);
+		handle_lpt_timeout((DWORD) one_sec_time);
 	}
+
+	if (gInMsPlanROM)
+		gInMsPlanROM--;
 }
 
 
@@ -888,6 +1086,7 @@ void emulate(void)
 {
 	unsigned int	i,j;
 	unsigned int	v;
+	int				top=0;
 	int				nxtmaint=1;
 	int				ins;
 
@@ -911,7 +1110,8 @@ void emulate(void)
 				#include "do_instruct.h"
 
 				// Check if next inst is SIM
-				if (get_memory8(PC) == 0xF3)
+				if ((get_memory8(PC) == 0xF3) || ((IM & 0x2A) == 0x20) ||
+					((IM & 0x4C) == 0x40))
 				{
 					check_interrupts();
 				}
@@ -937,6 +1137,7 @@ void emulate(void)
 				{
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
+					throttle(cycle_delta);
 					maint();
 					ser_poll();
 					check_interrupts();
@@ -963,8 +1164,9 @@ void emulate(void)
 				#include "cpu.h"
 				#include "do_instruct.h"
 
-				// Check if next inst is SIM
-				if (get_memory8(PC) == 0xF3)
+				// Check if next inst is SIM or RS-232 waiting
+				if ((get_memory8(PC) == 0xF3) || ((IM & 0x2A) == 0x20) ||
+					((IM & 0x4C) == 0x40))
 				{
 					check_interrupts();
 				}
@@ -990,6 +1192,7 @@ void emulate(void)
 				{
 					unlock_remote();
 					gOsDelay = nxtmaint == 0;
+					throttle(cycle_delta);
 					maint();
 					ser_poll();
 					check_interrupts();
@@ -1041,7 +1244,7 @@ int process_args(int argc, char **argv)
 			gNoGUI = 1;
 
 		if (!strcmp(argv[i], "-t"))
-			gTelnet = TRUE;
+			set_remote_cmdline_telnet(TRUE);
 
 		// Search for Socket Port flag
 		if (!strncmp(argv[i], "-p", 2))
@@ -1049,7 +1252,7 @@ int process_args(int argc, char **argv)
 			// Check if port number is part of flag
 			if (strlen(argv[i]) != 2)
 			{
-				gSocketPort = atoi(&argv[i][2]);
+				set_remote_cmdline_port(atoi(&argv[i][2]));
 			}
 			else
 			{
@@ -1061,7 +1264,7 @@ int process_args(int argc, char **argv)
 				}
 				else
 				{
-					gSocketPort = atoi(argv[i+1]);
+					set_remote_cmdline_port(atoi(argv[i+1]));
 					i++;
 				}
 			}
@@ -1168,6 +1371,7 @@ int main(int argc, char **argv)
 	init_pref();				/* load user Menu preferences */
 	load_setup_preferences();	/* Load user Peripheral setup preferences */
 	load_memory_preferences();	/* Load user Memory setup preferences */
+	load_remote_preferences();  /* Load user Remote Socket preferences */
 	
 	/* Perform initialization */
 	init_mem();					/* Initialize Memory */
@@ -1175,6 +1379,7 @@ int main(int argc, char **argv)
 	init_sound();				/* Initialize Sound system */
 	init_display();				/* Initialize the Display */
 	init_cpu();					/* Initialize the CPU */
+	init_throttle_timer();		/* Initialize the throttle timer */
 	init_remote();				/* Initialize the remote control */
 	init_lpt();					/* Initialize the printer subsystem */
 	get_model_time();			/* Load the emulated time for current model */
@@ -1190,6 +1395,8 @@ int main(int argc, char **argv)
 	deinit_io();				/* Deinitialize I/O */
 	deinit_sound();				/* Deinitialize sound */
 	deinit_lpt();				/* Deinitialize the printer */
+	deinit_throttle_timer();	/* Deinitialize the throttle timer */
+	deinit_display();			/* Deinitialze and free the main window */
 	free_mem();					/* Free memory used by ReMem and/or Rampac */
 
 	return 0;

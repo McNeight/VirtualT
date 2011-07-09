@@ -3,6 +3,7 @@
 
 #include "vtobj.h"
 #include "rpn_eqn.h"
+#include "a85parse.h"
 #include <stdio.h>
 
 // Define values for opcodes
@@ -95,34 +96,45 @@
 #define		OPCODE_JMP		87
 #define		OPCODE_RET		88
 #define		OPCODE_HLT		89
+#define		OPCODE_RSTV		90
 
-#define		INST_ORG		90
-#define		INST_DS			91
-#define		INST_DB			92
-#define		INST_DW			93
-#define		INST_STKLN		94
-#define		INST_END		95
-#define		INST_PUBLIC		96
-#define		INST_EXTERN		97
-#define		INST_IF			98
-#define		INST_ELSE		99
-#define		INST_ENDIF		100
-#define		INST_LINK		101
-#define		INST_MACLIB		102
-#define		INST_PAGE		103
-#define		INST_SYM		104
-#define		INST_LABEL		105
+#define		INST_ORG		91
+#define		INST_DS			92
+#define		INST_DB			93
+#define		INST_DW			94
+#define		INST_STKLN		95
+#define		INST_END		96
+#define		INST_PUBLIC		97
+#define		INST_EXTERN		98
+#define		INST_IF			99
+#define		INST_ELSE		100
+#define		INST_ENDIF		101
+#define		INST_LINK		102
+#define		INST_MACLIB		103
+#define		INST_PAGE		104
+#define		INST_SYM		105
+#define		INST_LABEL		106
+#define		INST_FILL		107
+#define		INST_ENDIAN		108
+#define		INST_ELIF		109
+#define		INST_MODULE		110
+#define		INST_DEFINE		111
+#define		INST_UNDEFINE	112
+#define		INST_MACRO		113
 
 #define		SYM_LABEL		1
 #define		SYM_EQUATE		2
 #define		SYM_SET			3
 #define		SYM_EXTERN		4
+#define		SYM_DEFINE		5
+#define		SYM_CSEG		0x0100
+#define		SYM_DSEG		0x0200
 #define		SYM_8BIT		0x0400
 #define		SYM_16BIT		0x0800
 #define		SYM_PUBLIC		0x1000
-#define		SYM_HASVALUE	0x8000
-#define		SYM_ISEQ		0x4000
 #define		SYM_ISREG		0x2000
+#define		SYM_ISEQ		0x4000
+#define		SYM_HASVALUE	0x8000
 
 #define		OPCODE_NOARG		0
 #define		OPCODE_1REG			1
@@ -153,6 +165,13 @@
 #define		CSEG			1
 #define		DSEG			2
 
+#define	VT_ISDIGIT(x)  (((x) >= '0') && ((x) <= '9'))
+
+#ifdef WIN32
+#define	LINE_ENDING		"\r\n"
+#else
+#define	LINE_ENDING		"\n"
+#endif
 // Support classes for VTAssembler objects...
 
 typedef struct sAddrRange {
@@ -166,7 +185,7 @@ class CInstruction : public VTObject
 {
 public:
 	CInstruction() { m_ID = 0; m_Line = -1; m_FileIndex = 0; m_Address = 0; 
-						m_Operand1 = 0; m_Group = NULL; }
+						m_Operand1 = 0; m_Group = NULL; m_Bytes = 0; }
 	~CInstruction();
 
 	DECLARE_DYNCREATE(CInstruction);
@@ -176,8 +195,45 @@ public:
 	unsigned char		m_FileIndex;
 	unsigned short		m_Address;
 	long				m_Line;
+	int					m_Bytes;
 	MString*			m_Operand1;
 	VTObject*			m_Group;
+};
+
+class CModule : public VTObject
+{
+public:
+	CModule(const char *name);
+	~CModule();
+
+	MString				m_Name;				// Module name
+	MString				m_Title;			// Module title
+
+	VTMapStringToOb*	m_Symbols;			// Array of Symbols for this module
+	VTObArray			m_Publics;			// Array of public symbols from this module
+};
+
+class CSegment : public VTObject
+{
+public:
+	CSegment(const char *name, int type, CModule* pInitialMod);
+	~CSegment();
+
+	MString				m_Name;				// Name of segment
+	CModule*			m_InitialMod;		// Initial module upon creation
+	CModule*			m_LastMod;			// Last active module
+	int					m_Type;				// ASEG, CSEG or DSEG type
+	int					m_InstIndex;		// Used for listing generation
+	int					m_Page;
+	int					m_Index;			// Current index for listing
+	int					m_Count;			// Instruction count for listing
+	int					m_sh_offset;		// Offset in .obj file of segment name
+	VTObArray*			m_Instructions;		// Array of Instructions for each segment
+	unsigned short		m_Address;			// Address counter for each segment
+	VTObArray			m_Reloc;
+	unsigned char		m_AsmBytes[65536];
+	AddrRange*			m_UsedAddr;			// List of used address ranges
+	AddrRange*			m_ActiveAddr;		// Pointer to active address range
 };
 
 class CExpression : public VTObject
@@ -187,6 +243,20 @@ public:
 	~CExpression()		{ if (m_Equation != 0) delete m_Equation; };
 	MString				m_Literal;
 	CRpnEquation*		m_Equation;
+};
+
+class CMacro : public VTObject
+{
+public:
+	CMacro()			{ m_ParamList = 0; m_DefList = 0; }
+	~CMacro();
+
+	DECLARE_DYNCREATE(CMacro);
+
+	MString				m_Name;
+	VTObArray*			m_ParamList;
+	VTObArray*			m_DefList;
+	MString				m_DefString;
 };
 
 class CExtern : public VTObject
@@ -221,7 +291,7 @@ public:
 	CRelocation()		{ m_Address = 0; m_Segment = 0; m_pSourceRange = 0; m_pTargetRange = 0; };
 
 	unsigned short		m_Address;
-	unsigned char		m_Segment;
+	CSegment*			m_Segment;
 	AddrRange*			m_pSourceRange;
 	AddrRange*			m_pTargetRange;
 };
@@ -229,7 +299,9 @@ public:
 class CSymbol : public VTObject
 {
 public:
-	CSymbol() { m_Line = -1; m_Value = -1; m_SymType = 0; m_Equation = 0; m_StrtabOffset = 0; }
+	CSymbol() { m_Line = -1; m_Value = -1; m_SymType = 0; m_Equation = NULL; 
+			m_StrtabOffset = 0; m_Segment = NULL; m_FileIndex = -1;
+			m_pRange = NULL; m_Off8 = 0; m_Off16 = 0; }
 	~CSymbol()			{ if (m_Equation != 0) delete m_Equation; };
 
 // Attributes
@@ -238,6 +310,7 @@ public:
 	CRpnEquation*		m_Equation;
 	long				m_Line;
 	long				m_Value;
+	CSegment*			m_Segment;
 	unsigned short		m_SymType;
 	unsigned short		m_FileIndex;
 	long				m_StrtabOffset;
@@ -246,24 +319,17 @@ public:
 	AddrRange*			m_pRange;
 };
 
-class CModule : public VTObject
+typedef void (*stdOutFunc_t)(void *pContext, const char *msg);
+
+class CSegLines : public VTObject
 {
 public:
-	CModule();
-	~CModule();
+	CSegLines(CSegment* pSeg, int start)  
+		{ pSegment = pSeg, startLine = start, lastLine = -1;  }
 
-	MString				m_Name;				// Module name
-	MString				m_Title;			// Module title
-
-	int					m_ActiveSeg;		// Segment we are compiling into
-
-	VTMapStringToOb*	m_Symbols[3];		// Array of Symbols for each segment
-	VTObArray*			m_Instructions[3];	// Array of Instructions for each segment
-	long				m_Address[3];		// Address counter for each segment
-	int					m_Page[3];
-
-	AddrRange*			m_UsedAddr[3];		// List of used address ranges
-	AddrRange*			m_ActiveAddr[3];	// Pointer to active address range
+	CSegment*	pSegment;					// Pointer to the segment
+	int			startLine;					// First line for this entry
+	int			lastLine;					// Last line for this entry
 };
 
 class VTAssembler : public VTObject
@@ -275,10 +341,14 @@ public:
 	// Define Preprocessor functions
 	void				preproc_endif(void);
 	void				preproc_ifndef(const char *name);
-	void				preproc_ifdef(const char *name);
+	void				preproc_if(void);
+	void				preproc_elif(void);
+	void				preproc_ifdef(const char *name, int negate = 0);
 	void				preproc_else(void);
-	void				preproc_define(const char *name);
+	int					preproc_error(const char *msg);
+	void				preproc_define();
 	void				preproc_undef(const char *name);
+	int					preproc_macro(void);
 
 	// Define Pragma functions
 	void				pragma_list();
@@ -287,19 +357,24 @@ public:
 	// Define directive functions
 	void				directive_set(const char *name);
 	void				directive_aseg(void);
-	void				directive_cseg(int page);
-	void				directive_dseg(int page);
+	void				directive_cdseg(int seg, int page);
 	void				directive_ds(void);
 	void				directive_db(void);
 	void				directive_dw(void);
+	void				directive_echo(void);
+	void				directive_echo(const char *msg);
+	void				directive_fill(void);
+	void				directive_printf(const char *fmt);
 	void				directive_extern(void);
+	void				directive_endian(int msbFirst);
 	void				directive_org();
 	void				directive_public(void);
 	void				directive_name(const char *name);
 	void				directive_stkln(void);
 	void				directive_end(const char *name);
-	void				directive_if(void);
+	void				directive_if(int inst = INST_IF);
 	void				directive_else(void);
+	void				directive_module(const char *name);
 	void				directive_endif(void);
 	void				directive_title(const char *name);
 	void				directive_link(const char *name);
@@ -309,46 +384,59 @@ public:
 
 	void				include(const char *filename);
 	void				equate(const char *name);
-	void				label(const char *label);
+	void				label(const char *label, int address = -1);
 	
 	void				opcode_arg_0(int opcode);
 	void				opcode_arg_1reg(int opcode);
 	void				opcode_arg_imm(int opcode, char c);
 	void				opcode_arg_2reg(int opcode);
 	void				opcode_arg_1reg_equ8(int opcode);
+	void				opcode_arg_1reg_equ16(int opcode);
 	void				opcode_arg_equ8(int opcode);
 	void				opcode_arg_equ16(int opcode);
 
 // Attributes
 //	MString				m_Filename;			// Filename that design was parsed from
+	MString				m_FileDir;
 	FILE*				m_fd;				// File descriptor of open file
 	int					m_Line;
+	int					m_LastLabelLine;	// Line number of last label
 	int					m_FileIndex;
+	int					m_ProjectType;
+	int					m_LastIfElseLine;	// Line number of last #if, #ifdef, IF, or else
+	int					m_LastIfElseIsIf;	// True if last was #if or #ifdef
 
-	VTMapStringToOb*	m_Modules;			// Map of CModules
+	VTMapStringToOb		m_Modules;			// Map of CModules
+	VTMapStringToOb		m_Segments;			// Map of CSegments
 	CModule*			m_ActiveMod;		// Pointer to active CModule
-	AddrRange*			m_ActiveAddr;		// Pointer to active address range
-
+	CSegment*			m_ActiveSeg;		// Active segment for assembly
+	AddrRange*			m_ActiveAddr;		// Pointer to active address range from segment
+	CSegLines*			m_ActiveSegLines;	// Active segment line tracker
 	VTMapStringToOb*	m_Symbols;			// Array of Symbols
 	VTObArray*			m_Instructions;		// Array of Instructions
-	unsigned short				m_Address;
+	VTObArray			m_Defines;			// Array of preprocessor defines
+
+	VTObArray			m_SegLines;			// Array of segment line objects
+	unsigned short		m_Address;
 	MStringArray		m_Filenames;		// Array of filenames parsed during assembly
 	MString				m_LastLabel;		// Save value of last label parsed
 	CSymbol*			m_LastLabelSym;		// Pointer to CSymbol object for last label
 	int					m_LastLabelAdded;
+	char				m_LocalModuleChar;	// Module local label starting character
 
+	stdOutFunc_t		m_pStdoutFunc;		// Standard out message routine
+	void*				m_pStdoutContext;   // Opaque context for stdout
 	MStringArray		m_Errors;			// Array of error messages during parsing
-	unsigned char		m_AsmBytes[3][65536];
-	VTObArray			m_Reloc[3];
 	VTObArray			m_Externs;
-	VTObArray			m_Publics[3];		// Array of public symbols for each segment
 	VTMapStringToOb		m_UndefSymbols;
 	int					m_List;				// Create a list file?
 	int					m_Hex;				// Create a HEX file?
 	int					m_DebugInfo;		// Include debug info in .obj?
+	int					m_MsbFirst;			// Output WORDS MSB first instead of LSB
 	MString				m_IncludeName[32];
 	FILE*				m_IncludeStack[32];
 	int					m_IncludeIndex[32];
+	a85parse_pcb_struct m_ParserPCBs[32];
 	int					m_IncludeDepth;
 	MString				m_AsmOptions;		// Assembler options
 	MString				m_IncludePath;
@@ -365,14 +453,20 @@ public:
 							int reportError);
 	int					Assemble();
 	int					GetValue(MString & string, int & value);
+	int					LookupSymbol(MString& name, CSymbol *& symbol);
+	int					LookupMacro(MString& name, CMacro *& macro);
+	CSymbol*			LookupSymOtherModules(MString& name, CSegment** pSeg = NULL);
 	void				ResetContent(void);
 	int					CreateObjFile(const char *filename);
-	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask);
+	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask, CSegment *&pSeg);
 	int					EquationIsExtern(CRpnEquation* pEq, int size);
 	void				MakeBinary(int val, int length, MString& binary);
-	void				CreateHex();
-	void				CreateList(MString& filename);
+	void				CreateHex(MString& filename);
+	void				CreateList(MString& filename, MString& asmFilename);
 	void				CalcIncludeDirs();
+	void				ParseExternalDefines(void);
+	void				ActivateSegment(CSegment* pSeg);
+	CInstruction*		AddInstruction(int opcode);
 
 // Public Access functions
 	void				Parse(MString filename);
@@ -380,6 +474,8 @@ public:
 	void				SetIncludeDirs(const MString& dirs);
 	void				SetDefines(const MString& defines);
 	void				SetRootPath(const MString& rootPath);
+	void				SetProjectType(int type);
+	void				SetStdoutFunction(void *pContext, stdOutFunc_t pFunc);
 	const MStringArray&		GetErrors() { return m_Errors; };
 };
 
