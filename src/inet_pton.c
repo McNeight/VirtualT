@@ -98,7 +98,7 @@ int     inet_pton4(char *src, u_char *dst, int pton)
 {
         u_int val;
         u_int digit;
-        int base, n;
+        u_int base, n;
         unsigned char c;
         u_int parts[4];
         register u_int *pp = parts;

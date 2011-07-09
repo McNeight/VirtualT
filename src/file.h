@@ -1,6 +1,6 @@
 /* file.h */
 
-/* $Id: file.h,v 1.5 2008/02/10 06:52:31 kpettit1 Exp $ */
+/* $Id: file.h,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,12 +54,15 @@ extern int		COSaveMode;
 
 #ifdef	__APPLE__
 //JV 10/08/05
-char* ChooseWorkDir();
+const char* ChooseWorkDir();
 
 #ifdef __cplusplus
-extern "C"
+extern "C" {
 #endif
 extern char path[255];
+#ifdef __cplusplus
+}
+#endif
 
 //JV
 #endif

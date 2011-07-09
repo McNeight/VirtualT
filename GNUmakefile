@@ -18,13 +18,14 @@ EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
 FLTKCONFIG	=	$(FLTKDIR)/fltk-config
-FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
+FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
+#FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
 VPATH		=	src:obj
 
 LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
 LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
 
-MACLDFLAGS	=	-L$(FLTKDIR)/lib
+MACLDFLAGS	=	$(shell $(FLTKCONFIG) --ldflags)
 MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --ldstaticflags --use-images` --lm -lpthread
 
 OBJECTS		=	$(SOURCES:.c=.o)
@@ -62,8 +63,8 @@ all:			virtualt vt_client
 # ========================
 # Rule to build VirtualT
 # ========================
-$(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP) $(FLTKLIBS)/libfltk.a \
-					$(FLTKLIBS)/libfltk_z.a $(FLTKLIBS)/libfltk_jpeg.a $(FLTKLIBS)/libfltk_png.a
+$(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
+
 ifndef FLTKDIR
 	@echo "FLTKDIR environment variable must be set first!"
 	exit 1
@@ -129,21 +130,6 @@ endif
 
 
 # ==========================================
-# Declare dependencies on FLTK libs
-# ==========================================
-$(FLTKLIBS)/libfltk.a:
-	$(MAKE) -C $(FLTKDIR)
-
-$(FLTKLIBS)/libfltk_z.a:
-	$(MAKE) -C $(FLTKDIR)/zlib
-
-$(FLTKLIBS)/libfltk_jpeg.a:
-	$(MAKE) -C $(FLTKDIR)/jpeg
-
-$(FLTKLIBS)/libfltk_png.a:
-	$(MAKE) -C $(FLTKDIR)/png
-
-# ==========================================
 # Declare dependencies on header files below
 # ==========================================
 $(OBJECTS) $(OBJECTSCPP): m100emu.h GNUmakefile VirtualT.h
@@ -164,7 +150,7 @@ serial.o:		serial.h setup.h display.h
 rememcfg.o:		rememcfg.h setup.h display.h
 fl_usage_box.o: fl_usage_box.h
 setup.o:		setup.h io.h serial.h memory.h memedit.h lpt.h clock.h
-sound.c:		sound.h
+sound.o:		sound.h
 m100rom.o m102rom.o m200rom.o n8201rom.o romstrings.o m10rom.o kc85rom.o: roms.h romstrings.h
 remote.o:		remote.cpp m100emu.h socket.h serversocket.h socketexception.h
 socket.o:		socket.h

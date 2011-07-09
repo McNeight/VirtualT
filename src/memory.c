@@ -1443,6 +1443,10 @@ void patch_vt_version(char* pMem, int size)
 	int					c, srchLen, strLen;
 	int					found = FALSE;
 
+	/* Validate the ROM was found and we have a good pointer */
+	if (gStdRomDesc == NULL)
+		return;
+
 	/* Test if VirtulalT version should replace (C) Micro***t text */
 	if (gShowVersion)
 	{
@@ -1512,6 +1516,20 @@ void load_sys_rom(void)
 	FILE*			fd;
 	//int					fd;
 
+	/* Set pointer to ROM Description */
+	if (gModel == MODEL_T200)
+		gStdRomDesc = &gM200_Desc;
+	else if (gModel == MODEL_PC8201)
+		gStdRomDesc = &gN8201_Desc;
+	else if (gModel == MODEL_M10)
+		gStdRomDesc = &gM10_Desc;
+	else if (gModel == MODEL_KC85)
+		gStdRomDesc = &gKC85_Desc;
+//	else if (gModel == MODEL_PC8300)
+//		gStdRomDesc = &gN8300_Desc;
+	else 
+		gStdRomDesc = &gM100_Desc;
+
 	/* Get Path to ROM based on current Model selection */
 	get_rom_path(file, gModel);
 
@@ -1538,20 +1556,6 @@ void load_sys_rom(void)
 	
 	/* Close the ROM file */
 	fclose(fd);
-
-	/* Set pointer to ROM Description */
-	if (gModel == MODEL_T200)
-		gStdRomDesc = &gM200_Desc;
-	else if (gModel == MODEL_PC8201)
-		gStdRomDesc = &gN8201_Desc;
-	else if (gModel == MODEL_M10)
-		gStdRomDesc = &gM10_Desc;
-	else if (gModel == MODEL_KC85)
-		gStdRomDesc = &gKC85_Desc;
-//	else if (gModel == MODEL_PC8300)
-//		gStdRomDesc = &gN8300_Desc;
-	else 
-		gStdRomDesc = &gM100_Desc;
 
 	/* Patch the ROM with VirtualT version if requested */
 	patch_vt_version(gSysROM, ROMSIZE);

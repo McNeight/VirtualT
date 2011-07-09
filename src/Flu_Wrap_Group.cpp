@@ -1,4 +1,4 @@
-// $Id: Flu_Wrap_Group.cpp,v 1.7 2003/12/02 21:47:49 jbryan Exp $
+// $Id: Flu_Wrap_Group.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -265,10 +265,10 @@ void Flu_Wrap_Group :: draw()
   if( scrollbar.value() > scrollbar.maximum() )
     {
       ((Fl_Valuator*)&scrollbar)->value( scrollbar.maximum() );
-      layout( scrollbar.visible(), scrollTo!=NULL );
+      layout( scrollbar.visible()!=0, scrollTo!=NULL );
     }
   else if( scrollTo )
-    layout( scrollbar.visible(), true );
+    layout( scrollbar.visible()!=0, true );
 
   scrollTo = NULL;
 

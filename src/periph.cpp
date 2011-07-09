@@ -1,6 +1,6 @@
 /* periph.cpp */
 
-/* $Id: periph.cpp,v 1.14 2008/12/31 06:49:15 kpettit1 Exp $ */
+/* $Id: periph.cpp,v 1.15 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1694,7 +1694,7 @@ void T100_ComMon::SaveLog(void)
 				}
 				outLine[col + fill] = 0;
 				strcat(outLine, "\n");
-				fprintf(fd, outLine);
+				fprintf(fd, "%s", outLine);
 				outLine[0] = 0;
 
 				// Clear RXTX so we will start a new line below
@@ -1753,7 +1753,7 @@ void T100_ComMon::SaveLog(void)
 			// Terminate the line, append \n and print to file
 			outLine[col + fill] = 0;
 			strcat(outLine, "\n");
-			fprintf(fd, outLine);
+			fprintf(fd, "%s", outLine);
 
 			// Next line of same packet
 			strcpy(outLine, "        ");

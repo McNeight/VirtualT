@@ -1,4 +1,4 @@
-// $Id: Flu_Tree_Browser.h,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $
+// $Id: Flu_Tree_Browser.h,v 1.2 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -19,6 +19,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 #define USE_FLU_DND
 
@@ -940,8 +943,8 @@ class FLU_EXPORT Flu_Tree_Browser : public Fl_Double_Window
 
       //! Remove the entry identified by path \b fullpath from this node
       /*! \return the unique id of the removed entry, or \c 0 if no matching entry was found */
-      inline unsigned int remove( const char *fullpath )
-	{ return( (unsigned int)modify( fullpath, REMOVE, tree->rdata ) ); }
+      inline intptr_t remove( const char *fullpath )
+	{ return( (intptr_t)modify( fullpath, REMOVE, tree->rdata ) ); }
 
       //! Remove the entry identified by unique id \b id from this node
       /*! \return the unique id of the removed entry, or \c 0 if no matching entry was found */

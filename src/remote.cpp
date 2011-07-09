@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.13 2009/04/05 08:18:35 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.14 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -3036,24 +3036,26 @@ void* remote_control(void* arg)
 	char		 sockData[128];
 	int			 len;
 
-	// Create a listener socket on the desired port number
-	gSocket.listenPort = 0;
-	gSocket.socketOpened = FALSE;
-	gSocket.closeSocket = FALSE;
-	gSocket.serverSock = new ServerSocket(gSocket.socketPort);
-	gSocket.socketErrorMsg = "";
-	if (gSocket.serverSock == NULL)
-	{
-		gSocket.socketError = TRUE;
-		sprintf(errmsg, "Unable to open port %d", gSocket.socketPort);
-		gSocket.socketErrorMsg = errmsg;
-		return NULL;
-	}
-	gSocket.listenPort = gSocket.socketPort;
-
-	// Now listen on the listener port for connections
 	try
 	{
+		// Create a listener socket on the desired port number
+		gSocket.listenPort = 0;
+		gSocket.socketOpened = FALSE;
+		gSocket.closeSocket = FALSE;
+		gSocket.serverSock = new ServerSocket(gSocket.socketPort);
+		gSocket.socketErrorMsg = "";
+		if (gSocket.serverSock == NULL)
+		{
+			gSocket.socketError = TRUE;
+			sprintf(errmsg, "Unable to open port %d", gSocket.socketPort);
+			gSocket.socketErrorMsg = errmsg;
+			return NULL;
+		}
+		gSocket.listenPort = gSocket.socketPort;
+		sprintf(errmsg, "Listening on port %d", gSocket.socketPort);
+		gSocket.socketErrorMsg = errmsg;
+
+		// Now listen on the listener port for connections
 		while (!gExitApp && !gSocket.socketShutdown)
 		{
 			gSocket.serverSock->accept(gSocket.openSock);
@@ -3096,6 +3098,7 @@ void* remote_control(void* arg)
 					else
 						gSocket.openSock << ret;
 				}
+
 			}
 			catch (SocketException&)
 			{

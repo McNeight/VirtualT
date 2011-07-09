@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.3 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.4 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -152,7 +152,7 @@ void cb_okNewProject(Fl_Widget* w, void*)
 	{
 		fclose(fd);
 		sprintf(projPath, "Project %s already exists!", projName);
-		fl_alert(projPath);
+		fl_alert("%s", projPath);
 		return;
 	}
 

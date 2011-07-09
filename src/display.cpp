@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.23 2009/02/05 04:39:59 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.25 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -47,6 +47,9 @@
 
 #include <string.h>
 #include <stdio.h>
+#ifndef WIN32
+#include <unistd.h>
+#endif
 
 #include "VirtualT.h"
 #include "display.h"
@@ -65,6 +68,7 @@
 #include "fileview.h"
 #include "romstrings.h"
 //#include "tpddclient.h"
+
 
 extern "C" {
 extern RomDescription_t		gM100_Desc;
@@ -519,13 +523,13 @@ void show_error (const char *st)
 		return;
 	}
 
-	fl_alert(st);
+	fl_alert("%s", st);
 	
 }
 
 void show_message (const char *st)
 {
-	fl_message(st);
+	fl_message("%s", st);
 	
 }
 
@@ -744,21 +748,23 @@ void cb_KC85(Fl_Widget* w, void*)
 void cb_choosewkdir(Fl_Widget* w, void*)
 {
 	/* Choose the working directory (ROM, RAM Files... */
-	char *ret;
+	const char *ret;
 	
 	/* Get working directory from chooser */
-    ret=ChooseWorkDir();
-	if(ret==NULL) 
+    ret = ChooseWorkDir();
+	if (ret == NULL) 
 		return; 
 	else 
 	{
-		strcpy(path,ret);
+		strcpy(path, ret);
 		//#ifdef __unix__
 		//strcat(path,"/");
 		//#else
 		//strcat(path,"\\");
 		//#endif
-		virtualt_prefs.set("Path",path);
+		virtualt_prefs.set("Path", path);
+		load_sys_rom();
+		resetcpu();
 	}
 }
 //--JV
@@ -1100,7 +1106,7 @@ void cb_select_cancel (Fl_Widget* w, void*)
 
 void cb_menu_fkey (Fl_Widget* w, void* key)
 {
-	int		fkey = (int) key;
+	int		fkey = (intptr_t) key;
 
 	if (gpDisp != NULL)
 	{
@@ -2156,7 +2162,7 @@ void init_display(void)
 	/* ...and display it now if any */
 	if (strlen(gDelayedError) != 0)
 	{
-		fl_alert(gDelayedError);
+		fl_alert("%s", gDelayedError);
 		gDelayedError[0] = '\0';
 	}
 
@@ -2532,6 +2538,10 @@ int T100_Disp::IsInMenu(void)
 	int				lines, c, first_line = 0;
 	unsigned short	lcdAddr, curAddr;
 	char			lcdStr[21];
+
+	// Validate the gStdRomDesc is valid
+	if (gStdRomDesc == NULL)
+		return FALSE;
 
 	lines = gModel == MODEL_T200 ? 16 : 8;
 	

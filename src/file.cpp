@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.12 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.13 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -250,7 +250,7 @@ int relocate(unsigned char* in, unsigned char* out, unsigned short addr)
 
 		if (in[c] + (in[c+1] << 8) <= line_number)
 		{
-			fl_message(gIllformedBasic);
+			fl_message("%s", gIllformedBasic);
 			return 0;
 		}
 
@@ -285,7 +285,7 @@ int relocate(unsigned char* in, unsigned char* out, unsigned short addr)
 			addr1 = in[this_line] + (in[this_line+1] << 8);
 			if (addr1 != base + line_len)
 			{
-				fl_message(gIllformedBasic);
+				fl_message("%s", gIllformedBasic);
 				return 0;
 			}
 		}
@@ -356,7 +356,7 @@ int tokenize(unsigned char* in, unsigned char* out, unsigned short addr)
 				// Check for characters with no line number
 				else if (line_num_len == 0)
 				{
-					fl_message(gIllformedBasic);
+					fl_message("%s", gIllformedBasic);
 					return 0;
 				}
 
@@ -659,7 +659,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	{
 		fclose(fd);
 		if (w != NULL)
-			fl_message(gTooLargeMsg);
+			fl_message("%s", gTooLargeMsg);
 		else
 			gLoadError = 1;
 		if (fc != NULL)
@@ -701,7 +701,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			if (x >= 32768)
 			{
 				if (w != NULL)
-					fl_message(gTooLargeMsg);
+					fl_message("%s", gTooLargeMsg);
 				else
 					gLoadError = 1;
 				if (fc != NULL)
@@ -777,7 +777,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	if (addr3 - addr2 < len)
 	{
 		if (w != NULL)
-			fl_message(gTooLargeMsg);
+			fl_message("%s", gTooLargeMsg);
 		else
 			gLoadError = 1;
 		if (fc != NULL)
@@ -1290,11 +1290,34 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 
 #ifdef	__APPLE__
 //JV 08/10/05: add a function to choose the working directory (where are the ROMs files)
-char* ChooseWorkDir()
+const char* ChooseWorkDir()
 {
-	char *ret=NULL;
+	Flu_File_Chooser	*fileWin;
+	int					count;
+	const char 			*ret = NULL;
 	
-	ret = fl_dir_chooser("Choose Working Directory",path,0);
+	// Create a File chooser
+	fl_cursor(FL_CURSOR_WAIT);
+	fileWin = new Flu_File_Chooser(path, "", 
+		Flu_File_Chooser::DIRECTORY, "Choose Working Directory - Should be the PARENT of ROMs dir");
+	fl_cursor(FL_CURSOR_DEFAULT);
+	fileWin->preview(0);
+	fileWin->show();
+
+	// Wait until selection is made or cancel
+	while (fileWin->visible())
+		Fl::wait();
+
+	// Determine if selection made
+	count = fileWin->count();
+	if (count == 0)
+	{
+		delete fileWin;
+		return NULL;
+	}
+
+	// Get the path of the new location
+	ret = fileWin->value();
 
 	return ret;
 }

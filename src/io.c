@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.16 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: io.c,v 1.17 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -29,6 +29,9 @@
 
 
 #include <time.h>
+#ifdef __APPLE__
+#include <sys/time.h>
+#endif
 #include <stdio.h>
 
 #include "VirtualT.h"

@@ -1,4 +1,4 @@
-// $Id: Flu_Tree_Browser.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
+// $Id: Flu_Tree_Browser.cpp,v 1.2 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -2351,11 +2351,11 @@ int Flu_Tree_Browser :: Node :: recurse( RData &rdata, int type, int event )
 	    int which = open();
 	    if( _parent==0 )
 	      inExpander = Fl::event_inside( rdata.x, rdata.y+(currentH>>1)-(cIcon[which]->h()>>1),
-					     cIcon[which]->w(), cIcon[which]->h() );
+					     cIcon[which]->w(), cIcon[which]->h() ) != 0;
 	    else
 	      inExpander = Fl::event_inside( rdata.x+(rdata.branchIconW>>1)-(cIcon[which]->w()>>1),
 					     rdata.y+(currentH>>1)-(cIcon[which]->h()>>1),
-					     cIcon[which]->w(), cIcon[which]->h() );
+					     cIcon[which]->w(), cIcon[which]->h() ) != 0;
 	  }
 
 	if( event == FL_PUSH )
@@ -2790,7 +2790,7 @@ Flu_Tree_Browser::Node* Flu_Tree_Browser :: add( const char* path, const char* t
 
 unsigned int Flu_Tree_Browser :: remove( const char *fullpath )
 {
-  return( (unsigned int)root.modify( fullpath, Node::REMOVE, rdata ) );
+  return( (intptr_t)root.modify( fullpath, Node::REMOVE, rdata ) );
 }
 
 unsigned int Flu_Tree_Browser :: remove( const char *path, const char *text )

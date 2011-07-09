@@ -2,7 +2,7 @@
 
 /* General cross-platform development wrappers */
 
-/* $Id: genwrap.h,v 1.4 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: genwrap.h,v 1.5 2008/12/31 05:09:09 kpettit1 Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -145,7 +145,9 @@ extern "C" {
 /* String Functionss */
 /*********************/
 
+#ifndef __APPLE__
 #define snprintf	safe_snprintf
+#endif
 
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__DMC__)
 	#define vsnprintf		_vsnprintf

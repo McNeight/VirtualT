@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.8 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.9 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -2276,16 +2276,16 @@ void T100_MemEditor::UpdateAddressText()
 		(region == REGION_RAM3) || region == REGION_RAM1)
 	{
 		if (gReMem)
-			sprintf(string, "0x%06X", address + RAMSTART);
+			sprintf(string, "0x%06X", (unsigned int) (address + RAMSTART));
 		else
-			sprintf(string, "0x%04X", address + RAMSTART);
+			sprintf(string, "0x%04X", (unsigned int) (address + RAMSTART));
 	}
 	else
 	{
 		if (gReMem)
-			sprintf(string, "0x%06X", address);
+			sprintf(string, "0x%06X", (unsigned int) address);
 		else
-			sprintf(string, "0x%04X", address);
+			sprintf(string, "0x%04X", (unsigned int) address);
 	}
 	memedit_ctrl.pMemRange->value(string);
 }

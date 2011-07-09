@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.3 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.4 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -250,7 +250,6 @@ Callback routine for the close box of the IDE window
 void close_ide_cb(Fl_Widget* w, void*)
 {
 	int				ans;
-	MString			question;
 
 	if (gpIde != NULL)
 	{
@@ -258,8 +257,7 @@ void close_ide_cb(Fl_Widget* w, void*)
 		if (gpIde->ProjectDirty())
 		{
 			// Ask if project should be saved
-			question.Format("Save changes to project %s?", (const char *) gpIde->ProjectName());
-			ans = fl_choice((const char *) question, "Cancel", "Yes", "No");
+			ans = fl_choice("Save changes to project %s?", "Cancel", "Yes", "No", (const char *) gpIde->ProjectName());
 			if (ans == 0)
 				return;
 			if (ans == 1)
@@ -2756,7 +2754,6 @@ a specific item in the tree.
 void VT_Ide::DeleteItem(Flu_Tree_Browser::Node* n)
 {
 	int			ans;
-	MString		question;
 
 	if (!n->is_root())
 	{
@@ -2770,8 +2767,7 @@ void VT_Ide::DeleteItem(Flu_Tree_Browser::Node* n)
 		{
 			// For groups, ask before deleting the entire group
 			VT_IdeGroup* pGroup = (VT_IdeGroup*) pObj;
-			question.Format("Delete group %s and all its members?", (const char *) pGroup->m_Name);
-			ans = fl_choice((const char *) question, "No", "Yes", NULL);
+			ans = fl_choice("Delete gropu %s and all its members?", "No", "Yes", NULL, (const char *) pGroup->m_Name);
 			if (ans == 1)
 			{
 				// First delete all subitems from the group
@@ -3149,7 +3145,7 @@ void VT_Ide::AddFilesToFolder(Flu_Tree_Browser::Node* n)
 			err.Format("Files %s already in project!", (const char *) files);
 		else
 			err.Format("File %s already in project!", (const char *) files);
-		fl_alert((const char *) err);
+		fl_alert("%s", (const char *) err);
 	}
 	return;
 }

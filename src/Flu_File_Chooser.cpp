@@ -1,4 +1,4 @@
-// $Id: Flu_File_Chooser.cpp,v 1.56 2003/12/21 23:50:41 jbryan Exp $
+// $Id: Flu_File_Chooser.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -566,6 +566,8 @@ Flu_File_Chooser :: Flu_File_Chooser( const char *pathname, const char *pat, int
   configFilename = userHome + ".Flu_File_Chooser.favorites";
 
   int neww, newh;
+  neww = 800;
+  newh = 600;
   // try to load the favorites
   {
     FILE *f = fopen( configFilename.c_str(), "r" );
@@ -902,12 +904,12 @@ void Flu_File_Chooser :: trashCB( int recycle )
 	 {
 	   if( recycle )
 	     {
-	       if( !fl_ask( "Really send '%s' to the Recycle Bin?", first ) )
+	       if( fl_choice( "Really send '%s' to the Recycle Bin?", "Yes", "No", NULL, first ) )
 		 return;
 	     }
 	   else
 	     {
-	       if( !fl_ask( "Really delete '%s'?", first ) )
+	       if( fl_choice( "Really delete '%s'?", "Yes", "No", NULL, first ) )
 		 return;
 	     }
 	 }
@@ -915,12 +917,12 @@ void Flu_File_Chooser :: trashCB( int recycle )
 	 {
 	   if( recycle )
 	     {
-	       if( !fl_ask( "Really send these %d files to the Recycle Bin?", selected ) )
+	       if( fl_choice( "Really send these %d files to the Recycle Bin?", "Yes", "No", NULL, selected ) )
 		 return;
 	     }
 	   else
 	     {
-	       if( !fl_ask( "Really delete these %d files?", selected ) )
+	       if( fl_choice( "Really delete these %d files?", "Yes", "No", NULL, selected ) )
 		 return;
 	     }
 	 }
@@ -2923,7 +2925,7 @@ int Flu_File_Chooser :: stripPatterns( FluSimpleString s, StringVector* patterns
 void Flu_File_Chooser :: cd( const char *localpath )
 {
   Entry *entry;
-  char cwd[1024];
+//  char cwd[1024];
 
   if( !localpath || localpath[0] == '\0' )
     {

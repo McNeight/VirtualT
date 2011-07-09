@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.14 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.15 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -941,7 +941,7 @@ void VTLpt::HandleTimeouts(unsigned long time)
 		}
 		else
 		{
-			sprintf(m_TimeStr, "%d", m_PortTimeout + timeout - time);
+			sprintf(m_TimeStr, "%ld", m_PortTimeout + timeout - time);
 			gpPrint->label(m_TimeStr);
 		}
 
@@ -1001,7 +1001,7 @@ void VTLpt::HandleTimeouts(unsigned long time)
 		}
 		else
 		{
-			sprintf(m_TimeStr, "%d", m_PortActivity + timeout - time);
+			sprintf(m_TimeStr, "%ld", m_PortActivity + timeout - time);
 			gpPrint->label(m_TimeStr);
 		}
 	}
@@ -1402,7 +1402,7 @@ void VTLpt::ShowErrors(void)
 
 	if (count == 1)
 	{
-		fl_message((const char *) m_pActivePrinter->GetError(0));
+		fl_message("%s", (const char *) m_pActivePrinter->GetError(0));
 	}
 	else
 	{

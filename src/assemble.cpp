@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.2 2010/02/01 06:18:04 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.5 2011/07/09 08:16:21 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -40,6 +40,9 @@
 #include		<string.h>
 #include		<stdio.h>
 #include		<stdlib.h>
+#ifndef WIN32
+#include 		<unistd.h>
+#endif
 
 extern "C"
 {
@@ -2880,7 +2883,7 @@ int VTAssembler::Assemble()
 					break;
 
 				case OPCODE_2REG:
-					opcode |= (int) pInst->m_Group - '0';
+					opcode |= (intptr_t) pInst->m_Group - '0';
 					opcode |= atoi(*pInst->m_Operand1) << 3;
 					break;
 				}

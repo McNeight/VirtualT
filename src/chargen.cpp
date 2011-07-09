@@ -1,6 +1,6 @@
 /* chargen.cpp */
 
-/* $Id: chargen.cpp,v 1.6 2008/03/31 02:59:19 kpettit1 Exp $ */
+/* $Id: chargen.cpp,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -119,7 +119,7 @@ void cb_CharGenLoad(Fl_Widget* w, void *)
 void cb_CharGenSave(Fl_Widget* w, void * format)
 {	
 	if (gpCharGen != NULL)
-		gpCharGen->Save((int) format);
+		gpCharGen->Save((intptr_t) format);
 }
 
 /*
