@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.26 2010/10/31 05:42:58 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.27 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -176,6 +176,7 @@ void CALLBACK ThrottleProc(UINT uID, UINT uMsg, DWORD dwUser, DWORD dw1, DWORD d
 
 void * ThrottlePeriodProc(void *pParams)
 {
+	int		lastThrottlePeriod = gThrottlePeriod;
     int     sleepUs = 1000 / gThrottlePeriod * 1000;
 
     /* Loop until time to exit the app */
@@ -193,6 +194,12 @@ void * ThrottlePeriodProc(void *pParams)
             gThrottleCycles += gThrottleDelta;
         }
         gThrottlePeriodCount++;
+		if (lastThrottlePeriod != gThrottlePeriod)
+		{
+			sleepUs = 1000 / gThrottlePeriod * 1000;
+			lastThrottlePeriod = gThrottlePeriod;
+		}
+
         pthread_mutex_unlock(&gThrottleLock);
 
         /* Post the event semaphore to wake up the emulation thread */
@@ -324,7 +331,7 @@ void throttle(int cy)
 			WaitForSingleObject(gThrottleEvent, INFINITE);
 		}
 #else
-		if (cycles >= gThrottleCycles)
+		while (cycles >= gThrottleCycles)
 		{
 			sem_wait(&gThrottleEvent);
 		}

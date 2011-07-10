@@ -17,6 +17,11 @@ CPPFLAGS	+=	-I $(FLTKDIR) -I src -g
 EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
+HOST        =   $(shell uname)
+ifeq ($(HOST),Darwin)
+CFLAGS     +=   -arch i386 -arch ppc /Developer/SDKs/MacOSX10.5.sdk/
+endif
+
 FLTKCONFIG	=	$(FLTKDIR)/fltk-config
 FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
 #FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
@@ -25,7 +30,7 @@ VPATH		=	src:obj
 LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
 LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
 
-MACLDFLAGS	=	$(shell $(FLTKCONFIG) --ldflags)
+MACLDFLAGS	=	$(shell $(FLTKCONFIG) --ldflags) -arch i386 -arch ppc
 MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --ldstaticflags --use-images` --lm -lpthread
 
 OBJECTS		=	$(SOURCES:.c=.o)
