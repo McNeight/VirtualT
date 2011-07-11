@@ -23,12 +23,16 @@ CLIENT		=	vt_client
 FLTKCONFIG  =   $(shell which fltk-config)
 ifneq ($(FLTKCONFIG),)
 FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
+CFLAGS      +=  $(shell $(FLTKCONFIG) --cflags)
+CPPFLAGS    +=  $(shell $(FLTKCONFIG) --cxxflags)
 endif
 POSTBUILD	=   $(FLTKCONFIG) --post
 
 ifeq ($(FLTKLIB),)
 ifneq ($(FLTKDIR),)
 FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
+CFLAGS      +=  -I$(FLTKDIR)
+CPPFLAGS    +=  -I$(FLTKDIR)
 endif
 endif
 
