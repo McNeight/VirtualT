@@ -3165,7 +3165,6 @@ void VT_Ide::OpenTreeFile(Flu_Tree_Browser::Node* n)
 	MString			file;
 	MString			title;
 	int				children, c;
-	int				count = 6;
 	Fl_Widget*		pWidget;
 
 	pSource = (VT_IdeSource *) n->user_data();

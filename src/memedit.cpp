@@ -169,8 +169,6 @@ Callback routine for the Region choice box
 */
 void cb_region(Fl_Widget* w, void*)
 {
-	int size = memedit_ctrl.pRegion->value();
-
 	// Set new region here
 	memedit_ctrl.pMemEdit->SetScrollSize();
 	memedit_ctrl.pMemEdit->redraw();

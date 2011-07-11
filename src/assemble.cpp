@@ -117,8 +117,6 @@ void cb_assembler(class Fl_Widget* w, void*)
 {
 	VTAssembler*	pAsm = new VTAssembler;
 
-	int x = sizeof(CInstruction);
-
 	pAsm->Parse("test.asm");
 
 	delete pAsm;
@@ -1761,8 +1759,6 @@ This function is called when a fill directive is encountered
 void VTAssembler::directive_fill()
 {
 	int				c, len;
-	int				fillToAddr = -1;
-	unsigned char	fillByte = 0xFF;
 	double			value;
 	MString			string;
 
@@ -2538,7 +2534,6 @@ int VTAssembler::preproc_macro()
 			count = pMacro->m_ParamList->GetSize();
 			for (c = 0; c < count; c++)
 			{
-				int		atEnd = FALSE;
 				int		pos = 0;
 				CExpression*	paramExp = (CExpression *) pMacro->m_ParamList->GetAt(c);
 				MString	param = paramExp->m_Literal;
@@ -3292,9 +3287,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 	const int		aseg_off = 17;
 	const int		cseg_off = 23;
 	const int		dseg_off = 29;
-	const int		relcseg_off = 35;
-	const int		reldseg_off = 44;
-	const int		extern_off = 53;
+//	const int		relcseg_off = 35;
+//	const int		reldseg_off = 44;
+//	const int		extern_off = 53;
 	int				len, strtab_start;
 	int				first_aseg_idx, first_cseg_idx, first_dseg_idx;
 	int				shidx, type, bind;

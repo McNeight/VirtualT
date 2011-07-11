@@ -300,9 +300,9 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		if (region == REGION_REMEM_RAM)
 			ptr = gReMemRam;
 		else if (region == REGION_FLASH1)
-			ptr = gReMemFlash1.pFlash;
+			ptr = (uchar *) gReMemFlash1.pFlash;
 		else 
-			ptr = gReMemFlash2.pFlash;
+			ptr = (uchar *) gReMemFlash2.pFlash;
 
 		// Block is not mapped -- copy from 2Meg Region (RAM or FLASH)
 		addr = address;
@@ -324,7 +324,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		cp_ptr = 0;
 
 		// Determine which location to copy memory from
-		ptr = gRexFlash.pFlash;
+		ptr = (uchar *) gRexFlash.pFlash;
 
 		// Block is not mapped -- copy from 2Meg Region (RAM or FLASH)
 		addr = address;
@@ -525,9 +525,9 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			if (region == REGION_REMEM_RAM)
 				ptr = gReMemRam;
 			else if (region == REGION_FLASH1)
-				ptr = gReMemFlash1.pFlash;
+				ptr = (uchar *) gReMemFlash1.pFlash;
 			else if (region == REGION_FLASH2)
-				ptr = gReMemFlash2.pFlash;
+				ptr = (uchar *) gReMemFlash2.pFlash;
 
 			addr = address;
 
@@ -548,7 +548,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 			return;
 
 		/* Get pointer to the REX flash */
-		ptr = gRexFlash.pFlash;
+		ptr = (uchar *) gRexFlash.pFlash;
 
 		/* Setup to copy */
 		addr = address;
@@ -1255,7 +1255,6 @@ void load_rex_flash(void)
 {
 	FILE	*fd;
 	int		size;
-	int		empty = 1;
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex_flash_file, "rb+");
@@ -1286,7 +1285,6 @@ void load_rex2_ram(void)
 {
 	FILE	*fd;
 	int		size;
-	int		empty = 1;
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex2_ram_file, "rb+");
@@ -1558,7 +1556,7 @@ void load_sys_rom(void)
 	fclose(fd);
 
 	/* Patch the ROM with VirtualT version if requested */
-	patch_vt_version(gSysROM, ROMSIZE);
+	patch_vt_version((char *) gSysROM, ROMSIZE);
 
 	/* Copy ROM into system memory */
 	memcpy(gBaseMemory, gSysROM, ROMSIZE);
@@ -2715,9 +2713,9 @@ void remem_copy_normal_to_system(void)
 	/* First copy ROM to system memory */
 	blocks = gModel == MODEL_T200 ? 40 : 32;
 	if (gModel != MODEL_T200)
-		pSrc = (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + 0x8000 * gRomBank;
+		pSrc = (uchar *) (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + 0x8000 * gRomBank;
 	else
-		pSrc = (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + (gRomBank == 0 ? 0 : 
+		pSrc = (uchar *) (gReMemBoot ? gReMemFlash2.pFlash : gReMemFlash1.pFlash) + (gRomBank == 0 ? 0 : 
 			0x10000 + 0x8000 * (gRomBank - 1));
 	dest = 0;
 
@@ -2768,9 +2766,9 @@ void remem_copy_mmu_to_block(int block)
 	if ((gReMemMap[block] & REMEM_VCTR_RAM_CS) == 0)
 		pSrc = gReMemRam;
 	else if ((gReMemMap[block] & REMEM_VCTR_FLASH1_CS) == 0)
-		pSrc = gReMemFlash1.pFlash;
+		pSrc = (uchar *) gReMemFlash1.pFlash;
 	else if ((gReMemMap[block] & REMEM_VCTR_FLASH2_CS) == 0)
-		pSrc = gReMemFlash2.pFlash;
+		pSrc = (uchar *) gReMemFlash2.pFlash;
 	else
 		return;
 

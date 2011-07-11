@@ -1189,7 +1189,7 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 	int					dir_index;
 	unsigned char		file_type;
 	int					x, c;
-	int					col_widths[] = {120, 100,100, 0};
+//	int					col_widths[] = {120, 100,100, 0};
 	model_t_files_t		tFiles[100];
 	int					tCount;
 
@@ -1299,7 +1299,7 @@ const char* ChooseWorkDir()
 	// Create a File chooser
 	fl_cursor(FL_CURSOR_WAIT);
 	fileWin = new Flu_File_Chooser(path, "", 
-		Flu_File_Chooser::DIRECTORY, "Choose Working Directory - Should be the PARENT of ROMs dir");
+		Flu_File_Chooser::DIRECTORY, "Choose Working Directory");
 	fl_cursor(FL_CURSOR_DEFAULT);
 	fileWin->preview(0);
 	fileWin->show();

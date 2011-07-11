@@ -1,4 +1,4 @@
-// $Id: Flu_DND.cpp,v 1.20 2003/08/20 16:29:45 jbryan Exp $
+// $Id: Flu_DND.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -14,7 +14,14 @@
 
 
 #include <stdio.h>
+#include <string.h>
 #include "FLU/Flu_DND.h"
+
+#ifdef WIN32
+#define STRDUP	_strdup
+#else
+#define	STRDUP	strdup
+#endif
 
 Flu_DND_Event :: Flu_DND_Event()
 {
@@ -45,7 +52,7 @@ Flu_DND :: Flu_DND( const char *thisType )
 {
   // initialize everything
   nTypes = 0;
-  _thisType = strdup( thisType );
+  _thisType = STRDUP( thisType );
   dnd_allow_text( false );
   dnd_callback( 0 );
   allowDragging = allowDropping = true;
@@ -64,7 +71,7 @@ void Flu_DND :: dnd_allow_type( const char *t )
 {
   if( nTypes >= FLU_DND_MAX_TYPES )
     return;
-  allowedTypes[nTypes++] = strdup( t );
+  allowedTypes[nTypes++] = STRDUP( t );
 }
 
 bool Flu_DND :: dnd_type_allowed( const char *t ) const
@@ -86,7 +93,7 @@ void Flu_DND :: dnd_grab( void *data, const char *type )
   dndEvent.exit = false;
   dndEvent.objUnderMouse = this;
   dndEvent._data = data;
-  dndEvent._dataType = strdup( type );
+  dndEvent._dataType = STRDUP( type );
   dndEvent._grab_x = Fl::event_x();
   dndEvent._grab_y = Fl::event_y();
 
@@ -213,7 +220,7 @@ int Flu_DND :: dnd_handle( int event )
       if( !dndEvent.data() )
 	{
 	  dndEvent.clear();
-	  dndEvent._text = strdup( Fl::event_text() );
+	  dndEvent._text = STRDUP( Fl::event_text() );
 	}
       dndEvent._drop_x = Fl::event_x();
       dndEvent._drop_y = Fl::event_y();

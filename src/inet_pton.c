@@ -165,7 +165,7 @@ int     inet_pton4(char *src, u_char *dst, int pton)
          * Concoct the address according to
          * the number of parts specified.
          */
-        n = pp - parts + 1;
+        n = (u_int) (pp - parts + 1);
         /* inet_pton() takes dotted-quad only.  it does not take shorthand. */
         if (pton && n != 4)
                 return (0);

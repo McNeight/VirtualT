@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.10 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.11 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -611,7 +611,6 @@ void VTDis::Disassemble()
 					int next;
 					int last = c + m_pRom->pTables[x].size;
 					int str_active = 0;
-					int quote_active = 0;
 					for (next = c; next < last; next++)
 					{
 						if ((m_memory[next] > 0x7E) && (str_active))

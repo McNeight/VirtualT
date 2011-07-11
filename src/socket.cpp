@@ -33,7 +33,7 @@ Socket::~Socket()
 
 bool Socket::create()
 {
-  m_sock = socket ( AF_INET,
+  m_sock = (int) socket ( AF_INET,
 		    SOCK_STREAM,
 		    0 );
 
@@ -106,7 +106,7 @@ bool Socket::listen() const
 bool Socket::accept ( Socket& new_socket ) const
 {
   int addr_length = sizeof ( m_addr );
-  new_socket.m_sock = ::accept ( m_sock, ( sockaddr * ) &m_addr, ( socklen_t * ) &addr_length );
+  new_socket.m_sock = (int) ::accept ( m_sock, ( sockaddr * ) &m_addr, ( socklen_t * ) &addr_length );
 
   if ( new_socket.m_sock <= 0 )
     return false;
@@ -125,7 +125,7 @@ bool Socket::send ( const std::string s ) const
 #else
 		flags = MSG_NOSIGNAL;
 #endif
-  int status = ::send ( m_sock, s.c_str(), s.size(), flags );
+  int status = ::send ( m_sock, s.c_str(), (int) s.size(), flags );
   if ( status == -1 )
     {
       return false;

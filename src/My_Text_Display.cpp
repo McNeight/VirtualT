@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cxx,v 1.12.2.46 2003/08/24 13:09:06 easysw Exp $"
+// "$Id: My_Text_Display.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -2844,7 +2844,7 @@ void My_Text_Display::draw(void) {
 
   // draw the non-text, non-scrollbar areas.
   if (damage() & FL_DAMAGE_ALL) {
-	  Fl_Region r = XRectangleRegion(0, 0, w(), h());
+//	  Fl_Region r = XRectangleRegion(0, 0, w(), h());
 	  fl_push_clip(0, 0, w(), h());
 	 // fl_clip_region(r);
 	  
@@ -3116,5 +3116,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cxx,v 1.12.2.46 2003/08/24 13:09:06 easysw Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
 //

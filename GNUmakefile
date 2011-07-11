@@ -12,33 +12,43 @@
 
 -include $(shell uname).mk
 
-CFLAGS		+=	-I $(FLTKDIR) -I src/FLU -g
-CPPFLAGS	+=	-I $(FLTKDIR) -I src -g
+CFLAGS		+=	 -I src/FLU -O2
+CPPFLAGS	+=	 -I src -O2
 EXECUTABLE	=	virtualt
 CLIENT		=	vt_client
 
-HOST        =   $(shell uname)
-ifeq ($(HOST),Darwin)
-CFLAGS     +=   -arch i386 -arch ppc /Developer/SDKs/MacOSX10.5.sdk/
+# =============================
+# Find the FLTK libs
+# =============================
+FLTKCONFIG  =   $(shell which fltk-config)
+ifneq ($(FLTKCONFIG),)
+FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
+endif
+POSTBUILD	=   $(FLTKCONFIG) --post
+
+ifeq ($(FLTKLIB),)
+ifneq ($(FLTKDIR),)
+FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
+endif
 endif
 
-FLTKCONFIG	=	$(FLTKDIR)/fltk-config
-FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
-#FLTKLIB     =   $(FLTKDIR)/lib/libfltk.a
 VPATH		=	src:obj
-
-LDFLAGS		+=	-g -L/usr/X11R6/lib -L$(FLTKDIR)/lib
+LDFLAGS		+=	-L/usr/X11R6/lib
 LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
 
+# =============================
+# Defines for MacOSX builds
+# =============================
 MACLDFLAGS	=	$(shell $(FLTKCONFIG) --ldflags) -arch i386 -arch ppc
 MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --ldstaticflags --use-images` --lm -lpthread
 
+# =============================
+# General make rules
+# =============================
 OBJECTS		=	$(SOURCES:.c=.o)
 OBJECTSCPP	=	$(SOURCESCPP:.cpp=.o)
 CLIENT_OBJS	=	$(CLIENT_SRC:.cpp=.o)
 OBJDIR		=   obj
-POSTBUILD	=   $(FLTKCONFIG) --post
-FLTKLIBS    =   $(FLTKDIR)/lib
 
 
 # =============================
@@ -70,8 +80,9 @@ all:			virtualt vt_client
 # ========================
 $(EXECUTABLE):	$(OBJECTS) $(OBJECTSCPP)
 
-ifndef FLTKDIR
+ifndef FLTKLIB
 	@echo "FLTKDIR environment variable must be set first!"
+	@echo "Or install the FLTK libraries"
 	exit 1
 else
 	# Test if FLTK libraries built
@@ -97,8 +108,9 @@ endif
 # Rule to build vt_client
 # ========================
 $(CLIENT):		$(CLIENT_OBJS)
-ifndef FLTKDIR
+ifndef FLTKLIB
 	@echo "FLTKDIR environment variable must be set first!"
+	@echo "Or install the FLTK libraries"
 	exit 1
 else
 	@echo "Linking" $(CLIENT)
@@ -116,8 +128,9 @@ endif
 # Rule for compiling source files
 # ===============================
 .cpp.o:
-ifndef FLTKDIR
+ifndef FLTKLIB
 	@echo "FLTKDIR environment variable must be set first!"
+	@echo "Or install the FLTK libraries"
 	exit 1
 else
 	@echo "Compiling" $<
@@ -125,8 +138,9 @@ else
 endif
 
 .c.o:
-ifndef FLTKDIR
+ifndef FLTKLIB
 	@echo "FLTKDIR environment variable must be set first!"
+	@echo "Or install the FLTK libraries"
 	exit 1
 else
 	@echo "Compiling" $<
@@ -206,10 +220,35 @@ vt_client_main.o:		clientsocket.h socket.h
 # Rule to clean all build files
 # =============================
 clean:
-	echo "=== cleaning ===";
-	cd obj; rm *.o; cd ..; \
-	rm virtualt 
-	rm vt_client
+	@echo "=== cleaning ===";
+	@echo "Objects..."
+	cd obj; rm -f *.o; cd ..; 
+	@echo "Executables..."
+	rm -f virtualt 
+	rm -f vt_client
 
-
+# ================================================
+# Provide info for building FLTK, Tiger, Leopard versions
+# Windows, Linux, etc.
+# ================================================
+info:
+	@echo
+	@echo "Virtual T make Info"
+	@echo "==================="
+	@echo "  To build VirtualT, you must first build the FLTK libraries"
+	@echo "  and the FLTK sub-components zlib, png and jpeg.  For MacOSX"
+	@echo "  if you are tyring to build a universal build, you should"
+	@echo "  configure fltk with"
+	@echo
+	@echo "        ./configure --with-archflags=\"-arch i386 -arch ppc\""
+	@echo
+	@echo "  When compiling FLTK for a version of OSX earlier than the"
+	@echo "  running version, us a configure line something smilar to:"
+	@echo
+	@echo "        MACOSX_DEPLOYMENT_TARGET=10.4 ./configure CXX=\"/usr/bin/g++-4.0\" \\"
+	@echo "           CC=\"/usr/bin/gcc-4.0\" \\"
+	@echo "           CPP=\"/usr/bin/cpp-4.0\" \\"
+	@echo "           CFLAGS=\"-isysroot /Developer/SDKs/MacOSX10.4u.sdk\" \\"
+	@echo "           --with-archflags=\"-arch i386 -arch ppc\""
+	@echo
 

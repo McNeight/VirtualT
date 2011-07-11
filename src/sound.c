@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.7 2008/09/25 15:24:07 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -71,9 +71,12 @@
  */
 static int			gReqFreq[16];
 static int			gReqIn = 0;
-static int			gReqOut = 0;
 static int			gReqLastFreq = 0;
+
+#ifdef _WIN32
+static int			gReqOut = 0;
 static int			gDecaySample = 0;
+#endif
 
 unsigned short			readbuf [BLOCK_SIZE >> 1] ;          /* input buffer */
 unsigned short			gpOneHertz[SAMPLING_RATE];
@@ -132,8 +135,6 @@ sound_waveout_proc:	Callback routine called when a buffer is done being
 static void CALLBACK sound_waveout_proc(HWAVEOUT hWaveOut, UINT uMsg, 
 	DWORD dwInstance, DWORD dwParam1, DWORD dwParam2)
 {
-	WAVEHDR*	current;
-
     /* pointer to free block counter */
     int* freeBlockCounter = (int*)dwInstance;
 
@@ -305,7 +306,6 @@ BOOL sound_close_output (void)
 void sound_reset_output(void)
 {
 	DWORD		volume;
-	DWORD		newVol;
 
 	/* Before resetting the output device cold turkey, we need to
 	   reduce the volume in an "Attack" fassion so we don't get
@@ -354,7 +354,8 @@ sound_play_tome:	Creates and plays a tone of the frequency specified
 */
 void sound_play_tone()
 {
-    int		i, zero_cross, zero_cross_point;
+    int		i;
+//	int		zero_cross, zero_cross_point;
 	int		samples = BLOCK_SIZE >> 1;
 	int		tone = gPlayTone;
 	int		toneFreq = gToneFreq;

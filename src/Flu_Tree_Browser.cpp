@@ -17,6 +17,7 @@
 #include <FL/fl_draw.H>
 #include <FL/math.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "FLU/Flu_Tree_Browser.h"
 #include "FLU/flu_pixmaps.h"
@@ -25,6 +26,12 @@
 #define MIN( x, y ) ( (x)<(y) ? (x) : (y) )
 #define ABS( x ) ( (x)>0 ? (x) : -(x) )
 #define LERP( t, x0, x1 ) ( (x0) + (t)*( (x1) - (x0) ) )
+
+#ifdef WIN32
+#define	STRDUP	_strdup
+#else
+#define	STRDUP	strdup
+#endif
 
 #ifdef USE_FLU_DND
 Flu_Tree_Browser :: DND_Object :: DND_Object() : Flu_DND( "DND_Object" )
@@ -2968,7 +2975,7 @@ bool Flu_Tree_Browser :: Node :: findPath( unsigned int id, RData &rdata )
   if( is_leaf() )
     return false;
 
-  char *oldPath = strdup( rdata.path.c_str() );
+  char *oldPath = STRDUP( rdata.path.c_str() );
   if( _parent != 0 )
     {
       rdata.path += text;
@@ -3008,7 +3015,7 @@ bool Flu_Tree_Browser :: Node :: findPath( Fl_Widget *w, RData &rdata )
   if( is_leaf() )
     return false;
 
-  char *oldPath = strdup( rdata.path.c_str() );
+  char *oldPath = STRDUP( rdata.path.c_str() );
   if( _parent != 0 )
     {
       rdata.path += text;
@@ -3054,7 +3061,7 @@ const char* Flu_Tree_Browser :: find_path( Fl_Widget *w )
 char* remove_escape_chars( const char *str )
 {
   // remove any escape characters
-  char *text = strdup( str );
+  char *text = STRDUP( str );
   int tIndex = 0;
   for( int pIndex = 0; pIndex < (int)strlen( str ); pIndex++ )
     {
@@ -3148,7 +3155,7 @@ Flu_Tree_Browser::Node* Flu_Tree_Browser :: Node :: modify( const char* path, in
   if( slash == NULL )
     {
       branchNode = false;
-      char *name = strdup( path ); // copy the path
+      char *name = STRDUP( path ); // copy the path
       nodeName = remove_escape_chars( name ); // remove the escape characters
       free( name );
       lastNode = true;
@@ -3355,7 +3362,7 @@ Flu_Tree_Browser::Node* Flu_Tree_Browser :: Node :: insert_at( Node* p, Node* i,
   if( slash == NULL )
     {
       branchNode = false;
-      char *name = strdup( path ); // copy the path
+      char *name = STRDUP( path ); // copy the path
       nodeName = remove_escape_chars( name ); // remove the escape characters
       free( name );
       lastNode = true;

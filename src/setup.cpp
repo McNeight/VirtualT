@@ -46,6 +46,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#ifdef __APPLE__
+#include <sys/stat.h>
+#endif
 
 #include "FLU/Flu_File_Chooser.h"
 
@@ -213,10 +216,15 @@ void load_setup_preferences(void)
 	load_clock_preferences(&virtualt_prefs);
 
 #ifdef	__APPLE__
+	char	temp_path[512];
+	struct stat	pathStat;
+
 	//JV 08/10/05
 	// Load Path Preferences
-	ex=virtualt_prefs.get("Path",path,".",256);
-	if(ex==0) // no path in the pref file or pref file nonexistent 
+	ex = virtualt_prefs.get("Path", temp_path, ".", 512); 
+	
+	// Test if path exists in the pref file 
+	if ((ex == 0) && (strlen(path) == 0))
 	{
 		ret = ChooseWorkDir(); // return the directory
 		if(ret==NULL) 
@@ -227,9 +235,27 @@ void load_setup_preferences(void)
 			strcat(path,"/");
 			virtualt_prefs.set("Path",path); // set pref path
 			load_sys_rom();
+			resetcpu();
 		}
 	}
-	//JV
+
+	// Override a program guessed path with the user's preference
+	else if ((ex != 0) && (strlen(temp_path) > 0))
+	{
+		// Override the path only if we can stat the directory
+		if (stat(temp_path, &pathStat) == 0)
+		{
+			strcpy(path, temp_path);
+		}
+	}
+#if 0
+	if (strcmp(path, "./") == 0)
+	{
+		getcwd(path, sizeof(path));
+		strcat(path, "/");
+	}
+#endif
+
 #endif
 }
 

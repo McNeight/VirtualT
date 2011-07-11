@@ -1,4 +1,4 @@
-// $Id: FluSimpleString.cpp,v 1.8 2003/11/27 01:09:05 jbryan Exp $
+// $Id: FluSimpleString.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -12,12 +12,18 @@
  ***************************************************************/
 
 
-
+#include <string.h>
 #include "FLU/FluSimpleString.h"
+
+#ifdef WIN32
+#define STRDUP	_strdup
+#else
+#define STRDUP	strdup
+#endif
 
 FluSimpleString :: FluSimpleString()
 {
-  str = strdup("");
+  str = STRDUP("");
 }
 
 FluSimpleString :: FluSimpleString( unsigned int len )
@@ -25,18 +31,18 @@ FluSimpleString :: FluSimpleString( unsigned int len )
   if( len > 0 )
     str = (char*)malloc( len );
   else
-    str = strdup("");
+    str = STRDUP("");
 }
 
 FluSimpleString :: FluSimpleString( const char *s )
 {
-  str = strdup("");
+  str = STRDUP("");
   *this = s;
 }
 
 FluSimpleString :: FluSimpleString( const FluSimpleString& s )
 {
-  str = strdup("");
+  str = STRDUP("");
   *this = s.str;
 }
 
@@ -121,9 +127,9 @@ FluSimpleString& FluSimpleString :: operator =( const char *s )
 { 
   char* tmp;
   if(s==0)
-    tmp = strdup("");
+    tmp = STRDUP("");
   else
-    tmp = strdup(s);
+    tmp = STRDUP(s);
   if(str)
     free(str);
   str = tmp;
@@ -134,7 +140,7 @@ FluSimpleString& FluSimpleString :: operator +=( const char *s )
 {
   if( s==0 )
     s = "";
-  char *old = strdup(str);
+  char *old = STRDUP(str);
   int lold = strlen(old), ls = strlen(s);
   free(str);
   str = (char*)malloc( lold + ls + 1 );

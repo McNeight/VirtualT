@@ -1,6 +1,6 @@
 /* vtpaper.cpp */
 
-/* $Id: vtpaper.cpp,v 1.12 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: vtpaper.cpp,v 1.13 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -1560,6 +1560,7 @@ int VTlprPaper::Print(void)
 		pclose(pFD);
 		//exit(0);
 	}
+	return 0;
 }
 
 #else

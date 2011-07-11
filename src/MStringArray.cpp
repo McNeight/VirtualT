@@ -168,7 +168,6 @@ void MStringArray::test() {
 
 	MArrayNode *tmp = headMNode;
 
-	int count = 0;
 //	cout << "Head = " << headMNode << endl;
 	while (tmp)
 	{ 

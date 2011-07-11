@@ -106,9 +106,7 @@ FILE					*tracefile;
 volatile DWORD			rst7cycles = 9830;
 static time_t			gLptTime;
 static UINT64			one_sec_cycles;
-static DWORD			one_sec_cycle_count;
 static time_t			one_sec_time;
-static DWORD			last_one_sec_time;
 float					cpu_speed;
 float					gCpuSpeedAvg[4];
 int						gCpuSpeedAvgIndex = 0;
@@ -124,6 +122,9 @@ int						gRemoteSwitchModel = -1;
 //Added J. VERNET
 char path[512];
 char file[512];
+#ifdef __APPLE__
+char gOsxBundlePath[512];
+#endif
 
 extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
@@ -211,6 +212,8 @@ void * ThrottlePeriodProc(void *pParams)
 		else
 			usleep(sleepUs * 2);
     }
+	
+	return NULL;
 }
 
 #endif
@@ -609,6 +612,7 @@ int check_model_support(int model)
 	fclose(fd);
 	return TRUE;
 }
+
 /*
 =============================================================================
 check_installation:	This routine checks that VirtualT is properly installed
@@ -626,6 +630,13 @@ void check_installation(void)
 	char	errors[256];
 	FILE	*fd, *fd2;
 
+	/* Test if Mac OSX and no path specified */
+#ifdef __APPLE__
+	struct stat romStat;
+	if (strlen(path) == 0)
+		return;
+#endif
+
 	errors[0] = 0;
 
 	/* Check each model */
@@ -639,6 +650,16 @@ void check_installation(void)
 		get_rom_path(localpath, model);
 #if defined(__APPLE__)
 		sprintf(roms_path, "%sROMs%s", path, strrchr(localpath, '/'));
+		
+		/* Test if the ROM file exists in the working directory */
+		if (stat(roms_path, &romStat) != 0)
+		{
+			/* Test if running from a bundle & get the bundle path */
+			if (strlen(gOsxBundlePath) > 0)
+			{
+				sprintf(roms_path, "%s/Resources%s", gOsxBundlePath, strrchr(localpath, '/'));
+			}
+		}
 #else
 		sprintf(roms_path, "ROMs%s", strrchr(localpath, '/'));
 #endif
@@ -1093,7 +1114,6 @@ void emulate(void)
 {
 	unsigned int	i,j;
 	unsigned int	v;
-	int				top=0;
 	int				nxtmaint=1;
 	int				ins;
 
@@ -1298,7 +1318,7 @@ void setup_unix_signals(void)
 
 /*
 ========================================================================
-This routine sets the working path.  On Linus and MacOS platforms, this
+This routine sets the working path.  On Linux and MacOS platforms, this
 is done by looking at the argv[0] argument and removing the app name.
 ========================================================================
 */
@@ -1311,48 +1331,96 @@ void setup_working_path(char **argv)
     int         found;
 	char		temp[512];
 	struct stat romStat;
+	char*		pContents, *pStr;
 #endif
 
 	getcwd(path, sizeof(path));
 
-	//J. VERNET: Get Absolute Path, as getcwd doesn't return anything when launch from finder
 #if defined(__APPLE__)
+	/* On MacOSX, getcwd returns nothing when launched from the Finder.  So
+	   we must perform an intelligent search for the working directory
+	   based on argv[0].
+	*/
 	found = FALSE;
 		
-	/* Recursively search up the path until we find the ROMs directory */
-	i = strlen(argv[0])-1;
-	strcpy(temp, argv[0]);
-	while (!found)
-	{
-		// Find last '/' in path to remove app name from the path
-		while ((argv[0][i] != '/') && (i > 0))
-			i--;
-		if (i < 0)
-			break;
-		temp[i+1] = 0;
+	/* Search for the /VirtualT.app/Contents directory */
+	pContents = strstr(argv[0], "/VirtualT.app/Contents");
 
-		/* Now append "ROMs" and check if the directory exists */
-		strcat(temp, "ROMs");
-		if (stat(temp, &romStat) == 0)
+	// First search for "/VT Emulation" folder in the same directory as the VirtualT.app
+	if (pContents != NULL)
+	{
+		for (i = 0, pStr = argv[0]; pStr != pContents; pStr++)
+			path[i++] = *pStr;
+		path[i++] = '/';
+		path[i] = '\0';
+
+		/* Save a copy of the bundle path */
+		strcpy(gOsxBundlePath, path);
+		strcat(gOsxBundlePath, "/VirtualT.app/Contents");
+
+		strcat(path, "/VT Emulation");
+		if (stat(path, &romStat) == 0)
+			found = TRUE;
+		else
+			path[0] = '\0';
+	}
+
+	// Search in the User's Home/Documents directory if not found
+	if (!found)
+	{
+		// Get the HOME directory from the environement
+		char* ptr = getenv("HOME");
+		if (ptr != NULL)
 		{
-			if (S_ISDIR(romStat.st_mode))
+			strcpy(temp, ptr);
+			strcat(temp, "/Documents/VT Emulation");
+			if (stat(temp, &romStat) == 0)
 			{
 				found = TRUE;
-				strncpy(path, argv[0], i+1);
-				path[i+1] = 0;
+				strcpy(path, temp);
 			}
 		}
-		else
+	}
+
+	// Search for a ROMs directory
+	if (!found)
+	{
+		/* Recursively search up the path looking for a ROMs directory */
+		i = strlen(argv[0])-1;
+		strcpy(temp, argv[0]);
+		while (!found)
 		{
-			/* Not this directory segment...skip the '/' and find next higher */
-			i--;
+			// Find last '/' in path to remove app name from the path
+			while ((argv[0][i] != '/') && (i > 0))
+				i--;
+			if (i < 0)
+				break;
+			temp[i+1] = 0;
+
+			/* Now append "ROMs" and check if the directory exists */
+			strcat(temp, "ROMs");
+			if (stat(temp, &romStat) == 0)
+			{
+				if (S_ISDIR(romStat.st_mode))
+				{
+					found = TRUE;
+					strncpy(path, argv[0], i+1);
+					path[i+1] = 0;
+				}
+				i--;
+			}
+			else
+			{
+				/* Not this directory segment...skip the '/' and find next higher */
+				i--;
+			}
 		}
 	}
 #endif
 	
 	// Check if the last character is '/'
 	i = strlen(path);
-	if (path[i-1] != '/')
+	if ((i > 0) && (path[i-1] != '/'))
 		strcat(path, "/");
 # else
 	_getcwd(path, sizeof(path));
@@ -1371,11 +1439,11 @@ int main(int argc, char **argv)
 		return 1;
 	
 	setup_working_path(argv);	/* Create a working dir path */
-	check_installation();		/* Test if install needs to be performed */
 	setup_unix_signals();		/* Setup Unix signal handling */
 
 	// Added by JV for prefs
 	init_pref();				/* load user Menu preferences */
+	check_installation();		/* Test if install needs to be performed */
 	load_setup_preferences();	/* Load user Peripheral setup preferences */
 	load_memory_preferences();	/* Load user Memory setup preferences */
 	load_remote_preferences();  /* Load user Remote Socket preferences */

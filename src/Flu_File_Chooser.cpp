@@ -26,8 +26,11 @@
 #include <shellapi.h>
 #include <lmcons.h>
 #include <direct.h>
+#define	STRDUP	_strdup
+#pragma warning( disable : 4355)
 #else
 #include <unistd.h>
+#define	STRDUP	strdup
 #endif
 
 #include <FL/Fl.H>
@@ -2266,7 +2269,7 @@ int Flu_File_Chooser :: popupContextMenu( Entry *entry )
     ext = (char *) strrchr( filename, '.' );
   if( ext )
     {
-      ext = strdup( ext+1 ); // skip the '.'
+      ext = STRDUP( ext+1 ); // skip the '.'
       for( unsigned int i = 0; i < strlen(ext); i++ )
 	ext[i] = tolower( ext[i] );
     }

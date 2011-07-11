@@ -83,7 +83,6 @@ other than T200.
 */
 void pd1990ac_chip_cmd(uchar val)
 {
-	static int	clk_cnt = 1;
 	time_t		time_delta;
 	struct	tm	when;
 	int			x;

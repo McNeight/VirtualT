@@ -47,7 +47,9 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #ifndef WIN32
+#include <sys/stat.h>
 #include <unistd.h>
 #endif
 
@@ -749,6 +751,8 @@ void cb_choosewkdir(Fl_Widget* w, void*)
 {
 	/* Choose the working directory (ROM, RAM Files... */
 	const char *ret;
+	char		rompath[512];
+	struct stat romStat;
 	
 	/* Get working directory from chooser */
     ret = ChooseWorkDir();
@@ -756,15 +760,33 @@ void cb_choosewkdir(Fl_Widget* w, void*)
 		return; 
 	else 
 	{
+		// When changing directory, we must preserve RAM if the
+		// emulation is running.
+		get_rom_path(rompath, gModel);
+		if (stat(rompath, &romStat) == 0)
+		{
+			save_ram();
+			save_model_time();
+		}
+
+		free_mem();
 		strcpy(path, ret);
-		//#ifdef __unix__
-		//strcat(path,"/");
-		//#else
-		//strcat(path,"\\");
-		//#endif
 		virtualt_prefs.set("Path", path);
-		load_sys_rom();
-		resetcpu();
+
+		// Re-initialize emulation from new directory
+		init_pref();
+		load_memory_preferences();
+		init_mem();
+		get_model_time();
+
+		/* Re-initialize the CPU */
+		init_cpu();
+
+		/* Update Memory Editor window if any */
+		cb_MemoryEditorUpdate();
+
+		// Update the File View window if it is open
+		fileview_model_changed();
 	}
 }
 //--JV
@@ -1821,15 +1843,33 @@ void init_pref(void)
 			gMaintCount = 4096; 
 			break;
 #else
-		case 0: gMaintCount = 4096; break;
-		case 1: gMaintCount = 8192; break;
-		case 2: gMaintCount = 16384; break;
+		case 0: 
+			set_target_frequency(VT_SPEED0_FREQ);
+			gMaintCount = 4096; 
+			break;
+		case 1: 
+			set_target_frequency(VT_SPEED1_FREQ);
+			gMaintCount = 8192; 
+			break;
+		case 2: 
+			set_target_frequency(VT_SPEED2_FREQ);
+			gMaintCount = 16384; 
+			break;
 #ifdef __APPLE__
-		case 3: gMaintCount = 65536; break;
+		case 3: 
+			set_target_frequency(VT_SPEED3_FREQ);
+			gMaintCount = 65536; 
+			break;
 #else
-		case 3: gMaintCount = 131072; break;
+		case 3: 
+			set_target_frequency(VT_SPEED3_FREQ);
+			gMaintCount = 131072; 
+			break;
 #endif
-		default: gMaintCount = 4096; break;
+		default: 
+			set_target_frequency(VT_SPEED0_FREQ);
+			gMaintCount = 4096; 
+			break;
 #endif
 	}
 
@@ -3093,7 +3133,6 @@ drag selection and word drag selection.
 */
 int T100_Disp::MouseMoveInText(int mx, int my)
 {
-	int		lines = gModel == MODEL_T200 ? 16 : 8;
 	int		cursorRow, cursorCol;
 	int		newCol, newRow, pos;
 
@@ -3267,8 +3306,6 @@ int T100_Disp::handle(int event)
 		{
 			int mx = Fl::event_x();
 			int my = Fl::event_y();
-			int wx = x();
-			int wy = y();
 			int procFkey = FALSE;
 			int whichMenu;
 			if ((mx >= m_BezelLeft  + m_BezelLeftW) && (mx <= m_BezelRight) &&

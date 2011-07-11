@@ -1,6 +1,6 @@
 /* do_instruct.h */
 
-/* $Id: do_instruct.h,v 1.7 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: do_instruct.h,v 1.8 2010/10/31 05:37:24 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -27,6 +27,8 @@
  * SUCH DAMAGE.
  */
 
+#ifndef INST_8085
+#define INST_8085
 
 #define LXI(rp,h,l,rps)	{ \
 							INCPC; \
@@ -299,6 +301,7 @@
 								INCPC2; \
 							cycle_delta+=(7); \
 						}
+#endif
 
 {
 //	if(trace)

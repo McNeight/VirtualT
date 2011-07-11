@@ -160,7 +160,7 @@ int main ( int argc, char* argv[] )
 			}
       		catch ( SocketException& e) 
 			{
-				std::cout << "Exception!\n";
+				std::cout << "Exception - " << e.description() << "\n";
 			}
 
 			// Check if response is "Ok" or contains "Ok" at the end
