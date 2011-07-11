@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.4 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.6 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -139,7 +139,7 @@ void cb_okNewProject(Fl_Widget* w, void*)
 	}
 	
 	// Check if project type provided
-	if (pNewProject->getProjType() == 0)
+	if (pNewProject->getProjType() < 0)
 	{
 		fl_alert("Project type must be specified!");
 		return;

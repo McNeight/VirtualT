@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.4 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.6 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -1057,6 +1057,14 @@ void cb_Ide(Fl_Widget* widget, void*)
 		virtualt_prefs.get("IdeY", gIdeY, 40);
 		virtualt_prefs.get("IdeW", gIdeW, 800);
 		virtualt_prefs.get("IdeH", gIdeH, 600);
+		if (gIdeX < 0)
+			gIdeX = 0;
+		if (gIdeY < 0)
+			gIdeY = 0;
+		if (gIdeW+6 >= Fl::w())
+			gIdeW = Fl::w()-6;
+		if (gIdeH+35 >= Fl::h())
+			gIdeH = Fl::h()-35;
 
 		make_pref_form();
 
@@ -1073,7 +1081,7 @@ void cb_Ide(Fl_Widget* widget, void*)
 		if ((gIdeW >= maxW) && (gIdeX < 0))
 			gIdeW = maxW - 50;
 		if ((gIdeH >= maxH) && (gIdeY < 0))
-			gIdeH = maxH - 50;
+			gIdeH = maxH - 60;
 		if (gIdeY < 0)
 			gIdeY = 0;
 		if (gIdeX < 0)
@@ -1885,6 +1893,11 @@ void VT_Ide::NewProject(void)
 	pGroup = new VT_IdeGroup;
 	pGroup->m_Name = "Header Files";
 	pGroup->m_Filespec = "*.h;*.inc";
+	m_ActivePrj->m_Groups.Add(pGroup);
+
+	pGroup = new VT_IdeGroup;
+	pGroup->m_Name = "Linker Script";
+	pGroup->m_Filespec = "*.lkr";
 	m_ActivePrj->m_Groups.Add(pGroup);
 
 	pGroup = new VT_IdeGroup;
@@ -3402,7 +3415,7 @@ void VT_Ide::BuildProject(void)
 		linker.SetStdoutFunction(this, ideStdoutProc);
 		
 		// Now finally perform the link operation
-		linker.Link();
+//		linker.Link();
 
 		errors = linker.GetErrors();
 		errorCount = errors.GetSize();

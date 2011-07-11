@@ -1,6 +1,6 @@
 /* intelhex.c */
 
-/* $Id: intelhex.c,v 1.7 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: intelhex.c,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,7 +54,7 @@ int parse_hex_line(char *theline, int bytes[], int *addr, int *num, int *code);
 /* caution, static buffering is used, so it is necessary */
 /* to call it with end=1 when finsihed to flush the buffer */
 /* and close the file */
-void hexout(FILE *fhex, int byte, int memory_location, int end);
+void hexout(FILE *fhex, int byte, int memory_location, int end, int base_address);
 
 
 //extern char	memory[65536];		/* the memory is global */
@@ -175,7 +175,7 @@ int load_hex_file(char *filename, char *buffer, unsigned short *start_addr)
 /* "begin" and "end" are the locations to dump to the intel */
 /* hex file, specified in hexidecimal. */
 
-void save_hex_file_ext(int begin, int end, int region, FILE* fd)
+void save_hex_file_ext(int begin, int end, int region, int base_address, FILE* fd)
 {
 	int		addr;
 	char	buffer[16384];
@@ -198,7 +198,7 @@ void save_hex_file_ext(int begin, int end, int region, FILE* fd)
 
 		// Output all bytes in the buffer
 		for (x = 0; x < len; x++)
-			hexout(fd, buffer[x], addr + x - begin, 0);
+			hexout(fd, buffer[x], addr + x - begin, 0, base_address);
 
 		// Update count
 		count -= len;
@@ -207,7 +207,7 @@ void save_hex_file_ext(int begin, int end, int region, FILE* fd)
 		// Update len for next loop
 		len = count > sizeof(buffer) ? sizeof(buffer) : count;
 	}
-	hexout(fd, 0, 0, 1);
+	hexout(fd, 0, 0, 1, 0);
 }
 
 
@@ -215,7 +215,7 @@ void save_hex_file_ext(int begin, int end, int region, FILE* fd)
 /* "begin" and "end" are the locations to dump to the intel */
 /* hex file, specified in hexidecimal. */
 
-void save_hex_file(int begin, int end, FILE* fd)
+void save_hex_file(int begin, int end, int base_address, FILE* fd)
 {
 	int  addr;
 
@@ -223,15 +223,15 @@ void save_hex_file(int begin, int end, FILE* fd)
 		return;
 	}
 	for (addr=begin; addr <= end; addr++)
-		hexout(fd, get_memory8((unsigned short) addr), addr, 0);
-	hexout(fd, 0, 0, 1);
+		hexout(fd, get_memory8((unsigned short) addr), addr, 0, base_address);
+	hexout(fd, 0, 0, 1, 0);
 }
 
 /* the command string format is "S begin end filename" where */
 /* "begin" and "end" are the locations to dump to the intel */
 /* hex file, specified in hexidecimal. */
 
-void save_hex_file_buf(char *buf, int begin, int end, FILE* fd)
+void save_hex_file_buf(char *buf, int begin, int end, int base_address, FILE* fd)
 {
 	int  addr;
 
@@ -239,8 +239,8 @@ void save_hex_file_buf(char *buf, int begin, int end, FILE* fd)
 		return;
 	}
 	for (addr=begin; addr <= end; addr++)
-		hexout(fd, buf[(unsigned short) addr], addr, 0);
-	hexout(fd, 0, 0, 1);
+		hexout(fd, buf[(unsigned short) addr], addr, 0, base_address);
+	hexout(fd, 0, 0, 1, 0);
 }
 
 
@@ -253,7 +253,7 @@ void save_hex_file_buf(char *buf, int begin, int end, FILE* fd)
 
 #define MAXHEXLINE 32	/* the maximum number of bytes to put in one line */
 
-void hexout(FILE *fhex, int byte, int memory_location, int end)
+void hexout(FILE *fhex, int byte, int memory_location, int end, int base_address)
 {
 	static int byte_buffer[MAXHEXLINE];
 	static int last_mem, buffer_pos, buffer_addr;
@@ -271,8 +271,8 @@ void hexout(FILE *fhex, int byte, int memory_location, int end)
 	if ( (memory_location != (last_mem+1)) || (buffer_pos >= MAXHEXLINE)
 	 || ((end) && (buffer_pos > 0)) ) {
 		/* it's time to dump the buffer to a line in the file */
-		fprintf(fhex, ":%02X%04X00", buffer_pos, buffer_addr);
-		sum = buffer_pos + ((buffer_addr>>8)&255) + (buffer_addr&255);
+		fprintf(fhex, ":%02X%04X00", buffer_pos, buffer_addr + base_address);
+		sum = buffer_pos + (((buffer_addr + base_address)>>8)&255) + ((buffer_addr+base_address)&255);
 		for (i=0; i < buffer_pos; i++) {
 			fprintf(fhex, "%02X", byte_buffer[i]&255);
 			sum += byte_buffer[i]&255;

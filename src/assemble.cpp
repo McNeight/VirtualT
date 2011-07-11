@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.5 2011/07/09 08:16:21 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.7 2011/07/11 06:17:23 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -4429,7 +4429,9 @@ This function creates an Intel HEX output file of the assembled file
 */
 void VTAssembler::CreateHex(MString& filename)
 {
-	unsigned short		start, len;
+	unsigned short		start, len, end;
+	int					x;
+	char*				ptr;
 	MString				outfile;
 	FILE*				fd;
 	CSegment*			pSeg;
@@ -4440,7 +4442,10 @@ void VTAssembler::CreateHex(MString& filename)
 		// No ASEG Hex output requested...return
 		return;
 	}
-	
+
+	// Get a pointer to the .aseg segment
+	m_Segments.Lookup(".aseg", (VTObject *&) pSeg);
+
 	if (m_ProjectType == VT_PROJ_TYPE_ROM)
 	{
 		start = 0;
@@ -4448,8 +4453,25 @@ void VTAssembler::CreateHex(MString& filename)
 	}
 	else
 	{
-		start = 32768;
-		len = 16384;
+		// Calculate start and length of non-zero bytes in .aseg
+		start = 0;
+		end = 0;
+		len = 0;
+
+		// Loop through bytes in RAM area & find non-zeros
+		for (x = 0, ptr = (char *) pSeg->m_AsmBytes; x < 65536; x++, ptr++)
+		{
+			if (*ptr != 0)
+			{
+				if (start == 0)
+					start = x;
+				end = x;
+			}
+		}
+
+		// Calculate the length of the data
+		if (start > 0)
+			len = end - start + 1;
 	}
 
 	// Open the output listing file
@@ -4457,8 +4479,7 @@ void VTAssembler::CreateHex(MString& filename)
 		return;
 
 	// Save the Intel Hex file
-	m_Segments.Lookup(".aseg", (VTObject *&) pSeg);
-	save_hex_file_buf((char *) pSeg->m_AsmBytes, start, start + len, fd);
+	save_hex_file_buf((char *) pSeg->m_AsmBytes, start, start + len, start, fd);
 
 	fclose(fd);
 }
@@ -4612,6 +4633,8 @@ void VTAssembler::CalcIncludeDirs(void)
 
 CSegment::CSegment(const char *name, int type, CModule* initialMod)
 {
+	int		x;
+
 	m_Name = name;
 	m_Type = type;
 	m_InitialMod = initialMod;
@@ -4621,6 +4644,8 @@ CSegment::CSegment(const char *name, int type, CModule* initialMod)
 	m_Address = 0;
 	m_UsedAddr = new AddrRange;
 	m_Index = m_Count = 0;
+	for (x = 0; x < sizeof(m_AsmBytes); x++)
+		m_AsmBytes[x] = 0;
 
 	// Initialize the active Addr range to the first in the list
 	m_ActiveAddr = m_UsedAddr;

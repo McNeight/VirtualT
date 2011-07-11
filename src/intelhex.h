@@ -1,6 +1,6 @@
 /* intelhex.h */
 
-/* $Id: intelhex.h,v 1.4 2007/03/31 22:09:16 kpettit1 Exp $ */
+/* $Id: intelhex.h,v 1.5 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -34,8 +34,8 @@
 int load_hex_file(char *filename, char *buffer, unsigned short *start_addr);
 
 /* this writes a part of memory[] to an intel hex file */
-void save_hex_file(int begin, int end, FILE* fd);
-void save_hex_file_ext(int begin, int end, int region, FILE* fd);
-void save_hex_file_buf(char *buf, int begin, int end, FILE* fd);
+void save_hex_file(int begin, int end, int base_address, FILE* fd);
+void save_hex_file_ext(int begin, int end, int region, int base_address, FILE* fd);
+void save_hex_file_buf(char *buf, int begin, int end, int base_address, FILE* fd);
 
 #endif

@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.13 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.15 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1162,7 +1162,7 @@ void save_file(model_t_files_t *pFile)
 		len = get_memory16(addr1+2) + 6;
 		if (COSaveMode == 1)
 		{
-			save_hex_file(addr1, addr1+len, fd);
+			save_hex_file(addr1, addr1+len, 0, fd);
 		}
 		else
 		{

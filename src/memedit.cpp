@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.9 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.11 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -373,7 +373,7 @@ void save_mem_to_file(const char *filename, int address, int count, int save_as_
 		if (fd == NULL)
 			return;
 
-		save_hex_file_ext(address, address+count-1, region, fd);
+		save_hex_file_ext(address, address+count-1, region, 0, fd);
 
 		fclose(fd);
 	}
