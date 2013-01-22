@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.8 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.9 2013/01/22 23:08:54 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -3629,6 +3629,7 @@ void VT_Ide::BuildProject(void)
 				{
 					linkerScript = m_ActivePrj->m_RootPath + "/";
 					linkerScript += pSource->m_Name;
+				}
 				linkerScriptFound = true;
 			}
 		}

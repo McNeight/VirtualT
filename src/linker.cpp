@@ -1665,7 +1665,8 @@ int VTLinker::LocateOrderedSegments()
 		for (c = 0; c < count; c++)
 		{
 			// Now locate this segment into the named region
-			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c)))
+			MString segmentName = pSegmentNames->GetAt(c);
+			if (!LocateSegmentIntoRegion(name, segmentName))
 				success = FALSE;
 		}
 	}
@@ -1698,7 +1699,8 @@ int VTLinker::LocateEndsWithSegments()
 		{
 			printf("Locating ENDSWITH segment %s\n", (const char *) pSegmentNames->GetAt(c));
 			// Now locate this segment into the named region
-			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c), true))
+			MString segName = pSegmentNames->GetAt(c);
+			if (!LocateSegmentIntoRegion(name, segName, true))
 				success = FALSE;
 		}
 	}
@@ -1730,7 +1732,8 @@ int VTLinker::LocateContainsSegments()
 		for (c = 0; c < count; c++)
 		{
 			// Now locate this segment into the named region
-			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c)))
+			MString segName = pSegmentNames->GetAt(c);
+			if (!LocateSegmentIntoRegion(name, segName))
 				success = FALSE;
 		}
 	}
