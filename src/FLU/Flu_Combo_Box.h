@@ -1,4 +1,4 @@
-// $Id: Flu_Combo_Box.h,v 1.11 2003/12/21 20:51:57 jbryan Exp $
+// $Id: Flu_Combo_Box.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -62,6 +62,8 @@ public:
 
   //! Override of Fl_Group::resize()
   void resize( int X, int Y, int W, int H );
+
+  void selectall(void);
 
   //! Set the function that will be called when the input area is interacted with
   inline void input_callback( void (*cb)(Fl_Widget*,void*), void* cbd = NULL )
