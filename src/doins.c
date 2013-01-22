@@ -1,6 +1,6 @@
 /* doins.c */
 
-/* $Id: doins.c,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: doins.c,v 1.7 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -57,7 +57,7 @@ static char paritybits[256]={
 #if defined(WIN32)
 void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov)
 #else
-__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts)
+__inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov)
 #endif
 {
 	if (sign!=-2)
