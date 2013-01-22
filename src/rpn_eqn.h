@@ -36,6 +36,7 @@ const	int	RPN_LOW			= 26;
 const	int RPN_DEFINED		= 27;
 const	int	RPN_NEGATE		= 28;
 const	int	RPN_MACRO		= 29;
+const	int RPN_PAGE		= 30;
 
 class CRpnOperation : public VTObject
 {

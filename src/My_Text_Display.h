@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.H,v 1.4.2.13 2003/01/30 21:40:18 easysw Exp $"
+// "$Id: My_Text_Display.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
 //
 // Header file for My_Text_Display class.
 //
@@ -35,6 +35,8 @@
 #include <FL/Fl_Scrollbar.H>
 
 #include <FL/Fl_Text_Buffer.H>
+
+typedef void (*MyTextDisplay_ReportError_t)(int lineNo, char* file, void* opaque);
 
 class FL_EXPORT My_Text_Display: public Fl_Double_Window {
   public:
@@ -107,7 +109,8 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int word_start(int pos) { return buffer()->word_start(pos); }
     int word_end(int pos) { return buffer()->word_end(pos); }
 	int current_column(void) { return mCurrentCol; }
-
+	void register_error_report(MyTextDisplay_ReportError_t pFunc, void* pOpaque)
+						{ m_pErrorFunc = pFunc, m_pErrorOpaque = pOpaque; }
     
     void highlight_data(Fl_Text_Buffer *styleBuffer,
                         const Style_Table_Entry *styleTable,
@@ -128,8 +131,18 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int wrapped_column(int row, int column);
     int wrapped_row(int row);
     void wrap_mode(int wrap, int wrap_margin);
+	int get_line_pos(int line);
+	int top_line(void) { return mTopLineNum; }
+	int num_visible_lines(void) { return mNVisibleLines; }
 
     virtual void resize(int X, int Y, int W, int H);
+
+	void blink_cursor(void);
+
+	void utility_margin_color(int margin_size, Fl_Color c) 
+		{ bHasUtilityMargin = 1; mLeftMargin = margin_size, mUtilityMarginColor = c;
+			resize(x(), y(), w(), h()); }
+		  //text_area.x += margin_size; text_area.w -= margin_size; }
     
     Fl_Color mCursor_color;
 
@@ -217,6 +230,8 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 	int mCurrentCol;		/* Current column number */
     int mCursorPos;
     int mCursorOn;
+	int mBlinkCount;
+	int mBlinkOn;
     int mCursorOldY;		/* Y pos. of cursor for blanking */
     int mCursorToHint;		/* Tells the buffer modified callback
                                    where to move the cursor, to reduce
@@ -235,6 +250,12 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int mContinuousWrap;     	  /* Wrap long lines when displaying */
     int mWrapMargin; 	    	  /* Margin in # of char positions for
     	    	    	    	    	   wrapping in continuousWrap mode */
+	int mLeftMargin;			/* The left margin for this window */
+	int bHasUtilityMargin;		/* Flag indicating if the left margin is used
+								   for displaying utility icons, such as
+								   breakpoints, current execution line, etc. */
+	Fl_Color mUtilityMarginColor;
+
     int* mLineStarts;
     int mTopLineNum;            /* Line number of top displayed line
                                    of file (first line of file is 1) */
@@ -270,6 +291,8 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int mModifyingTabDistance;	/* Whether tab distance is being
     					   modified */
 
+	MyTextDisplay_ReportError_t	m_pErrorFunc;
+	void*						m_pErrorOpaque;
 
     Fl_Scrollbar* mHScrollBar;
     Fl_Scrollbar* mVScrollBar;
@@ -293,5 +316,5 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 #endif
 
 //
-// End of "$Id: My_Text_Display.H,v 1.4.2.13 2003/01/30 21:40:18 easysw Exp $".
+// End of "$Id: My_Text_Display.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
 //

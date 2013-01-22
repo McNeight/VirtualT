@@ -98,29 +98,53 @@
 #define		OPCODE_HLT		89
 #define		OPCODE_RSTV		90
 
-#define		INST_ORG		91
-#define		INST_DS			92
-#define		INST_DB			93
-#define		INST_DW			94
-#define		INST_STKLN		95
-#define		INST_END		96
-#define		INST_PUBLIC		97
-#define		INST_EXTERN		98
-#define		INST_IF			99
-#define		INST_ELSE		100
-#define		INST_ENDIF		101
-#define		INST_LINK		102
-#define		INST_MACLIB		103
-#define		INST_PAGE		104
-#define		INST_SYM		105
-#define		INST_LABEL		106
-#define		INST_FILL		107
-#define		INST_ENDIAN		108
-#define		INST_ELIF		109
-#define		INST_MODULE		110
-#define		INST_DEFINE		111
-#define		INST_UNDEFINE	112
-#define		INST_MACRO		113
+// Extended OPCODES
+#define		OPCODE_LRET		91
+#define		OPCODE_LCALL	92
+#define		OPCODE_LJMP		93
+#define		OPCODE_LPUSH	94
+#define		OPCODE_LPOP		95
+#define		OPCODE_BR		96
+#define		OPCODE_BRA		97
+#define		OPCODE_BZ		98
+#define		OPCODE_BNZ		99
+#define		OPCODE_BC		100
+#define		OPCODE_BNC		101
+#define		OPCODE_BM		102
+#define		OPCODE_BP		103
+#define		OPCODE_BPE		104
+#define		OPCODE_SBZ		105
+#define		OPCODE_SBNZ		106
+#define		OPCODE_SBC		107
+#define		OPCODE_SBNC		108
+#define		OPCODE_RCALL	109
+#define		OPCODE_SPI		110
+#define		OPCODE_SPG		111
+#define		OPCODE_RPG		112
+
+#define		INST_ORG		113
+#define		INST_DS			114
+#define		INST_DB			115
+#define		INST_DW			116
+#define		INST_STKLN		117
+#define		INST_END		118
+#define		INST_PUBLIC		119
+#define		INST_EXTERN		120
+#define		INST_IF			121
+#define		INST_ELSE		122
+#define		INST_ENDIF		123
+#define		INST_LINK		124
+#define		INST_MACLIB		125
+#define		INST_PAGE		126
+#define		INST_SYM		127
+#define		INST_LABEL		128
+#define		INST_FILL		129
+#define		INST_ENDIAN		130
+#define		INST_ELIF		131
+#define		INST_MODULE		132
+#define		INST_DEFINE		133
+#define		INST_UNDEFINE	134
+#define		INST_MACRO		135
 
 #define		SYM_LABEL		1
 #define		SYM_EQUATE		2
@@ -144,6 +168,12 @@
 #define		OPCODE_EQU8			5
 #define		OPCODE_EQU16		6
 #define		OPCODE_REG_EQU16	7
+#define		OPCODE_PG			8
+#define		OPCODE_PGI			9
+#define		OPCODE_SBCC			10
+#define		OPCODE_BRX			11
+#define		OPCODE_EQU24		12
+#define		OPCODE_LPP			13
 
 #define		PAGE			1
 #define		INPAGE			2
@@ -165,6 +195,8 @@
 #define		CSEG			1
 #define		DSEG			2
 
+#define		MAX_SEG_SIZE	(4*1024*1024)
+
 #define	VT_ISDIGIT(x)  (((x) >= '0') && ((x) <= '9'))
 
 #ifdef WIN32
@@ -175,10 +207,11 @@
 // Support classes for VTAssembler objects...
 
 typedef struct sAddrRange {
-	unsigned short		address;
+	unsigned int		address;
 	unsigned short		length;
 	unsigned short		shidx;
 	struct sAddrRange*	pNext;
+	unsigned int		line;				// Line No in file where this range starts
 } AddrRange;
 
 class CInstruction : public VTObject
@@ -193,7 +226,7 @@ public:
 // Attributes
 	unsigned char		m_ID;
 	unsigned char		m_FileIndex;
-	unsigned short		m_Address;
+	unsigned int		m_Address;
 	long				m_Line;
 	int					m_Bytes;
 	MString*			m_Operand1;
@@ -229,9 +262,9 @@ public:
 	int					m_Count;			// Instruction count for listing
 	int					m_sh_offset;		// Offset in .obj file of segment name
 	VTObArray*			m_Instructions;		// Array of Instructions for each segment
-	unsigned short		m_Address;			// Address counter for each segment
+	unsigned int		m_Address;			// Address counter for each segment
 	VTObArray			m_Reloc;
-	unsigned char		m_AsmBytes[65536];
+	unsigned char		m_AsmBytes[MAX_SEG_SIZE];
 	AddrRange*			m_UsedAddr;			// List of used address ranges
 	AddrRange*			m_ActiveAddr;		// Pointer to active address range
 };
@@ -265,7 +298,7 @@ public:
 	CExtern()			{ m_Address = 0; m_pRange = 0; };
 
 	MString				m_Name;
-	unsigned short		m_Address;
+	unsigned int		m_Address;
 	unsigned short		m_Segment;
 	unsigned short		m_SymIdx;
 	AddrRange*			m_pRange;
@@ -290,7 +323,7 @@ class CRelocation : public VTObject
 public:
 	CRelocation()		{ m_Address = 0; m_Segment = 0; m_pSourceRange = 0; m_pTargetRange = 0; };
 
-	unsigned short		m_Address;
+	unsigned int		m_Address;
 	CSegment*			m_Segment;
 	AddrRange*			m_pSourceRange;
 	AddrRange*			m_pTargetRange;
@@ -353,6 +386,9 @@ public:
 	// Define Pragma functions
 	void				pragma_list();
 	void				pragma_hex();
+	void				pragma_verilog();
+	void				pragma_extended();
+	void				pragma_entry(const char *pName);
 
 	// Define directive functions
 	void				directive_set(const char *name);
@@ -391,9 +427,11 @@ public:
 	void				opcode_arg_imm(int opcode, char c);
 	void				opcode_arg_2reg(int opcode);
 	void				opcode_arg_1reg_equ8(int opcode);
+	void				opcode_arg_1reg_2byte(int opcode);
 	void				opcode_arg_1reg_equ16(int opcode);
 	void				opcode_arg_equ8(int opcode);
 	void				opcode_arg_equ16(int opcode);
+	void				opcode_arg_equ24(int opcode);
 
 // Attributes
 //	MString				m_Filename;			// Filename that design was parsed from
@@ -417,9 +455,10 @@ public:
 	VTObArray			m_Defines;			// Array of preprocessor defines
 
 	VTObArray			m_SegLines;			// Array of segment line objects
-	unsigned short		m_Address;
+	unsigned int		m_Address;
 	MStringArray		m_Filenames;		// Array of filenames parsed during assembly
 	MString				m_LastLabel;		// Save value of last label parsed
+	MString				m_EntryLabel;		// Label of program entry location
 	CSymbol*			m_LastLabelSym;		// Pointer to CSymbol object for last label
 	int					m_LastLabelAdded;
 	char				m_LocalModuleChar;	// Module local label starting character
@@ -431,6 +470,8 @@ public:
 	VTMapStringToOb		m_UndefSymbols;
 	int					m_List;				// Create a list file?
 	int					m_Hex;				// Create a HEX file?
+	int					m_Verilog;			// Create a Verilog $readmem file
+	int					m_Extended;			// Indicated extended instructions valid
 	int					m_DebugInfo;		// Include debug info in .obj?
 	int					m_MsbFirst;			// Output WORDS MSB first instead of LSB
 	MString				m_IncludeName[32];
@@ -462,6 +503,8 @@ public:
 	int					EquationIsExtern(CRpnEquation* pEq, int size);
 	void				MakeBinary(int val, int length, MString& binary);
 	void				CreateHex(MString& filename);
+	void				CreateCO(MString& filename);
+	void				CreateVerilog(MString& filename);
 	void				CreateList(MString& filename, MString& asmFilename);
 	void				CalcIncludeDirs();
 	void				ParseExternalDefines(void);

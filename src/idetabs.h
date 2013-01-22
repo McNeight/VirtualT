@@ -1,6 +1,6 @@
 /* idetabs.h */
 
-/* $Id: idetabs.h,v 1.1 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: idetabs.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2009 Ken Pettit
@@ -35,7 +35,7 @@
 
 #define	FL_IDE_TABS_CLOSE	(0xDEADD00D)
 
-class Fl_Ide_Tabs : public Fl_Tabs, public VTObject
+class Fl_Ide_Tabs : public Fl_Group, public VTObject
 {
 public:
 	Fl_Ide_Tabs(int x=0, int y=0, int w=600, int h=500, const char *label = 0);
@@ -43,12 +43,24 @@ public:
 
 	DECLARE_DYNCREATE(Fl_Ide_Tabs)
 
+	Fl_Widget *value();
+	int value(Fl_Widget *);
+	Fl_Widget *push() const {return push_;}
+	int push(Fl_Widget *);
+	Fl_Widget *which(int event_x, int event_y);
+	void has_close_button(int bHasCloseButton) { m_hasCloseButton = bHasCloseButton; }
+
 protected:
 	VT_Rect	m_closeRect;
 	int		m_prevInRect;
 	int		m_pushInRect;
+	int		m_hasCloseButton;
+	Fl_Widget *value_;
+	Fl_Widget *push_;
 
     virtual int handle(int e);
+    virtual int orig_handle(int e);
+	void	redraw_tabs();
 	void	draw(void);
 	int		tab_positions(int* p, int* wp);
 	int		tab_height();

@@ -1,6 +1,6 @@
 /* doins.h */
 
-/* $Id: doins.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: doins.h,v 1.3 2007/03/31 22:09:15 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -32,7 +32,7 @@
 #define _DOINS_H_
 
 #if defined(WIN32)
-void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov, int ts);
+void setflags(int regval, int sign, int zero, int auxcarry, int parity, int carry, int ov);
 #else
 __inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov, char ts);
 #endif

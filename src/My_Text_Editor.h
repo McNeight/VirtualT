@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Editor.H,v 1.1.2.7 2003/01/30 21:40:20 easysw Exp $"
+// "$Id: My_Text_Editor.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
 //
 // Header file for My_Text_Editor class.
 //
@@ -82,6 +82,7 @@ class FL_EXPORT My_Text_Editor : public My_Text_Display {
     Key_Func bound_key_function(int key, int state)
       { return bound_key_function(key, state, key_bindings); }
     void default_key_function(Key_Func f) { default_key_function_ = f; }
+	void UpdateStatusBar(void);
 
     // functions for the built in default bindings
     static int kf_default(int c, My_Text_Editor* e);
@@ -117,12 +118,11 @@ class FL_EXPORT My_Text_Editor : public My_Text_Display {
     Key_Binding* key_bindings;
     static Key_Binding* global_key_bindings;
     Key_Func default_key_function_;
-	void UpdateStatusBar(void);
 };
 
 #endif
 
 //
-// End of "$Id: My_Text_Editor.H,v 1.1.2.7 2003/01/30 21:40:20 easysw Exp $".
+// End of "$Id: My_Text_Editor.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
 //
 

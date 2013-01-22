@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.6 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.7 2011/07/11 16:52:31 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -271,6 +271,10 @@ void close_ide_cb(Fl_Widget* w, void*)
 			virtualt_prefs.set("IdeY", gpIde->y());
 			virtualt_prefs.set("IdeW", gpIde->w());
 			virtualt_prefs.set("IdeH", gpIde->h());
+			int ideTabHeight = gpIde->h() - gpIde->SpliterHeight();
+			int ideTreeWidth = gpIde->SpliterWidth();
+			virtualt_prefs.set("IdeTabheight", ideTabHeight);
+			virtualt_prefs.set("IdeTreeWidth", ideTreeWidth);
 		}
 		gpIde->SavePrefs();
 
@@ -379,8 +383,11 @@ Callback for opening recent projects
 			char *slash;
 	    	slash = strrchr(path, '/');
 			*slash = '\0';
-			gpIde->OpenProject(newfile);
-			add_recent_project_to_menu(newfile);
+			if (gpIde->CloseAllFiles())
+			{
+				gpIde->OpenProject(newfile);
+				add_recent_project_to_menu(newfile);
+			}
 		}
 	}
 }
@@ -1169,6 +1176,52 @@ void projtree_callback( Fl_Widget* w, void* )
     }
 }
 
+void ide_error_report(int lineNo, char* pFilename, void* pOpaque)
+{
+	VT_Ide*	pIde = (VT_Ide *) pOpaque;
+
+	/* Report the error callback to the IDE so it can display the file / line */
+	pIde->ErrorReport(lineNo, pFilename);
+}
+
+/*
+==============================================================================
+Display the errored file, position to the errored line, and highlight it.
+==============================================================================
+*/
+void VT_Ide::ErrorReport(int lineNo, char* pFilename)
+{
+	MString path = pFilename;
+	//Fl_Multi_Edit_Window* mw;
+	My_Text_Editor* mte;
+
+	/* Convert filename to an absolute path */
+	MString absPath = MakePathAbsolute(path, m_ActivePrj->m_RootPath);
+
+	/* Open the file if it isn't already */
+	OpenFile(absPath);
+
+	/* Position the file to the proper line */
+	mte = (My_Text_Editor*) m_EditTabs->value();
+	mte->insert_position(mte->get_line_pos(lineNo));
+
+	/* Ensure the line is on the display */
+	int topLine = mte->top_line();
+	int numLines = mte->num_visible_lines();
+	if ((lineNo - topLine < 5) || (topLine + numLines - lineNo < 5))
+	{
+		topLine = lineNo - (numLines >> 1);
+		if (topLine < 1)
+			topLine = 1;
+		if (topLine + numLines > mte->count_lines(0, -1, true))
+			topLine = mte->count_lines(0, -1, true) - numLines+2;
+
+		mte->scroll(topLine, 0);
+	}
+
+	/* Update the status bar */
+	mte->UpdateStatusBar();
+}
 
 /*
 ==============================================================================
@@ -1178,6 +1231,8 @@ VT_Ide constructor.  This routine creates a new VT_Ide window
 VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 : Fl_Window(x, y, w, h, title)
 {
+	int		ideTreeWidth;
+
 	// Parent window has no box, only child regions
 	box(FL_NO_BOX);
 	callback(close_ide_cb);
@@ -1188,25 +1243,28 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	// Create a menu for the new window.
 	Fl_Menu_Bar *m = gMenuBar = new Fl_Menu_Bar(0, 0, w, MENU_HEIGHT-2);
 	m->menu(gIde_menuitems);
+	m->color(fl_rgb_color(240,239,228));
 
 	// Create a tiled window to support Project, Edit, and debug regions
-	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT-2,w,h-MENU_HEIGHT);
+	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT-2,w,h-MENU_HEIGHT-2);
+
+	virtualt_prefs.get("IdeTreeWidth", ideTreeWidth, 198);
 
 	/*
 	============================================
 	Create region for Project tree
 	============================================
 	*/
-	m_ProjWindow = new Fl_Window(2,MENU_HEIGHT-2,198,h-75,"");
+	m_ProjWindow = new Fl_Window(2,MENU_HEIGHT-2,ideTreeWidth,h-75,"");
 	m_ProjWindow->box(FL_DOWN_BOX);
 	m_ProjWindow->color(background_color);
 
 	// Create Tree control
-	m_ProjTree = new Flu_Tree_Browser( 0, 0, 198, h-75 );
+	m_ProjTree = new Flu_Tree_Browser( 0, 0, ideTreeWidth, h-75 );
 	m_ProjTree->box( FL_DOWN_FRAME );
 	m_ProjTree->callback( projtree_callback );
 	m_ProjTree->selection_mode( FLU_SINGLE_SELECT );
-//	m_ProjTree->animate(TRUE);
+	m_ProjTree->animate(TRUE);
 	m_ProjTree->leaf_text(hl_plain, m_ProjTree->leaf_font(), text_size);
 	m_ProjTree->branch_text(hl_plain, m_ProjTree->branch_font(), text_size);
 	Fl_Window* b = new Fl_Window(40, 20, 10, 10, "");
@@ -1214,7 +1272,8 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	gPopup = new Fl_Menu_Button(0,0,100,400,"Popup");
 	gPopup->type(Fl_Menu_Button::POPUP3);
 	gPopup->menu(gGroupMenu);
-	gPopup->selection_color(FL_LIGHT3);
+	gPopup->selection_color(fl_rgb_color(80,80,255));
+	gPopup->color(fl_rgb_color(240,239,228));
 	gPopup->hide();
 	b->end();
 	m_ProjTree->hide();
@@ -1227,15 +1286,15 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region and Child Window for editing files
 	=================================================
 	*/
-	m_EditWindow = new Fl_Window(200,MENU_HEIGHT-2,w-200,h - 75,"Edit");
+	m_EditWindow = new Fl_Window(ideTreeWidth+2,MENU_HEIGHT-2,w-(ideTreeWidth+2),h - 75,"Edit");
 	m_EditWindow->box(FL_DOWN_BOX);
-//	m_EditWindow->color(background_color);
-	m_EditTabs = new Fl_Ide_Tabs(0, 0, m_EditWindow->w(), m_EditWindow->h());
+	m_EditTabs = new Fl_Ide_Tabs(0, 0, m_EditWindow->w(), m_EditWindow->h()-1);
 	m_EditTabs->hide();
+	m_EditTabs->selection_color(fl_rgb_color(253, 252, 251));
+	m_EditTabs->has_close_button(TRUE);
 	m_EditTabs->end();
 	m_EditWindow->resizable(m_EditTabs);
 	m_EditWindow->end();
-//	tile->resizable(m_EditWindow);
 
 	/*
 	=================================================
@@ -1244,31 +1303,35 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	*/
 	m_TabWindow = new Fl_Window(0,MENU_HEIGHT-2+h-75,w,75-MENU_HEIGHT+2,"Tab");
 	m_TabWindow->box(FL_DOWN_BOX);
-//	m_TabWindow->color(background_color);
 
 	// Create a tab control
-	m_Tabs = new Fl_Tabs(0, 1, w, 75-MENU_HEIGHT);
+//	m_Tabs = new Fl_Tabs(0, 1, w, 75-MENU_HEIGHT);
+	m_Tabs = new Fl_Ide_Tabs(0, 1, w, 75-MENU_HEIGHT+3);
+	m_Tabs->selection_color(fl_rgb_color(253, 252, 251));
 
 	/*
 	====================
 	Create build tab
 	====================
 	*/
-	m_BuildTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-20, " Build ");
+	m_BuildTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Build ");
 	m_BuildTab->box(FL_DOWN_BOX);
 	m_BuildTab->selection_color(FL_LIGHT2);
 	m_BuildTab->color(background_color);
 
 	// Create a Text Editor to show the disassembled text
-	m_BuildTextDisp = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-20);
+	m_BuildTextDisp = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
 	m_BuildTextDisp->box(FL_DOWN_BOX);
-//	m_BuildTextDisp->selection_color(FL_WHITE);
 	m_BuildTextDisp->textcolor(hl_plain);
 	m_BuildTextDisp->color(background_color);
+	m_BuildTextDisp->selection_color(FL_DARK_BLUE);
 
 	// Create a Text Buffer for the Text Editor to work with
 	m_BuildTextBuf = new Fl_Text_Buffer();
 	m_BuildTextDisp->buffer(m_BuildTextBuf);
+
+	// Setup a callback for the text display to report errors
+	m_BuildTextDisp->register_error_report(ide_error_report, this);
 
 	// Show the Disassembling text to indicate activity
 	if (text_size == 0)
@@ -1277,6 +1340,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	m_BuildTextDisp->textsize(text_size);
 	m_BuildTextDisp->end();
 	m_BuildTab->end();
+	m_Tabs->insert(*m_BuildTab, 0);
 	m_Tabs->resizable(m_BuildTab);
 	
 	/*
@@ -1284,12 +1348,30 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create Debug tab
 	====================
 	*/
-	m_DebugTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-20, " Debug ");
+	m_DebugTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Debug ");
 	m_DebugTab->box(FL_DOWN_BOX);
 	m_DebugTab->selection_color(FL_LIGHT2);
 	m_DebugTab->color(background_color);
-//	m_DebugTab->labelcolor(hl_plain);
+
+	My_Text_Display* md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	md->box(FL_DOWN_BOX);
+	md->textcolor(hl_plain);
+	md->color(background_color);
+	md->selection_color(FL_DARK_BLUE);
+
+	// Create a Text Buffer for the Text Editor to work with
+	Fl_Text_Buffer *tb = new Fl_Text_Buffer();
+	md->buffer(tb);
+
+	// Show the Disassembling text to indicate activity
+	if (text_size == 0)
+		text_size = 12;
+	md->textfont(FL_COURIER);
+	md->textsize(text_size);
+	md->end();
 	m_DebugTab->end();
+
+	m_Tabs->insert(*m_DebugTab,1);
 	m_Tabs->resizable(m_DebugTab);
 	
 	/*
@@ -1297,31 +1379,66 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create watch tab
 	====================
 	*/
-	m_WatchTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-20, " Watch ");
+	m_WatchTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Watch ");
 	m_WatchTab->box(FL_NO_BOX);
 	m_WatchTab->selection_color(FL_LIGHT2);
 	m_WatchTab->color(background_color);
 
 	// Create tiled window for auto and watch variables
-	Fl_Tile* tile2 = new Fl_Tile(2, 0,w,75-MENU_HEIGHT-20);
+	Fl_Tile* tile2 = new Fl_Tile(2, 0,w,75-MENU_HEIGHT-22);
 
-	Fl_Box* box0 = new Fl_Box(2, 0,w/2-2,75-MENU_HEIGHT-20,"1");
-	box0->box(FL_DOWN_BOX);
-	box0->color(background_color);
-	box0->labelcolor(hl_plain);
-	box0->labelsize(36);
-	box0->align(FL_ALIGN_CLIP);
-	Fl_Box* box1 = new Fl_Box(w/2, 0,w/2,75-MENU_HEIGHT-20,"2");
+	Fl_Box* box0 = new Fl_Box(2, 0,w/2-2,75-MENU_HEIGHT-22,"1");
+
+	// Create a text display for this pane
+	md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	md->box(FL_DOWN_BOX);
+	md->textcolor(hl_plain);
+	md->color(background_color);
+	md->selection_color(FL_DARK_BLUE);
+
+	// Create a Text Buffer for the Text Editor to work with
+	tb = new Fl_Text_Buffer();
+	md->buffer(tb);
+
+	// Show the Disassembling text to indicate activity
+	if (text_size == 0)
+		text_size = 12;
+	md->textfont(FL_COURIER);
+	md->textsize(text_size);
+	md->end();
+
+	Fl_Box* box1 = new Fl_Box(w/2, 0,w/2,75-MENU_HEIGHT-22,"2");
 	box1->box(FL_DOWN_BOX);
 	box1->color(background_color);
 	box1->labelcolor(hl_plain);
 	box1->labelsize(36);
 	box1->align(FL_ALIGN_CLIP);
-	Fl_Box* r2 = new Fl_Box(0,0,w,75-MENU_HEIGHT-20);
+	// Create a text display for this pane
+	md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	md->box(FL_DOWN_BOX);
+	md->textcolor(hl_plain);
+	md->color(background_color);
+	md->selection_color(FL_DARK_BLUE);
+
+	// Create a Text Buffer for the Text Editor to work with
+	tb = new Fl_Text_Buffer();
+	md->buffer(tb);
+
+	// Show the Disassembling text to indicate activity
+	if (text_size == 0)
+		text_size = 12;
+	md->textfont(FL_COURIER);
+	md->textsize(text_size);
+	md->end();
+
+	box0->show();
+	box1->show();
+	Fl_Box* r2 = new Fl_Box(0,0,w,75-MENU_HEIGHT-22);
 	tile2->resizable(r2);
 	tile2->end();
 	m_WatchTab->resizable(tile2);
 	m_WatchTab->end();
+	m_Tabs->insert(*m_WatchTab,2);
 	m_Tabs->resizable(m_WatchTab);
 
 	m_Tabs->end();
@@ -1330,7 +1447,6 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	// Create a line display box
 	Fl_Group*	g = new Fl_Group(0, 0, m_TabWindow->w(), m_TabWindow->h());
 	Fl_Box* b1 = new Fl_Box(0, 0, m_TabWindow->w(), m_TabWindow->h() - 25);
-//	b1->box(FL_BOX_NONE);
 	m_StatusBar.m_pLineBox = new Fl_Box(m_TabWindow->w() - 250, m_TabWindow->h() - 21, 100, 20, "");
 	m_StatusBar.m_pColBox = new Fl_Box(m_TabWindow->w() - 150, m_TabWindow->h() - 21, 100, 20, "");
 	m_StatusBar.m_pInsBox = new Fl_Box(m_TabWindow->w() - 50, m_TabWindow->h() - 21, 50, 20, "");
@@ -1340,7 +1456,6 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 
 	m_TabWindow->end();
 
-
 	// Set resize region
 	Fl_Box* r = new Fl_Box(50,MENU_HEIGHT-2,w-50,h-75);
 	r->hide();
@@ -1349,8 +1464,11 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	resizable(m);
 	resizable(tile);
 
+	int ideTabHeight;
+	virtualt_prefs.get("IdeTabheight", ideTabHeight, 75);
+
 	// Reposition the tile separators to be a little bigger than the minimum
-	tile->position(150,MENU_HEIGHT-2+h-75, 150,MENU_HEIGHT-2+h-170);
+	tile->position(ideTreeWidth,MENU_HEIGHT-2+h-75, ideTreeWidth,MENU_HEIGHT-2+h-(ideTabHeight));
 
 	SetColors(hl_plain, background_color);
 
@@ -1562,7 +1680,9 @@ void VT_Ide::OpenFile(void)
 
 
 	fl_cursor(FL_CURSOR_WAIT);
-	fc = new Flu_File_Chooser((const char *) m_LastDir, "*.asm,*.a85", 1, "Open File");
+	fc = new Flu_File_Chooser((const char *) m_LastDir, 
+		"Assembly Files (*.asm,*.a85)|Header Files (*.inc,*.h)|Listing Files (*.lst)|Map Files (*.map)", 
+		1, "Open File");
 	fl_cursor(FL_CURSOR_DEFAULT);
 	fc->preview(0);
 	fc->show();
@@ -1611,6 +1731,8 @@ void VT_Ide::OpenFile(const char *file)
 		if (strcmp((const char *) title, pWidget->label()) == 0)
 		{
 			// File already open...bring file to foreground
+			m_EditTabs->value((Fl_Group *) pWidget);
+			pWidget->take_focus();
 			return;
 		}
 	}
@@ -1712,6 +1834,7 @@ void VT_Ide::Find(void)
 
 	m_pFindDlg->m_pFindDlg->show();
 	m_pFindDlg->m_pFind->take_focus();
+	m_pFindDlg->m_pFind->selectall();
 }
 
 /*
@@ -1744,12 +1867,21 @@ void VT_Ide::FindNext(void)
 	m_Search = pFind;
 	if (!mw->ForwardSearch(pFind, m_pFindDlg->m_pMatchCase->value()))
 	{
-		fl_alert("Search string %s not found", pFind);
-		mw->take_focus();
+		// Save the current position and search from beginning of file
+		int pos = mw->insert_position();
+		mw->insert_position(0);
+		if (!mw->ForwardSearch(pFind, m_pFindDlg->m_pMatchCase->value()))
+		{
+			// If still not found, report not found
+			mw->insert_position(pos);
+			fl_alert("Search string %s not found", pFind);
+			m_pFindDlg->m_pFind->take_focus();
+		}
 	}
 
 	// Hide the dialog box
-//	m_pFindDlg->m_pFindDlg->hide();
+	mw->take_focus();
+	m_pFindDlg->m_pFindDlg->hide();
 }
 
 /*
@@ -1875,10 +2007,17 @@ void VT_Ide::NewProject(void)
 			if (c == 1)
 				SaveProject();
 		}
+	}
 
-		// Delete existing project
+	// Close all opened files
+	if (!CloseAllFiles())
+		return;
+
+	// Delete the active project
+	if (m_ActivePrj != NULL)
+	{
 		delete m_ActivePrj;
-		m_ActivePrj = 0;
+		m_ActivePrj = NULL;
 	}
 
 	// Create new project
@@ -1945,10 +2084,24 @@ void VT_Ide::NewProject(void)
 
 	// Save the project type
 	m_ActivePrj->m_ProjectType = pProj->getProjType();
-	if (m_ActivePrj->m_ProjectType == 0)
-		m_ActivePrj->m_AutoLoad = 1;
+	if (m_ActivePrj->m_ProjectType == VT_PROJ_TYPE_CO ||
+		m_ActivePrj->m_ProjectType == VT_PROJ_TYPE_ROM)
+			m_ActivePrj->m_AutoLoad = 1;
 	else
 		m_ActivePrj->m_AutoLoad = 0;
+
+	// Set the output anme based on project type
+	MString		newExt;
+	switch (m_ActivePrj->m_ProjectType)
+	{
+		case VT_PROJ_TYPE_CO:	newExt = ".co";  break;
+		case VT_PROJ_TYPE_OBJ:	newExt = ".obj"; break;
+		case VT_PROJ_TYPE_ROM:	newExt = ".hex"; break;
+		case VT_PROJ_TYPE_LIB:	newExt = ".lib"; break;
+		case VT_PROJ_TYPE_BA:	newExt = ".bas"; break;
+		default:				newExt = "";     break;
+	}
+	m_ActivePrj->m_OutputName = m_ActivePrj->m_Name + newExt;
 
 	// Save the target model
 	m_ActivePrj->m_TargetModel = pProj->getTargetModel();
@@ -1965,6 +2118,54 @@ void VT_Ide::NewProject(void)
 	m_ProjTree->show();
 
 	delete pProj;
+}
+
+/*
+=============================================================
+Closes all files, asking to save if any are dirty.  Returns
+TRUE if all files closed, FALSE if CANCEL selected.
+=============================================================
+*/
+int VT_Ide::CloseAllFiles(void)
+{
+	int						c, count;
+	int						saveAll = FALSE;
+	Fl_Multi_Edit_Window*	mw;
+
+	// Loop through all opened tabs
+	count = m_EditTabs->children();
+	for (c = count-1; c >= 0; c--)
+	{
+		mw = (Fl_Multi_Edit_Window *) m_EditTabs->child(c);
+		if (mw->IsModified())
+		{
+			// Check if closeAll already selected
+			if (saveAll)
+			{
+				// Save teh file
+				mw->SaveFile(gRootpath);
+			}
+			else
+			{
+				// Ask if we should save the file
+				MString	q;
+				q.Format("Save file %s?", mw->Title());
+				int ans = fl_choice("Save file %s?", "Cancel", "Yes", "No", (const char *) mw->Title());
+
+				// Test for CANCEL
+				if (ans == 0)
+					return FALSE;
+
+				if (ans == 1)
+					mw->SaveFile(gRootpath);
+			}
+		}
+
+		// Hide the tab
+		mw->hide();
+		mw->parent()->do_callback(mw, FL_IDE_TABS_CLOSE);
+	}
+	return TRUE;
 }
 
 /*
@@ -2072,7 +2273,14 @@ void VT_Ide::OpenProject(void)
 			if (c == 1)
 				SaveProject();
 		}
+	}
 
+	// Close any opened files
+	if (!CloseAllFiles())
+		return;
+
+	if (m_ActivePrj != NULL)
+	{
 		// Delete existing project
 		delete m_ActivePrj;
 		m_ActivePrj = 0;
@@ -2092,8 +2300,11 @@ void VT_Ide::OpenProject(const char *filename)
 	// Try to parse the file
 	if (ParsePrjFile(filename))
 	{
+		// Now build the TreeControl
 		BuildTreeControl();
 		add_recent_project_to_menu(filename);
+
+		// Now open the project files
 		ReadProjectIdeSettings();
 		gRootpath = m_ActivePrj->m_RootPath;
 		m_LastDir = gRootpath;
@@ -2706,6 +2917,11 @@ int VT_Ide::ParsePrjFile(const char *name)
 			if (value != 0)
 				m_ActivePrj->m_LinkOptions = value;
 		}
+		else if (strcmp(sPtr, "OUTPUTNAME") == 0)
+		{
+			if (value != 0)
+				m_ActivePrj->m_OutputName = value;
+		}
 		else if (strcmp(sPtr, "LINKSCRIPT") == 0)
 		{
 			if (value != 0)
@@ -3219,20 +3435,34 @@ NewEditWindow:	This routine creates a new edit window with the specified
 Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString& file,
 	int addToRecentFiles)
 {
-	int 			x, y, w, h;
+	int 					x, y, w, h;
+	int						c;
+	Fl_Multi_Edit_Window*	mw;
+
+	// Test if this file already opened in a tab
+	for (c = m_EditTabs->children()-1; c >= 0; c--)
+	{
+		mw = (Fl_Multi_Edit_Window *) m_EditTabs->child(c);
+		if (mw->Title() == title)
+		{
+			mw->take_focus();
+			return mw;
+		}
+	}
 
 	/* Calculate location of next window */
-	x = 0;
+	x = 1;
 	y = TAB_HEIGHT;
 	h = m_EditTabs->h() - TAB_HEIGHT;
-	w = m_EditTabs->w();
+	w = m_EditTabs->w()-1;
 
 	/* Create a group tab */
 //	Fl_Group* g = new Fl_Group(x, y, w, h, (const char *) title);
 
 	/* Now Create window */
-	Fl_Multi_Edit_Window* mw = new Fl_Multi_Edit_Window(x, y, w, h, 
+	mw = new Fl_Multi_Edit_Window(x, y, w, h, 
 		(const char *) title);
+	mw->buffer()->tab_distance(4);
 	if (file != "")
 	{
 		mw->OpenFile((const char *) file);
@@ -3249,8 +3479,8 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 	mw->mCursor_color = hl_plain;
 	mw->textsize(text_size);
 	mw->textcolor(hl_plain);
-	mw->selection_color(FL_DARK_BLUE);
-//	mw->tooltip((const char *) mw->Filename());
+	mw->selection_color(fl_color_average(FL_DARK_BLUE, FL_WHITE, .85f));
+	mw->utility_margin_color(20, fl_rgb_color(253, 252, 251));
 	mw->show();
 	m_EditTabs->value(m_EditTabs->child(m_EditTabs->children()-1));
 	if (m_EditTabs->children() == 1)
@@ -3310,6 +3540,8 @@ void VT_Ide::BuildProject(void)
 	MString			filename;
 	MString			linkerFiles;
 	VTLinker		linker;
+	MString			linkerScript;
+	int				linkerScriptFound = false;
 
 	// Be sure we have an active project
 	if (m_ActivePrj == NULL)
@@ -3389,6 +3621,16 @@ void VT_Ide::BuildProject(void)
 					m_BuildTextBuf->append("\n");
 				}
 			}
+
+			// Look for linker scripts while we are looping through the tree
+			if (temp == ".lkr")
+			{
+				if (pSource->m_Name[0] == '/' || pSource->m_Name[1] == ':')
+					linkerScript = pSource->m_Name;
+				else
+					linkerScript = m_ActivePrj->m_RootPath + "/" + pSource->m_Name;
+				linkerScriptFound = true;
+			}
 		}
 	}
 
@@ -3409,13 +3651,17 @@ void VT_Ide::BuildProject(void)
 		linker.SetLinkOptions(m_ActivePrj->m_LinkOptions);
 		linker.SetObjDirs(m_ActivePrj->m_LinkPath);
 		linker.SetProjectType(m_ActivePrj->m_ProjectType);
-		linker.SetLinkerScript(m_ActivePrj->m_LinkScript);
+		linker.SetOutputFile(m_ActivePrj->m_OutputName);
+		if (linkerScriptFound)
+			linker.SetLinkerScript(linkerScript);
+		else
+			linker.SetLinkerScript(m_ActivePrj->m_LinkScript);
 		linkerFiles = linkerFiles + (char *) "," + m_ActivePrj->m_LinkLibs;
 		linker.SetObjFiles(linkerFiles);
 		linker.SetStdoutFunction(this, ideStdoutProc);
 		
 		// Now finally perform the link operation
-//		linker.Link();
+		linker.Link();
 
 		errors = linker.GetErrors();
 		errorCount = errors.GetSize();
@@ -3424,6 +3670,19 @@ void VT_Ide::BuildProject(void)
 		{
 			m_BuildTextBuf->append((const char *) errors[err]);
 			m_BuildTextBuf->append("\n");
+		}
+
+		// If success, print a success message
+		if (totalErrors == 0)
+		{
+			// Print the message
+			temp.Format("Success, code size=%d, data size=%d\n",
+				linker.TotalCodeSpace(), linker.TotalDataSpace());
+			m_BuildTextBuf->append((const char *) temp);
+
+			// Check if we generated a MAP file and the MAP file is opened
+
+			// Now check if auto-reload of the generated file is enabled
 		}
 	}
 }
@@ -3617,6 +3876,12 @@ void cb_replace_cancel(Fl_Widget* w, void* v)
 	VT_ReplaceDlg*	pDlg = (VT_ReplaceDlg*) v;
 
 	pDlg->m_pReplaceDlg->hide();
+	Fl_Multi_Edit_Window*	mw;
+
+	// First get a pointer to the active (topmost) window
+	mw = (Fl_Multi_Edit_Window*) gpIde->m_EditTabs->value();
+	if (mw != NULL)
+		mw->take_focus();
 	gpIde->show();
 }
 
@@ -3649,6 +3914,11 @@ VT_ReplaceDlg::VT_ReplaceDlg(class VT_Ide* pParent)
 	m_pParent = pParent;
 }
 
+void cb_find_edit(Fl_Widget* w, void *opaque)
+{
+	printf("Edit callback\n");
+}
+
 /*
 ================================================================================
 VT_FindDlg routines below.
@@ -3662,6 +3932,7 @@ VT_FindDlg::VT_FindDlg(class VT_Ide* pParent)
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pFind = new Flu_Combo_List(20, 35, 360, 25, "");
 	m_pFind->align(FL_ALIGN_LEFT);
+	m_pFind->input_callback(cb_find_next, this);
 	m_pFindDlg->resizable(m_pFind);
 
 	// Create Find In choice box
@@ -3694,6 +3965,7 @@ VT_FindDlg::VT_FindDlg(class VT_Ide* pParent)
 	o = new Fl_Box(20, 295, 360, 2, "");
 	m_pFindDlg->resizable(o);
 
+	m_pFindDlg->callback(cb_replace_cancel, this);
 	m_pFindDlg->end();
 	m_pFindDlg->set_non_modal();
 

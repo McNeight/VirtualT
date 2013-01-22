@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.7 2011/07/11 06:17:23 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.8 2011/07/11 16:52:31 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -86,7 +86,15 @@ unsigned char gOpcodeType[INST_ORG] = { 0,
 	OPCODE_EQU16, OPCODE_EQU8,  OPCODE_EQU8,  OPCODE_EQU8,		// 77-80
 	OPCODE_EQU8,  OPCODE_EQU8,  OPCODE_EQU8,  OPCODE_EQU8,		// 81-84
 	OPCODE_EQU8,  OPCODE_IMM,   OPCODE_EQU16, OPCODE_NOARG,		// 85-88
-	OPCODE_NOARG, OPCODE_NOARG												// 89
+	OPCODE_NOARG, OPCODE_NOARG,									// 89-90
+
+	// Extended opcodes
+	                            OPCODE_NOARG, OPCODE_EQU24,     // 91-92   (LRET, LCALL)
+	OPCODE_EQU24, OPCODE_LPP,   OPCODE_LPP,   OPCODE_EQU16,		// 93-96   (LJMP, LPUSH, LPOP, BR)
+	OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16,		// 97-100  (BRA, BZ, BNZ, BC)
+	OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16,		// 101-104 (BNC, BM, BP, BPE)
+	OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16, OPCODE_EQU16,		// 105-108 (SBZ, SBNZ, SBC, SBNC)
+	OPCODE_EQU16, OPCODE_PGI,   OPCODE_PG,    OPCODE_PG			// 109-112 (RCALL, SPI, SPG, RPG)
 };
 
 unsigned char gOpcodeBase[INST_ORG] = { 0,
@@ -101,7 +109,13 @@ unsigned char gOpcodeBase[INST_ORG] = { 0,
 	0xC4, 0xCC, 0xD4, 0xDC, 0xE4, 0xEC, 0xF4, 0xFC,				// 65-72
 	0x22, 0xCD, 0xDD, 0xED, 0xFD, 0xC6, 0xCE, 0xD6,				// 73-80
 	0xDE, 0xE6, 0xEE, 0xF6, 0xFE, 0xC7, 0xC3, 0xC9,				// 81-88
-	0x76, 0xCB													// 89
+	0x76, 0xCB,													// 90
+
+	// Extended opcodes
+	            0x64, 0x5B, 0x52, 0x18, 0x20, 0x40,				// 91-96  (LRET, LCALL, LJMP, LPUSH, LPOP, BR)
+	0x80, 0x20, 0x00, 0x60, 0x40, 0xE0, 0xC0, 0xA0,				// 97-104 (BRA, BZ, BNZ, BC, BNC, BM, BP, BPE)
+	0x40, 0x00, 0xC0, 0x80, 0x7F, 0x00, 0x08, 0x10				// 105-112 (SBZ, SBNZ, SBC, SBNC, RCALL, SPI, SPG, RPG)
+
 };
 
 unsigned char gShift[20] = { 0,
@@ -112,20 +126,12 @@ unsigned char gShift[20] = { 0,
 
 const char*		types[5] = { "", "a label", "an equate", "a set", "an extern" };
 
-
-void cb_assembler(class Fl_Widget* w, void*)
-{
-	VTAssembler*	pAsm = new VTAssembler;
-
-	pAsm->Parse("test.asm");
-
-	delete pAsm;
-}
-
 VTAssembler::VTAssembler()
 {						 
 	m_List = 0;
 	m_Hex = 0;
+	m_Extended = 0;
+	m_Verilog = 0;
 	m_IncludeDepth = 0;
 	m_FileIndex = -1;
 	m_DebugInfo = 0;
@@ -265,6 +271,8 @@ void VTAssembler::ResetContent(void)
 	m_SegLines.Add(m_ActiveSegLines);
 
 	m_Hex = 0;
+	m_Verilog = 0;
+	m_Extended = 0;
 	m_List = 0;
 	m_Address = 0;
 	m_DebugInfo = 0;
@@ -294,6 +302,17 @@ void VTAssembler::pragma_list()
 
 /*
 ============================================================================
+The parser calls this function when it detects a programentry pragma.
+============================================================================
+*/
+void VTAssembler::pragma_entry(const char * pName)
+{
+	if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
+		m_EntryLabel = pName;
+}
+
+/*
+============================================================================
 The parser calls this function when it detects a hex output pragma.
 ============================================================================
 */
@@ -301,6 +320,28 @@ void VTAssembler::pragma_hex()
 {
 	if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
 		m_Hex = 1;
+}
+
+/*
+============================================================================
+The parser calls this function when it detects the "extended" pragma.
+============================================================================
+*/
+void VTAssembler::pragma_extended()
+{
+	if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
+		m_Extended = 1;
+}
+
+/*
+============================================================================
+The parser calls this function when it detects a hex output pragma.
+============================================================================
+*/
+void VTAssembler::pragma_verilog()
+{
+	if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
+		m_Verilog = 1;
 }
 
 /*
@@ -550,6 +591,11 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 		case RPN_LN:
 			s1 = stack[--stk];
 			stack[stk++] = log(s1);
+			break;
+
+		case RPN_PAGE:
+			s1 = stack[--stk];
+			stack[stk++] = ((unsigned int) s1 >> 16) & 0xFF;
 			break;
 
 		case RPN_HIGH:
@@ -813,7 +859,38 @@ void VTAssembler::opcode_arg_1reg_equ8(int opcode)
 
 		// Increment Address again to account for 8-bit value
 		m_ActiveSeg->m_Address++;
-		m_ActiveAddr->length += 2;					// Update add range length
+		m_ActiveAddr->length += 1;					// Update add range length
+	}
+}
+
+/*
+===========================================================================================
+Function to process opcodes that take a single register argument and an equation that
+results in an 16-bit value
+===========================================================================================
+*/
+void VTAssembler::opcode_arg_1reg_2byte(int opcode)
+{
+	// Determine if conditional assembly enabled
+	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
+	{
+		reg_cnt--;									// Pop unused reg operand from stack
+		delete gEq;									// Delete the unused equaiton
+		gEq = new CRpnEquation;						// Allocate new equation for parser
+		return;
+	}
+
+	// Read operands (register & equation) from parser
+	CInstruction*	pInst = AddInstruction(opcode);
+	if (pInst != NULL)
+	{
+		// Append instruction with operands
+		pInst->m_Operand1 = new MString;			// Allocte operand object
+		pInst->m_Operand1->Format("%c", reg[--reg_cnt]);	// Get register operand
+
+		// Add 1 to address to account for 2-byte opcode
+		m_ActiveSeg->m_Address++;
+		m_ActiveAddr->length++;						// Update add range length
 	}
 }
 
@@ -848,7 +925,7 @@ void VTAssembler::opcode_arg_1reg_equ16(int opcode)
 
 		// Add 2 to address to account for 16-bit argument
 		m_ActiveSeg->m_Address += 2;
-		m_ActiveAddr->length += 3;					// Update add range length
+		m_ActiveAddr->length += 2;					// Update add range length
 	}
 }
 
@@ -880,7 +957,7 @@ void VTAssembler::opcode_arg_equ8(int opcode)
 
 		// Increment Address again to account for 8-bit value
 		m_ActiveSeg->m_Address++;
-		m_ActiveAddr->length += 2;					// Update add range length
+		m_ActiveAddr->length += 1;					// Update add range length
 	}
 }
 
@@ -911,6 +988,37 @@ void VTAssembler::opcode_arg_equ16(int opcode)
 
 		// Increment Address to account for 16-bit value
 		m_ActiveSeg->m_Address += 2;
+		m_ActiveAddr->length += 2;					// Update add range length
+	}
+}
+
+/*
+===========================================================================================
+Function to process opcodes that take a 24 bit equation argument
+===========================================================================================
+*/
+void VTAssembler::opcode_arg_equ24(int opcode)
+{
+	// Determine if conditional assembly enabled
+	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
+	{
+		delete gEq;									// Delete the unused equaiton
+		gEq = new CRpnEquation;						// Allocate new equation for parser
+		return;
+	}
+
+	// Read operand (register) from string accumulator
+	CInstruction*	pInst = AddInstruction(opcode);
+	if (pInst != NULL)
+	{
+		// Append instruction with operand
+		pInst->m_Group = gEq;						// Get equation 
+
+		//  Allocate new equation for the parser
+		gEq = new CRpnEquation;
+
+		// Increment Address to account for 24-bit value
+		m_ActiveSeg->m_Address += 3;
 		m_ActiveAddr->length += 3;					// Update add range length
 	}
 }
@@ -1126,6 +1234,7 @@ void VTAssembler::label(const char *label, int address)
 		pSymbol->m_FileIndex = m_FileIndex;			// Save index of the current file
 		pSymbol->m_SymType = SYM_LABEL | SYM_HASVALUE;
 		pSymbol->m_pRange = m_ActiveAddr;
+		pSymbol->m_Segment = m_ActiveSeg;
 		if (m_ActiveSeg->m_Type == CSEG)
 			pSymbol->m_SymType |= SYM_CSEG;
 		else if (m_ActiveSeg->m_Type == DSEG)
@@ -1323,15 +1432,20 @@ void VTAssembler::directive_org()
 		// Try to calculate new address
 		if (Evaluate(gEq, &value, 0))
 		{
-			m_ActiveSeg->m_Address = (unsigned short) value;
-			pInst->m_Address = m_ActiveSeg->m_Address;
+			// Save the ORGed address
+			m_ActiveSeg->m_Address = (unsigned int) value;
+			pInst->m_Address = (unsigned int) value;
 
+			// Check if the previously allocated AddrRange struct was used.  If it was,
+			// then allocate a new one and add to the linked list
 			if (m_ActiveAddr->length != 0)
 			{
 				// Allocate a new AddrRange object for this ORG
 				newRange = new AddrRange;
 				newRange->address = m_ActiveSeg->m_Address;
 				newRange->length = 0;
+				newRange->shidx = 0;
+				newRange->line = m_Line;
 
 				// Find location to insert this object
 				thisRange = m_ActiveSeg->m_UsedAddr;
@@ -2803,9 +2917,9 @@ int VTAssembler::Assemble()
 	CSymbol*		pSymbol;
 	AddrRange*		pRange;
 	unsigned char	opcode;
-	unsigned char	op1 = 0xCC, op2 = 0xCC;
+	unsigned char	op1 = 0xCC, op2 = 0xCC, op3 = 0xCC;
 	unsigned char	type;
-	unsigned short	address;
+	unsigned int	address;
 	double			value;
 	char			rel_mask;
 	int				valid, extern_label;
@@ -2864,6 +2978,16 @@ int VTAssembler::Assemble()
 				valid = 1;
 				extern_label = 0;
 
+				// Remap opcode for 2-byte OPCODES
+				if ((pInst->m_ID == OPCODE_LPUSH) || (pInst->m_ID == OPCODE_LPOP) ||
+					(pInst->m_ID == OPCODE_SPI) || (pInst->m_ID == OPCODE_SPG) ||
+					(pInst->m_ID == OPCODE_RPG))
+				{
+					// Remap the opcode to the 1st operand byte & fill in actual 1st opcode byte
+					op1 = opcode;
+					opcode = 0xCB;
+				}
+
 				// Modifiy base opcode based on opcode type
 				switch (type)
 				{
@@ -2881,79 +3005,86 @@ int VTAssembler::Assemble()
 					opcode |= (intptr_t) pInst->m_Group - '0';
 					opcode |= atoi(*pInst->m_Operand1) << 3;
 					break;
+				
+				case OPCODE_PGI:
+				case OPCODE_PG:
+				case OPCODE_LPP:
+					op1 |= atoi(*pInst->m_Operand1) & 0x07;
 				}
 
 				// Now determine operand bytes
-				if ((type == OPCODE_EQU8) || (type == OPCODE_EQU16) ||
-					(type == OPCODE_REG_IMM) || (type == OPCODE_REG_EQU16))
+				if ((type == OPCODE_EQU8) || (type == OPCODE_EQU16) || (type == OPCODE_EQU24) ||
+					(type == OPCODE_REG_IMM) || (type == OPCODE_REG_EQU16) || 
+					(type == OPCODE_PGI))
 				{
+					if ((type == OPCODE_EQU8) || (type == OPCODE_REG_IMM))
+						size = 1;
+					else if (type == OPCODE_EQU24)
+						size = 3;
+					else
+						size = 2;
+
 					// Try to get value of the equation
 					if (Evaluate((CRpnEquation *) pInst->m_Group, &value, 1))
 					{
-						// Equation evaluated to a value.check if it is 
+						// Equation evaluated to a value.  Check if it is 
 						// relative to a relocatable segment
 						if (InvalidRelocation((CRpnEquation *) pInst->m_Group, rel_mask,
 							relSeg))
 						{
-							// Error, equation cannot be evaluted
-//							err.Format("Error in line %d(%s):  Equation depends on multiple segments",
-//								pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//							m_Errors.Add(err);
 							valid = 0;
 						}
 
-						op1 = (int) value & 0xFF;
-						op2 = ((int) value >> 8) & 0xFF;
+						if (type == OPCODE_PGI)
+							op2 = (int) value & 0xFF;
+						else
+						{
+							op1 = (int) value & 0xFF;
+							op2 = ((int) value >> 8) & 0xFF;
+							op3 = ((int) value >> 16) & 0xFF;
+						}
 					}
 					else
-					{
-						if ((type == OPCODE_EQU8) || (type == OPCODE_REG_IMM))
-							size = 1;
-						else
-							size = 2;
-						
+					{						
 						// Equation does not evaluate.  Check if it is an extern
 						if (EquationIsExtern((CRpnEquation *) pInst->m_Group, size))
 						{
 							// Add a dummy value (0) with relocation
 							op1 = 0;
 							op2 = 0;
+							op3 = 0;
 							value = 0.0;
 							extern_label = 1;
 						}
 						else
 						{
-							// Error, equation cannot be evaluted
-//							err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-//								pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//							m_Errors.Add(err);
 							valid = 0;
 						}
 					}
 				}
-
-				// Add opcode and operands to array
-				m_ActiveSeg->m_AsmBytes[m_Address++] = opcode;
 
 				// Check if operand is PC relative
 				if ((rel_mask > 1) && valid)
 				{
 					// Add relocation information
 					pRel = new CRelocation;
-					pRel->m_Address = m_Address;
+					pRel->m_Address = m_Address + 1;
 					pRel->m_pSourceRange = m_ActiveAddr;
 					pRel->m_Segment = relSeg;
 					pRange = m_ActiveSeg->m_UsedAddr;
+					if (relSeg != NULL)
+						pRange = relSeg->m_UsedAddr;
 					while ((pRange != 0) && (pRel->m_pTargetRange == 0))
 					{
-						if ((pRange->address <= (int) value) &&
-							(pRange->address + pRange->length > (int) value))
+						if ((pRange->address <= (unsigned int) value) &&
+							(pRange->address + pRange->length > (unsigned int) value))
 						{
 							pRel->m_pTargetRange = pRange;
 						}
 						pRange = pRange->pNext;
 					}
-					m_ActiveSeg->m_Reloc.Add(pRel);
+					relSeg->m_Reloc.Add(pRel);
+//					m_ActiveSeg->m_Reloc.Add(pRel);
 				}
 
 				// Check if operand is extern
@@ -2961,7 +3092,7 @@ int VTAssembler::Assemble()
 				{
 					// Add extern linkage information
 					pExt = new CExtern;
-					pExt->m_Address = m_Address;
+					pExt->m_Address = m_Address + 1;
 					pExt->m_Name = ((CRpnEquation *)
 						pInst->m_Group)->m_OperationArray[0].m_Variable;
 					pExt->m_Segment = m_ActiveSeg->m_Type;
@@ -2969,21 +3100,119 @@ int VTAssembler::Assemble()
 					pExt->m_pRange = m_ActiveAddr;
 					m_Externs.Add(pExt);
 				}
+				// Test for relative branch instruction
+				else if ((pInst->m_ID >= OPCODE_BR) && (pInst->m_ID <= OPCODE_RCALL))
+				{
+					if ((pInst->m_ID >= OPCODE_BRA) && (pInst->m_ID <= OPCODE_BPE) ||
+						(pInst->m_ID == OPCODE_RCALL))
+							size = 3;
+					
+					// Convert value (address) to a relative offset from PC (after the opcode)
+					int diff = (int) value - (pInst->m_Address + size);
+
+					op1 = diff & 0xFF;
+					op2 = (diff >> 8) & 0xFF;
+
+					// Validate diff range based on opcode
+					if (pInst->m_ID == OPCODE_BR)
+					{
+						if ((diff > 127) || (diff < -128))
+						{
+							// Error - branch out of range
+							err.Format("Error in line %d(%s):  Branch (%d) out of range +127/-128",
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+							m_Errors.Add(err);
+							valid = 0;
+						}
+						type = OPCODE_EQU8;			// Change to 8-bit value
+					} else if ((pInst->m_ID >= OPCODE_SBZ) && (pInst->m_ID <= OPCODE_SBNC))
+					{
+						if ((diff >= 31) || (diff <= -32))
+						{
+							// Error - branch out of range
+							err.Format("Error in line %d(%s):  Branch (%d) out of range +31/-32",
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+							m_Errors.Add(err);
+							valid = 0;
+						}
+					} else if (pInst->m_ID == OPCODE_RCALL)
+					{
+						// RCALL opcode
+						if ((diff >= 32767) || (diff <= -32768))
+						{
+							// Error - branch out of range
+							err.Format("Error in line %d(%s):  RCALL (%d) out of range +32768/-32768",
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+							m_Errors.Add(err);
+							valid = 0;
+						}
+					} else
+					{
+						// BRx opcode
+						if ((diff > 4095) || (diff < -4096))
+						{
+							// Error - branch out of range
+							err.Format("Error in line %d(%s):  Branch (%d) out of range +4095/-4096",
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+							m_Errors.Add(err);
+							valid = 0;
+						}
+					}
+				}
+
+				// Test for SBcc instruction
+				if ((pInst->m_ID >= OPCODE_SBZ) && (pInst->m_ID <= OPCODE_SBNC))
+				{
+					// The opcode is actually the upper bits of the op2 byte
+					op1 = (op1 & 0x3F) | opcode;
+					opcode = 0x6d;		// Assign the actual opcode value
+					type = OPCODE_EQU8;	// Change tpyp so we only write 1 operand byte
+				}
+
+				// Test for BRx instruction
+				if ((pInst->m_ID >= OPCODE_BRA) && (pInst->m_ID <= OPCODE_BPE))
+				{
+					// The opcode is actually the upper bits of the operand byte
+					op2 = (op2 & 0x1f) | opcode;
+					opcode = 0x49;		// Assign the actual opcode value
+				}
+
+				// Add opcode and operands to array
+				if (m_Address > MAX_SEG_SIZE)
+				{
+					// Error - Segment size too big
+					err.Format("Error in line %d(%s):  Address too big - Max segment size is %d (0x%06X)",
+						pInst->m_Line, (const char *) m_Filenames[m_FileIndex], MAX_SEG_SIZE, MAX_SEG_SIZE);
+					m_Errors.Add(err);
+					valid = 0;
+					break;
+				}
+
+				m_ActiveSeg->m_AsmBytes[m_Address++] = opcode;
 
 				// Add operands to output
 				if ((type == OPCODE_REG_IMM) || (type == OPCODE_EQU8) ||
-					(type == OPCODE_EQU16) || (type == OPCODE_REG_EQU16))
+					(type == OPCODE_EQU16) || (type == OPCODE_REG_EQU16) ||
+					(type == OPCODE_EQU24) || (type == OPCODE_PGI) || 
+					(type == OPCODE_PG) || (type == OPCODE_SBCC) ||
+					(type == OPCODE_BRX) || (type == OPCODE_LPP))
 				{
 					m_ActiveSeg->m_AsmBytes[m_Address++] = op1;
 				}
 
-				if ((type == OPCODE_EQU16) || (type == OPCODE_REG_EQU16))
+				if ((type == OPCODE_EQU16) || (type == OPCODE_REG_EQU16) ||
+					(type == OPCODE_EQU24) || (type == OPCODE_BRX) || 
+					(type == OPCODE_PGI))
 				{
 					m_ActiveSeg->m_AsmBytes[m_Address++] = op2;
 				}
+
+				if (type == OPCODE_EQU24)
+				{
+					m_ActiveSeg->m_AsmBytes[m_Address++] = op3;
+				}
 			}
 			
-
 			/*
 			====================================================================
 			An ORG instruciton has no FBI portion, so process it separately.
@@ -3090,12 +3319,6 @@ int VTAssembler::Assemble()
 					{
 						if (Evaluate(pExp->m_Equation, &value, 1))
 							m_ActiveSeg->m_AsmBytes[m_Address++] = (unsigned char) value;
-						else
-						{
-//							err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-//								pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//							m_Errors.Add(err);
-						}
 					}
 					else
 					{
@@ -3128,8 +3351,18 @@ int VTAssembler::Assemble()
 					// If expression has an equation, try to evaluate it
 					if (pExp->m_Equation != NULL)
 					{
+						valid = 1;
+						rel_mask = 0;
+						extern_label = 0;
 						if (Evaluate(pExp->m_Equation, &value, 1))
 						{
+							// Equation evaluated to a value.  Check if it is 
+							// relative to a relocatable segment
+							if (InvalidRelocation(pExp->m_Equation, rel_mask, relSeg))
+							{
+								valid = 0;
+							}
+
 							// Test operand1 to check if MSFIRST is on or not
 							if (*pInst->m_Operand1 == "1")
 							{
@@ -3144,9 +3377,60 @@ int VTAssembler::Assemble()
 						}
 						else
 						{
-//							err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-//								pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//							m_Errors.Add(err);
+							// Equation does not evaluate.  Check if it is an extern
+							if (EquationIsExtern(pExp->m_Equation, size))
+							{
+								// Add a dummy value (0) with relocation
+								op1 = 0;
+								op2 = 0;
+								op3 = 0;
+								value = 0.0;
+								extern_label = 1;
+							}
+							else
+							{
+								err.Format("Error in line %d(%s):  Equation cannot be evaluated",
+									pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
+								m_Errors.Add(err);
+								valid = 0;
+							}
+						}
+
+						// Check if DW is relative to a relocatable section
+						if ((rel_mask > 1) && valid)
+						{
+							// Add relocation information
+							pRel = new CRelocation;
+							pRel->m_Address = m_Address-2;
+							pRel->m_pSourceRange = m_ActiveAddr;
+							pRel->m_Segment = relSeg;
+							pRange = m_ActiveSeg->m_UsedAddr;
+							if (relSeg != NULL)
+								pRange = relSeg->m_UsedAddr;
+							while ((pRange != 0) && (pRel->m_pTargetRange == 0))
+							{
+								if ((pRange->address <= (unsigned int) value) &&
+									(pRange->address + pRange->length > (unsigned int) value))
+								{
+									pRel->m_pTargetRange = pRange;
+								}
+								pRange = pRange->pNext;
+							}
+							relSeg->m_Reloc.Add(pRel);
+//							m_ActiveSeg->m_Reloc.Add(pRel);
+						}
+
+						// Check if operand is extern
+						else if (extern_label)
+						{
+							// Add extern linkage information
+							pExt = new CExtern;
+							pExt->m_Address = m_Address - 2;
+							pExt->m_Name = pExp->m_Equation->m_OperationArray[0].m_Variable;
+							pExt->m_Segment = m_ActiveSeg->m_Type;
+							pExt->m_Size = size;
+							pExt->m_pRange = m_ActiveAddr;
+							m_Externs.Add(pExt);
 						}
 					}
 					else
@@ -3278,18 +3562,17 @@ int VTAssembler::CreateObjFile(const char *filename)
 	CExtern*		pExt;
 	MString			key, modname;
 	POSITION		pos, modPos;
-	char			sectString[] = "\0.strtab\0.symtab\0.aseg\0.text\0.data\0";
-	char			relString[] = ".relcseg\0.reldseg\0";
-	char			debugString[] = ".debug\0";
+	const char		sectString[] = "\0.shstrtab\0.strtab\0.aseg\0.text\0.data\0";
+	const char		relString[] = ".relcseg\0.reldseg\0";
+	const char		debugString[] = ".debug\0";
+	const char		symString[] = ".symtab\0";
+	int				symtab_off, symtab_idx;
 	const int		debugStrSize = 7;
-	const int		strtab_off = 1;
-	const int		symtab_off = 9;
-	const int		aseg_off = 17;
-	const int		cseg_off = 23;
-	const int		dseg_off = 29;
-//	const int		relcseg_off = 35;
-//	const int		reldseg_off = 44;
-//	const int		extern_off = 53;
+	const int		shstrtab_off = 1;
+	const int		strtab_off = 11;
+	const int		aseg_off = 19;
+	const int		cseg_off = 25;
+	const int		dseg_off = 31;
 	int				len, strtab_start;
 	int				first_aseg_idx, first_cseg_idx, first_dseg_idx;
 	int				shidx, type, bind;
@@ -3353,16 +3636,18 @@ int VTAssembler::CreateObjFile(const char *filename)
 
 	/*
 	===================================
-	Create STRTAB section for .OBJ file
+	Create SHSTRTAB section for .OBJ file.  This is a section
+	called ".shstrtab" and is the string table for section header
+	names.
 	===================================
 	*/
 	// Create section header for string table
-	strhdr.sh_name = strtab_off;	// Put ".strtab" as first entry in table
+	strhdr.sh_name = shstrtab_off;	// Put ".shstrtab" as first entry in table
 	strhdr.sh_type = SHT_STRTAB;	// Make section a string table
 	strhdr.sh_flags = SHF_STRINGS;	// This section contains NULL terminated strings
 	strhdr.sh_addr = 0;				// No address data for string table
 	strhdr.sh_offset = ftell(fd);
-	strhdr.sh_link = 0;				// Set link data to zero
+	strhdr.sh_link = 1;				// Set link data to point to the .shstrtab section
 	strhdr.sh_info = 0;				// Set info byte to zero
 	strhdr.sh_addralign = 0;		// Set allignment data to zero
 	strhdr.sh_entsize = 0;			// String table does not have equal size entries
@@ -3401,6 +3686,11 @@ int VTAssembler::CreateObjFile(const char *filename)
 		}
 	}
 
+	// Set offset for Symbol Table string
+	symtab_off = ftell(fd) - strtab_start;
+	fwrite(symString, sizeof(symString), 1, fd);
+	strhdr.sh_size += sizeof(symString);
+
 	/*
 	=========================================================
 	Now create a STRTAB section for EXTERN and PUBLIC symbols
@@ -3413,7 +3703,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 	str2hdr.sh_addr = 0;			// No address data for string table
 	str2hdr.sh_offset = ftell(fd);
 	str2hdr.sh_size = 1;			// Initialize size to zero -- fill in later
-	str2hdr.sh_link = 0;			// Set link data to zero
+	str2hdr.sh_link = 1;			// Set link data to point to the .shstrtab section
 	str2hdr.sh_info = 0;			// Set info byte to zero
 	str2hdr.sh_addralign = 0;		// Set allignment data to zero
 	str2hdr.sh_entsize = 0;			// String table does not have equal size entries
@@ -3436,6 +3726,10 @@ int VTAssembler::CreateObjFile(const char *filename)
 			m_ActiveMod->m_Symbols->GetNextAssoc(pos, key, (VTObject *&) pSymbol);
 			if ((pSymbol->m_SymType & SYM_PUBLIC) || (pSymbol->m_SymType & SYM_EXTERN))
 			{
+				// Don't add global defines to Object file
+				if ((pSymbol->m_SymType & 0xFF) == SYM_DEFINE)
+					continue;
+
 				// Add string for this symbol
 				pSymbol->m_StrtabOffset = ftell(fd) - strtab_start;
 				len = strlen(pSymbol->m_Name) + 1;
@@ -3444,98 +3738,6 @@ int VTAssembler::CreateObjFile(const char *filename)
 			}
 		}
 	}
-
-	/*
-	==========================================
-	Create SYMTAB header section to .OBJ file
-	==========================================
-	*/
-	symhdr.sh_name = symtab_off;	// Put ".strtab" as first entry in table
-	symhdr.sh_type = SHT_SYMTAB;	// Make section a symbol table
-	symhdr.sh_flags = 0;			// No flags for this section
-	symhdr.sh_addr = 0;				// No address data for symbol table
-	symhdr.sh_offset = ftell(fd);
-	symhdr.sh_size = 0;				// Initialize size to zero -- fill in later
-	symhdr.sh_link = 0;				// Set link data to zero
-	symhdr.sh_info = 0;				// Set info byte to zero
-	symhdr.sh_addralign = 0;		// Set allignment data to zero
-	symhdr.sh_entsize = sizeof(Elf32_Sym);// Symbol table has equal size items
-	ehdr.e_shnum++;					// Increment Section Header count
-	
-	// Now add all EXTERN and PUBLIC symbols to string table
-	idx = 0;
-	modPos = m_Modules.GetStartPosition();
-	while (modPos != NULL)
-	{
-		// Get the pointer to this module
-		m_Modules.GetNextAssoc(modPos, modname, (VTObject *&) m_ActiveMod);
-
-		pos = m_ActiveMod->m_Symbols->GetStartPosition();
-		while (pos != 0)
-		{
-			// Get next symbol
-			m_ActiveMod->m_Symbols->GetNextAssoc(pos, key, (VTObject *&) pSymbol);
-			if ((pSymbol->m_SymType & SYM_PUBLIC) || (pSymbol->m_SymType & SYM_EXTERN))
-			{
-				// Add Elf32_Sym entry for this symbol
-				sym.st_name = pSymbol->m_StrtabOffset;
-				sym.st_value = pSymbol->m_Value;
-
-				// Determine symbol Bind and type
-				if (pSymbol->m_SymType & SYM_PUBLIC)
-					bind = STB_GLOBAL;
-				else
-					bind = STB_EXTERN;
-				if ((pSymbol->m_SymType & 0xFF) == SYM_LABEL)
-					type = STT_FUNC;
-				else
-					type = STT_OBJECT;
-
-				sym.st_info = ELF32_ST_INFO(bind, type);
-				sym.st_other = 0;
-				sym.st_shndx = 2;
-
-				if ((pSymbol->m_SymType & (SYM_8BIT | SYM_16BIT)) == 0)
-				{
-					sym.st_size = 0;
-					pSymbol->m_Off16 = idx;
-				}
-				if (pSymbol->m_SymType & SYM_8BIT)
-				{
-					sym.st_size = 1;
-					pSymbol->m_Off8 = idx;
-				}
-				if (pSymbol->m_SymType & SYM_16BIT)
-				{
-					sym.st_size = 2;
-					pSymbol->m_Off16 = idx;
-				}
-
-				fwrite(&sym, sizeof(sym), 1, fd);
-				idx++;
-
-				// If symbol is EXTERN, find all m_Externs and update index
-				if (bind == STB_EXTERN)
-				{
-					len = m_Externs.GetSize();
-					for (c = 0; c < len; c++)
-					{
-						pExt = (CExtern *) m_Externs[c];
-						pStr = pExt->m_Name;
-						if (pSymbol->m_Name == pExt->m_Name)
-						{
-							if (pExt->m_Size == 1)
-								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off8;
-							else
-								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off16;
-						}
-					}
-				}
-			}
-		}
-	}
-	// Set the symbol table size in bytes
-	symhdr.sh_size = idx * sizeof(Elf32_Sym);
 
 	/*
 	==========================================
@@ -3554,6 +3756,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 	// Allocate pointers for aseg_section headers
 	aseg_hdr = (Elf32_Shdr *) malloc(aseg_sections * sizeof(Elf32_Shdr));
 
+	// Now add segments to the output object file
 	pRange = m_ActiveSeg->m_UsedAddr;
 	idx = 0;
 	first_aseg_idx = ehdr.e_shnum;
@@ -3576,7 +3779,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 		aseg_hdr[idx].sh_offset = ftell(fd);
 		aseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 		aseg_hdr[idx].sh_link = 0;			// Set link data to zero
-		aseg_hdr[idx].sh_info = 0;			// Set info byte to zero
+		aseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
 		aseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
 		aseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
@@ -3652,7 +3855,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 			cseg_hdr[idx].sh_offset = ftell(fd);
 			cseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 			cseg_hdr[idx].sh_link = 0;			// Set link data to zero
-			cseg_hdr[idx].sh_info = 0;			// Set info byte to zero
+			cseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
 			cseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
 			cseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
@@ -3723,7 +3926,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 			dseg_hdr[idx].sh_offset = ftell(fd);
 			dseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 			dseg_hdr[idx].sh_link = 0;			// Set link data to zero
-			dseg_hdr[idx].sh_info = 0;			// Set info byte to zero
+			dseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
 			dseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
 			dseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
@@ -3742,19 +3945,115 @@ int VTAssembler::CreateObjFile(const char *filename)
 	}
 
 	/*
+	==========================================
+	Create SYMTAB header section to .OBJ file
+	==========================================
+	*/
+	symhdr.sh_name = symtab_off;	// Put ".strtab" as first entry in table
+	symhdr.sh_type = SHT_SYMTAB;	// Make section a symbol table
+	symhdr.sh_flags = 0;			// No flags for this section
+	symhdr.sh_addr = 0;				// No address data for symbol table
+	symhdr.sh_offset = ftell(fd);	// Get the offset of this header's data
+	symhdr.sh_size = 0;				// Initialize size to zero -- fill in later
+	symhdr.sh_link = 0;				// Set link data to zero
+	symhdr.sh_info = 0;				// Set info byte to zero
+	symhdr.sh_addralign = 0;		// Set allignment data to zero
+	symhdr.sh_entsize = sizeof(Elf32_Sym);// Symbol table has equal size items
+	symtab_idx = ehdr.e_shnum++;	// Save and imcrement Section Header count
+	
+	// Now add all EXTERN and PUBLIC symbols to string table
+	idx = 0;
+	modPos = m_Modules.GetStartPosition();
+	while (modPos != NULL)
+	{
+		// Get the pointer to this module
+		m_Modules.GetNextAssoc(modPos, modname, (VTObject *&) m_ActiveMod);
+
+		pos = m_ActiveMod->m_Symbols->GetStartPosition();
+		while (pos != 0)
+		{
+			// Get next symbol
+			m_ActiveMod->m_Symbols->GetNextAssoc(pos, key, (VTObject *&) pSymbol);
+			if ((pSymbol->m_SymType & SYM_PUBLIC) || (pSymbol->m_SymType & SYM_EXTERN))
+			{
+				// Don't add global defines to Object file
+				if ((pSymbol->m_SymType & 0xFF) == SYM_DEFINE)
+					continue;
+
+				// Add Elf32_Sym entry for this symbol
+				sym.st_name = pSymbol->m_StrtabOffset;
+				sym.st_value = pSymbol->m_Value;
+
+				// Determine symbol Bind and type
+				if (pSymbol->m_SymType & SYM_PUBLIC)
+					bind = STB_GLOBAL;
+				else
+					bind = STB_EXTERN;
+				if ((pSymbol->m_SymType & 0xFF) == SYM_LABEL)
+					type = STT_FUNC;
+				else
+					type = STT_OBJECT;
+
+				sym.st_info = ELF32_ST_INFO(bind, type);
+				sym.st_other = 0;
+				sym.st_shndx = 0;
+				if (pSymbol->m_pRange)
+					sym.st_shndx = pSymbol->m_pRange->shidx;
+
+				if ((pSymbol->m_SymType & (SYM_8BIT | SYM_16BIT)) == 0)
+				{
+					sym.st_size = 0;
+					pSymbol->m_Off16 = idx;
+				}
+				if (pSymbol->m_SymType & SYM_8BIT)
+				{
+					sym.st_size = 1;
+					pSymbol->m_Off8 = idx;
+				}
+				if (pSymbol->m_SymType & SYM_16BIT)
+				{
+					sym.st_size = 2;
+					pSymbol->m_Off16 = idx;
+				}
+
+				fwrite(&sym, sizeof(sym), 1, fd);
+				idx++;
+
+				// If symbol is EXTERN, find all m_Externs and update index
+				if (bind == STB_EXTERN)
+				{
+					len = m_Externs.GetSize();
+					for (c = 0; c < len; c++)
+					{
+						pExt = (CExtern *) m_Externs[c];
+						pStr = pExt->m_Name;
+						if (pSymbol->m_Name == pExt->m_Name)
+						{
+							if (pExt->m_Size == 1)
+								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off8;
+							else
+								pExt->m_SymIdx = (unsigned short) pSymbol->m_Off16;
+						}
+					}
+				}
+			}
+		}
+	}
+	// Set the symbol table size in bytes
+	symhdr.sh_size = idx * sizeof(Elf32_Sym);
+
+	/*
 	=======================================
 	Add relocation sections to .OBJ file
 	=======================================
 	*/
-	rel_hdrs = (Elf32_Shdr *) malloc((dseg_sections + 
+	rel_hdrs = (Elf32_Shdr *) malloc((aseg_sections + dseg_sections + 
 		cseg_sections) * sizeof(Elf32_Shdr));
 	idx = 0;
 	pos = m_Segments.GetStartPosition();
 	while (pos != NULL)
 	{
 		m_Segments.GetNextAssoc(pos, key, (VTObject *&) m_ActiveSeg);
-		if (m_ActiveSeg->m_Type == ASEG)
-			continue;
 
 		pRange = m_ActiveSeg->m_UsedAddr;
 		while (pRange != NULL)
@@ -3764,50 +4063,53 @@ int VTAssembler::CreateObjFile(const char *filename)
 			rel_hdrs[idx].sh_type = SHT_REL;	// Make section a relocation section
 			rel_hdrs[idx].sh_flags = 0;			// No flag bits for relocation section
 			rel_hdrs[idx].sh_addr = 0;			// No address specifier for relocaton section
-			rel_hdrs[idx].sh_offset = ftell(fd);// Fill in offset later
+			rel_hdrs[idx].sh_offset = ftell(fd);// Set the offset of this header's data
 			rel_hdrs[idx].sh_size = 0;			// Fill in size later
-			rel_hdrs[idx].sh_link = 3;			// Point to symtab section
+			rel_hdrs[idx].sh_link = symtab_idx;	// Point to symtab section
 			rel_hdrs[idx].sh_info = pRange->shidx;
 			rel_hdrs[idx].sh_addralign = 0;		// No alignment requirements
 			rel_hdrs[idx].sh_entsize = sizeof(Elf32_Rel);
 
-			// Generage Elf32_Rel object for each relocation relative to this section
-			len = m_ActiveSeg->m_Reloc.GetSize();
-
-			// Loop through all relocation items in seg
-			for (c = 0; c < len; c++)
+			// Generate Elf32_Rel object for each relocation relative to this section
+			if (m_ActiveSeg->m_Type != ASEG)
 			{
-				// Check if this relocation relative to current section
-				pReloc = (CRelocation *) m_ActiveSeg->m_Reloc[c];
-				if (pReloc->m_pTargetRange == pRange)
-				{	
-					if (pReloc->m_pSourceRange->shidx >= first_dseg_idx)
-					{
-						shidx = pReloc->m_pSourceRange->shidx - first_dseg_idx;
-						rel.r_offset = pReloc->m_Address - dseg_hdr[shidx].sh_addr + 
-							dseg_hdr[shidx].sh_offset;
-						rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
-					}
-					else if (pReloc->m_pSourceRange->shidx >= first_cseg_idx)
-					{
-						shidx = pReloc->m_pSourceRange->shidx - first_cseg_idx;
-						rel.r_offset = pReloc->m_Address - cseg_hdr[shidx].sh_addr + 
-							cseg_hdr[shidx].sh_offset;
-						rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
-					}
-					else
-					{
-						shidx = pReloc->m_pSourceRange->shidx - first_aseg_idx;
-						rel.r_offset = pReloc->m_Address - aseg_hdr[shidx].sh_addr + 
-							aseg_hdr[shidx].sh_offset;
-						rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
-					}
+				len = m_ActiveSeg->m_Reloc.GetSize();
 
-					// Update size of header
-					rel_hdrs[idx].sh_size += sizeof(Elf32_Rel);
+				// Loop through all relocation items in seg
+				for (c = 0; c < len; c++)
+				{
+					// Check if this relocation relative to current section
+					pReloc = (CRelocation *) m_ActiveSeg->m_Reloc[c];
+					if (pReloc->m_pTargetRange == pRange)
+					{	
+						if (pReloc->m_pSourceRange->shidx >= first_dseg_idx)
+						{
+							shidx = pReloc->m_pSourceRange->shidx - first_dseg_idx;
+							rel.r_offset = pReloc->m_Address - dseg_hdr[shidx].sh_addr + 
+								dseg_hdr[shidx].sh_offset;
+							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+						}
+						else if (pReloc->m_pSourceRange->shidx >= first_cseg_idx)
+						{
+							shidx = pReloc->m_pSourceRange->shidx - first_cseg_idx;
+							rel.r_offset = pReloc->m_Address - cseg_hdr[shidx].sh_addr + 
+								cseg_hdr[shidx].sh_offset;
+							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+						}
+						else
+						{
+							shidx = pReloc->m_pSourceRange->shidx - first_aseg_idx;
+							rel.r_offset = pReloc->m_Address - aseg_hdr[shidx].sh_addr + 
+								aseg_hdr[shidx].sh_offset;
+							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+						}
 
-					// Write entry to file
-					fwrite(&rel, sizeof(Elf32_Rel), 1, fd);
+						// Update size of header
+						rel_hdrs[idx].sh_size += sizeof(Elf32_Rel);
+
+						// Write entry to file
+						fwrite(&rel, sizeof(Elf32_Rel), 1, fd);
+					}
 				}
 			}
 
@@ -3822,7 +4124,7 @@ int VTAssembler::CreateObjFile(const char *filename)
 				if (pExt->m_pRange == pRange)
 				{
 					// Set address for this relocation
-					rel.r_offset = pExt->m_Address;
+					rel.r_offset = pExt->m_Address - pExt->m_pRange->address;
 					rel.r_info = ELF32_R_INFO(pExt->m_SymIdx, SR_EXTERN);
 
 					// Update size of header
@@ -3890,9 +4192,6 @@ int VTAssembler::CreateObjFile(const char *filename)
 	// Write String Table 2 header
 	fwrite(&str2hdr, sizeof(str2hdr), 1, fd);
 
-	// Write Symbol Table header
-	fwrite(&symhdr, sizeof(symhdr), 1, fd);
-
 	// Write ASEG headers
 	for (c = 0; c < aseg_sections; c++)
 	{
@@ -3914,8 +4213,11 @@ int VTAssembler::CreateObjFile(const char *filename)
 			fwrite(&dseg_hdr[c], sizeof(Elf32_Shdr), 1, fd);
 	}
 
+	// Write Symbol Table header
+	fwrite(&symhdr, sizeof(symhdr), 1, fd);
+
 	// Write Relocation section headers
-	for (c = 0; c < cseg_sections + dseg_sections; c++)
+	for (c = 0; c < aseg_sections + cseg_sections + dseg_sections; c++)
 	{
 		// Skip writing empty headers
 		if (rel_hdrs[c].sh_size == 0)
@@ -3969,8 +4271,24 @@ int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
 		// Check if operation type is a variable
 		if (pEq->m_OperationArray[c].m_Operation == RPN_VARIABLE)
 		{
+			MString temp = pEq->m_OperationArray[c].m_Variable;
+			if (temp.GetLength() > 1)
+			{
+				// Check if label is local to the last label only
+				if (temp[0] == '&')
+				{
+					// Prepend the last label to make this a local symbol
+					temp = m_LastLabel + (char *) "%%" + pEq->m_OperationArray[c].m_Variable;
+				}
+				else if (temp[0] == m_LocalModuleChar)
+				{
+					// Prepend the last label to make this a local symbol
+					temp = m_ActiveMod->m_Name + (char *) "%%" + pEq->m_OperationArray[c].m_Variable;
+				}
+			}
+
 			// Find the symbol
-			if (LookupSymbol(pEq->m_OperationArray[c].m_Variable, pSym))
+			if (LookupSymbol(temp, pSym))
 			{
 				if ((pSym->m_SymType & 0x00FF) == SYM_LABEL)
 				{
@@ -4022,7 +4340,7 @@ int VTAssembler::EquationIsExtern(CRpnEquation* pEq, int size)
 			if (LookupSymbol(pEq->m_OperationArray[0].m_Variable, pSym))
 			{
 				// Check if variable type s EXTERN
-				if (pSym->m_SymType == SYM_EXTERN)
+				if ((pSym->m_SymType & 0xFF) == SYM_EXTERN)
 				{
 					if (size == 1)
 						pSym->m_SymType |= SYM_8BIT;
@@ -4103,7 +4421,7 @@ void VTAssembler::ParseExternalDefines(void)
 /*
 ============================================================================
 This function is called to parse an input file.  If there are no errors
-during parsing, the routine calls the routines to assemlbe and generate
+during parsing, the routine calls the routines to assemble and generate
 output files for .obj, .lst, .hex, etc.
 ============================================================================
 */
@@ -4172,6 +4490,14 @@ void VTAssembler::Parse(MString filename)
 			// Generate a hex file if requested
 			outfile = temp + (char *) ".hex";
 			CreateHex(outfile);
+
+			// Generate a .CO file if needed
+			outfile = temp + (char *) ".co";
+			CreateCO(outfile);
+
+			// Generate a verilog file if requested
+			outfile = temp + (char *) ".dat";
+			CreateVerilog(outfile);
 		}
 	}
 }
@@ -4394,6 +4720,7 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 			// Get the pInst for this module
 			if (pSeg->m_Index < pSeg->m_Count)
 			{
+				pInst = (CInstruction*) (*pSeg->m_Instructions)[0];
 				while ((pInst != NULL) && (pInst->m_ID == INST_LABEL))
 				{
 					if (++pSeg->m_Index < pSeg->m_Count)
@@ -4459,7 +4786,7 @@ void VTAssembler::CreateHex(MString& filename)
 		len = 0;
 
 		// Loop through bytes in RAM area & find non-zeros
-		for (x = 0, ptr = (char *) pSeg->m_AsmBytes; x < 65536; x++, ptr++)
+		for (x = 0, ptr = (char *) pSeg->m_AsmBytes; x < MAX_SEG_SIZE; x++, ptr++)
 		{
 			if (*ptr != 0)
 			{
@@ -4480,6 +4807,151 @@ void VTAssembler::CreateHex(MString& filename)
 
 	// Save the Intel Hex file
 	save_hex_file_buf((char *) pSeg->m_AsmBytes, start, start + len, start, fd);
+
+	fclose(fd);
+}
+
+/*
+============================================================================
+This function creates a Verilog $readmemh output file of the assembled file
+============================================================================
+*/
+void VTAssembler::CreateVerilog(MString& filename)
+{
+	int					start, len, end;
+	int					x;
+	char*				ptr;
+	MString				outfile;
+	FILE*				fd;
+	CSegment*			pSeg;
+	int					zeroCount = 0;
+
+	// Test if HEX output requested
+	if (!((m_AsmOptions.Find((char *) "-v") != -1) || (m_Verilog)))
+	{
+		// No ASEG Hex output requested...return
+		return;
+	}
+
+	// Get a pointer to the .aseg segment
+	m_Segments.Lookup(".aseg", (VTObject *&) pSeg);
+
+	if (m_ProjectType == VT_PROJ_TYPE_ROM)
+	{
+		start = 0;
+		len = 32768;
+	}
+	else
+	{
+		// Calculate start and length of non-zero bytes in .aseg
+		start = -1;
+		end = 0;
+		len = 0;
+
+		// Loop through bytes in RAM area & find non-zeros
+		for (x = 0, ptr = (char *) pSeg->m_AsmBytes; x < MAX_SEG_SIZE; x++, ptr++)
+		{
+			if (*ptr != 0)
+			{
+				if (start == -1)
+					start = x;
+				end = x;
+			}
+		}
+
+		// Calculate the length of the data
+		if (start >= 0)
+			len = end - start + 1;
+	}
+
+	// Open the output listing file
+	if ((fd = fopen(filename, "wb+")) == NULL)
+		return;
+
+	// Save the Intel Hex file
+	fprintf(fd, "@%d\n", start);
+	for (x = start; x <= start+len; x++)
+	{
+		if (pSeg->m_AsmBytes[x] == 0)
+		{
+			if (++zeroCount < 10)
+				fprintf(fd, "%02x\n", pSeg->m_AsmBytes[x]);
+		}
+		else
+		{
+			if (zeroCount >= 10)
+				fprintf(fd, "@%X\n", x);
+			zeroCount = 0;
+			fprintf(fd, "%02x\n", pSeg->m_AsmBytes[x]);
+		}
+	}
+
+	fclose(fd);
+}
+
+/*
+============================================================================
+This function creates a Model T .CO format file
+============================================================================
+*/
+void VTAssembler::CreateCO(MString& filename)
+{
+	unsigned short		start, len, end, entry;
+	int					x;
+	char*				ptr;
+	MString				outfile;
+	FILE*				fd;
+	CSegment*			pSeg;
+
+	// Test if HEX output requested
+	if (m_ProjectType != VT_PROJ_TYPE_CO)
+	{
+		// Not a .CO project type ... return
+		return;
+	}
+
+	// Get a pointer to the .aseg segment
+	m_Segments.Lookup(".aseg", (VTObject *&) pSeg);
+
+	// Calculate start and length of non-zero bytes in .aseg
+	start = 0;
+	end = 0;
+	len = 0;
+
+	// Loop through bytes in RAM area & find non-zeros
+	for (x = 0, ptr = (char *) pSeg->m_AsmBytes; x < MAX_SEG_SIZE; x++, ptr++)
+	{
+		if (*ptr != 0)
+		{
+			if (start == 0)
+				start = x;
+			end = x;
+		}
+	}
+
+	// Calculate the length of the data
+	if (start > 0)
+		len = end - start + 1;
+
+	// Test for definition of the entry point for the .CO file
+	// If none exists, use the address of the first code found.
+	entry = start;
+
+	// Open the output listing file
+	if ((fd = fopen(filename, "wb+")) == NULL)
+		return;
+
+	// First write the .CO 6-byte header to the file
+	// The format of the .CO header is:
+	// 0-1:  Start address for load
+	// 2-3:  Length of CO (not including header)
+	// 4-5:  Entry address
+	fwrite(&start, sizeof(short), 1, fd);
+	fwrite(&len, sizeof(short), 1, fd);
+	fwrite(&entry, sizeof(short), 1, fd);
+
+	// Now write the data in binary forma`t
+	fwrite(&pSeg->m_AsmBytes[start], 1, len, fd);
 
 	fclose(fd);
 }
@@ -4643,6 +5115,11 @@ CSegment::CSegment(const char *name, int type, CModule* initialMod)
 	m_Instructions = new VTObArray;
 	m_Address = 0;
 	m_UsedAddr = new AddrRange;
+	m_UsedAddr->address = 0;
+	m_UsedAddr->length = 0;
+	m_UsedAddr->shidx = 0;
+	m_UsedAddr->pNext = NULL;
+
 	m_Index = m_Count = 0;
 	for (x = 0; x < sizeof(m_AsmBytes); x++)
 		m_AsmBytes[x] = 0;

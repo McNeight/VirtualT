@@ -113,6 +113,9 @@ preprocessor directive
  -> "include", include string, WS?..., comment		= gAsm->include(ss[ss_idx--]);
  -> "pragma", "list", WS?..., comment				= gAsm->pragma_list();
  -> "pragma", "hex", WS?..., comment				= gAsm->pragma_hex();
+ -> "pragma", "entry", WS?..., literal name nows, WS?..., comment	= gAsm->pragma_entry(ss[ss_idx--]);
+ -> "pragma", "verilog", WS?..., comment			= gAsm->pragma_verilog();
+ -> "pragma", "extended", WS?..., comment			= gAsm->pragma_extended();
  -> "ifdef", literal name nows, WS?, comment		= gAsm->preproc_ifdef(ss[ss_idx--]);
  -> "if", condition, WS?..., comment				= gAsm->preproc_if();
  -> "elif", condition, WS?..., comment				= gAsm->preproc_elif();
@@ -166,6 +169,9 @@ expression
  -> macro
  -> '.'?, "list"									= gAsm->pragma_list();
  -> '.'?, "hex"										= gAsm->pragma_hex();
+ -> '.'?, "verilog"									= gAsm->pragma_verilog();
+ -> '.'?, "entry", literal name nows				= gAsm->pragma_entry(ss[ss_idx--]);
+ -> '.'?, "extended"								= gAsm->pragma_extended();
  -> '.'?, {"org" | "$=" | "*="}, equation			= gAsm->directive_org();
  -> '.'?, "aseg"									= gAsm->directive_aseg();
  -> '.'?, {"ds" | "block"}, equation				= gAsm->directive_ds();
@@ -291,6 +297,9 @@ include chars
 label
  -> literal name nows, ":"							= gAsm->label(ss[ss_idx--]);
  -> literal name nows								= gAsm->label(ss[ss_idx--]);
+ -> ".bss"											= gAsm->label(".bss");
+ -> ".text"											= gAsm->label(".text");
+ -> ".data"											= gAsm->label(".data");
 
 (int) pagespec
  -> "page"											= PAGE;
@@ -392,6 +401,7 @@ primary exp
  -> "fp", WS?..., '(', equation, ')'				= gEq->Add(RPN_FP);
  -> "high", WS?..., '(', equation, ')'				= gEq->Add(RPN_HIGH);
  -> "low", WS?..., '(', equation, ')'				= gEq->Add(RPN_LOW);
+ -> "page", WS?..., '(', equation, ')'				= gEq->Add(RPN_PAGE);
  -> "defined", WS?..., '(', WS?..., literal name, 
 		WS?..., ')'									= gEq->Add(RPN_DEFINED, ss[ss_idx--]); 
 
@@ -500,6 +510,14 @@ bd register
  -> {"b" | "bc" }									= reg[reg_cnt++] = '0';
  -> {"d" | "de" }									= reg[reg_cnt++] = '1';
 
+page register
+ -> {"b" | "bc" }									= reg[reg_cnt++] = '0';
+ -> {"d" | "de" }									= reg[reg_cnt++] = '1';
+ -> {"h" | "hl" }									= reg[reg_cnt++] = '2';
+ -> "dx"											= reg[reg_cnt++] = '3';
+ -> "pc"											= reg[reg_cnt++] = '4';
+ -> "sp"											= reg[reg_cnt++] = '5';
+
 /* 
 ============================================================================
 	Define the 8085 instruction set
@@ -522,6 +540,7 @@ instruction
  -> immediate operand inst
  -> lxi inst
  -> mvi inst
+ -> spi inst
  -> rst inst
  -> no arg inst
  -> instruction list, "!", WS?..., instruction
@@ -561,6 +580,7 @@ no arg inst
  -> "stc"											= gAsm->opcode_arg_0		(OPCODE_STC);
  -> "xchg"											= gAsm->opcode_arg_0		(OPCODE_XCHG);
  -> "xthl"											= gAsm->opcode_arg_0		(OPCODE_XTHL);
+ -> "lret"											= gAsm->opcode_arg_0		(OPCODE_LRET);
 
 bd reg inst
  -> "stax", WS?..., bd register						= gAsm->opcode_arg_1reg		(OPCODE_STAX);
@@ -569,6 +589,8 @@ bd reg inst
 stack reg inst
  -> "pop", WS?..., stack register					= gAsm->opcode_arg_1reg		(OPCODE_POP);
  -> "push", WS?..., stack register					= gAsm->opcode_arg_1reg		(OPCODE_PUSH);
+ -> "lpop", WS?..., stack register					= gAsm->opcode_arg_1reg_2byte	(OPCODE_LPOP);
+ -> "lpush", WS?..., stack register					= gAsm->opcode_arg_1reg_2byte	(OPCODE_LPUSH);
 
 eight bit reg inst
  -> "adc", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_ADC);
@@ -583,6 +605,8 @@ eight bit reg inst
  -> "sbb", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_SBB);
  -> "sub", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_SUB);
  -> "xra", WS?..., register 8 bit					= gAsm->opcode_arg_1reg		(OPCODE_XRA);
+ -> "spg", WS?..., page register					= gAsm->opcode_arg_1reg_2byte	(OPCODE_SPG);
+ -> "rpg", WS?..., page register					= gAsm->opcode_arg_1reg_2byte	(OPCODE_RPG);
 
 sixteen bit reg inst
  -> "dad", WS?..., register 16 bit					= gAsm->opcode_arg_1reg		(OPCODE_DAD);
@@ -600,6 +624,12 @@ mvi inst start
 
 mvi inst
  -> mvi inst start, WS?..., ',', WS?..., equation	= gAsm->opcode_arg_1reg_equ8(OPCODE_MVI);
+
+spi inst start
+ -> "spi", WS?..., page register
+
+spi inst
+ -> spi inst start, WS?..., ',', WS?..., equation	= gAsm->opcode_arg_1reg_equ16(OPCODE_SPI);
 
 rst inst
  -> "rst", WS?..., rst arg:c						= gAsm->opcode_arg_imm		(OPCODE_RST, c);
@@ -634,7 +664,7 @@ immediate operand inst
  -> "jz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_JZ);
  -> "lda", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_LDA);
  -> {"ldeh" | "dehl" | "ldhi"}, WS?..., equation	= gAsm->opcode_arg_equ8		(OPCODE_LDEH);
- -> {"ldes" | "desp"}, WS?..., equation				= gAsm->opcode_arg_equ8		(OPCODE_LDES);
+ -> {"ldes" | "desp" | "ldsi"}, WS?..., equation	= gAsm->opcode_arg_equ8		(OPCODE_LDES);
  -> "lhld", WS?..., equation						= gAsm->opcode_arg_equ16	(OPCODE_LHLD);
  -> "ori", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_ORI);
  -> "out", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_OUT);
@@ -644,6 +674,23 @@ immediate operand inst
  -> "sui", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_SUI);
  -> "xri", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_XRI);
 
+// Extended instructions
+ -> "br", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_BR);
+ -> "bra", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BRA);
+ -> "bz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BZ);
+ -> "bnz", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BNZ);
+ -> "bc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BC);
+ -> "bnc", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BNC);
+ -> "bm", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BM);
+ -> "bp", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BP);
+ -> "bpe", WS?..., equation							= gAsm->opcode_arg_equ16	(OPCODE_BPE);
+ -> "rcall", WS?..., equation						= gAsm->opcode_arg_equ16	(OPCODE_RCALL);
+ -> "sbz", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_SBZ);
+ -> "sbnz", WS?..., equation						= gAsm->opcode_arg_equ8		(OPCODE_SBNZ);
+ -> "sbc", WS?..., equation							= gAsm->opcode_arg_equ8		(OPCODE_SBC);
+ -> "sbnc", WS?..., equation						= gAsm->opcode_arg_equ8		(OPCODE_SBNC);
+ -> "lcall", WS?..., equation						= gAsm->opcode_arg_equ24	(OPCODE_LCALL);
+ -> "ljmp", WS?..., equation						= gAsm->opcode_arg_equ24	(OPCODE_LJMP);
 
 {                       //  Embedded C
 

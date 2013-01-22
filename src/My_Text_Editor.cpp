@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Editor.cxx,v 1.9.2.17 2003/08/24 13:09:06 easysw Exp $"
+// "$Id: My_Text_Editor.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -399,9 +399,12 @@ int My_Text_Editor::kf_undo(int , My_Text_Editor* e) {
   e->buffer()->unselect();
   int crsr;
   int ret = e->buffer()->undo(&crsr);
-  e->insert_position(crsr);
-  e->show_insert_position();
-  if (e->when()&FL_WHEN_CHANGED) e->do_callback(); else e->set_changed();
+  if (ret)
+  {
+	  e->insert_position(crsr);
+	  e->show_insert_position();
+	  if (e->when()&FL_WHEN_CHANGED) e->do_callback(); else e->set_changed();
+  }
   return ret;
 }
 
@@ -603,5 +606,5 @@ void My_Text_Editor::UpdateStatusBar(void)
 }
 
 //
-// End of "$Id: My_Text_Editor.cxx,v 1.9.2.17 2003/08/24 13:09:06 easysw Exp $".
+// End of "$Id: My_Text_Editor.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
 //

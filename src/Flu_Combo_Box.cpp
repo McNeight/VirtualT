@@ -1,4 +1,4 @@
-// $Id: Flu_Combo_Box.cpp,v 1.13 2003/12/21 20:51:58 jbryan Exp $
+// $Id: Flu_Combo_Box.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -135,6 +135,14 @@ void Flu_Combo_Box :: selected( const char *v )
     input.value( v );
   _popped = false;
   do_callback();
+}
+
+void Flu_Combo_Box :: selectall(void)
+{
+	const char *v = input.value();
+	if (v)
+		input.position(0, strlen(v));
+	input.redraw();
 }
 
 int Flu_Combo_Box::Popup :: handle( int event )

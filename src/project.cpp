@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.6 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.7 2011/07/11 16:52:31 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -161,7 +161,7 @@ void cb_okNewProject(Fl_Widget* w, void*)
 	pNewProject->m_makeProj = TRUE;
 }
 
-void browse_cb(Fl_Widget* w, void*)
+void browse_cb(Fl_Widget* w, void* pOpaque)
 {
 	int				sel;
 	int				c;
@@ -190,6 +190,14 @@ void browse_cb(Fl_Widget* w, void*)
 	newtxt[0] = '@';
 	newtxt[1] = 'b';
 	pB->text(sel, newtxt);
+
+	// Change the Output Type if the opaque is given
+	if (pOpaque != NULL)
+	{
+		VT_ProjectSettings* pProj = (VT_ProjectSettings *) pOpaque;
+
+		pProj->ProjTypeChanged();
+	}
 }
 
 VT_NewProject::VT_NewProject()
@@ -219,6 +227,7 @@ VT_NewProject::VT_NewProject()
 	m_pProjType->add("@bAssembly .CO");
 	m_pProjType->add("Assembly .obj");
 	m_pProjType->add("Assembly ROM");
+	m_pProjType->add("Library .lib");
 	m_pProjType->add("BASIC");
 	m_pProjType->callback(browse_cb);
 	m_pProjType->value(1);
@@ -247,7 +256,7 @@ VT_NewProject::VT_NewProject()
 	m_pPC8201 = new Fl_Round_Button(200, 110, 100, 20, "Model PC-8201");
 	m_pPC8201->type(FL_RADIO_BUTTON);
     //JV
-	m_pKC85 = new Fl_Round_Button(200, 125, 100, 20, "Model KC85");
+	m_pKC85 = new Fl_Round_Button(200, 135, 100, 20, "Model KC85");
 	m_pKC85->type(FL_RADIO_BUTTON);
 	// Create an Ok button
 	m_pOk = new Fl_Button(60, 265, 90, 30, "OK");
@@ -387,6 +396,7 @@ void cb_settings_ok(Fl_Widget* w, void*)
 	pProject->m_LinkPath = pProj->getLinkPath();
 	pProject->m_LinkLibs = pProj->getLinkObjs();
 	pProject->m_LinkScript = pProj->getLinkScript();
+	pProject->m_OutputName = pProj->getOutputName();
 
 	// Hide the window to end the session
 	pProj->m_pProject->m_Dirty = 1;
@@ -430,8 +440,9 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pProjType->add("Assembly .CO");
 	m_pProjType->add("Assembly .obj");
 	m_pProjType->add("Assembly ROM");
+	m_pProjType->add("Library .lib");
 	m_pProjType->add("BASIC");
-	m_pProjType->callback(browse_cb);
+	m_pProjType->callback(browse_cb, this);
 	m_pProjType->value(m_pProject->m_ProjectType+1);
 
 	// Text for target device
@@ -451,7 +462,7 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pT200->type(FL_RADIO_BUTTON);
 	if (m_pProject->m_TargetModel == MODEL_T200)
 		m_pT200->value(1);
-	m_pPC8201 = new Fl_Round_Button(210, 150, 100, 20, "Model PC-8201");
+	m_pPC8201 = new Fl_Round_Button(210, 150, 150, 20, "Model PC-8201");
 	m_pPC8201->type(FL_RADIO_BUTTON);
 	if (m_pProject->m_TargetModel == MODEL_PC8201)
 		m_pPC8201->value(1);
@@ -523,7 +534,9 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	o = new Fl_Box(20, 135, 100, 20, "Output Name");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pOutputName = new Fl_Input(20, 155, 320, 20, "");
-	m_pOutputName->value(m_pProject->m_Name);
+	if (m_pProject->m_OutputName.IsEmpty())
+		m_pProject->m_OutputName = m_pProject->m_Name;
+	m_pOutputName->value(m_pProject->m_OutputName);
 
 	// Create Edit field for Link libs
 	o = new Fl_Box(20, 180, 100, 20, "Additional Link Objects");
@@ -554,6 +567,37 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 		o->callback((Fl_Callback*)cb_settings_ok);
 		o->user_data(this);
 	}
+}
+
+void VT_ProjectSettings::ProjTypeChanged(void)
+{
+	// Get the new project type
+	int			projType = getProjType();
+	MString		newExt;
+
+	switch (projType)
+	{
+		case VT_PROJ_TYPE_CO:	newExt = ".co";  break;
+		case VT_PROJ_TYPE_OBJ:	newExt = ".obj"; break;
+		case VT_PROJ_TYPE_ROM:	newExt = ".hex"; break;
+		case VT_PROJ_TYPE_LIB:	newExt = ".lib"; break;
+		case VT_PROJ_TYPE_BA:	newExt = ".bas"; break;
+		default:				newExt = "";     break;
+	}
+
+	// Get current name from dialog box
+	const char * pCurrentName = m_pOutputName->value();
+	int len = strlen(pCurrentName);
+	char * pNewName = new char[len+1];
+	strcpy(pNewName, pCurrentName);
+
+	// Search for an extension marker and remove the old extension if it exists
+	char * pOldExt = strrchr(pNewName, '.');
+	if (pOldExt != NULL)
+		*pOldExt = '\0';
+	m_pProject->m_OutputName = pNewName + newExt;
+	m_pOutputName->value(m_pProject->m_OutputName);
+	delete pNewName;
 }
 
 void VT_ProjectSettings::show(void)
@@ -699,6 +743,14 @@ MString VT_ProjectSettings::getLinkObjs(void)
 		return "";
 
 	return m_pLinkObjs->value();
+}
+
+MString VT_ProjectSettings::getOutputName(void)
+{
+	if (m_pOutputName == NULL)
+		return "";
+
+	return m_pOutputName->value();
 }
 
 MString VT_ProjectSettings::getLinkScript(void)
@@ -917,6 +969,7 @@ void VT_Project::SaveProject(void)
 	fprintf(fd, "LINKSCRIPT=%s\n", (const char *) m_LinkScript);
 	fprintf(fd, "ASMOPT=%s\n", (const char *) m_AsmOptions);
 	fprintf(fd, "LINKOPT=%s\n", (const char *) m_LinkOptions);
+	fprintf(fd, "OUTPUTNAME=%s\n", (const char *) m_OutputName);
 	fprintf(fd, "TYPE=%s\n", gProjectTypes[m_ProjectType]);
 	get_model_string(model, m_TargetModel);
 	fprintf(fd, "TARGET=%s\n", model);

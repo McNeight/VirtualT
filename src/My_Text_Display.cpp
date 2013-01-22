@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.2 2011/07/11 06:17:23 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -42,7 +42,7 @@
 // there is some room for the overhanging parts of the cursor!
 #define TOP_MARGIN 1
 #define BOTTOM_MARGIN 1
-#define LEFT_MARGIN 18
+#define LEFT_MARGIN 10
 #define RIGHT_MARGIN 3
 
 #define NO_HINT -1
@@ -67,6 +67,27 @@ static int countlines( const char *string );
 // CET - FIXME
 #define TMPFONTWIDTH 6
 
+void cb_cursor_blink(void *pOpaque)
+{
+	My_Text_Display* pDisp = (My_Text_Display *) pOpaque;
+
+	pDisp->blink_cursor();
+}
+
+void My_Text_Display::blink_cursor(void)
+{
+	if (++mBlinkCount == 2)
+	{
+		mBlinkCount = 0;
+		mBlinkOn = mCursorOn;
+		show_cursor(0);
+	}
+	else
+		show_cursor(mBlinkOn);
+
+	Fl::add_timeout(0.6, cb_cursor_blink, this);
+}
+
 My_Text_Display::My_Text_Display(int X, int Y, int W, int H,  const char* l)
     : Fl_Double_Window(X, Y, W, H, l) {
   int i;
@@ -74,6 +95,10 @@ My_Text_Display::My_Text_Display(int X, int Y, int W, int H,  const char* l)
   border(0);
   mMaxsize = 0;
   mCurrentCol = 0;
+  mBlinkCount = 0;
+  mLeftMargin = LEFT_MARGIN;
+  bHasUtilityMargin = 0;
+  mUtilityMarginColor = FL_BLACK;
   damage_range1_start = damage_range1_end = -1;
   damage_range2_start = damage_range2_end = -1;
   dragPos = dragType = dragging = 0;
@@ -140,6 +165,9 @@ My_Text_Display::My_Text_Display(int X, int Y, int W, int H,  const char* l)
   mContinuousWrap = 0;
   mWrapMargin = 0;
   mSuppressResync = mNLinesDeleted = mModifyingTabDistance = 0;
+
+  m_pErrorFunc = NULL;
+  m_pErrorOpaque = NULL;
 }
 
 /*
@@ -148,8 +176,31 @@ My_Text_Display::My_Text_Display(int X, int Y, int W, int H,  const char* l)
 ** freed, nor are the style buffer or style table.
 */
 My_Text_Display::~My_Text_Display() {
+	Fl::remove_timeout(cb_cursor_blink, this);
   if (mBuffer) mBuffer->remove_modify_callback(buffer_modified_cb, this);
   if (mLineStarts) delete[] mLineStarts;
+}
+
+/*
+** Returns the position of the specified line, or -1 if it doesn't exist)
+*/
+int My_Text_Display::get_line_pos(int line)
+{
+  int startPos, lineEnd, nextLineStart, lineCount;
+  int bufLen = mBuffer->length();
+
+  startPos = 0;
+  /* Loop searching for ends of lines and storing the positions of the
+     start of the next line in lineStarts */
+  for ( lineCount = 1; lineCount < line; lineCount++ ) {
+    find_line_end(startPos, true, &lineEnd, &nextLineStart);
+    startPos = nextLineStart;
+    if ( startPos >= bufLen ) {
+		return -1;
+	}
+  }
+
+  return startPos;
 }
 
 /*
@@ -172,6 +223,8 @@ void My_Text_Display::buffer( Fl_Text_Buffer *buf ) {
 
   /* Update the display */
   buffer_modified_cb( 0, buf->length(), 0, 0, 0, this );
+
+  Fl::add_timeout(0.33f, cb_cursor_blink, this);
 
   /* Resize the widget to update the screen... */
   resize(x(), y(), w(), h());
@@ -354,14 +407,14 @@ void My_Text_Display::resize(int X, int Y, int W, int H)
   W -= Fl::box_dw(box());
   H -= Fl::box_dh(box());
 
-  text_area.x = X+LEFT_MARGIN;
+  text_area.x = X+LEFT_MARGIN+mLeftMargin;
   text_area.y = Y+TOP_MARGIN;
-  text_area.w = W-LEFT_MARGIN-RIGHT_MARGIN;
+  text_area.w = W-LEFT_MARGIN-RIGHT_MARGIN*2-mLeftMargin;
   text_area.h = H-TOP_MARGIN-BOTTOM_MARGIN;
   int i;
 
   /* Find the new maximum font height for this text display */
-  for (i = 0, mMaxsize = fl_height(textfont(), textsize()); i < mNStyles; i++)
+  for (i = 0, mMaxsize = 2+fl_height(textfont(), textsize()); i < mNStyles; i++)
     mMaxsize = max(mMaxsize, fl_height(mStyleTable[i].font, mStyleTable[i].size));
 
   // did we have scrollbars initially?
@@ -405,14 +458,14 @@ void My_Text_Display::resize(int X, int Y, int W, int H)
       {
         mVScrollBar->set_visible();
         if (scrollbar_align() & FL_ALIGN_LEFT) {
-          text_area.x = X+scrollbar_width()+LEFT_MARGIN;
-          text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN;
+          text_area.x = X+scrollbar_width()+LEFT_MARGIN+mLeftMargin;
+          text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN*2-mLeftMargin;
           mVScrollBar->resize(X, text_area.y-TOP_MARGIN, scrollbar_width(),
                               text_area.h+TOP_MARGIN+BOTTOM_MARGIN);
         } else {
-          text_area.x = X+LEFT_MARGIN;
-          text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN;
-          mVScrollBar->resize(X+W-scrollbar_width(), text_area.y-TOP_MARGIN,
+          text_area.x = X+LEFT_MARGIN+mLeftMargin;
+          text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN*2-mLeftMargin-2;
+          mVScrollBar->resize(X+W-1-scrollbar_width(), text_area.y-TOP_MARGIN,
                               scrollbar_width(), text_area.h+TOP_MARGIN+BOTTOM_MARGIN);
         }
       }
@@ -448,13 +501,13 @@ void My_Text_Display::resize(int X, int Y, int W, int H)
         if (scrollbar_align() & FL_ALIGN_TOP) {
           text_area.y = Y + scrollbar_width()+TOP_MARGIN;
           text_area.h = H - scrollbar_width()-TOP_MARGIN-BOTTOM_MARGIN;
-          mHScrollBar->resize(text_area.x-LEFT_MARGIN, Y,
-                              text_area.w+LEFT_MARGIN+RIGHT_MARGIN, scrollbar_width());
+          mHScrollBar->resize(text_area.x-LEFT_MARGIN-mLeftMargin, Y,
+                              text_area.w+LEFT_MARGIN+RIGHT_MARGIN*2+mLeftMargin, scrollbar_width());
         } else {
           text_area.y = Y+TOP_MARGIN;
           text_area.h = H - scrollbar_width()-TOP_MARGIN-BOTTOM_MARGIN;
-          mHScrollBar->resize(text_area.x-LEFT_MARGIN, Y+H-scrollbar_width(),
-                              text_area.w+LEFT_MARGIN+RIGHT_MARGIN, scrollbar_width());
+          mHScrollBar->resize(text_area.x-LEFT_MARGIN-mLeftMargin, Y+H-scrollbar_width(),
+                              text_area.w+LEFT_MARGIN+RIGHT_MARGIN*2+mLeftMargin, scrollbar_width());
         }
       }
     }
@@ -757,27 +810,17 @@ int My_Text_Display::position_to_xy( int pos, int* X, int* Y ) {
   char expandedChar[ FL_TEXT_MAX_EXP_CHAR_LEN ];
   const char *lineStr;
 
-//  printf("position_to_xy(pos=%d, X=%p, Y=%p)\n", pos, X, Y);
-
   /* If position is not displayed, return false */
   if (pos < mFirstChar || (pos > mLastChar && !empty_vlines())) {
-//    printf("    returning 0\n"
-//           "    mFirstChar=%d, mLastChar=%d, empty_vlines()=0\n",
-//	   mFirstChar, mLastChar);
     return 0;
   }
 
   /* Calculate Y coordinate */
   if (!position_to_line(pos, &visLineNum)) {
-//    puts("    returning 0\n"
-//         "    position_to_line()=0");
     return 0;
   }
 
   if (visLineNum < 0 || visLineNum > mNBufferLines) {
-//    printf("    returning 0\n"
-//           "    visLineNum=%d, mNBufferLines=%d\n",
-//	   visLineNum, mNBufferLines);
     return 0;
   }
 
@@ -910,13 +953,14 @@ void My_Text_Display::display_insert() {
 //	FIXME: I don't understand this well enough to know if it is correct
 //	       it is different than nedit 5.3
   if (insert_position() < mFirstChar) {
-    topLine -= count_lines(insert_position(), mFirstChar, false);
+    topLine -= count_lines(insert_position(), mFirstChar, false) +
+		mNVisibleLines/2;
   } else if (mLineStarts[mNVisibleLines-2] != -1) {
     int lastChar = buffer()->line_end(mLineStarts[mNVisibleLines-2]);
     if (insert_position() >= lastChar)
       topLine
         += count_lines(lastChar - (wrap_uses_character(mLastChar) ? 0 : 1),
-                        insert_position(), false);
+                        insert_position(), false) + mNVisibleLines/2;
   }
 
   /* Find the new setting for horizontal offset (this is a bit ungraceful).
@@ -1420,10 +1464,6 @@ void My_Text_Display::draw_vline(int visLineNum, int leftClip, int rightClip,
   char *outPtr;
   const char *lineStr;
 
-//  printf("draw_vline(visLineNum=%d, leftClip=%d, rightClip=%d, leftCharIndex=%d, rightCharIndex=%d)\n",
-//         visLineNum, leftClip, rightClip, leftCharIndex, rightCharIndex);
-//  printf("nNVisibleLines=%d\n", mNVisibleLines);
-
   /* If line is not displayed, skip it */
   if ( visLineNum < 0 || visLineNum >= mNVisibleLines )
     return;
@@ -1434,7 +1474,6 @@ void My_Text_Display::draw_vline(int visLineNum, int leftClip, int rightClip,
 
   /* Get the text, length, and  buffer position of the line to display */
   lineStartPos = mLineStarts[ visLineNum ];
-//  printf("lineStartPos=%d\n", lineStartPos);
   if ( lineStartPos == -1 ) {
     lineLen = 0;
     lineStr = NULL;
@@ -1600,7 +1639,8 @@ void My_Text_Display::draw_string( int style, int X, int Y, int toX,
     font  = styleRec->font;
     fsize = styleRec->size;
 
-    if ( style & (HIGHLIGHT_MASK | PRIMARY_MASK) && Fl::focus() == this) 
+    if (( style & (HIGHLIGHT_MASK | PRIMARY_MASK) && Fl::focus() == this) ||
+		( style & SECONDARY_MASK))
 	{
       background = selection_color();
       foreground = fl_contrast(styleRec->color, background);
@@ -1609,7 +1649,9 @@ void My_Text_Display::draw_string( int style, int X, int Y, int toX,
       background = color();
       foreground = styleRec->color;
     }
-  } else if ( style & (HIGHLIGHT_MASK | PRIMARY_MASK) && Fl::focus() == this ) {
+  } else if (( style & (HIGHLIGHT_MASK | PRIMARY_MASK) && Fl::focus() == this ) ||
+			 ( style & SECONDARY_MASK))
+  {
     background = selection_color();
     //foreground = fl_contrast(textcolor(), background);
     foreground = textcolor();
@@ -2848,7 +2890,6 @@ void My_Text_Display::draw(void) {
 	  fl_push_clip(0, 0, w(), h());
 	 // fl_clip_region(r);
 	  
-//    printf("drawing all (box = %d)\n", box());
     // draw the box()
     int W = w(), H = h();
 
@@ -2859,8 +2900,16 @@ void My_Text_Display::draw(void) {
 
     draw_box(box(), x(), y(), w(), h(), color());
     // left margin
-    fl_rectf(text_area.x-LEFT_MARGIN, text_area.y-TOP_MARGIN,
-             LEFT_MARGIN, text_area.h+TOP_MARGIN+BOTTOM_MARGIN, color());
+	if (bHasUtilityMargin)
+	{
+	    fl_rectf(text_area.x-mLeftMargin - LEFT_MARGIN-1, text_area.y-TOP_MARGIN-1,
+             mLeftMargin, text_area.h+TOP_MARGIN+BOTTOM_MARGIN, mUtilityMarginColor);
+	    fl_rectf(text_area.x - LEFT_MARGIN, text_area.y-1,
+             LEFT_MARGIN, text_area.h+2, color());
+	}
+	else
+	    fl_rectf(text_area.x-mLeftMargin, text_area.y-TOP_MARGIN,
+             mLeftMargin, text_area.h+TOP_MARGIN+BOTTOM_MARGIN, color());
 
     // right margin
     fl_rectf(text_area.x+text_area.w, text_area.y-TOP_MARGIN,
@@ -2886,15 +2935,22 @@ void My_Text_Display::draw(void) {
 	fl_pop_clip();
   }
   else if (damage() & (FL_DAMAGE_SCROLL | FL_DAMAGE_EXPOSE)) {
-//    printf("blanking previous cursor extrusions at Y: %d\n", mCursorOldY);
     // CET - FIXME - save old cursor position instead and just draw side needed?
 	  fl_push_clip(0, 0, w(), text_area.h + scrollbar_width());
 	  Fl_Region r = XRectangleRegion(0, 0, w(), text_area.h + scrollbar_width());
 	  fl_clip_region(r);
     fl_rectf(text_area.x, text_area.y-TOP_MARGIN,
              w(), TOP_MARGIN, color());
-    fl_rectf(text_area.x-LEFT_MARGIN, text_area.y,
-             LEFT_MARGIN, text_area.h, color());
+	if (bHasUtilityMargin)
+	{
+	    fl_rectf(0, text_area.y-TOP_MARGIN-1,
+             mLeftMargin, text_area.h+TOP_MARGIN+BOTTOM_MARGIN, mUtilityMarginColor);
+	    fl_rectf(text_area.x - LEFT_MARGIN, text_area.y-1,
+             LEFT_MARGIN, text_area.h+2, color());
+	}
+	else
+	    fl_rectf(text_area.x-mLeftMargin, text_area.y-TOP_MARGIN,
+             mLeftMargin, text_area.h+TOP_MARGIN+BOTTOM_MARGIN, color());
     fl_rectf(text_area.x+text_area.w, text_area.y,
              RIGHT_MARGIN, text_area.h, color());
     fl_pop_clip();
@@ -2910,7 +2966,6 @@ void My_Text_Display::draw(void) {
 
   // draw all of the text
   if (damage() & (FL_DAMAGE_ALL | FL_DAMAGE_EXPOSE)) {
-    //printf("drawing all text\n");
     int X, Y, W, H;
     if (fl_clip_box(text_area.x, text_area.y, text_area.w, text_area.h,
                     X, Y, W, H)) {
@@ -2929,10 +2984,8 @@ void My_Text_Display::draw(void) {
 	  Fl_Region r = XRectangleRegion(text_area.x, text_area.y, 
 		  text_area.w, text_area.h);
 	  fl_clip_region(r);
-    //printf("drawing text from %d to %d\n", damage_range1_start, damage_range1_end);
     draw_range(damage_range1_start, damage_range1_end);
     if (damage_range2_end != -1) {
-      //printf("drawing text from %d to %d\n", damage_range2_start, damage_range2_end);
       draw_range(damage_range2_start, damage_range2_end);
     }
     damage_range1_start = damage_range1_end = -1;
@@ -2954,8 +3007,6 @@ void My_Text_Display::draw(void) {
 
     int X, Y;
     if (position_to_xy(mCursorPos, &X, &Y)) draw_cursor(X, Y);
-//    else puts("position_to_xy() failed - unable to draw cursor!");
-    //printf("drew cursor at pos: %d (%d,%d)\n", mCursorPos, X, Y);
     mCursorOldY = Y;
     fl_pop_clip();
   }
@@ -3007,6 +3058,15 @@ int My_Text_Display::handle(int event)
 		position_to_linecol(insert_position(), &line, &mCurrentCol);
 	}
 
+	// Reset the blink count so we don't hide the cursor when there is
+	// activity
+	if (event != FL_ENTER && event != FL_MOVE)
+	{
+		mBlinkCount = 0;
+		if (mBlinkCount == 0)
+			show_cursor(mBlinkOn);
+	}
+
   switch (event) {
     case FL_ENTER:
     case FL_MOVE:
@@ -3049,7 +3109,33 @@ int My_Text_Display::handle(int event)
         if (dragType == DRAG_CHAR)
           buffer()->unselect();
         else if (dragType == DRAG_WORD)
-          buffer()->select(word_start(pos), word_end(pos));
+		{
+		  buffer()->secondary_unselect();
+		  position_to_linecol(pos, &line, &mCurrentCol);
+		  if (strcmp(buffer()->text_range(buffer()->line_start(pos), buffer()->line_start(pos) + 14), "Error in line ") == 0)
+		  {
+			  /* Determine line number and filename of error */
+			  int errNumPos = buffer()->word_start(buffer()->line_start(pos) + 14);
+			  int errNumEndPos = buffer()->word_end(errNumPos);
+			  int errLine = atoi(buffer()->text_range(errNumPos, errNumEndPos));
+			  int fileNameStart = errNumEndPos + 1;
+			  int foundPos;
+			  int fileNameEnd = buffer()->search_forward(fileNameStart, ")", &foundPos, 0);
+			  char *pFile = buffer()->text_range(fileNameStart, foundPos);
+
+			  // Now call the IDE with the filename and line number instructing it to display the errored line
+			  if (m_pErrorFunc != NULL)
+			  {
+		          buffer()->secondary_select(buffer()->line_start(pos), buffer()->line_end(pos)+1);
+				  redraw();
+				  m_pErrorFunc(errLine, pFile, m_pErrorOpaque);
+				  /* Perform Secondary selection on this line */
+				  return 1;
+			  }
+		  }
+		  else
+			buffer()->select(word_start(pos), word_end(pos));
+		}
         else if (dragType == DRAG_LINE)
           buffer()->select(buffer()->line_start(pos), buffer()->line_end(pos)+1);
 
@@ -3116,5 +3202,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.2 2011/07/11 06:17:23 kpettit1 Exp $".
 //

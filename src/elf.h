@@ -1,6 +1,6 @@
 /* elf.h */
 
-/* $Id: elf.h,v 1.1 2007/03/31 22:09:18 kpettit1 Exp $ */
+/* $Id: elf.h,v 1.2 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -80,8 +80,10 @@ typedef struct {
 #define		EM_MIPS			8		// MIPS RS3000
 #define		EM_S370			9		// IBM System/370 Processor
 #define		EM_MIPS_RS4_BE	10		// MIPS RS4000
-// Codes 11-14 reserved for future use, so we use #12
+
+// Codes 11-14 reserved for future use, so we use #12 for 8085
 #define		EM_8085			12		// Model T - 8085
+
 #define		EM_PARISC		15		// HP PA-RISC
 #define		EM_VPP500		17		// Fujitsu VPP500
 #define		EM_SPARC32PLUS	18		// Enhanced instruction set SPARC
@@ -133,7 +135,6 @@ typedef struct {
 #define		EM_MMIX			80		// Donald Knuth's educational 64-bit processor
 #define		EM_HAUNY		81		// Harvard University machine-independent object files
 #define		EM_PRISM		82		// SiTera Prism
-
 
 // Define version
 #define		EV_NONE			0		// Invalid version
@@ -273,10 +274,11 @@ typedef struct {
 #define		ELF32_R_TYPE(i)		((Elf32_Char)(i))
 #define		ELF32_R_INFO(s,t)	(((s)<<8)+(Elf32_Char)(t))
 
-#define		SR_UNDEF		0
-#define		SR_ADDR_XLATE	1
-#define		SR_EXTERN		2
-#define		SR_PUBLIC		3
+#define		SR_UNDEF			0
+#define		SR_ADDR_XLATE		1
+#define		SR_EXTERN			2
+#define		SR_PUBLIC			3
+#define		SR_ADDR_PROCESSED	0x81
 
 // Define program header information
 typedef struct {

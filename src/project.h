@@ -1,6 +1,6 @@
 /* project.h */
 
-/* $Id: project.h,v 1.2 2008/03/09 16:33:56 kpettit1 Exp $ */
+/* $Id: project.h,v 1.3 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -49,7 +49,8 @@ void cb_NewProject (Fl_Widget* w, void*);
 #define		VT_PROJ_TYPE_CO			0
 #define		VT_PROJ_TYPE_OBJ		1
 #define		VT_PROJ_TYPE_ROM		2
-#define		VT_PROJ_TYPE_BA			3
+#define		VT_PROJ_TYPE_LIB		3
+#define		VT_PROJ_TYPE_BA			4
 
 class VT_Project
 {
@@ -96,6 +97,7 @@ public:
     MString         m_AsmOptions;
     MString         m_LinkOptions;
 	MString			m_LinkScript;
+	MString			m_OutputName;
     VTObArray       m_Groups;
     int             m_Dirty;			// Set true when project settings change
     int             m_ProjectType;		// Type of project
@@ -170,6 +172,7 @@ public:
 	MString				getLinkObjs(void);
 	MString				getLinkScript(void);
 
+	void				ProjTypeChanged(void);
 	void				EnableUpdateHIMEM(int enable);
 
 protected:

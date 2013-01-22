@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.17 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: io.c,v 1.19 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -80,6 +80,7 @@ extern int		gRomBank;
 extern RomDescription_t	*gStdRomDesc;
 void handle_wheel_keys(void);
 
+int gCapture = FALSE;
 /*
 =============================================================================
 This routine supplies an OS independant high-resolution timer for use with
@@ -263,6 +264,36 @@ void update_keys(void)
 		}
 	}
 
+	if (gSpecialKeys & (MT_GRAPH | MT_CODE | MT_SHIFT) && !gCapture)
+	{
+		FILE* fd;
+		int		d, col, row;
+		gCapture = TRUE;
+		
+		fd = fopen("lcd_cap.txt", "w");
+		if (fd != NULL)
+		{
+			// Set start page for all drivers to 0
+			fprintf(fd, "f 0 3e\n");	
+			fprintf(fd, "f 0 3b\n");	
+
+			for (d = 0; d < 10; d++)
+			{
+				for (row = 0; row < 4; row++)
+				{
+					// Set the X/Y address
+					fprintf(fd, "%x 0 %02x\n", d, row<<6);
+					for(col = 0; col < 50; col++)
+					{
+						fprintf(fd, "%x 1 %02x\n", d, lcd[d][(row<<2) + col]);
+					}
+				}
+			}
+			fclose(fd);
+		}
+	}
+	else
+		gCapture = FALSE;
 	gDelayUpdateKeys = 0;
 	gDelayCount = 0;
 	handle_wheel_keys();

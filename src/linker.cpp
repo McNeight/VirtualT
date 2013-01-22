@@ -33,9 +33,17 @@ Construtor / destructor for the linker
 */
 VTLinker::VTLinker()
 {
+	int		x;
+
 	m_Hex = 0;
 	m_FileIndex = -1;
 	m_DebugInfo = 0;
+	m_TotalCodeSpace = 0;
+	m_TotalDataSpace = 0;
+	
+	// Clear out the Segment assignement map
+	for (x = 0; x < sizeof(m_SegMap) / sizeof(CObjSegment *); x++)
+		m_SegMap[x] = NULL;
 }
 
 VTLinker::~VTLinker()
@@ -56,6 +64,16 @@ void VTLinker::SetStdoutFunction(void *pContext, stdOutFunc_t pFunc)
 
 /*
 ============================================================================
+Sets the standard output "printf" function to write error messages to
+============================================================================
+*/
+void VTLinker::SetOutputFile(const MString& outFile)
+{
+	m_OutputName = outFile;
+}
+
+/*
+============================================================================
 This routine free's all memory and initializes all variables for a new
 link operation.
 ============================================================================
@@ -66,6 +84,7 @@ void VTLinker::ResetContent(void)
 	CObjSegment*	pSeg;
 	CLinkRgn*		pLinkRgn;
 	MStringArray*	pStrArray;
+	CObjSymFile*	pObjSymFile;
 	POSITION		pos;
 
 	// Loop through each segment
@@ -116,6 +135,15 @@ void VTLinker::ResetContent(void)
 		delete pStrArray;
 	}
 	m_LinkEndsWithList.RemoveAll();
+	
+	// Loop through all Symbols and delete them
+	pos = m_Symbols.GetStartPosition();
+	while (pos != NULL)
+	{
+		m_Symbols.GetNextAssoc(pos, key, (VTObject *&) pObjSymFile);
+		delete pObjSymFile;
+	}
+	m_Symbols.RemoveAll();
 	
 	// Delete all undefined symbols
 	m_UndefSymbols.RemoveAll();
@@ -235,6 +263,10 @@ int VTLinker::MapScriptCommand(const char *pStr, int lineNo)
 	else if (strcmp(pStr, "DATA") == 0)
 		command = LKR_CMD_DATA;
 
+	// Test for DATA specification
+	else if (strcmp(pStr, "MIXED") == 0)
+		command = LKR_CMD_MIXED;
+
 	// Test for OBJPATH specification
 	else if (strcmp(pStr, "OBJPATH") == 0)
 		command = LKR_CMD_OBJPATH;
@@ -254,12 +286,20 @@ int VTLinker::MapScriptCommand(const char *pStr, int lineNo)
 	// Test for FILES specification
 	else if (strcmp(pStr, "ENDSWITH") == 0)
 		command = LKR_CMD_ENDSWITH;
+
+	// Test for ENTRY specification
+	else if (strcmp(pStr, "ENTRY") == 0)
+		command = LKR_CMD_ENTRY;
+	
+	// Test for ENTRY specification
+	else if (strcmp(pStr, "DEFINE") == 0)
+		command = LKR_CMD_DEFINE;
 	
 	else
 	{
 		// Syntax error
-		err.Format("Error during linking:  Parser syntax error on line %d",
-			lineNo);
+		err.Format("Error in line %d(%s):  Parser syntax error", lineNo,
+			(const char *) m_LinkerScript);
 		m_Errors.Add(err);
 	}
 
@@ -277,11 +317,13 @@ void VTLinker::ProcScriptField2(const char *pStr, int lineNo, MString &segname)
 	MString		err, temp;
 
 	// Process 1st field of CODE or DATA command
-	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA))
+	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA) ||
+		(m_Command == LKR_CMD_MIXED))
 	{
 		if (strncmp(pStr, "NAME=", 5) != 0)
 		{
-			err.Format("%sExpected segment name on line %d", gsEdl,	lineNo);
+			err.Format("Error in line %d(%s):  Expected segment name", lineNo,
+				(const char *) m_LinkerScript);
 			m_Errors.Add(err);
 			m_Command = LKR_CMD_ERROR;
 		}
@@ -312,6 +354,18 @@ void VTLinker::ProcScriptField2(const char *pStr, int lineNo, MString &segname)
 		(m_Command == LKR_CMD_ENDSWITH))
 	{
 		segname = pStr;
+	}
+
+	// Test if command is OBJPATH and add path to array
+	else if (m_Command == LKR_CMD_ENTRY)
+	{
+		m_EntryLabel = pStr;
+		m_Command = LKR_CMD_COMPLETE;
+	}
+
+	// Test if command is DEFINE and add the symbol
+	else if (m_Command == LKR_CMD_DEFINE)
+	{
 	}
 }
 
@@ -358,28 +412,49 @@ This routine processes the 2nd field from the current line o the linker
 script.  It performs operations based on the current m_Command.
 ============================================================================
 */
-void VTLinker::ProcScriptField3(const char *pStr, int lineNo, int& startAddr)
+void VTLinker::ProcScriptField3(char *pStr, int lineNo, int& startAddr,
+								char* &pSectName)
 {
 	MString		err;
 
 	// Initialize startAddr in case error or ORDER command
 	startAddr = -1;
+	pSectName = NULL;
 
 	// Test if CODE or DATA command
-	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA))
+	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA) ||
+		(m_Command == LKR_CMD_MIXED))
 	{
 		if (strncmp(pStr, "START=", 6) == 0)
 		{
 			// Evaluate the starting address
-			if (strcmp(pStr + 6, "codeend") == 0)
+			if (strncmp(pStr + 6, "atend(", 6) == 0)
+			{
+				// Set the START address to indicate atend of a region
 				startAddr = START_ADDR_CODEEND;
+
+				// Parse the region name from the string
+				if (pStr[strlen(pStr)-1] == ')')
+				{
+					pStr[strlen(pStr)-1] = '\0';
+					pSectName = pStr + 12;
+				}
+				else
+				{
+					// Parse error!  Expected ')'
+					err.Format("Error in line %d(%s):  Expected ')'", lineNo,
+						(const char *) m_LinkerScript);
+					m_Errors.Add(err);
+					m_Command = LKR_CMD_ERROR;
+				}
+			}
 			else
 				startAddr = EvaluateScriptAddress(pStr + 6, lineNo);
 		}
 		else
 		{
-			err.Format("%sExpected START address in linker script on line %d",
-				gsEdl, lineNo);
+			err.Format("Error in line %d(%s):  Expected START address", lineNo,
+				(const char *) m_LinkerScript);
 			m_Errors.Add(err);
 			m_Command = LKR_CMD_ERROR;
 		}
@@ -391,8 +466,8 @@ void VTLinker::ProcScriptField3(const char *pStr, int lineNo, int& startAddr)
 	{
 		if (strcmp(pStr, "{") != 0)
 		{
-			err.Format("%sExpected open brace in linker script on line %d",
-				gsEdl, lineNo);
+			err.Format("Error in line %d(%s):  Expected open brace", lineNo,
+				(const char *) m_LinkerScript);
 			m_Errors.Add(err);
 			m_Command = LKR_CMD_ERROR;
 		}
@@ -405,7 +480,8 @@ void VTLinker::ProcScriptField3(const char *pStr, int lineNo, int& startAddr)
 	// Other commands don't have more than 2 fields
 	else
 	{
-		err.Format("%sTo many linker script arguments in line %d", gsEdl, lineNo);
+		err.Format("Error in line %d(%s):  To many arguments", lineNo, 
+			(const char *) m_LinkerScript);
 		m_Errors.Add(err);
 		m_Command = LKR_CMD_ERROR;
 	}
@@ -425,7 +501,8 @@ void VTLinker::ProcScriptField4(const char *pStr, int lineNo, int& endAddr)
 	endAddr = -1;
 
 	// Test if CODE or DATA command
-	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA))
+	if ((m_Command == LKR_CMD_CODE) || (m_Command == LKR_CMD_DATA) ||
+		(m_Command == LKR_CMD_MIXED))
 	{
 		if (strncmp(pStr, "END=", 4) == 0)
 		{
@@ -434,8 +511,8 @@ void VTLinker::ProcScriptField4(const char *pStr, int lineNo, int& endAddr)
 		}
 		else
 		{
-			err.Format("%sExpected END address in linker script on line %d",
-				gsEdl, lineNo);
+			err.Format("Error in line %d(%s):  Expected END address in linker script",
+				lineNo, (const char *) m_LinkerScript);
 			m_Errors.Add(err);
 			m_Command = LKR_CMD_ERROR;
 		}
@@ -468,8 +545,8 @@ void VTLinker::AddOrderedSegment(const char *pStr, int lineNo)
 		// Test if this segment has already been defined as ordered
 		if (m_LinkOrderList.Lookup(m_SegName, (VTObject *&) pOrder))
 		{
-			err.Format("%sOrder already specified for %s on line %d",
-				gsEdl, (const char *) m_SegName, lineNo);
+			err.Format("Error in line %d(%s):  Order already specified for %s",
+				lineNo, (const char *) m_LinkerScript, (const char *) m_SegName);
 			m_Errors.Add(err);
 			delete m_ActiveLinkOrder;
 			m_ActiveLinkOrder = NULL;
@@ -504,8 +581,8 @@ void VTLinker::AddContainsSegment(const char *pStr, int lineNo)
 		// Test if this segment has already been defined as ordered
 		if (m_LinkContainsList.Lookup(m_SegName, (VTObject *&) pOrder))
 		{
-			err.Format("%sContainment already specified for %s on line %d",
-				gsEdl, (const char *) m_SegName, lineNo);
+			err.Format("Error in line %d(%s):  Containment already specified for %s", lineNo, 
+				(const char *) m_LinkerScript, (const char *) m_SegName);
 			m_Errors.Add(err);
 			delete m_ActiveLinkOrder;
 			m_ActiveLinkOrder = NULL;
@@ -540,8 +617,8 @@ void VTLinker::AddEndsWithSegment(const char *pStr, int lineNo)
 		// Test if this segment has already been defined as ordered
 		if (m_LinkEndsWithList.Lookup(m_SegName, (VTObject *&) pOrder))
 		{
-			err.Format("%sENDSWITH already specified for %s on line %d",
-				gsEdl, (const char *) m_SegName, lineNo);
+			err.Format("Error in line %d(%s):  ENDSWITH already specified for %s", lineNo,
+				(const char *) m_LinkerScript, (const char *) m_SegName);
 			m_Errors.Add(err);
 			delete m_ActiveLinkOrder;
 			m_ActiveLinkOrder = NULL;
@@ -564,26 +641,56 @@ This routine processes the 2nd field from the current line o the linker
 script.  It performs operations based on the current m_Command.
 ============================================================================
 */
-void VTLinker::ProcScriptField5(const char *pStr, int lineNo, int& prot)
+void VTLinker::ProcScriptField5(const char *pStr, int lineNo, int& prot, int& atend)
 {
 	MString		err;
+	const char	*pToken, *ptr;
+	int			tokLen;
 
 	// Initialize startAddr in case error or ORDER command
 	prot = FALSE;
+	atend = FALSE;
 
-	// Test if CODE or DATA command with PROTECTED option
+	// Test if CODE, DATA or MIXED command with PROTECTED or ATEND option
 	if (m_Command & LKR_CMD_CD_DONE)
 	{
-		if (strcmp(pStr, "PROTECTED") == 0)
+		pToken = pStr;
+		while (pToken != NULL && *pToken != '\0')
 		{
-			prot = TRUE;
-		}
-		else
-		{
-			err.Format("%sExpected argument in linker script on line %d",
-				gsEdl, lineNo);
-			m_Errors.Add(err);
-			m_Command = LKR_CMD_ERROR;
+			// Find token length
+			tokLen = 0;
+			ptr = pToken;
+			while (*ptr != '+' && *ptr != '\0')
+			{
+				tokLen++;
+				ptr++;
+			}
+
+			if (strncmp(pToken, "PROTECTED", tokLen) == 0)
+			{
+				prot = TRUE;
+			}
+			else if (strncmp(pToken, "ATEND", tokLen) == 0)
+			{
+				atend = TRUE;
+			}
+			else
+			{
+				char temp[128];
+				if (tokLen >= sizeof(temp) - 1)
+					tokLen = sizeof(temp) - 1;
+				strncpy(temp, pToken, tokLen);
+				temp[tokLen] = '\0';
+				err.Format("Error in line %d(%s):  Unknown region attribute %s", lineNo,
+					(const char *) m_LinkerScript, temp);
+				m_Errors.Add(err);
+				m_Command = LKR_CMD_ERROR;
+			}
+
+			// Advance to next tokan
+			pToken += tokLen;
+			if (*pToken == '+')
+				pToken++;
 		}
 	}
 
@@ -604,7 +711,7 @@ address definitions.
 ============================================================================
 */
 void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
-	int endAddr, int prot)
+	int endAddr, int prot, const char *pAtEndName, int atend)
 {
 	MString			err, key;
 	CLinkRgn		*pLinkRgn;
@@ -622,16 +729,17 @@ void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
 		while (pThisRange != NULL)
 		{
 			// Test if this region overlaps with new region
-			if ((startAddr >= pThisRange->startAddr) && (
+			if (((startAddr >= pThisRange->startAddr) && (
 				(startAddr <= pThisRange->endAddr)) ||
 				((endAddr >= pThisRange->startAddr) && 
 				(endAddr <= pThisRange->endAddr)) ||
 				((startAddr <= pThisRange->startAddr) &&
-				(endAddr >= pThisRange->endAddr)) &&
-				(startAddr != START_ADDR_CODEEND))
+				(endAddr >= pThisRange->endAddr))) &&
+				(startAddr != START_ADDR_CODEEND) &&
+				(startAddr != START_ADDR_DATAEND))
 			{
-				err.Format("%sLinker script address ranges cannot overlap at line %d",
-					gsEdl, lineNo);
+				err.Format("Error in line %d(%s):  Linker script address ranges cannot overlap",
+					lineNo, (const char *) m_LinkerScript);
 				m_Errors.Add(err);
 				m_Command = LKR_CMD_ERROR;
 				return;
@@ -669,7 +777,9 @@ void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
 	// Create a new link region
 	if (pLinkRgn == NULL)
 	{
-		pLinkRgn = new CLinkRgn(m_Command, m_SegName, startAddr, endAddr, prot);
+		pLinkRgn = new CLinkRgn(m_Command, m_SegName, startAddr, endAddr, prot, pAtEndName, atend);
+		pLinkRgn->m_NextLocateAddr = startAddr;
+		pLinkRgn->m_EndLocateAddr = endAddr;
 		m_LinkRegions[(const char *) m_SegName] = pLinkRgn;
 	}
 	else
@@ -678,29 +788,47 @@ void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
 		pAddrRange = new LinkAddrRange;
 		pAddrRange->startAddr = startAddr;
 		pAddrRange->endAddr = endAddr;
+		pAddrRange->nextLocateAddr = startAddr;
+		pAddrRange->endLocateAddr = endAddr;
 		pAddrRange->pNext = NULL;
+		pAddrRange->pPrev = NULL;
 
 		// Insert this address range into the list
 		pPrevRange = NULL;
 		pThisRange = pLinkRgn->m_pFirstAddrRange;
-		while ((pThisRange != NULL) && (pAddrRange->startAddr < 
-			pThisRange->startAddr))
+		while ((pThisRange != NULL) && (pThisRange->startAddr < 
+			pAddrRange->startAddr))
 		{
 			pPrevRange = pThisRange;
 			pThisRange = pThisRange->pNext;
 		}
 
+		// Update the LinkRgn's NextLocate and EndLocate addresses
+		if (pAddrRange->startAddr < pLinkRgn->m_NextLocateAddr)
+			pLinkRgn->m_NextLocateAddr = pAddrRange->startAddr;
+		if (pAddrRange->endAddr > pLinkRgn->m_EndLocateAddr)
+			pLinkRgn->m_EndLocateAddr = pAddrRange->endAddr;
+
 		// Test if new region should be inserted at beginning or in middle
 		if (pThisRange == pLinkRgn->m_pFirstAddrRange)
 		{
+			// Insert as first item
 			pAddrRange->pNext = pThisRange;
 			pLinkRgn->m_pFirstAddrRange = pAddrRange;
 		}
 		else
 		{
+			// Insert into linked list
 			pAddrRange->pNext = pThisRange;
 			pPrevRange->pNext = pAddrRange;
 		}
+
+		// Update LinkRgn's LastAddrRange if this is the last item
+		pAddrRange->pPrev = pPrevRange;
+		if (pAddrRange->pNext == NULL)
+			pLinkRgn->m_pLastAddrRange = pAddrRange;
+		else
+			pAddrRange->pNext->pPrev = pAddrRange;
 	}
 	m_Command = LKR_CMD_COMPLETE;
 }
@@ -720,7 +848,8 @@ int VTLinker::ReadLinkerScript()
 	FILE			*fd;
 	char			lineBuf[256];
 	char			*pRead, *pTok;
-	int				field, startAddr, endAddr, prot;
+	int				field, startAddr, endAddr, prot, atend;
+	char			*pSectName;
 
 	// Test if linker script was supplied
 	if (m_LinkerScript.GetLength() == 0)
@@ -756,6 +885,7 @@ int VTLinker::ReadLinkerScript()
 	lineNo = 0;
 	field = 0;
 	prot = 0;
+	atend = 0;
 	while (TRUE)
 	{
 		// Read the line from the file
@@ -789,8 +919,8 @@ int VTLinker::ReadLinkerScript()
 				if ((m_Command != LKR_CMD_NONE) && (m_Command != LKR_CMD_COMPLETE) &&
 					!(m_Command & LKR_CMD_CD_DONE))
 				{
-					err.Format("%sIncomplete linker script command on line %d",
-						gsEdl, lineNo);
+					err.Format("Error in line %d(%s):  Incomplete linker script command", lineNo,
+						(const char *) m_LinkerScript);
 					m_Errors.Add(err);
 				}
 				break;
@@ -809,7 +939,7 @@ int VTLinker::ReadLinkerScript()
 				break;
 
 			case 2:
-				ProcScriptField3(pTok, lineNo, startAddr);
+				ProcScriptField3(pTok, lineNo, startAddr, pSectName);
 				break;
 
 			case 3:
@@ -817,7 +947,7 @@ int VTLinker::ReadLinkerScript()
 				break;
 
 			case 4:
-				ProcScriptField5(pTok, lineNo, prot);
+				ProcScriptField5(pTok, lineNo, prot, atend);
 				break;
 
 			default:
@@ -844,7 +974,7 @@ int VTLinker::ReadLinkerScript()
 		{
 			// Clear the CMD_CD_DONE bit
 			m_Command &= ~LKR_CMD_CD_DONE;
-			NewLinkRegion(m_Command, lineNo, startAddr, endAddr, prot);
+			NewLinkRegion(m_Command, lineNo, startAddr, endAddr, prot, pSectName, atend);
 		}
 	}
 
@@ -871,14 +1001,14 @@ int VTLinker::ReadElfHeaders(FILE* fd, MString& filename)
 	int					bytes, c;
 	MString				err;
 
-	// Write ELF header to file
+	// Read ELF header from file
 	bytes = fread(&ehdr, 1, sizeof(ehdr), fd);
 	if ((bytes != sizeof(ehdr)) || (ehdr.e_ident[EI_MAG0] != ELFMAG0) ||
 		(ehdr.e_ident[EI_MAG1] != ELFMAG1) || (ehdr.e_ident[EI_MAG2] != ELFMAG2) ||
 		(ehdr.e_ident[EI_MAG3] != ELFMAG3))
 	{
 		fclose(fd);
-		err.Format("Error during linking:  Object file %s is not ELF format",
+		err.Format("%sObject file %s is not ELF format", gsEdl,
 			(const char *) filename);
 		m_Errors.Add(err);
 		return FALSE;
@@ -942,6 +1072,7 @@ int VTLinker::ReadElfHeaders(FILE* fd, MString& filename)
 		}
 
 		// Add this section header to the array
+		pFileSection->m_Index = c;
 		pObjFile->m_FileSections.Add(pFileSection);
 	}
 
@@ -957,7 +1088,29 @@ int VTLinker::ReadElfHeaders(FILE* fd, MString& filename)
 		}
 	}
 
+	m_ObjFiles[filename] = pObjFile;
+
 	return TRUE;
+}
+
+/*
+===============================================================================
+This routine returns a string which is the relative form of the given path
+realtive to the relTo path.  The routine detects both relativeness in bot
+directions and uses '..' as necessary in the returned string.
+===============================================================================
+*/
+MString VTLinker::MakeTitle(const MString& path)
+{
+	MString		temp;
+	int			index;
+
+	// Search for the last directory separator token
+	index = path.ReverseFind('/');
+	if (index == -1)
+		return path;
+
+	return path.Right(path.GetLength() - index - 1);
 }
 
 /*
@@ -969,15 +1122,19 @@ CObjFile object provided.
 int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile, 
 	CObjFileSection* pFileSection)
 {
-	int			bytes = 0, count, c;
-	MString		err;
-	Elf32_Shdr*	pHdr = &pFileSection->m_ElfHeader;
-	Elf32_Sym*	pSym;
-	Elf32_Rel*	pRel;
-
+	int				bytes = 0, count, c;
+	MString			err;
+	Elf32_Shdr*		pHdr = &pFileSection->m_ElfHeader;
+	Elf32_Sym*		pSym;
+	Elf32_Rel*		pRel;
+	CObjSymFile*	pSymFile;
 
 	if (pHdr->sh_offset != 0)
 		fseek(fd, pHdr->sh_offset, SEEK_SET);
+
+	// Set the Section type, size, etc.
+	pFileSection->m_Type = pHdr->sh_type;
+	pFileSection->m_Size = pHdr->sh_size;
 
 	// Test for null header
 	switch (pHdr->sh_type)
@@ -1003,13 +1160,34 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 			m_Errors.Add(err);
 			return FALSE;
 		}
+
+		// Test if the section link points to itself
+		if (pFileSection->m_Index == pHdr->sh_link)
+		{
+			if (strcmp(&pFileSection->m_pStrTab[pHdr->sh_name], ".shstrtab") == 0)
+				if (pObjFile->m_pShStrTab == NULL)
+					pObjFile->m_pShStrTab = pFileSection->m_pStrTab;
+		}
+
+		// Search for the symbol string table
+		if (pObjFile->m_pStrTab == NULL)
+		{
+			if (pObjFile->m_pShStrTab != NULL)
+				if (strcmp(&pObjFile->m_pShStrTab[pHdr->sh_name], ".strtab") == 0)
+				{
+					pObjFile->m_pStrTab = pFileSection->m_pStrTab;
+				}
+		}
 		break;
 
 	case SHT_SYMTAB:
+		if (pObjFile->m_pSymSect == NULL)
+			pObjFile->m_pSymSect = pFileSection;
+
 		count = pHdr->sh_size / sizeof(Elf32_Sym);
 		for (c = 0; c < count; c++)
 		{
-			// Allocate new symbol and rezd data from the file
+			// Allocate new symbol and read data from the file
 			pSym = new Elf32_Sym;
 			if (pSym != NULL)
 				bytes = fread(pSym, 1, sizeof(Elf32_Sym), fd);
@@ -1027,14 +1205,64 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 
 			// Add the symbol to the array
 			pFileSection->m_Symbols.Add((VTObject *) pSym);
+
+			// Add PUBLIC symbols to the global symbol table
+			if ((pObjFile->m_pStrTab != NULL) && (ELF32_ST_BIND(pSym->st_info) == STB_GLOBAL))
+			{
+				// Test if it already exists
+				if (m_Symbols.Lookup(&pObjFile->m_pStrTab[pSym->st_name], (VTObject *&) pSymFile))
+				{
+					// Error!  Duplicate global symbol
+					MString title1 = MakeTitle(pObjFile->m_Name);
+					MString title2 = MakeTitle(pSymFile->m_pObjFile->m_Name);
+					err.Format("%sPUBLIC symbol %s duplicated in file %s.  First encountered in %s",
+						gsEdl, &pObjFile->m_pStrTab[pSym->st_name], (const char *) title1,
+						(const char *) title2);
+					m_Errors.Add(err);
+					continue;
+				}
+
+				// Add the symbol to our table
+				pSymFile = new CObjSymFile();
+				pSymFile->m_pObjFile = pObjFile;
+				pSymFile->m_pObjSection = pFileSection;
+				pSymFile->m_pSym = pSym;
+				pSymFile->m_pName = &pObjFile->m_pStrTab[pSym->st_name];
+				m_Symbols[&pObjFile->m_pStrTab[pSym->st_name]] = pSymFile;
+			}
 		}
 		break;
 
 	case SHT_PROGBITS:
 		// Allocate space for bytes and read from file
 		pFileSection->m_pProgBytes = new char[pHdr->sh_size];
+		pFileSection->m_Size = pHdr->sh_size;
 		if (pFileSection->m_pProgBytes != NULL)
 			bytes = fread(pFileSection->m_pProgBytes, 1, pHdr->sh_size, fd);
+
+		// Assign the section type
+		if ((pHdr->sh_flags & SHF_8085_ABSOLUTE) &&
+			(pHdr->sh_type == SHT_PROGBITS))
+		{
+			// Type is ASEG
+			pFileSection->m_Type = ASEG;
+		}
+
+		// Test if segment is CSEG
+		else if ((pHdr->sh_flags & (SHF_ALLOC | SHF_EXECINSTR |
+			SHF_WRITE)) == (SHF_ALLOC | SHF_EXECINSTR))
+		{
+			// Type is CSEG
+			pFileSection->m_Type = CSEG;
+		}
+
+		// Test if segment is DSEG
+		else if ((pHdr->sh_flags & (SHF_ALLOC | SHF_EXECINSTR |
+			SHF_WRITE)) == SHF_WRITE)
+		{
+			// Type is DSEG
+			pFileSection->m_Type = DSEG;
+		}
 
 		// Test for error during read
 		if (bytes != pHdr->sh_size)
@@ -1047,6 +1275,7 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 		break;
 
 	case SHT_REL:
+		// Now loop through all all relocation elements
 		count = pHdr->sh_size / sizeof(Elf32_Rel);
 		for (c = 0; c < count; c++)
 		{
@@ -1070,6 +1299,52 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 			pFileSection->m_Reloc.Add((VTObject *) pRel);
 		}
 		break;
+	}
+
+	return TRUE;
+}
+
+/*
+============================================================================
+This routine loops through all sections of all object files and assignes 
+the m_Name variable based on the sections name index into the string
+table read from the file.
+============================================================================
+*/
+int VTLinker::AssignSectionNames()
+{
+	CObjFile*			pObjFile;
+	int					count, c;
+	CObjFileSection*	pFileSection;
+	bool				segmentFound = false;
+	char *				pName;
+	POSITION			pos;
+	MString				fileName;
+
+	// Find the segment to be located.  Loop through each objFile...
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get next ObjectFile pointer
+		m_ObjFiles.GetNextAssoc(pos, fileName, (VTObject *&) pObjFile);
+
+		if (pObjFile->m_pShStrTab == NULL)
+			continue;
+
+		// Loop through this file's obj sections and search for each segment
+		count = pObjFile->m_FileSections.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			// Get a pointer to the segment data so we know which index it is
+			pFileSection = (CObjFileSection *) pObjFile->m_FileSections[c];
+
+			// Point to start of string table and loop to find the correct index
+			pName = &pObjFile->m_pShStrTab[pFileSection->m_ElfHeader.sh_name];
+			
+			// Finally, assign the name to the segment
+			if (*pName != '\0')
+				pFileSection->m_Name = pName;
+		}
 	}
 
 	return TRUE;
@@ -1112,7 +1387,7 @@ int VTLinker::ReadObjFiles()
 			for (x = 0; x < dirs; x++)
 			{
 				// Prepend the next object directory
-				temp = m_ObjDirs[c] + pFile;
+				temp = m_ObjDirs[x] + pFile;
 				fd = fopen((const char *) temp, "rb");
 				if (fd != NULL)
 					break;
@@ -1131,6 +1406,9 @@ int VTLinker::ReadObjFiles()
 		ReadElfHeaders(fd, temp);
 	}
 
+	// Assign Section Names
+	AssignSectionNames();
+
 	if (m_Errors.GetSize() != 0)
 		return FALSE;
 
@@ -1139,20 +1417,361 @@ int VTLinker::ReadObjFiles()
 
 /*
 ============================================================================
+This function locates a specific named segment into a named region.
+============================================================================
+*/
+int VTLinker::LocateSegmentIntoRegion(MString& region, MString& segment, bool atEnd)
+{
+	MString				err;
+	CObjFile*			pObjFile;
+	int					count, c;
+	CObjFileSection*	pFileSection;
+	bool				segmentFound = false;
+	POSITION			pos;
+	MString				fileName;
+
+	// Find the segment to be located.  Loop through each objFile...
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get next ObjectFile pointer
+		m_ObjFiles.GetNextAssoc(pos, fileName, (VTObject *&) pObjFile);
+		segmentFound = false;
+
+		// Loop through this file's obj sections and search for the segment
+		count = pObjFile->m_FileSections.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			pFileSection = (CObjFileSection *) pObjFile->m_FileSections[c];
+			if (pFileSection->m_Name == segment && pFileSection->m_ElfHeader.sh_type == SHT_PROGBITS)
+			{
+				// Segment found
+				segmentFound = true;
+				break;
+			}
+		}
+		if (!segmentFound)
+			continue;
+
+		if (!LocateSegmentIntoRegion(region, pFileSection, atEnd))
+			return FALSE;
+	}
+
+	return TRUE;
+}
+
+/*
+============================================================================
+This function locates a specific named segment into a named region.
+============================================================================
+*/
+int VTLinker::LocateSegmentIntoRegion(MString& region, CObjFileSection* pFileSection, 
+									  bool atEnd)
+{
+	CLinkRgn*			pLinkRgn;
+	MString				err;
+	int					c, locateAddr, segSize;
+	bool				segmentFound = false;
+	MString				fileName;
+	LinkAddrRange*		pAddrRange;
+	static const char*	sSegType[] = { "ASEG", "CSEG", "DSEG" };
+	MString				segment = pFileSection->m_Name;
+
+	// Find the region where we will locate the segment
+	if (!m_LinkRegions.Lookup((const char *) region, (VTObject *&) pLinkRgn))
+	{
+		// Report error of unknown segment type
+		err.Format("%sLink region %s not defined trying to locate segment %s", gsEdl, (const char *) region,
+			(const char *) pFileSection->m_Name);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	// Check if location into this region is complete and simply exit if it is
+	if (pLinkRgn->m_LocateComplete)
+		return TRUE;
+
+	// Check if region is valid yet (it may have a START with an "atend" specification
+	// that hasn't been met yet).
+	if (pLinkRgn->m_pFirstAddrRange->startAddr < 0)
+		return TRUE;
+
+	// Validate the segment isn't already located
+	if (pFileSection->m_Located)
+	{
+		err.Format("%sSegment %s specified in multiple locations in linker script", gsEdl, 
+			(const char *) segment);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	// Validate the segment is the proper type for the region
+	if (((((pFileSection->m_Type == ASEG) || (pFileSection->m_Type == CSEG)) && (pLinkRgn->m_Type != LKR_CMD_CODE)) ||
+		((pFileSection->m_Type == DSEG) && (pLinkRgn->m_Type != LKR_CMD_DATA))) && (pLinkRgn->m_Type != LKR_CMD_MIXED))
+	{
+		err.Format("%sSegment %s type (%s) does not match region %s", gsEdl, (const char *) segment,
+			sSegType[pFileSection->m_Type], (const char *) region);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	// If the Link Region is protected, ensure the Segment name and Link Region name match
+	if (pLinkRgn->m_Protected && (pFileSection->m_Name != pLinkRgn->m_Name))
+	{
+		err.Format("%sCannot place segment %s into protected region %s", gsEdl, (const char *) segment,
+			(const char *) region);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	// Get the size of the segment to be located
+	segSize = pFileSection->m_Size;
+
+	// If segment has the ATEND attribte, then force the atend parameter
+	if (pLinkRgn->m_AtEnd)
+		atEnd = TRUE;
+
+	if (pFileSection->m_Type == ASEG)
+	{
+		// Place at an absolute location
+		// Get pointer to Link Rgn's first AddrRange
+		pAddrRange = pLinkRgn->m_pFirstAddrRange;
+		locateAddr = pFileSection->m_ElfHeader.sh_addr;
+
+		// Find the first region where this segment is supposed to live
+		while (pAddrRange && (pAddrRange->endAddr < locateAddr))
+		{
+			// Get pointer to next AddrRange
+			pAddrRange = pAddrRange->pNext;
+		}
+
+		// Validate the range was found
+		if ((pAddrRange == NULL) || (pAddrRange->startAddr > locateAddr) ||
+			(locateAddr + segSize > pAddrRange->endAddr))
+		{
+			err.Format("%sNo Link Range found for ASEG %s (addr=%d, size=%d)", gsEdl, 
+				(const char *) segment,	locateAddr, segSize);
+			m_Errors.Add(err);
+			return FALSE;
+		}
+
+		// Validate we don't have overlapping ASEGs
+		for (c = locateAddr; c < locateAddr + segSize; c++)
+		{
+			if (m_SegMap[c] != NULL)
+			{
+				err.Format("%sSegment %s overlaps segment %s at address %d", gsEdl, 
+					(const char *) segment,	(const char *) m_SegMap[c]->m_Name, c);
+				m_Errors.Add(err);
+				return FALSE;
+			}
+		}
+	}
+	else
+	{
+		// Locate the segment into the region anywhere.  Find the address where it will live
+		if (atEnd)
+		{
+			// Get pointer to Link Rgn's first AddrRange
+			pAddrRange = pLinkRgn->m_pLastAddrRange;
+
+			// Find the first region with enough space to hold the segment
+			while (pAddrRange && (pAddrRange->endLocateAddr - pAddrRange->nextLocateAddr < segSize))
+			{
+				// Get pointer to next AddrRange
+				pAddrRange = pAddrRange->pPrev;
+			}
+
+			// Test if a segment large enough was found
+			if (pAddrRange == NULL)
+			{
+				err.Format("%sLink Range %s too small for segment %s", gsEdl, (const char *) region,
+					(const char *) segment);
+				m_Errors.Add(err);
+				return FALSE;
+			}
+
+			// Update region's nextLocateAddr
+			locateAddr = pAddrRange->endLocateAddr - segSize;
+			pAddrRange->endLocateAddr -= segSize;
+		}
+		else
+		{
+			// Get pointer to Link Rgn's first AddrRange
+			pAddrRange = pLinkRgn->m_pFirstAddrRange;
+
+			// Find the first region with enough space to hold the segment
+			while (pAddrRange && (pAddrRange->endLocateAddr - pAddrRange->nextLocateAddr < segSize))
+			{
+				// Get pointer to next AddrRange
+				pAddrRange = pAddrRange->pNext;
+			}
+
+			// Test if a segment large enough was found
+			if (pAddrRange == NULL)
+			{
+				err.Format("%sLink Range %s too small for segment %s", gsEdl, (const char *) region,
+					(const char *) segment);
+				m_Errors.Add(err);
+				return FALSE;
+			}
+
+			// Update region's nextLocateAddr
+			locateAddr = pAddrRange->nextLocateAddr;
+			pAddrRange->nextLocateAddr += segSize;
+		}
+	}
+
+	// Finally, locate the segment
+	for (c = locateAddr; c < locateAddr + segSize; c++)
+	{
+		// Mark the Segment map as being allocated to this file section
+		m_SegMap[c] = pFileSection;
+	}
+
+	// Mark the segment as located
+	pFileSection->m_LocateAddr = locateAddr;
+	pFileSection->m_Located = true;
+
+	if (pFileSection->m_Type == DSEG)
+		m_TotalDataSpace += segSize;
+	else 
+		m_TotalCodeSpace += segSize;
+
+	return TRUE;
+}
+
+/*
+============================================================================
+This function locates segments based on ORDER.
+============================================================================
+*/
+int VTLinker::LocateOrderedSegments()
+{
+	POSITION			pos;
+	MString				name;
+	MStringArray*		pSegmentNames;
+	int					count, c;
+	int					success = TRUE;
+
+	pos = m_LinkOrderList.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this entry's data
+		m_LinkOrderList.GetNextAssoc(pos, name, (VTObject *&) pSegmentNames);
+
+		// Loop through each entry and locate that segment 
+		count = pSegmentNames->GetSize();
+		for (c = 0; c < count; c++)
+		{
+			// Now locate this segment into the named region
+			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c)))
+				success = FALSE;
+		}
+	}
+
+	return success;
+}
+
+/*
+============================================================================
+This function locates segments based on ENDSWITH.
+============================================================================
+*/
+int VTLinker::LocateEndsWithSegments()
+{
+	POSITION			pos;
+	MString				name;
+	MStringArray*		pSegmentNames;
+	int					count, c;
+	int					success = TRUE;
+
+	pos = m_LinkEndsWithList.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this entry's data
+		m_LinkEndsWithList.GetNextAssoc(pos, name, (VTObject *&) pSegmentNames);
+
+		// Loop through each entry and locate that segment 
+		count = pSegmentNames->GetSize();
+		for (c = count-1; c >= 0; c--)
+		{
+			printf("Locating ENDSWITH segment %s\n", (const char *) pSegmentNames->GetAt(c));
+			// Now locate this segment into the named region
+			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c), true))
+				success = FALSE;
+		}
+	}
+
+	return success;
+}
+
+/*
+============================================================================
+This function locates segments based on CONTAINS.
+============================================================================
+*/
+int VTLinker::LocateContainsSegments()
+{
+	POSITION			pos;
+	MString				name;
+	MStringArray*		pSegmentNames;
+	int					count, c;
+	int					success = TRUE;
+
+	pos = m_LinkContainsList.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this entry's data
+		m_LinkContainsList.GetNextAssoc(pos, name, (VTObject *&) pSegmentNames);
+
+		// Loop through each entry and locate that segment 
+		count = pSegmentNames->GetSize();
+		for (c = 0; c < count; c++)
+		{
+			// Now locate this segment into the named region
+			if (!LocateSegmentIntoRegion(name, pSegmentNames->GetAt(c)))
+				success = FALSE;
+		}
+	}
+
+	return success;
+}
+
+/*
+============================================================================
 This function locates segments from the input files as per the linker script
 regions that have been defined.
 ============================================================================
 */
-int VTLinker::LocateSegments()
+int VTLinker::LocateNondependantSegments()
 {
 	POSITION			pos;
-//	CObjSegement*		pSeg;
 	CObjFile*			pObjFile;
 	CObjFileSection*	pFileSect;
 	int					sect, sectCount;
 	MString				err, filename;
+	int					success = TRUE;
+	MString				aseg = ".aseg";
+	MString				data = ".data";
+	MString				text = ".text";
 
-	// Loop for all object files loaded
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Locate segments based on ORDER from the Linker Script
+	success = LocateOrderedSegments();
+
+	// Locate segments based on ENDSWITH from the Linker Script
+	if (!LocateEndsWithSegments())
+		success = FALSE;
+
+	// Locate segments based on CONTAINS from the Linker Script
+	if (!LocateContainsSegments())
+		success = FALSE;
+
+	// Loop for all object files loaded and locate any that have not been located yet
 	pos = m_ObjFiles.GetStartPosition();
 	while (pos != NULL)
 	{
@@ -1163,6 +1782,8 @@ int VTLinker::LocateSegments()
 		sectCount = pObjFile->m_FileSections.GetSize();
 		for (sect = 0; sect < sectCount; sect++)
 		{
+			CLinkRgn* pLinkRgn;
+
 			// Get pointer to next file section for this file
 			pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
 
@@ -1173,25 +1794,44 @@ int VTLinker::LocateSegments()
 				continue;
 			}
 
+			// Test if this segment has already been located
+			if (pFileSect->m_Located)
+			{
+				continue;
+			}
+
+			printf("Locating segment %s from file %s\n", (const char *) pFileSect->m_Name, 
+				(const char *) pObjFile->m_Name);
+
+			// Test if the segment has a named link region
+			if (m_LinkRegions.Lookup((const char *) pFileSect->m_Name, (VTObject *&) pLinkRgn))
+			{
+				// Locate the segment into the region with the same name
+				LocateSegmentIntoRegion(pLinkRgn->m_Name, pFileSect);
+			}
+
 			// Test if segment is ASEG
-			if ((pFileSect->m_ElfHeader.sh_flags & SHF_8085_ABSOLUTE) &&
+			else if ((pFileSect->m_ElfHeader.sh_flags & SHF_8085_ABSOLUTE) &&
 				(pFileSect->m_ElfHeader.sh_type == SHT_PROGBITS))
 			{
-				LocateAsegSegment(pFileSect);
+				// Locate ASEGs into the .aseg linker region
+				LocateSegmentIntoRegion(aseg, pFileSect);
 			}
 
 			// Test if segment is CSEG
 			else if ((pFileSect->m_ElfHeader.sh_flags & (SHF_ALLOC | SHF_EXECINSTR |
 				SHF_WRITE)) == (SHF_ALLOC | SHF_EXECINSTR))
 			{
-				LocateCsegSegment(pFileSect);
+				// Locate CSEGs into the .text linker region
+				LocateSegmentIntoRegion(text, pFileSect);
 			}
 
 			// Test if segment is DSEG
 			else if ((pFileSect->m_ElfHeader.sh_flags & (SHF_ALLOC | SHF_EXECINSTR |
 				SHF_WRITE)) == SHF_WRITE)
 			{
-				LocateDsegSegment(pFileSect);
+				// Locate DSEGs into the .data linker region
+				LocateSegmentIntoRegion(data, pFileSect);
 			}
 
 			// Unknown segment type
@@ -1209,37 +1849,725 @@ int VTLinker::LocateSegments()
 
 /*
 ============================================================================
-Tries to locate the given ASEG segment
+This function locates segments from the input files as per the linker script
+regions that have been defined.  It calls the LocateDependantSegments function
+repeated, progressively resolving segment dependencies until all dependencies
+have been resolved.  This takes care of regions whose START address is relative
+to the end ("atend") of another segment.
 ============================================================================
 */
-int VTLinker::LocateAsegSegment(CObjFileSection* pFileSect)
+int VTLinker::LocateSegments()
 {
+	int				allDependenciesMet = FALSE;
+	int				newResolve;
+	unsigned short	lastAddr;
+	int				c;
+	CLinkRgn*		pLinkRgn;
+	POSITION		pos;
+	MString			name;
+
+	// Loop until all segment dependencies resolved
+	while (!allDependenciesMet)
+	{
+		// Locate segments into non-dependant regions
+		LocateNondependantSegments();
+
+		// Mark all non-dependant regions as located
+		pos = m_LinkRegions.GetStartPosition();
+		while (pos)
+		{
+			// Get next link region
+			m_LinkRegions.GetNextAssoc(pos, name, (VTObject *&) pLinkRgn);
+			if (pLinkRgn->m_pFirstAddrRange->startAddr >= 0)
+				pLinkRgn->m_LocateComplete = TRUE;
+		}
+
+		// Check if any more dependencies to resolve.  We will stop at the
+		// first resolved dependency and locate segments again.  This takes
+		// care of the case when multiple regions are dependent on the same
+		// "atend(.regionname)".
+		newResolve = FALSE;
+		pos = m_LinkRegions.GetStartPosition();
+		while (pos)
+		{
+			// Get next link region
+			m_LinkRegions.GetNextAssoc(pos, name, (VTObject *&) pLinkRgn);
+
+			// Test if this region has been located completely
+			if (pLinkRgn->m_pFirstAddrRange->startAddr < 0)
+			{
+				// This region has a dependency still.  Test if it's dependant
+				// region has been located (and has a valid start / end address)
+				CLinkRgn*	pDepLinkRgn;
+				if (m_LinkRegions.Lookup((const char *) pLinkRgn->m_AtEndRgn, (VTObject *&) pDepLinkRgn))
+				{
+					// Test if the dependant link region has been located
+					if (pDepLinkRgn->m_LocateComplete)
+					{
+						// Resolve the dependency by locating the link region at the
+						// end of the dependant region
+						lastAddr = pDepLinkRgn->m_pLastAddrRange->endAddr+1;
+						for (c = pDepLinkRgn->m_pLastAddrRange->endAddr; c >= 
+							pDepLinkRgn->m_pLastAddrRange->startAddr; c--)
+						{
+							// Find the last address used by the last address range
+							if (m_SegMap[c] != NULL)
+								break;
+							lastAddr--;
+						}
+
+						pLinkRgn->m_pFirstAddrRange->startAddr = lastAddr;
+						pLinkRgn->m_pFirstAddrRange->nextLocateAddr = lastAddr;
+
+						// Test if the link region linked-list needs to be re-ordered
+
+						// Indiacate a new dependency has been resolved and exit the while loop
+						newResolve = TRUE;
+						break;
+					}
+				}
+			}
+		}
+
+		// Check if any new dependencies resolved
+		if (newResolve == FALSE)
+			allDependenciesMet = TRUE;
+	}
+
 	return TRUE;
 }
 
 /*
 ============================================================================
-Tries to locate the given CSEG segment
+Now that all segments have been located, this function assigns physical
+addresses to local values, such as data, jump and call addresses, etc.
 ============================================================================
 */
-int VTLinker::LocateCsegSegment(CObjFileSection* pFileSect)
+CObjFileSection* VTLinker::FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel)
 {
+	int					sectCount, sect;
+	CObjFileSection*	pFileSect;
+	CObjFileSection*	pRelSect;
+
+	pRelSect = NULL;
+	sectCount = pObjFile->m_FileSections.GetSize();
+	for (sect = 0; sect < sectCount; sect++)
+	{
+		// Loop through relocation segments
+		pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
+		if (pFileSect->m_ElfHeader.sh_offset < pRel->r_offset)
+		{
+			// Validate the section type
+			if ((ELF32_R_TYPE(pRel->r_info) == SR_ADDR_XLATE) &&
+				(pFileSect->m_ElfHeader.sh_type != SHT_PROGBITS))
+					continue;
+
+			// If no rel section assigned yet, just assign it
+			if (pRelSect == NULL)
+				pRelSect = pFileSect;
+
+			// Else find the nearest section to the offset
+			else if (pRel->r_offset - pFileSect->m_ElfHeader.sh_offset <
+				pRel->r_offset - pRelSect->m_ElfHeader.sh_offset)
+					pRelSect = pFileSect;
+		}
+	}
+
+	return pRelSect;
+}
+
+/*
+============================================================================
+Now that all segments have been located, this function assigns physical
+addresses to local values, such as data, jump and call addresses, etc.
+============================================================================
+*/
+int VTLinker::ResolveLocals()
+{
+	POSITION			pos;
+	CObjFile*			pObjFile;
+	CObjFileSection*	pFileSect;
+	CObjFileSection*	pRelSect;
+	int					sect, sectCount, rel, relCount;
+	MString				err, filename;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Loop for all object files loaded
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this object file's data
+		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
+
+		// Loop through all segments and look for relocation info
+		sectCount = pObjFile->m_FileSections.GetSize();
+		for (sect = 0; sect < sectCount; sect++)
+		{
+			// Loop through relocation segments
+			pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
+			relCount = pFileSect->m_Reloc.GetSize();
+			for (rel = 0; rel < relCount; rel++)
+			{
+				// Process this relocation item
+				Elf32_Rel* pRel = (Elf32_Rel *) pFileSect->m_Reloc[rel];
+				if (ELF32_R_TYPE(pRel->r_info) == SR_ADDR_XLATE)
+				{
+					CObjFileSection* pRefSect = (CObjFileSection *) pObjFile->m_FileSections[pFileSect->m_ElfHeader.sh_info];
+					pRelSect = FindRelSection(pObjFile, pRel);
+					if (pRelSect != NULL)
+					{
+						// calculate the offset into the section
+						int offset = pRel->r_offset - pRelSect->m_ElfHeader.sh_offset;
+
+						// Get the relative jump address from the program bits
+						unsigned short addr = (((unsigned short) pRelSect->m_pProgBytes[offset]) & 0xFF) | (pRelSect->m_pProgBytes[offset+1] << 8);
+
+						// Update the address based on the segments locate address
+//						addr += pRelSect->m_LocateAddr;
+						addr += pRefSect->m_LocateAddr;
+
+						// Update the translated address in the ProgBits
+						pRelSect->m_pProgBytes[offset] = addr & 0xFF;
+						pRelSect->m_pProgBytes[offset + 1] = addr >> 8;
+
+						// Change the relocation type so we know we have translated this item
+						pRel->r_info = ELF32_R_INFO(0, SR_ADDR_PROCESSED);
+					}
+					else
+					{
+						err.Format("%sInvalid relocation at offset %d", gsEdl, pRel->r_offset);
+						m_Errors.Add(err);
+					}
+				}
+			}
+		}
+	}
+
 	return TRUE;
 }
 
 /*
 ============================================================================
-Tries to locate the given DSEG segment
+Now resolved all extern symbols.
 ============================================================================
 */
-int VTLinker::LocateDsegSegment(CObjFileSection* pFileSect)
+int VTLinker::ResolveExterns()
 {
+	POSITION			pos;
+	CObjFile*			pObjFile;
+	CObjFileSection*	pFileSect;
+	int					sect, sectCount, rel, relCount;
+	MString				err, filename;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Loop for all object files loaded
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this object file's data
+		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
+
+		// Loop through all segments and look for relocation info
+		sectCount = pObjFile->m_FileSections.GetSize();
+		for (sect = 0; sect < sectCount; sect++)
+		{
+			// Loop through relocation segments
+			pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
+
+			if (pFileSect->m_Type != SHT_REL)
+				continue;
+			
+			CObjFileSection* pObjSect = (CObjFileSection *) pObjFile->m_FileSections[pFileSect->m_ElfHeader.sh_info];
+			relCount = pFileSect->m_Reloc.GetSize();
+			for (rel = 0; rel < relCount; rel++)
+			{
+				// Process this relocation item
+				Elf32_Rel* pRel = (Elf32_Rel *) pFileSect->m_Reloc[rel];
+
+				// Test if this is an EXTERN relocation type
+				if (ELF32_R_TYPE(pRel->r_info) == SR_EXTERN)
+				{
+					// Get the EXTERN symbol name
+					if (pObjFile->m_pStrTab != NULL)
+					{
+						// First get symbol index from relocation item
+						int index = ELF32_R_SYM(pRel->r_info);
+
+						// Now get pointer to symbol data
+						Elf32_Sym* pSym	= (Elf32_Sym *) pObjFile->m_pSymSect->m_Symbols[index];
+
+						// Next lookup symbol name in string table
+						const char *pSymName = &pObjFile->m_pStrTab[pSym->st_name];
+
+						// Search for the symbol name in the global map
+						CObjSymFile* pSymFile;
+						if (m_Symbols.Lookup(pSymName, (VTObject *&) pSymFile))
+						{
+							// PUBLIC symbol found!  Now perform the link
+							// First get a pointer to the section referenced by the symbol
+							CObjFileSection* pSymSect = (CObjFileSection *) pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
+
+							// Calculate the value of the EXTERN symbol
+							unsigned short value = (unsigned short) pSymFile->m_pSym->st_value;
+							if (pSymSect->m_Type != ASEG)
+								value +=(unsigned short) pSymSect->m_LocateAddr;
+
+							// Calculate the address where we update with the symbol's value
+							if (pRel->r_offset + 1 >= (unsigned short) pObjSect->m_Size)
+							{
+								err.Format("Invalid relocation offset for section %s, symbol = %s, offset = %d, size = %d\n",
+									(const char *) pObjSect->m_Name, (const char *) pSymName, pRel->r_offset, pObjSect->m_Size);
+								m_Errors.Add(err);
+							}
+							else
+							{
+								char * pAddr = pObjSect->m_pProgBytes + pRel->r_offset;
+
+								// Update the code
+								*pAddr++ = value & 0xFF;
+								*pAddr = value >> 8;
+							}
+						}
+						else
+						{
+							MString title = MakeTitle(pObjFile->m_Name);
+							err.Format("%sUnresolved EXTERN symbol %s referenced in file %s", gsEdl, 
+								pSymName, (const char *) title);
+							m_Errors.Add(err);
+						}
+					}
+					else
+					{
+						MString title = MakeTitle(pObjFile->m_Name);
+						err.Format("%sFile %s has no string table", gsEdl, (const char *) title);
+						m_Errors.Add(err);
+					}
+				}
+			}
+		}
+	}
+
 	return TRUE;
 }
 
 /*
 ============================================================================
-The parser calls this function when it detects a list output pragma.
+Generate the output file(s).  For .CO projects, this will be the .CO file,
+for library files, a .lib, and for ROM projects, it will be a HEX file.
+============================================================================
+*/
+int VTLinker::GenerateOutputFile()
+{
+	int					startAddr, endAddr, entryAddr;
+	int					c;
+	unsigned char		temp;
+	const int			addrSize = sizeof(m_SegMap) / sizeof(void *);
+	MString				err;
+	CObjSymFile*		pSymFile;
+	MString				filename = m_RootPath + "/" + m_OutputName;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Find first address of output
+	for (startAddr = 0; startAddr < addrSize; startAddr++)
+		if (m_SegMap[startAddr] != NULL)
+			break;
+
+	// Find last address of output
+	for (endAddr = addrSize - 1; endAddr >= 0; endAddr--)
+	{
+		if (m_SegMap[endAddr] != NULL)
+		{
+			// Test if this is the ".bss" segemnt - it doesn't get written
+			// to the output file
+			if (m_SegMap[endAddr]->m_Name == ".bss")
+				continue;
+			break;
+		}
+	}
+	
+	// If build type is .CO, then create the .CO file
+	if (m_ProjectType == VT_PROJ_TYPE_CO)
+	{
+		// Determine the entry address.  If an ENTRY specification was given
+		// in the linker script, then find that symbol, otherwise use the
+		// first address of the program
+		entryAddr = startAddr;
+		if (!m_EntryLabel.IsEmpty())
+		{
+			// Search the global symbol table for the PUBLIC label
+			if (m_Symbols.Lookup((const char *) m_EntryLabel, (VTObject *&) pSymFile))
+			{
+				// PUBLIC symbol found!  Now perform the link
+				// First get a pointer to the section referenced by the symbol
+				CObjFileSection* pSymSect = (CObjFileSection *) pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
+
+				// Calculate the value of the EXTERN symbol
+				entryAddr = (unsigned short) (pSymFile->m_pSym->st_value + pSymSect->m_LocateAddr);
+			}
+			else
+			{
+				err.Format("%sUnresolved entry address %s - not defined by any object file", gsEdl, (const char *) m_EntryLabel);
+				m_Errors.Add(err);
+				return FALSE;
+			}
+		}
+
+		// Report that we are generating the output file
+		if (m_pStdoutFunc != NULL)
+		{
+			MString msg;
+			msg.Format("Generating file %s, start=0x%0X, entry=0x%0X, length=%d\n", (const char *) m_OutputName, startAddr, entryAddr, endAddr - startAddr + 1);
+			m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+		}
+
+		// Open the output file for output
+		FILE* fd;
+		if ((fd = fopen((const char *) filename, "wb")) == NULL)
+		{
+			err.Format("%sUnable to open output file %s", gsEdl, (const char *) m_OutputName);
+			m_Errors.Add(err);
+			return FALSE;
+		}
+
+		// Write the .CO header
+		temp = (unsigned char) (startAddr & 0xFF);
+		fwrite(&temp, 1, sizeof(temp), fd);
+		temp = (unsigned char) (startAddr >> 8);
+		fwrite(&temp, 1, sizeof(temp), fd);
+
+		// Write the length
+		temp = (unsigned char) ((endAddr - startAddr + 1) & 0xFF);
+		fwrite(&temp, 1, sizeof(temp), fd);
+		temp = (unsigned char) ((endAddr - startAddr + 1) >> 8);
+		fwrite(&temp, 1, sizeof(temp), fd);
+
+		// Write the entry address
+		temp = (unsigned char) (entryAddr & 0xFF);
+		fwrite(&temp, 1, sizeof(temp), fd);
+		temp = (unsigned char) (entryAddr >> 8);
+		fwrite(&temp, 1, sizeof(temp), fd);
+
+		// Finally write the output data to the file
+		unsigned char	zero = 0;
+		for (c = startAddr; c <= endAddr; )
+		{
+			// Write the next block of bytes
+			CObjFileSection *pSect = m_SegMap[c];
+			fwrite(pSect->m_pProgBytes, 1, pSect->m_Size, fd);
+		
+			// Update to the next byte to write
+			c += pSect->m_Size;
+
+			while ((m_SegMap[c] == NULL || m_SegMap[endAddr]->m_Name == ".bss") &&
+				c <= endAddr)
+			{
+				fwrite(&zero, 1, 1, fd);
+				c++;
+			}
+		}
+
+		// Close the output file
+		fclose(fd);
+	}
+
+	// Test if project type is Assembly ROM and create HEX output if it is
+	else if (m_ProjectType == VT_PROJ_TYPE_ROM)
+	{
+		// Report that we are generating the output file
+		if (m_pStdoutFunc != NULL)
+		{
+			MString msg;
+			msg.Format("Generating HEX file %s\n", (const char *) m_OutputName);
+			m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+		}
+
+		// Open the output file for output
+		FILE* fd;
+		if ((fd = fopen((const char *) filename, "wb")) == NULL)
+		{
+			err.Format("%sUnable to open output file %s", gsEdl, (const char *) filename);
+			m_Errors.Add(err);
+			return FALSE;
+		}
+
+		// Allocate a 32K memory region to hold the ROM contents
+		char * pRom = new char[32768];
+
+		// Fill contents with zero
+		for (c = 0; c < 32767; c++)
+			pRom[c] = 0;
+
+		// Copy the output data to the ROM storage
+		for (c = 0; c < 32768; )
+		{
+			// Skip empty space in the link map
+			while (m_SegMap[c] == NULL && c < 32768)
+				c++;
+
+			// Write the next block of bytes
+			CObjFileSection *pSect = m_SegMap[c];
+			if (pSect != NULL)
+			{
+				memcpy(&pRom[c], pSect->m_pProgBytes, pSect->m_Size);
+		
+				// Update to the next byte to write
+				c += pSect->m_Size;
+			}
+		}
+
+		// Write the ROM data to the HEX file
+		save_hex_file_buf(pRom, 0, 32768, 0, fd);
+
+		// Close the file
+		fclose(fd);
+
+		// Write the data out as a REX .BX file also...
+		int dot = m_OutputName.ReverseFind('.');
+		MString bxFile = m_OutputName.Left(dot) + ".bx";
+
+		// Report that we are generating the output file
+		if (m_pStdoutFunc != NULL)
+		{
+			MString msg;
+			msg.Format("Generating REX file %s\n", (const char *) bxFile);
+			m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+		}
+		filename = m_RootPath + "/" + bxFile;
+
+		// Open the output file for output
+		if ((fd = fopen((const char *) filename, "wb")) == NULL)
+		{
+			err.Format("%sUnable to open output file %s", gsEdl, (const char *) filename);
+			m_Errors.Add(err);
+			return FALSE;
+		}
+
+		// The REX BX file is a simple binary dump of the ROM contents
+		fwrite(pRom, 1, 32768, fd);
+		fclose(fd);
+
+		// Delete the ROM memory
+		delete pRom;
+	}
+
+	// We don't support Library output yet, but soon...
+	else if (m_ProjectType == VT_PROJ_TYPE_LIB)
+	{
+	}
+	return TRUE;
+}
+
+/*
+============================================================================
+Generates a map file if one was requested and no errors exist during the
+assemble / link.
+============================================================================
+*/
+int VTLinker::GenerateMapFile(void)
+{
+	MString		err, filename;
+	FILE*		fd;
+	int			c, count;
+	int			codeSize = 0, dataSize = 0;
+	VTObArray	m_Sorted;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Test if MAP file generation requested
+	if (m_LinkOptions.Find("-m") == -1)
+		return FALSE;
+
+	// Okay, generate the map file, replacing any old one found
+	int dot = m_OutputName.ReverseFind('.');
+	MString mapFile = m_OutputName.Left(dot) + ".map";
+
+	// Report that we are generating the output file
+	if (m_pStdoutFunc != NULL)
+	{
+		MString msg;
+		msg.Format("Generating MAP file %s\n", (const char *) mapFile);
+		m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+	}
+	filename = m_RootPath + "/" + mapFile;
+
+	// Open the output file for output
+	if ((fd = fopen((const char *) filename, "wb")) == NULL)
+	{
+		err.Format("%sUnable to open output file %s", gsEdl, (const char *) filename);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	fprintf(fd, " VirtualT %s, Linker\n", VERSION);
+	fprintf(fd, " Linker Map File - %s\n\n", (const char *) mapFile); 
+	fprintf(fd, "                                 Section Info\n");
+	fprintf(fd, "                  Section    Type  Address  End Addr  Size(Bytes)\n");
+	fprintf(fd, "                ---------  ------  -------  --------  ----------\n");
+
+	// Loop through the segment map and report the location of all segments
+	for (c = 0; c < 65536; )
+	{
+		// Skip empty space in the link map
+		while (m_SegMap[c] == NULL && c < 65536)
+			c++;
+
+		if (c == 65536)
+			break;
+
+		// Write the next block of bytes
+		CObjFileSection *pSect = m_SegMap[c];
+		if (pSect != NULL)
+		{
+			const char *pType;
+			if (pSect->m_Type == DSEG)
+				pType = "data";
+			else
+				pType = "code";
+			int size = pSect->m_Size;
+
+			// Check segments after this one for the same name and concatenate them
+			// together in the map listing
+			CObjFileSection *pNextSect = m_SegMap[c + pSect->m_Size];
+			int next = c + pSect->m_Size;
+			while (pNextSect != NULL)
+			{
+				if (pNextSect->m_Name == pSect->m_Name)
+				{
+					size += pNextSect->m_Size;
+					next += pNextSect->m_Size;
+					pNextSect = m_SegMap[next];
+				}
+				else
+					break;
+			}
+
+			fprintf(fd, "%25s  %6s   0x%04x    0x%04x    0x%04x\n", (const char *) pSect->m_Name,
+				pType, pSect->m_LocateAddr, pSect->m_LocateAddr + size - 1, size);
+
+			// Keep track of total code and data size
+			if (pSect->m_Type == DSEG)
+				dataSize += size;
+			else
+				codeSize += size;
+
+			c += size;
+		}
+	}
+
+	// Report the code and data usage
+	fprintf(fd, "\n\n               Code size = %d,  Data size = %d,  Total = %d\n\n\n\n", 
+		m_TotalCodeSpace, m_TotalDataSpace, m_TotalCodeSpace + m_TotalDataSpace);
+
+	// Now report the symbols and their values
+	POSITION		pos;
+	CObjSymFile*	pObjSymFile;
+	MString			key;
+
+	fprintf(fd, "                              Symbols - Sorted by Name\n");
+	fprintf(fd, "                     Name  Address       Type  File\n");
+	fprintf(fd, "                ---------  -------  ---------  ---------\n");               
+
+	// Loop through all Symbols and delete them
+	pos = m_Symbols.GetStartPosition();
+	while (pos != NULL)
+	{
+		m_Symbols.GetNextAssoc(pos, key, (VTObject *&) pObjSymFile);
+		CObjSymFile* pComp;
+
+		count = m_Sorted.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			pComp = (CObjSymFile *) m_Sorted[c];
+			if (strcmp(pComp->m_pName, pObjSymFile->m_pName) > 0)
+				break;
+		}
+		m_Sorted.InsertAt(c, pObjSymFile);
+	}
+
+	// Now print the sorted array
+	count = m_Sorted.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pObjSymFile = (CObjSymFile *) m_Sorted[c];
+
+		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
+			pObjSymFile->m_pSym->st_shndx];
+
+		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
+			pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr, 
+			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? "data" : "function", 
+			(const char *) pObjSymFile->m_pObjFile->m_Name);
+	}
+
+	// Remove all items from the sort array and re-sort by address
+	m_Sorted.RemoveAll();
+
+	fprintf(fd, "\n\n\n                              Symbols - Sorted by Address\n");
+	fprintf(fd, "                     Name  Address       Type  File\n");
+	fprintf(fd, "                ---------  -------  ---------  ---------\n");               
+
+	// Loop through all Symbols and delete them
+	pos = m_Symbols.GetStartPosition();
+	while (pos != NULL)
+	{
+		m_Symbols.GetNextAssoc(pos, key, (VTObject *&) pObjSymFile);
+		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
+			pObjSymFile->m_pSym->st_shndx];
+		CObjSymFile* pComp;
+
+		count = m_Sorted.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			pComp = (CObjSymFile *) m_Sorted[c];
+			CObjFileSection* pCompSect = (CObjFileSection *) pComp->m_pObjFile->m_FileSections[
+				pComp->m_pSym->st_shndx];
+			if (pComp->m_pSym->st_value + pCompSect->m_LocateAddr > 
+				pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr)
+					break;
+		}
+		m_Sorted.InsertAt(c, pObjSymFile);
+	}
+
+	// Now print the sorted array
+	count = m_Sorted.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		pObjSymFile = (CObjSymFile *) m_Sorted[c];
+		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
+			pObjSymFile->m_pSym->st_shndx];
+
+		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
+			pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr, 
+			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? "data" : "function", 
+			(const char *) pObjSymFile->m_pObjFile->m_Name);
+	}
+
+	// Remove all entries from the Sorted array
+	m_Sorted.RemoveAll();
+
+	fprintf(fd, "\n\n");
+
+	// Close the map file
+	fclose(fd);
+
+	return TRUE;
+}
+
+/*
+============================================================================
+The parser calls this function to perform the link operation after all
+files have been assembled.
 ============================================================================
 */
 int VTLinker::Link()
@@ -1256,25 +2584,25 @@ int VTLinker::Link()
 	// Read the linker script
 	ReadLinkerScript();
 	
-	// Loop through all files to be linked
+	// Load all files to be linked
 	ReadObjFiles();
 
 	// Locate segments based on commands in the Linker Script
 	LocateSegments();
 
 	// Resolve static (local) symbols for each segment
+	ResolveLocals();
 
 	// Resolve segment extern symbols
-
-	// Test for unresolved symbols
+	ResolveExterns();
 
 	// Generate output file
+	GenerateOutputFile();
 
 	// Generate debug information
 
-	// Generate hex file
-
 	// Generate map file
+	GenerateMapFile();
 
 	// Back annotate Listing files with actual addresses
 
@@ -1372,7 +2700,7 @@ void VTLinker::CalcObjDirs(void)
 	m_ObjDirs.RemoveAll();
 
 	// Add the root directory to the ObjDirs
-	m_ObjDirs.Add(m_RootPath);
+	m_ObjDirs.Add(m_RootPath+"/");
 
 	// Check if there is an include path
 	if (m_ObjPath.GetLength() == 0)
@@ -1434,15 +2762,26 @@ Constructor for the CLinkRgn object.  This object is used to keep track of
 regions defined in the linker script.
 ============================================================================
 */
-CLinkRgn::CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot)
+CLinkRgn::CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot, 
+				   const char* pAtEndName, int atend)
 {
 	m_Type = type; 
 	m_Name = name; 
+	if (pAtEndName != NULL)
+		m_AtEndRgn = pAtEndName;
 	m_Protected = prot;
+	m_AtEnd = atend;
+	m_LocateComplete = FALSE;
 	m_pFirstAddrRange = new LinkAddrRange;
+	m_pLastAddrRange = m_pFirstAddrRange;
 	m_pFirstAddrRange->startAddr = startAddr;
 	m_pFirstAddrRange->endAddr = endAddr;
 	m_pFirstAddrRange->pNext = NULL;
+	m_pFirstAddrRange->pPrev = NULL;
+	m_pFirstAddrRange->nextLocateAddr = startAddr;
+	m_pFirstAddrRange->endLocateAddr = endAddr;
+	m_NextLocateAddr = startAddr;
+	m_EndLocateAddr = endAddr;
 }
 
 CLinkRgn::~CLinkRgn()

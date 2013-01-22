@@ -28,11 +28,15 @@
 #define		LKR_CMD_ORDER		5
 #define		LKR_CMD_CONTAINS	6
 #define		LKR_CMD_ENDSWITH	7
+#define		LKR_CMD_ENTRY		8
+#define		LKR_CMD_DEFINE		9
+#define		LKR_CMD_MIXED		10
 #define		LKR_CMD_CD_DONE		0x80
 #define		LKR_CMD_ERROR		98
 #define		LKR_CMD_COMPLETE	99
 
 #define		START_ADDR_CODEEND	-2
+#define		START_ADDR_DATAEND	-3
 
 #define		PAGE			1
 #define		INPAGE			2
@@ -53,7 +57,10 @@
 typedef struct sLinkAddrRange {
 	int						startAddr;
 	int						endAddr;
+	int						nextLocateAddr;
+	int						endLocateAddr;
 	struct sLinkAddrRange*	pNext;
+	struct sLinkAddrRange*	pPrev;
 } LinkAddrRange;
 
 class CObjSegment : public VTObject
@@ -115,7 +122,8 @@ public:
 class CObjFileSection : public VTObject
 {
 public:
-	CObjFileSection() { m_pStrTab = NULL; m_pObjSegment = NULL; m_pProgBytes = NULL; };
+	CObjFileSection() { m_pStrTab = NULL; m_pObjSegment = NULL; m_pProgBytes = NULL; m_Located = false;
+						m_LocateAddr = -1; m_Size = 0; m_Index = -1; };
 	~CObjFileSection();
 
 	Elf32_Shdr			m_ElfHeader;		// The ELF header as read from the file
@@ -124,19 +132,31 @@ public:
 	VTObArray			m_Symbols;			// Symbols from the symbol table
 	VTObArray			m_Reloc;			// Relocation entries 
 	char*				m_pProgBytes;		// Pointer to program bytes
+	int					m_Size;				// Size of the ProgBytes
+	int					m_Index;			// Index of this section in the object file
+	bool				m_Located;			// Indicates if this section has been located
+	int					m_LocateAddr;		// Address where the segment was located by linker
+	MString				m_Name;				// Name of the section
+	int					m_Type;				// Segment type for segment sections
 };
 
 class CLinkRgn : public VTObject
 {
 public:
-	CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot);
+	CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot, const char* pAtEndName, int atend);
 	~CLinkRgn();
 
 // Attributes
 	MString				m_Name;
 	LinkAddrRange*		m_pFirstAddrRange;
+	LinkAddrRange*		m_pLastAddrRange;
+	MString				m_AtEndRgn;
 	int					m_Type;
 	int					m_Protected;
+	int					m_AtEnd;
+	int					m_NextLocateAddr;
+	int					m_EndLocateAddr;
+	int					m_LocateComplete;
 };
 
 typedef void (*stdOutFunc_t)(void *pContext, const char *msg);
@@ -144,15 +164,30 @@ typedef void (*stdOutFunc_t)(void *pContext, const char *msg);
 class CObjFile : public VTObject
 {
 public:
-	CObjFile(const char* name) { m_Name = name; };
+	CObjFile(const char* name) { m_Name = name; m_pShStrTab = NULL; m_pStrTab = NULL;
+				m_pSymSect = NULL; }
 	~CObjFile();
 
 // Attributes
 	MString				m_Name;				// Filename
 	VTObArray			m_FileSections;		// Array of file sections
 	Elf32_Ehdr			m_Ehdr;				// The main ELF header
+	char*				m_pStrTab;			// Pointer to the string table, if any (not alloced or freed by CObjFile)
+	char*				m_pShStrTab;		// Pointer to the string table, if any (not alloced or freed by CObjFile)
+	CObjFileSection*	m_pSymSect;			// Object file Symbol Table section pointer
 };
 
+class CObjSymFile : public VTObject
+{
+public:
+	CObjSymFile() { m_pObjFile = NULL; m_pObjSection = NULL; }
+
+// Attributes
+	CObjFile*			m_pObjFile;			// Pointer to the ObjFile where the symbol came from
+	CObjFileSection*	m_pObjSection;		// Pointer to the File Section
+	Elf32_Sym*			m_pSym;				// Pointer to the symbol data
+	const char *		m_pName;			// Pointer to the name string
+};
 
 class VTLinker : public VTObject
 {
@@ -161,7 +196,7 @@ public:
 	~VTLinker();
 
 // Attributes
-
+private:
 	VTMapStringToOb		m_UndefSymbols;		// Map of undefined symbols
 	VTMapStringToOb		m_Symbols;			// Map of Symbols
 	VTMapStringToOb		m_ObjFiles;			// Array of CObjFile objects
@@ -181,13 +216,17 @@ public:
 	int					m_ProjectType;
 	int					m_FileIndex;
 	int					m_Command;			// Script command during file parsing
+	int					m_TotalCodeSpace;	// Total space used by code
+	int					m_TotalDataSpace;	// Total space used for data
 	MString				m_OutputName;		// Name of output file
 	MString				m_ObjFileList;		// Comma separated list of files
 	MString				m_ObjPath;			// Comma separated list of directories
 	MString				m_LinkOptions;		// Linker options
 	MString				m_RootPath;			// Root path of project.
 	MString				m_LinkerScript;		// Name of the linker script
+	MString				m_EntryLabel;		// Label or address of program entry
 	MStringArray		m_ObjDirs;			// Array of '/' terminated object dirs
+	CObjFileSection*	m_SegMap[65536];	// Map of Segment assignements
 
 // Operations
 	int					GetValue(MString & string, int & value);
@@ -202,26 +241,39 @@ public:
 	MString				PreprocessDirectory(const char *pDir);
 	int					MapScriptCommand(const char *pStr, int lineNo);
 	void				ProcScriptField2(const char *pStr, int lineNo, MString &segname);
-	void				ProcScriptField3(const char *pStr, int lineNo, int& startAddr);
+	void				ProcScriptField3(char *pStr, int lineNo, int& startAddr, char*& pSectName);
 	void				ProcScriptField4(const char *pStr, int lineNo, int& endAddr);
-	void				ProcScriptField5(const char *pStr, int lineNo, int& prot);
+	void				ProcScriptField5(const char *pStr, int lineNo, int& prot, int& atend);
 	void				AddOrderedSegment(const char *pStr, int lineNo);
 	void				AddContainsSegment(const char *pStr, int lineNo);
 	void				AddEndsWithSegment(const char *pStr, int lineNo);
 	void				NewLinkRegion(int type, int lineNo, int startAddr,
-							int endAddr, int prot);
+							int endAddr, int prot, const char* pAtEndName, int atend);
 	int					EvaluateScriptAddress(const char *pStr, int lineNo);
 	void				ProcessArgs(MString &str, const char *pDelim);
 	int					ReadLinkerScript(void);
 	int					ReadObjFiles(void);
+	int					AssignSectionNames(void);
 	int					ReadElfHeaders(FILE* fd, MString& filename);
 	int					ReadSectionData(FILE* fd, CObjFile* pFile, 
 							CObjFileSection* pFileSection);
 	int					LocateSegments(void);
-	int					LocateAsegSegment(CObjFileSection* pFileSect);
-	int					LocateCsegSegment(CObjFileSection* pFileSect);
-	int					LocateDsegSegment(CObjFileSection* pFileSect);
+	int					LocateNondependantSegments(void);
+	int					LocateOrderedSegments(void);
+	int					LocateEndsWithSegments(void);
+	int					LocateContainsSegments(void);
+	int					LocateSegmentIntoRegion(MString& region, MString& segment,
+							bool atEnd = FALSE);
+	int					LocateSegmentIntoRegion(MString& region, CObjFileSection* pFileSection, 
+							bool atEnd = FALSE);
+	CObjFileSection*	FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel);
+	int					ResolveLocals();
+	int					ResolveExterns();
+	MString				MakeTitle(const MString& path);
+	int					GenerateOutputFile(void);
+	int					GenerateMapFile(void);
 
+public:
 // Public Access functions
 	int					Link();
 	void				SetLinkOptions(const MString& options);
@@ -232,6 +284,9 @@ public:
 	void				SetProjectType(int type);
 	void				SetStdoutFunction(void *pContext, stdOutFunc_t pFunc);
 	const MStringArray&		GetErrors() { return m_Errors; };
+	void				SetOutputFile(const MString& outFile );
+	int					TotalCodeSpace(void) { return m_TotalCodeSpace; }
+	int					TotalDataSpace(void) { return m_TotalDataSpace; }
 };
 
 #endif

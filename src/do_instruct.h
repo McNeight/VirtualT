@@ -1,6 +1,6 @@
 /* do_instruct.h */
 
-/* $Id: do_instruct.h,v 1.8 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: do_instruct.h,v 1.9 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -65,7 +65,7 @@
 								j=1; \
 							else \
 								j=0; \
-							setflags(r,-1,-1,j,-1,-2, (r==0x80) || (r==0), -2); \
+							setflags(r,-1,-1,j,-1,-2, (r==0x80) || (r==0)); \
 							cycle_delta+=(4); \
 						}
 
@@ -76,7 +76,7 @@
 								j=1; \
 							else \
 								j=0; \
-							setflags(r,-1,-1,j,-1,-2, (r==0xFF) || (r==0x7F), -2); \
+							setflags(r,-1,-1,j,-1,-2, (r==0xFF) || (r==0x7F)); \
 							cycle_delta+=(4); \
 						}
 
@@ -100,7 +100,7 @@
 								i=0; \
 							if (j) \
 								j = (HL&0x8000) != (rp&0x8000); \
-							setflags(0,-2,-2,-2,-2,i,j,-2 ); \
+							setflags(0,-2,-2,-2,-2,i,j); \
 							cycle_delta+=(10); \
 						}
 
@@ -148,7 +148,7 @@
 								i=0; \
 							if (v)	\
 								v = (A&0x80) != (r&0x80); \
-							setflags(A,-1,-1,j,-1,i,v,-2); \
+							setflags(A,-1,-1,j,-1,i,v); \
 							cycle_delta+=(4); \
 						}
 
@@ -166,7 +166,7 @@
 								i=0; \
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
-							setflags(A,-1,-1,j,-1,i,v,-2); \
+							setflags(A,-1,-1,j,-1,i,v); \
 							cycle_delta+=(4); \
 						}
 
@@ -183,7 +183,7 @@
 								i=0; \
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
-							setflags(A,-1,-1,j,-1,i,v,-2); \
+							setflags(A,-1,-1,j,-1,i,v); \
 							cycle_delta+=(4); \
 						}
 
@@ -201,28 +201,28 @@
 								i = 0; \
 							if (v) \
 								v = (A&0x80) != (r&0x80); \
-							setflags(A,-1,-1,j,-1,i,v,-2); \
+							setflags(A,-1,-1,j,-1,i,v); \
 							cycle_delta+=(4); \
 						}
 
 #define ANA(r,rs)		{ \
 							INCPC; \
 							A&=r; \
-							setflags(A,-1,-1,1,-1,0,-2,-2); \
+							setflags(A,-1,-1,1,-1,0,-2); \
 							cycle_delta+=(4); \
 						}
 
 #define XRA(r,rs)		{ \
 							INCPC; \
 							A^=r; \
-							setflags(A,-1,-1,0,-1,0,-2,-2); \
+							setflags(A,-1,-1,0,-1,0,-2); \
 							cycle_delta+=(4); \
 						}
 
 #define ORA(r,rs)		{ \
 							INCPC; \
 							A|=r; \
-							setflags(A,-1,-1,0,-1,0,-2,-2); \
+							setflags(A,-1,-1,0,-1,0,-2); \
 							cycle_delta+=(4); \
 						}
 
@@ -239,7 +239,7 @@
 								v = (A&0x80) != (r&0x80); \
 							else \
 								v = 0; \
-							setflags(A-r,-1,-1,j,-1,i,v,-2); \
+							setflags(A-r,-1,-1,j,-1,i,v); \
 							cycle_delta+=(4); \
 						}
 
@@ -357,7 +357,7 @@ ins = INS;
 									INCPC;
 									i=A>>7;
 									A=(A<<1)|i;
-									setflags(A,-2,-2,-2,-2,i,-2,-2);
+									setflags(A,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -373,11 +373,13 @@ ins = INS;
 									i = HL < BC;// - (CF?1:0);
 									j = HL - BC;// - (CF?1:0);
 									v = (HL&0x8000) == (BC&0x8000);
+									if (BC > HL)
+										F |= XF_BIT;
 									L=j&0xFF;
 									H=(j >> 8) & 0xFF;
 									if (v)
 										v = (HL&0x8000) != (BC&0x8000);
-									setflags(H | L,H&0x80,-1,-2,-2,i,v,-2);
+									setflags(H | L,H&0x80,-1,-2,H^L,i,v);
 									cycle_delta+=(10);
 									/* return; */
 								}
@@ -419,7 +421,7 @@ ins = INS;
 									i=A<<7&0x80;
 									A=(A>>1)|i;
 									i>>=7;
-									setflags(A,-2,-2,-2,-2,i,-2,-2);
+									setflags(A,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -438,7 +440,7 @@ ins = INS;
 									j = HL >> 1;
 									L = j & 0xFF;
 									H = (H & 0x80) | ((j >> 8) & 0xFF);
-									setflags(0,-2,-2,-2,-2,i,-2,-2);
+									setflags(0,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(7);
 									/* return; */
 								}
@@ -480,7 +482,7 @@ ins = INS;
 									i=A>>7;
 									A<<=1;
 									A|=(CF?1:0);
-									setflags(A,-2,-2,-2,-2,i,-2,-2);
+									setflags(A,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -497,7 +499,7 @@ ins = INS;
 									j = DE << 1;
 									E = (j & 0xFF) | (CF ? 1 : 0);
 									D = (j >> 8) & 0xFF;
-									setflags(0,-2,-2,-2,-2,i,-2,-2);
+									setflags(0,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(10);
 									/* return; */
 								}
@@ -539,7 +541,7 @@ ins = INS;
 									i=(A&0x01);
 									A>>=1;
 									A|=CF?0x80:0;
-									setflags(A,-2,-2,-2,-2,i,-2,-2);
+									setflags(A,-2,-2,-2,-2,i,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -615,7 +617,7 @@ ins = INS;
 									if((((A>>4)+j) > 9) || CF)
 										i|=0x60;/* Add 6 to upper nibble */
 									A+=i;
-									setflags(A,-1,-1,j,-1,i>>4?1:0,-2,-2);
+									setflags(A,-1,-1,j,-1,i>>4?1:0,-2);
 									cycle_delta+=(4);
 									/* return; */ /* Huh? */
 								}
@@ -727,7 +729,7 @@ ins = INS;
 										j=1;
 									else
 										j=0;
-									setflags(M,-1,-1,j,-1,-2, (M==0x80) || (M==0), -2);
+									setflags(M,-1,-1,j,-1,-2, (M==0x80) || (M==0));
 									cycle_delta+=(10);
 								}
 								else {
@@ -738,7 +740,7 @@ ins = INS;
 										j=1;
 									else 
 										j=0;
-									setflags(M,-1,-1,j,-1,-2, (M==0xFF) || (M==0x7F), -2);
+									setflags(M,-1,-1,j,-1,-2, (M==0xFF) || (M==0x7F));
 									cycle_delta+=(10);
 								}
 							}
@@ -753,7 +755,7 @@ ins = INS;
 								else {
 									/* case 0x37:	STC */
 									INCPC;
-									setflags(0,-2,-2,-2,-2,1,-2,-2);
+									setflags(0,-2,-2,-2,-2,1,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -812,7 +814,7 @@ ins = INS;
 								else {
 									/* case 0x3F:	CMC */
 									INCPC;
-									setflags(A,-2,-2,-2,-2,CF?0:1,-2,-2);
+									setflags(A,-2,-2,-2,-2,CF?0:1,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -1663,7 +1665,7 @@ ins = INS;
 										i=0;
 									if (v)
 										v = (A&0x80) != (INS&0x80);
-									setflags(A,-1,-1,j,-1,i,v,-2);
+									setflags(A,-1,-1,j,-1,i,v);
 									cycle_delta+=(7);
 									INCPC;
 									/* return; */
@@ -1727,7 +1729,7 @@ ins = INS;
 										i=0;
 									if (v)
 										v = (A&0x80) != (INS&0x80);
-									setflags(A,-1,-1,j,-1,i,v,-2);
+									setflags(A,-1,-1,j,-1,i,v);
 									cycle_delta+=(7);
 									INCPC;
 									/* return; */
@@ -1794,7 +1796,7 @@ ins = INS;
 										i = 0;
 									if (v)
 										v = (A&0x80) != (INS&0x80);
-									setflags(A,-1,-1,j,-1,i,v,-2);
+									setflags(A,-1,-1,j,-1,i,v);
 									cycle_delta+=(7);
 									INCPC;
 									/* return; */
@@ -1864,7 +1866,7 @@ ins = INS;
 										i = 0;
 									if (v)
 										v = (A&0x80) != (INS&0x80);
-									setflags(A,-1,-1,j,-1,i,v,-2);
+									setflags(A,-1,-1,j,-1,i,v);
 									INCPC;
 									cycle_delta+=(7);
 									/* return; */
@@ -1930,7 +1932,7 @@ ins = INS;
 									INCPC;
 									A=A&INS;
 									INCPC;
-									setflags(A,-1,-1,1,-1,0,-2,-2);
+									setflags(A,-1,-1,1,-1,0,-2);
 									cycle_delta+=(7);
 									/* return; */
 								}
@@ -2000,7 +2002,7 @@ ins = INS;
 									INCPC;
 									A=A^INS;
 									INCPC;
-									setflags(A,-1,-1,0,-1,0,-2,-2);
+									setflags(A,-1,-1,0,-1,0,-2);
 									cycle_delta+=(4);
 									/* return; */
 								}
@@ -2056,7 +2058,7 @@ ins = INS;
 									INCPC;
 									A=A|INS;
 									INCPC;
-									setflags(A,-1,-1,0,-1,0,-2,-2);
+									setflags(A,-1,-1,0,-1,0,-2);
 									cycle_delta+=(7);
 									/* return; */
 								}
@@ -2124,7 +2126,7 @@ ins = INS;
 										v = (A&0x80) != (INS&0x80);
 									else
 										v = 0;
-									setflags(A-INS,-1,-1,j,-1,i,v,-2);
+									setflags(A-INS,-1,-1,j,-1,i,v);
 									INCPC;
 									cycle_delta+=(7);
 									/* return; */
