@@ -6,6 +6,9 @@
 #include "MString.h"
 #include "MStringArray.h"
 
+#ifndef NULL
+#define NULL 0
+#endif
 
 // Define operation codes
 const	int	RPN_VALUE		= 1;
