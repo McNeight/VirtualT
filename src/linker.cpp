@@ -2173,7 +2173,7 @@ int VTLinker::GenerateOutputFile()
 	const int			addrSize = sizeof(m_SegMap) / sizeof(void *);
 	MString				err;
 	CObjSymFile*		pSymFile;
-	MString				filename = m_RootPath + "/" + m_OutputName;
+	MString				filename = m_RootPath + (char *) "/" + m_OutputName;
 
 	// Exit if error has occurred
 	if (m_Errors.GetSize() != 0)
@@ -2335,7 +2335,7 @@ int VTLinker::GenerateOutputFile()
 
 		// Write the data out as a REX .BX file also...
 		int dot = m_OutputName.ReverseFind('.');
-		MString bxFile = m_OutputName.Left(dot) + ".bx";
+		MString bxFile = m_OutputName.Left(dot) + (char *) ".bx";
 
 		// Report that we are generating the output file
 		if (m_pStdoutFunc != NULL)
@@ -2344,7 +2344,7 @@ int VTLinker::GenerateOutputFile()
 			msg.Format("Generating REX file %s\n", (const char *) bxFile);
 			m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
 		}
-		filename = m_RootPath + "/" + bxFile;
+		filename = m_RootPath + (char *) "/" + bxFile;
 
 		// Open the output file for output
 		if ((fd = fopen((const char *) filename, "wb")) == NULL)
@@ -2388,12 +2388,12 @@ int VTLinker::GenerateMapFile(void)
 		return FALSE;
 
 	// Test if MAP file generation requested
-	if (m_LinkOptions.Find("-m") == -1)
+	if (m_LinkOptions.Find((char *) "-m") == -1)
 		return FALSE;
 
 	// Okay, generate the map file, replacing any old one found
 	int dot = m_OutputName.ReverseFind('.');
-	MString mapFile = m_OutputName.Left(dot) + ".map";
+	MString mapFile = m_OutputName.Left(dot) + (char *) ".map";
 
 	// Report that we are generating the output file
 	if (m_pStdoutFunc != NULL)
@@ -2402,7 +2402,7 @@ int VTLinker::GenerateMapFile(void)
 		msg.Format("Generating MAP file %s\n", (const char *) mapFile);
 		m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
 	}
-	filename = m_RootPath + "/" + mapFile;
+	filename = m_RootPath + (char *) "/" + mapFile;
 
 	// Open the output file for output
 	if ((fd = fopen((const char *) filename, "wb")) == NULL)
@@ -2508,8 +2508,8 @@ int VTLinker::GenerateMapFile(void)
 			pObjSymFile->m_pSym->st_shndx];
 
 		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
-			pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr, 
-			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? "data" : "function", 
+			(int) (pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr), 
+			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? (char *) "data" : (char *) "function", 
 			(const char *) pObjSymFile->m_pObjFile->m_Name);
 	}
 
@@ -2551,8 +2551,8 @@ int VTLinker::GenerateMapFile(void)
 			pObjSymFile->m_pSym->st_shndx];
 
 		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
-			pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr, 
-			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? "data" : "function", 
+			(int) (pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr), 
+			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? (char *) "data" : (char *) "function", 
 			(const char *) pObjSymFile->m_pObjFile->m_Name);
 	}
 
@@ -2703,7 +2703,7 @@ void VTLinker::CalcObjDirs(void)
 	m_ObjDirs.RemoveAll();
 
 	// Add the root directory to the ObjDirs
-	m_ObjDirs.Add(m_RootPath+"/");
+	m_ObjDirs.Add(m_RootPath+(char *) "/");
 
 	// Check if there is an include path
 	if (m_ObjPath.GetLength() == 0)

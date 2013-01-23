@@ -1,6 +1,6 @@
 /* chargen.cpp */
 
-/* $Id: chargen.cpp,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: chargen.cpp,v 1.9 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -721,7 +721,7 @@ void VTCharacterGen::Load(void)
 	// Loop through all character in the chartable
 	for (index = 0; index < 256; index++)
 	{
-		fread(data, 1, sizeof(data), fd);
+		int readlen = fread(data, 1, sizeof(data), fd);
 /*		if (data[0] == 0)
 			data[0] = 0x80;
 		else

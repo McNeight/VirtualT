@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.29 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.30 2013/01/22 23:04:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1326,6 +1326,7 @@ void setup_working_path(char **argv)
 {
 #if defined(__unix__) || defined(__APPLE__)
 	int			i; 
+	char*		pCwd;
     
 #if defined(__APPLE__)
     int         found;
@@ -1334,7 +1335,8 @@ void setup_working_path(char **argv)
 	char*		pContents, *pStr;
 #endif
 
-	(void) getcwd(path, sizeof(path));
+	pCwd = getcwd(path, sizeof(path));
+	(void) pCwd;
 
 #if defined(__APPLE__)
 	/* On MacOSX, getcwd returns nothing when launched from the Finder.  So

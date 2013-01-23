@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.8 2011/07/11 16:52:31 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.9 2013/01/22 22:29:01 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -822,7 +822,7 @@ void VTAssembler::opcode_arg_2reg(int opcode)
 	if (pInst != NULL)
 	{
 		// Append instruction with operands
-		pInst->m_Group = (VTObject *) (int) reg[--reg_cnt];	// Get register operand
+		pInst->m_Group = (VTObject *) (intptr_t) reg[--reg_cnt];	// Get register operand
 		pInst->m_Operand1 = new MString;			// Allocte operand object
 		pInst->m_Operand1->Format("%c", reg[--reg_cnt]);	// Get register operand
 	}

@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.9 2013/01/22 23:08:54 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.10 2013/01/22 23:18:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -2412,7 +2412,7 @@ void VT_Ide::ReadProjectIdeSettings()
 	}
 
 	// Loop through all lines in file
-	while (fgets(line, 512, fd) != 0)
+	while (fgets(line, sizeof(line), fd) != 0)
 	{
 		// Skip comments and blank lines
 		if ((line[0] == '#') || (line[0] == '\n') || (line[0] == '\x0d'))
@@ -3627,8 +3627,7 @@ void VT_Ide::BuildProject(void)
 					linkerScript = pSource->m_Name;
 				else
 				{
-					linkerScript = m_ActivePrj->m_RootPath + "/";
-					linkerScript += pSource->m_Name;
+					linkerScript = m_ActivePrj->m_RootPath + (char *) "/"+ pSource->m_Name;
 				}
 				linkerScriptFound = true;
 			}

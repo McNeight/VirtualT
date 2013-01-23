@@ -1163,6 +1163,7 @@ void load_remem_ram(void)
 	FILE	*fd;
 	int		size, x;
 	int		empty = 1;
+	int		readlen;
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.remem_file, "rb+");
@@ -1173,11 +1174,11 @@ void load_remem_ram(void)
 		size = 1024 * 2048;		/* Copy 2 meg of RAM & FLASH */
 
 		/* Read ReMem RAM first */
-		fread(gReMemRam, 1, size, fd);
+		readlen = fread(gReMemRam, 1, size, fd);
 
 		/* Now read Flash */
-		fread(gReMemFlash1.pFlash, 1, size, fd);
-		fread(gReMemFlash2.pFlash, 1, size, fd);
+		readlen = fread(gReMemFlash1.pFlash, 1, size, fd);
+		readlen = fread(gReMemFlash2.pFlash, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
@@ -1228,6 +1229,7 @@ void load_rampac_ram(void)
 {
 	FILE	*fd;
 	int		size;
+	int		readlen;
 
 	/* Open Rampac file */
 	fd = fopen(mem_setup.rampac_file, "rb+");
@@ -1238,7 +1240,7 @@ void load_rampac_ram(void)
 		size = 1024 * 256;		/* Copy 256 K of RAM */
 
 		/* Write ReMem RAM first */
-		fread(gRampacRam, 1, size, fd);
+		readlen = fread(gRampacRam, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
@@ -1255,6 +1257,7 @@ void load_rex_flash(void)
 {
 	FILE	*fd;
 	int		size;
+	int		readlen;
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex_flash_file, "rb+");
@@ -1265,7 +1268,7 @@ void load_rex_flash(void)
 		size = 1024 * 1024;		/* Copy 1 meg of FLASH 
 
 		/* Read Rex Flash first */
-		fread(gRexFlash.pFlash, 1, size, fd);
+		readlen = fread(gRexFlash.pFlash, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
@@ -1285,6 +1288,7 @@ void load_rex2_ram(void)
 {
 	FILE	*fd;
 	int		size;
+	int		readlen;
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex2_ram_file, "rb+");
@@ -1295,7 +1299,7 @@ void load_rex2_ram(void)
 		size = 1024 * 128;		/* Copy 128K of RAM 
 
 		/* Read Rex2 RAM */
-		fread(gRex2Ram, 1, size, fd);
+		readlen = fread(gRex2Ram, 1, size, fd);
 
 		/* Close the file */
 		fclose(fd);
@@ -1320,6 +1324,7 @@ void load_ram(void)
 	char			file[256]; 
 	FILE			*fd;
 	int				x;
+	int				readlen;
 
 	/* Check if ReMem emulation enabled or Base Memory emulation */
 	if (gReMem & !gRex)
@@ -1351,15 +1356,15 @@ void load_ram(void)
 		case MODEL_M10:					/* M100 & M102 have single bank */
 		case MODEL_KC85:
 		case MODEL_M102:
-			fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
+			readlen = fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 			break;
 
 		case MODEL_T200:
 			/* Read all ram into rambanks array */
-			fread(rambanks, 1, 3*RAMSIZE, fd);
+			readlen = fread(rambanks, 1, 3*RAMSIZE, fd);
 
 			/* Read bank number to file */
-			fread(&gRamBank, 1, 1, fd);
+			readlen = fread(&gRamBank, 1, 1, fd);
 
 			/* Test bank number for bounds */
 			if (gRamBank > 2)
@@ -1376,11 +1381,11 @@ void load_ram(void)
 		case MODEL_PC8201:
 		case MODEL_PC8300:
 			/* Read all ram into rambanks array */
-			fread(rambanks, 1, 3*RAMSIZE, fd);
+			readlen = fread(rambanks, 1, 3*RAMSIZE, fd);
 
 			/* Read bank number to file */
-			fread(&gRamBank, 1, 1, fd);
-			fread(&gRomBank, 1, 1, fd);
+			readlen = fread(&gRamBank, 1, 1, fd);
+			readlen = fread(&gRomBank, 1, 1, fd);
 
 			/* Test bank number for bounds */
 			if (gRamBank > 2)
@@ -1513,6 +1518,7 @@ void load_sys_rom(void)
 {
 	FILE*			fd;
 	//int					fd;
+	int				readlen;
 
 	/* Set pointer to ROM Description */
 	if (gModel == MODEL_T200)
@@ -1550,7 +1556,7 @@ void load_sys_rom(void)
 
 	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
 	if (gModel == MODEL_T200)
-		fread(gMsplanROM, 1, 32768, fd);
+		readlen = fread(gMsplanROM, 1, 32768, fd);
 	
 	/* Close the ROM file */
 	fclose(fd);
@@ -1572,6 +1578,7 @@ void load_opt_rom(void)
 	FILE			*fd;
 	unsigned short	start_addr;
 	char			buf[65536];
+	int				readlen;
 
 	// Clear the option ROM memory
 	memset(gOptROM,0,OPTROMSIZE);
@@ -1613,7 +1620,7 @@ void load_opt_rom(void)
 		fd=fopen(gsOptRomFile,"rb");
 		if(fd!=0) 
 		{
-			fread(gOptROM,1, OPTROMSIZE, fd);
+			readlen = fread(gOptROM,1, OPTROMSIZE, fd);
 			fclose(fd);
 		}	
 

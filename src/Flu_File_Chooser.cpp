@@ -1,4 +1,4 @@
-// $Id: Flu_File_Chooser.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $
+// $Id: Flu_File_Chooser.cpp,v 1.3 2011/07/11 06:17:23 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -577,11 +577,12 @@ Flu_File_Chooser :: Flu_File_Chooser( const char *pathname, const char *pat, int
     //printf( "load: %s %X\n", buf, f );
     if( f )
       {
-		  fscanf(f, "%d, %d\n", &neww, &newh);
+		  int scanLen = fscanf(f, "%d, %d\n", &neww, &newh);
 	buf[0] = '\0';
 	while( !feof(f) )
 	  {
-	    fgets( buf, 1024, f );
+	    char *ptr = fgets( buf, 1024, f );
+		(void) ptr;
 	    char *newline = strrchr( buf, '\n' );
 	    if( newline )
 	      *newline = '\0';
@@ -2315,7 +2316,7 @@ int Flu_File_Chooser :: popupContextMenu( Entry *entry )
       if( type == ENTRY_FILE )
 	if( contextHandlers[i].ext.size() && contextHandlers[i].ext != ext )
 	  continue;
-      entryPopup.add( contextHandlers[i].name.c_str(), 0, 0, (void*)i );
+      entryPopup.add( contextHandlers[i].name.c_str(), 0, 0, (void*) (intptr_t) i );
     }
   if( ext )
     free( ext );
@@ -2324,7 +2325,7 @@ int Flu_File_Chooser :: popupContextMenu( Entry *entry )
   const Fl_Menu_Item *selection = entryPopup.popup();
   if( selection )
     {
-      int handler = (int)selection->user_data();
+      int handler = (int) (intptr_t) selection->user_data();
       switch( handler )
 	{
 	case ACTION_NEW_FOLDER:

@@ -1,6 +1,6 @@
 /* hostprint.cpp */
 
-/* $Id: hostprint.cpp,v 1.8 2008/04/13 16:42:55 kpettit1 Exp $ */
+/* $Id: hostprint.cpp,v 1.9 2009/03/23 04:58:12 jhoger Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -92,7 +92,10 @@ void VTHostPrint::PrintByte(unsigned char byte)
 	#else
 		// Write byte to the host
 		if (m_OutFd != -1)
-			write(m_OutFd, &byte, 1); 
+		{
+			int size = write(m_OutFd, &byte, 1); 
+			(void) size;
+		}
 	#endif
 
 	// Save byte so we know if we should do an AFF

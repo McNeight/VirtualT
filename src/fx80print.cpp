@@ -1,6 +1,6 @@
 /* fx80print.cpp */
 
-/* $Id: fx80print.cpp,v 1.14 2008/04/13 16:42:55 kpettit1 Exp $ */
+/* $Id: fx80print.cpp,v 1.15 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -1026,6 +1026,7 @@ void VTFX80Print::ResetPrinter(void)
 	int		c, r;
 	int		fileLoaded;
 	FILE*	fd;
+	int		readlen;
 
 	// Reset the print and protocol mode
 	ResetMode();
@@ -1051,7 +1052,7 @@ void VTFX80Print::ResetPrinter(void)
 			if (fd != NULL)
 			{
 				// Read data from File into charRam buffer
-				fread(m_charRom, 1, sizeof(m_charRom), fd);
+				readlen = fread(m_charRom, 1, sizeof(m_charRom), fd);
 				fclose(fd);
 				
 				// Indicate ROM loaded
@@ -1078,7 +1079,7 @@ void VTFX80Print::ResetPrinter(void)
 			if (fd != NULL)
 			{
 				// Read data from File into charRam buffer
-				fread(m_charRam, 1, sizeof(m_charRam), fd);
+				readlen = fread(m_charRam, 1, sizeof(m_charRam), fd);
 				fclose(fd);
 				
 				// Indicate RAM loaded
