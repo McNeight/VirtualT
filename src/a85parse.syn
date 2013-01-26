@@ -124,7 +124,7 @@ preprocessor directive
  -> "endif", WS?..., comment						= gAsm->preproc_endif();
  -> "error", literal string, WS?..., comment		= {if (gAsm->preproc_error(ss[ss_idx--])) gAbort = TRUE;}
  -> "undef", literal name nows, WS?..., comment		= gAsm->preproc_undef(ss[ss_idx--]);
- -> "define", macro definition, WS?..., 
+ -> "define", macro, WS?..., 
 		macro expansion, WS?..., comment			= { if (gMacroStack[ms_idx] != 0) { delete gMacroStack[ms_idx]; \
 															gMacroStack[ms_idx] = 0; } \
 														gMacro = gMacroStack[--ms_idx]; \
@@ -132,11 +132,11 @@ preprocessor directive
 														gAsm->preproc_define(); \
 														gMacroStack[ms_idx] = 0; gDefine = 0; }
 
-macro definition
- -> literal name nows, '(', parameter list, ')'		= { if (gAsm->preproc_macro()) \
-															PCB.reduction_token = a85parse_WS_token; }
- -> literal name nows								= { if (gAsm->preproc_macro()) \
-															PCB.reduction_token = a85parse_WS_token; }
+//macro definition
+// -> literal name nows, '(', parameter list, ')'		= { if (gAsm->preproc_macro()) \
+//															PCB.reduction_token = a85parse_WS_token; }
+// -> literal name nows								= { if (gAsm->preproc_macro()) \
+//															PCB.reduction_token = a85parse_WS_token; }
  
 macro
  -> literal name nows, '(', expression list, ')'	= { gMacro->m_ParamList = gExpList; \
@@ -968,15 +968,17 @@ void syntax_error(const char *token_name)
 #define TAB_SPACING gTabSize
 
 #define GET_INPUT {(PCB).input_code = (gAsm->m_fd != 0 && !gAbort) ? \
-	fgetc(gAsm->m_fd) : 0; if ((PCB).input_code == 13) (PCB).input_code = fgetc(gAsm->m_fd);\
-	}
+	gAsm->preprocessor() : 0; }
+	
+//	fgetc(gAsm->m_fd) : 0; if ((PCB).input_code == 13) (PCB).input_code = fgetc(gAsm->m_fd);\
+//	}
 
 #define SYNTAX_ERROR { syntax_error(TOKEN_NAMES[(PCB).error_frame_token]); }
 
 /*
 #define SYNTAX_ERROR {MString string;  if ((PCB).error_frame_token != 0) \
     string.Format("Error in line %d(%s), column%d:  Malformed %s - %s", \
-    (PCB).line, gFilename, (PCB).column, \
+    (PCB).line, gFilename, (PCB).column, \*
     TOKEN_NAMES[(PCB).error_frame_token], (PCB).error_message); \
   else if (strcmp("Unexpected '\\n'", (PCB).error_message) == 0) \
     string.Format("Error in line %d(%s), column %d:  Unexpected end of line", \

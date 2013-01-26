@@ -2565,6 +2565,39 @@ int VTLinker::GenerateMapFile(void)
 
 /*
 ============================================================================
+Back annotate listing files with actual addresses from the link.
+============================================================================
+*/
+int VTLinker::BackAnnotateListingFiles(void)
+{
+	POSITION			pos;
+	CObjFile*			pObjFile;
+//	CObjFileSection*	pFileSect;
+	MString				err, filename;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Test if list file generation requested
+	if (m_LinkOptions.Find((char *) "-t") == -1)
+		return FALSE;
+
+	// Loop for all object files loaded and locate any that have not been located yet
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this object file's data
+		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
+
+		// Get the path of the source file for this object file
+	}
+
+	return TRUE;
+}
+
+/*
+============================================================================
 The parser calls this function to perform the link operation after all
 files have been assembled.
 ============================================================================
@@ -2604,6 +2637,7 @@ int VTLinker::Link()
 	GenerateMapFile();
 
 	// Back annotate Listing files with actual addresses
+	BackAnnotateListingFiles();
 
 	return m_Errors.GetSize() == 0;
 }

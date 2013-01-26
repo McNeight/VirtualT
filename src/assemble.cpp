@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.9 2013/01/22 22:29:01 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.10 2013/01/23 01:00:07 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -170,6 +170,21 @@ VTAssembler::~VTAssembler()
 	delete m_ActiveMod;
 	delete m_ActiveSeg;
 	delete m_ActiveSegLines;
+}
+
+/*
+============================================================================
+Implement a pre-processor to handle macro substitution.
+============================================================================
+*/
+int VTAssembler::preprocessor(void)
+{
+	int ch;
+
+	ch = fgetc(m_fd);
+	if (ch == 13)
+		ch = fgetc(m_fd);
+	return ch;
 }
 
 void VTAssembler::SetStdoutFunction(void *pContext, stdOutFunc_t pFunc)
@@ -2562,6 +2577,8 @@ This is the preprocessor function to handle conditional DEFINE statements
 */
 void VTAssembler::preproc_define()
 {
+	int		count, c;
+
 	// Update line number
 	m_Line = (PCB).line;
 
@@ -2577,8 +2594,51 @@ void VTAssembler::preproc_define()
 		pInst->m_Address = m_ActiveSeg->m_Address;
 		pInst->m_FileIndex = m_FileIndex;			// Save index of the current file
 
+		// Convert equations with a single variable into a simple literal
+		if (gMacro->m_ParamList != NULL)
+		{
+			count = gMacro->m_ParamList->GetSize();
+			for (c =0; c < count; c++)
+			{
+				CExpression* pExp = (CExpression *) gMacro->m_ParamList->GetAt(c);
+				if (pExp->m_Equation != NULL && pExp->m_Equation->m_OperationArray.GetSize() == 1)
+				{
+					// Okay, we have an equation with a single operation.  Check if it's a variable
+					if (pExp->m_Equation->m_OperationArray[0].m_Operation == RPN_VARIABLE)
+					{
+						// Convert the variable into a literal expression
+						pExp->m_Literal = pExp->m_Equation->m_OperationArray[0].m_Variable;
+
+						// Now delete the equation
+						delete pExp->m_Equation;
+						pExp->m_Equation = NULL;
+					}
+				}
+			}
+		}
+
 		// Add the macro to our array of defines
 		m_Defines.Add(gMacro);
+
+		if (gMacro->m_ParamList == NULL)
+			printf("Macro %s = '%s'\n", (const char *) gMacro->m_Name, (const char *) gMacro->m_DefString);
+		else
+		{
+			printf("Macro %s(", (const char *) gMacro->m_Name);
+			count = gMacro->m_ParamList->GetSize();
+			for (c =0; c < count; c++)
+			{
+				CExpression* pExp = (CExpression *) gMacro->m_ParamList->GetAt(c);
+				if (pExp->m_Literal != "")
+				{
+					if (c == count-1)
+						printf("%s", (const char *) pExp->m_Literal);
+					else
+						printf("%s, ", (const char *) pExp->m_Literal);
+				}
+			}
+			printf(") = '%s'\n", (const char *) gMacro->m_DefString);
+		}
 
 		// Add new instruction to the instruction list and create new expression list
 		gMacro = new CMacro;					// Create a new macro object

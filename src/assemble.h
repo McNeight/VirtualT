@@ -371,6 +371,8 @@ public:
 	VTAssembler();
 	~VTAssembler();
 
+	int					preprocessor(void);
+
 	// Define Preprocessor functions
 	void				preproc_endif(void);
 	void				preproc_ifndef(const char *name);

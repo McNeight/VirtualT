@@ -272,6 +272,7 @@ private:
 	MString				MakeTitle(const MString& path);
 	int					GenerateOutputFile(void);
 	int					GenerateMapFile(void);
+	int					BackAnnotateListingFiles(void);
 
 public:
 // Public Access functions

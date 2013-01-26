@@ -1,5 +1,5 @@
-#ifndef A85PARSE_H_1357391036
-#define A85PARSE_H_1357391036
+#ifndef A85PARSE_H_1359224795
+#define A85PARSE_H_1359224795
 
 typedef union {
   long alignment;
@@ -26,31 +26,29 @@ typedef enum {
   a85parse_equation_token = 57, a85parse_cdseg_statement_token = 62,
   a85parse_error_token, a85parse_preproc_start_token,
   a85parse_preprocessor_directive_token = 66, a85parse_condition_token = 76,
-  a85parse_macro_definition_token = 84, a85parse_macro_expansion_token,
-  a85parse_macro_token = 89, a85parse_expression_list_token,
-  a85parse_define_chars_token = 92,
-  a85parse_cdseg_statement_start_token = 94, a85parse_name_list_token = 113,
-  a85parse_literal_alpha_token = 133, a85parse_digit_token = 138,
-  a85parse_asm_incl_char_token, a85parse_str_escape_char_token = 142,
-  a85parse_hex_digit_token = 156, a85parse_condition_start_token = 166,
-  a85parse_primary_exp_token = 199, a85parse_value_token = 207,
-  a85parse_function_token, a85parse_binary_integer_token = 219,
-  a85parse_octal_integer_token, a85parse_stack_register_token = 252,
-  a85parse_bd_register_token = 254, a85parse_page_register_token,
-  a85parse_eight_bit_reg_inst_token = 258,
+  a85parse_macro_token = 84, a85parse_macro_expansion_token,
+  a85parse_expression_list_token = 87, a85parse_define_chars_token = 90,
+  a85parse_cdseg_statement_start_token = 92, a85parse_name_list_token = 111,
+  a85parse_literal_alpha_token = 131, a85parse_digit_token = 136,
+  a85parse_asm_incl_char_token, a85parse_str_escape_char_token = 140,
+  a85parse_hex_digit_token = 154, a85parse_condition_start_token = 164,
+  a85parse_primary_exp_token = 197, a85parse_value_token = 205,
+  a85parse_function_token, a85parse_binary_integer_token = 217,
+  a85parse_octal_integer_token, a85parse_stack_register_token = 250,
+  a85parse_bd_register_token = 252, a85parse_page_register_token,
+  a85parse_eight_bit_reg_inst_token = 256,
   a85parse_sixteen_bit_reg_inst_token, a85parse_bd_reg_inst_token,
   a85parse_stack_reg_inst_token, a85parse_immediate_operand_inst_token,
   a85parse_lxi_inst_token, a85parse_mvi_inst_token, a85parse_spi_inst_token,
   a85parse_rst_inst_token, a85parse_no_arg_inst_token,
-  a85parse_lxi_inst_start_token = 339, a85parse_mvi_inst_start_token = 341,
-  a85parse_spi_inst_start_token = 343, a85parse_rst_arg_token = 346,
-  a85parse_label_token = 430, a85parse_literal_string_token = 436,
+  a85parse_lxi_inst_start_token = 337, a85parse_mvi_inst_start_token = 339,
+  a85parse_spi_inst_start_token = 341, a85parse_rst_arg_token = 344,
+  a85parse_label_token = 428, a85parse_literal_string_token = 434,
   a85parse_include_string_token, a85parse_asm_include_token,
-  a85parse_literal_name_nows_token = 443,
-  a85parse_parameter_list_token = 457,
-  a85parse_singlequote_string_token = 486, a85parse_integer_token = 493,
-  a85parse_literal_name_token = 538, a85parse_real_token = 540,
-  a85parse_register_8_bit_token = 596, a85parse_register_16_bit_token = 610
+  a85parse_literal_name_nows_token = 441,
+  a85parse_singlequote_string_token = 483, a85parse_integer_token = 490,
+  a85parse_literal_name_token = 535, a85parse_real_token = 537,
+  a85parse_register_8_bit_token = 593, a85parse_register_16_bit_token = 607
 } a85parse_token_type;
 
 typedef struct a85parse_pcb_struct{
