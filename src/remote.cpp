@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.14 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.16 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -137,6 +137,7 @@ extern int fl_wait(double);
 extern void simulate_keydown(int key);
 extern void simulate_keyup(int key);
 extern	Fl_Preferences virtualt_prefs;
+extern int gSimKey;
 
 extern "C"
 {
@@ -1606,10 +1607,13 @@ std::string cmd_list_break(ServerSocket& sock, std::string& args)
 
 void key_delay(void)
 {
-	fl_wait(0.01);
+	//fl_wait(0.01);
+	while (gSimKey != 0)
+		fl_wait(0.001);
+
 	while (gDelayUpdateKeys)
 		fl_wait(0.001);
-	fl_wait(0.01);
+	//fl_wait(0.01);
 }
 /*
 =======================================================

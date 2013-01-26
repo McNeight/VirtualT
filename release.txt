@@ -6,6 +6,22 @@ VirtualT Release.txt
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
 ====================
+v1.6  
+====================
+
+1.  Fixed issue with remote interface simulated keystokes where the keys wouldn't
+    always be regconized.  There was a race condition between the remote thread
+	and the simulation thread.
+
+2.  Completed the 8085 relocating linker!!  This was the primary reason for this
+    release in fact.  Many, many changes to get to this point.
+
+3.  Modified the IDE with new tabs for selecting the file to edit.  The old tabs used
+    the standard FLTK tab control and were really ugly, plus had an issue with tab
+	width calculations with regard to mouse presses to select the tab.
+
+
+====================
 v1.5  July 9th, 2011
 ====================
 

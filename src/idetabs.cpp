@@ -1,6 +1,6 @@
 /* multiwin.cpp */
 
-/* $Id: idetabs.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: idetabs.cpp,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -508,7 +508,7 @@ int Fl_Ide_Tabs::handle(int e)
 		return ret;
 
 	case FL_RELEASE:
-		// If the mouse was previously pused in the close box, then test for closure
+		// If the mouse was previously pushed in the close box, then test for closure
 		if (m_pushInRect)
 		{
 			window()->make_current();
@@ -582,8 +582,10 @@ int Fl_Ide_Tabs::orig_handle(int event) {
       }
       if (o && value(o)) {
         set_changed();
-	do_callback();
+	    do_callback();
       }
+	  if (o)
+		Fl::focus(o);
       Fl_Tooltip::current(o);
     } else {
       push(o);
@@ -613,7 +615,8 @@ int Fl_Ide_Tabs::orig_handle(int event) {
 	Fl::event() == FL_FOCUS ||
 	Fl::event() == FL_UNFOCUS) {
       redraw_tabs();
-      if (Fl::event() == FL_FOCUS || Fl::event() == FL_UNFOCUS) return 0;
+      if (Fl::event() == FL_FOCUS || Fl::event() == FL_UNFOCUS) 
+		  return 0;
       else return 1;
     } else return Fl_Group::handle(event);
   case FL_KEYBOARD:
@@ -636,8 +639,7 @@ int Fl_Ide_Tabs::orig_handle(int event) {
         return 1;
       case FL_Down:
         redraw();
-        return Fl_Group::handle(FL_FOCUS);
-      default:
+        return Fl_Group::handle(FL_FOCUS); default:
         break;
     }
     return Fl_Group::handle(event);

@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.25 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.27 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -86,6 +86,7 @@ extern int					gRomSize;
 extern int					gMaintCount;
 extern int					gOsDelay;
 extern int					gInMsPlanROM;
+extern int					gDelayUpdateKeys;
 void	set_target_frequency(int freq);
 }
 
@@ -2442,6 +2443,7 @@ void T100_Disp::SimulateKeydown(int key)
 	}
 	m_simEventKey = key;
 	gSimKey = VT_SIM_KEYDOWN;
+	gDelayUpdateKeys = 1;
 }
 
 /*
@@ -2465,6 +2467,7 @@ void T100_Disp::SimulateKeyup(int key)
 
 	m_simEventKey = key;
 	gSimKey = VT_SIM_KEYUP;
+	gDelayUpdateKeys = 1;
 }
 
 /*

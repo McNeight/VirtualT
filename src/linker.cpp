@@ -1697,7 +1697,6 @@ int VTLinker::LocateEndsWithSegments()
 		count = pSegmentNames->GetSize();
 		for (c = count-1; c >= 0; c--)
 		{
-			printf("Locating ENDSWITH segment %s\n", (const char *) pSegmentNames->GetAt(c));
 			// Now locate this segment into the named region
 			MString segName = pSegmentNames->GetAt(c);
 			if (!LocateSegmentIntoRegion(name, segName, true))
@@ -1802,9 +1801,6 @@ int VTLinker::LocateNondependantSegments()
 			{
 				continue;
 			}
-
-			printf("Locating segment %s from file %s\n", (const char *) pFileSect->m_Name, 
-				(const char *) pObjFile->m_Name);
 
 			// Test if the segment has a named link region
 			if (m_LinkRegions.Lookup((const char *) pFileSect->m_Name, (VTObject *&) pLinkRgn))
@@ -2306,7 +2302,7 @@ int VTLinker::GenerateOutputFile()
 		char * pRom = new char[32768];
 
 		// Fill contents with zero
-		for (c = 0; c < 32767; c++)
+		for (c = 0; c < 32768; c++)
 			pRom[c] = 0;
 
 		// Copy the output data to the ROM storage
@@ -2317,21 +2313,21 @@ int VTLinker::GenerateOutputFile()
 				c++;
 
 			// Write the next block of bytes
-			CObjFileSection *pSect = m_SegMap[c];
-			if (pSect != NULL)
+			if (c < 32768)
 			{
-				memcpy(&pRom[c], pSect->m_pProgBytes, pSect->m_Size);
-		
-				// Update to the next byte to write
-				c += pSect->m_Size;
+				CObjFileSection *pSect = m_SegMap[c];
+				if (pSect != NULL)
+				{
+					memcpy(&pRom[c], pSect->m_pProgBytes, pSect->m_Size);
+			
+					// Update to the next byte to write
+					c += pSect->m_Size;
+				}
 			}
 		}
 
-		// Write the ROM data to the HEX file
-		save_hex_file_buf(pRom, 0, 32768, 0, fd);
-
-		// Close the file
-		fclose(fd);
+		// Write the ROM data to the HEX file.  File is closed by the routine
+		save_hex_file_buf(pRom, 0, 32767, 0, fd);
 
 		// Write the data out as a REX .BX file also...
 		int dot = m_OutputName.ReverseFind('.');

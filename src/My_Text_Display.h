@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
+// "$Id: My_Text_Display.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $"
 //
 // Header file for My_Text_Display class.
 //
@@ -138,6 +138,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     virtual void resize(int X, int Y, int W, int H);
 
 	void blink_cursor(void);
+	void blink_enable(int bEnabled = 1) { mBlinkEnabled = bEnabled; }
 
 	void utility_margin_color(int margin_size, Fl_Color c) 
 		{ bHasUtilityMargin = 1; mLeftMargin = margin_size, mUtilityMarginColor = c;
@@ -231,6 +232,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int mCursorPos;
     int mCursorOn;
 	int mBlinkCount;
+	int mBlinkEnabled;
 	int mBlinkOn;
     int mCursorOldY;		/* Y pos. of cursor for blanking */
     int mCursorToHint;		/* Tells the buffer modified callback
@@ -316,5 +318,5 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 #endif
 
 //
-// End of "$Id: My_Text_Display.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $".
 //

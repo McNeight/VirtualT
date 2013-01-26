@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.2 2011/07/11 06:17:23 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -76,14 +76,16 @@ void cb_cursor_blink(void *pOpaque)
 
 void My_Text_Display::blink_cursor(void)
 {
-	if (++mBlinkCount == 2)
+	if (++mBlinkCount >= 2)
 	{
 		mBlinkCount = 0;
 		mBlinkOn = mCursorOn;
 		show_cursor(0);
 	}
 	else
+	{
 		show_cursor(mBlinkOn);
+	}
 
 	Fl::add_timeout(0.6, cb_cursor_blink, this);
 }
@@ -96,6 +98,8 @@ My_Text_Display::My_Text_Display(int X, int Y, int W, int H,  const char* l)
   mMaxsize = 0;
   mCurrentCol = 0;
   mBlinkCount = 0;
+  mBlinkOn = 1;
+  mBlinkEnabled = 1;
   mLeftMargin = LEFT_MARGIN;
   bHasUtilityMargin = 0;
   mUtilityMarginColor = FL_BLACK;
@@ -224,7 +228,8 @@ void My_Text_Display::buffer( Fl_Text_Buffer *buf ) {
   /* Update the display */
   buffer_modified_cb( 0, buf->length(), 0, 0, 0, this );
 
-  Fl::add_timeout(0.33f, cb_cursor_blink, this);
+  if (mBlinkEnabled)
+	  Fl::add_timeout(0.33f, cb_cursor_blink, this);
 
   /* Resize the widget to update the screen... */
   resize(x(), y(), w(), h());
@@ -1555,6 +1560,7 @@ void My_Text_Display::draw_vline(int visLineNum, int leftClip, int rightClip,
         charStyle = position_style( lineStartPos, lineLen,
                                     charIndex, outIndex + dispIndexOffset );
       if ( charStyle != style ) {
+		  if (strcmp(outStr, "<cr>") != 0)
         draw_string( style, startX, Y, X, outStr, outPtr - outStr );
         outPtr = outStr;
         startX = X;
@@ -3060,7 +3066,7 @@ int My_Text_Display::handle(int event)
 
 	// Reset the blink count so we don't hide the cursor when there is
 	// activity
-	if (event != FL_ENTER && event != FL_MOVE)
+	if (event != FL_ENTER && event != FL_MOVE && event != 0)
 	{
 		mBlinkCount = 0;
 		if (mBlinkCount == 0)
@@ -3202,5 +3208,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.2 2011/07/11 06:17:23 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $".
 //
