@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.20 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: io.c,v 1.21 2013/01/30 17:27:34 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -270,7 +270,6 @@ void update_keys(void)
 		int		d, col, row;
 		gCapture = TRUE;
 		
-		printf("capture 0x%0x\n", gSpecialKeys);
 		fd = fopen("lcd_cap.txt", "w");
 		if (fd != NULL)
 		{
