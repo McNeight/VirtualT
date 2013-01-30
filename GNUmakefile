@@ -89,7 +89,8 @@ DEPS        =   $(patsubst $(OBJDIR)/%.o,$(DEPDIR)/%.d,$(OTMP))
 # ===========================================================
 all:	init $(VIRTUALT) $(CLIENT)
 
-init:	
+.PHONY: init
+init:
 	@mkdir -p $(DEPDIR)
 	@mkdir -p $(OBJDIR)
 
@@ -171,6 +172,7 @@ endif
 # =============================
 # Rule to clean all build files
 # =============================
+.PHONY: clean
 clean:
 	@echo "=== cleaning ===";
 	@echo "Objects..."
@@ -183,6 +185,7 @@ clean:
 # Provide info for building FLTK, Tiger, Leopard versions
 # Windows, Linux, etc.
 # ================================================
+.PHONY: info
 info:
 	@echo
 	@echo "Virtual T make Info"
