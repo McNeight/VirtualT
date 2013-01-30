@@ -1,6 +1,6 @@
 /* fx80print.h */
 
-/* $Id: fx80print.h,v 1.1 2008/02/17 13:25:27 kpettit1 Exp $ */
+/* $Id: fx80print.h,v 1.10 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -90,6 +90,7 @@ protected:
 	Fl_Input*			m_pRamFile;					// File to initialize CharRAM from
 	Fl_Check_Button*	m_pUseRomFile;				// Checkbox to use ROM initialization
 	Fl_Check_Button*	m_pUseRamFile;				// Checkbox to use RAM initialization
+	Fl_Check_Button*	m_pAutoWrap;				// Checkbox for auto-wrap at last col
 	Fl_Button*			m_pRomBrowse;				// Browse button for ROM file
 	Fl_Button*			m_pRamBrowse;				// Browse button for RAM file
 	Fl_Choice*			m_pPaperChoice;				// Control to select the paper source
@@ -170,6 +171,7 @@ protected:
 	MString				m_sRamFile;					// File to load Char RAM
 	MString				m_paperName;				// Name of seleted paper
 	int					m_selectedPaper;
+	int					m_autoWrap;					// TRUE if auto-wrap at last col enabled
 
 	// Define functions used for handling the FX-80 protocol
 	virtual void		ResetMode(void);			// Resets the FX-80 "printer" settings

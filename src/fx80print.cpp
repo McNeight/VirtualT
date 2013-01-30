@@ -1,6 +1,6 @@
 /* fx80print.cpp */
 
-/* $Id: fx80print.cpp,v 1.15 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: fx80print.cpp,v 1.16 2013/01/23 01:00:08 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -97,6 +97,7 @@ VTFX80Print::VTFX80Print(void)
     
     m_useRomFile = FALSE;
 	m_useRamFile = FALSE;
+	m_autoWrap = FALSE;
 	m_marksMade = FALSE;
     m_defSkipPerf = TRUE;
     m_defCompressed = FALSE;
@@ -580,13 +581,19 @@ void VTFX80Print::BuildPropertyDialog(Fl_Window* pParent)
 	g->end();
 
 	// Create control for setting the Top of Form
-	o = new Fl_Box(400, 270, 60, 20, "Top of Form");
+	o = new Fl_Box(400, 250, 60, 20, "Top of Form");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
-	m_pTopOfForm = new Fl_Input(510, 270, 60, 20, "");
+	m_pTopOfForm = new Fl_Input(510, 250, 60, 20, "");
 	m_pTopOfForm->value(m_topOfFormStr);
-	o = new Fl_Box(575, 270, 60, 20, "inches from top");
+	o = new Fl_Box(575, 250, 60, 20, "inches from top");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 
+	// Create checkbox for auto-word wrap (not a feature of original FX-80)
+	m_pAutoWrap = new Fl_Check_Button(400, 280, 230, 20, "Auto wrap (CR/LF at end of line)");
+	m_pAutoWrap->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pAutoWrap->value(m_autoWrap);
+
+	// Button for Character Generator
 	b = new Fl_Button(360, 310, 120, 30, "Char Generator");
 	b->callback(cb_CreateNewCharGen);
 }
@@ -669,6 +676,7 @@ void VTFX80Print::Init(void)
 	m_sRamFile = temp;
 	m_pPref->get("FX80Print_PaperName", temp, "", 512);
 	m_paperName = temp;
+	m_pPref->get("FX80Print_AutoWrap", m_autoWrap, 0);
 
 	// Get DIP switch settings
 	m_pPref->get("FX80Print_AutoCR", c, 0);
@@ -812,6 +820,7 @@ int VTFX80Print::GetProperties(void)
 	// Get values from the dialog controls
 	m_useRomFile = m_pUseRomFile->value();
 	m_useRamFile = m_pUseRamFile->value();
+	m_autoWrap = m_pAutoWrap->value();
 	if (m_pRomFile->value() != 0)
 		m_sRomFile = m_pRomFile->value();
 
@@ -842,6 +851,7 @@ int VTFX80Print::GetProperties(void)
 	m_pPref->set("FX80Print_RamFile", (const char *) m_sRamFile);
 	m_pPref->set("FX80Print_PaperName", (const char *) m_paperName);
 	c = m_defCharSet;
+	m_pPref->set("FX80Print_AutoWrap", m_autoWrap);
 	m_pPref->set("FX80Print_IntlCharSet", c);
 	c = m_autoCR;
 	m_pPref->set("FX80Print_AutoCR", c);
@@ -1215,6 +1225,7 @@ void VTFX80Print::RenderChar(unsigned char byte)
 	int				xpos2;			// Used for locating enhanced dots
 	double			scalar;
 	int				proportionAdjust;
+	int				charWidth;
 
 	// Indicate marks made on the page
 	m_marksMade = TRUE;
@@ -1261,6 +1272,20 @@ void VTFX80Print::RenderChar(unsigned char byte)
 	// For expanded mode, we must expand the pins out twice as far
 	dotsPerPin = (m_expanded || m_expandedOneLine) ? 2 : 1;
 	
+	// Calculate the width of this character
+	charWidth = (int) ((double) ((last - first + 1 + proportionAdjust) * dotsPerPin) * scalar);
+
+	// Test if auto-wrap is enabled and we need to wrap
+	if (m_autoWrap && (m_curX + charWidth >= m_horizDots))
+	{
+		// Update X and Y locations
+		m_curX = m_leftMarginX;
+		m_curY += (int) (m_lineSpacing * m_vertDpi + 0.25);
+
+		// Check for new page
+		ProcessLineFeed();
+	}
+
 	// Loop through all bytes to be rendered 
 	for (c = first; c <= last; c++)
 	{
