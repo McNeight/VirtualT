@@ -20,6 +20,16 @@ v1.6
     the standard FLTK tab control and were really ugly, plus had an issue with tab
 	width calculations with regard to mouse presses to select the tab.
 
+4.  Updated GNUmakefile to auto-generate dependencies and use wildcard search for
+    selecting source files vs. specifying everything manually.
+
+5.  Added feature to FX80 printer emulation to perform auto word-wrap selectable via
+    the printer setup page.
+
+6.  Modified CPU speed indicator to show 2 decimal places precision for speeds less than
+    10 MHz.
+
+7.  Made the FX80 Virtual Paper display resizeable.
 
 ====================
 v1.5  July 9th, 2011
