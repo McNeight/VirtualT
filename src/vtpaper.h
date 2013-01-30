@@ -1,6 +1,6 @@
 /* fx80paper.h */
 
-/* $Id: fx80paper.h,v 1.1 2008/03/05 13:25:27 kpettit1 Exp $ */
+/* $Id: vtpaper.h,v 1.7 2008/04/13 16:42:55 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -133,6 +133,7 @@ protected:
 	char*				m_pLineCnts;				// Pointer to m_height byte counts
 	int					m_pageNum;					// Active page number
 	int					m_topPixel;					// Top pixel on window
+	int					m_leftPixel;				// Pixel number of left edge of page
 
 	Fl_Scrollbar*		m_pScroll;
 };

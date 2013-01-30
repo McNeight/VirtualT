@@ -1,6 +1,6 @@
 /* vtpaper.cpp */
 
-/* $Id: vtpaper.cpp,v 1.13 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: vtpaper.cpp,v 1.14 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -88,6 +88,9 @@ VTVirtualPaper::VTVirtualPaper() :
 	m_pScroll->linesize(12);
 	m_pScroll->callback(cb_VTPaperScroll, this);
 	m_topPixel = 0;
+	Fl_Button* o = new Fl_Button(0, 0, 1, 1, "");
+	o->hide();
+	resizable(o);
 }
 
 /*
@@ -220,7 +223,7 @@ void VTVirtualPaper::DrawPage(int pageNum)
 				{
 					if (data & mask)
 					{
-						xpos = (c<<3) + b + 15;
+						xpos = (c<<3) + b + m_leftPixel+5;
 						fl_point(xpos, ypos);
 						fl_point(xpos+1, ypos);
 						fl_point(xpos, ypos+1);
@@ -248,23 +251,30 @@ void VTVirtualPaper::draw(void)
 	double			offset;
 	VTVirtualPage*	pVPage= NULL;
 	int				pageBottom;
+	int				rightPixel;
 
 	// Draw child objects, etc
 	Fl_Double_Window::draw();
 
+	// Calculate the left edge of the page
+	m_leftPixel = ((w()-1015)>>1) + 10;
+	rightPixel = m_leftPixel+975;
+
 	// Draw left border
 	fl_color(FL_GRAY);
-	fl_rectf(0, 0, 10, h());
-	fl_rectf(w()-25, 0, 10, h());
+	fl_rectf(0, 0, m_leftPixel, h());
+	//fl_rectf(w()-25, 0, 10, h());
+	fl_rectf(rightPixel+5, 0, w()-(rightPixel+20), h());
 	fl_color(FL_DARK3);
-	fl_rectf(w()-30, 0, 5, h());
+	//fl_rectf(30, 0, 5, h());
+	fl_rectf(rightPixel, 0, 5, h());
 
 	// Check if page separator needs to be drawn at top
 	if (m_topPixel < 9)
 	{
 		fl_color(FL_GRAY);
 		fl_rectf(0, -m_topPixel, w()-15, 9);
-		fl_rectf(w()-30, -m_topPixel+9, 5, 5);
+		fl_rectf(rightPixel, -m_topPixel+9, 5, 5);
 	}
 
 	// Determine in which page m_topPixel falls
@@ -291,9 +301,9 @@ void VTVirtualPaper::draw(void)
 			fl_color(FL_GRAY);
 			fl_rectf(0,  pageBottom- m_topPixel, w()-15, 18);
 			fl_color(FL_DARK3);
-			fl_rectf(15,  pageBottom- m_topPixel, w()-40, 5);
+			fl_rectf(m_leftPixel+5,  pageBottom- m_topPixel, rightPixel-m_leftPixel, 5);
 			fl_color(FL_GRAY);
-			fl_rectf(w()-30, pageBottom - m_topPixel + 18, 5, 5);
+			fl_rectf(rightPixel, pageBottom - m_topPixel + 18, 5, 5);
 		}
 
 		// Check if next page needs to be drawn
