@@ -195,6 +195,10 @@
 #define		CSEG			1
 #define		DSEG			2
 
+#define		PREPROC_STAT_NO_SUBST		0
+#define		PREPROC_STAT_SUBST			1
+#define		PREPROC_STAT_ERROR			2
+
 #define		MAX_SEG_SIZE	(4*1024*1024)
 
 #define	VT_ISDIGIT(x)  (((x) >= '0') && ((x) <= '9'))
@@ -371,6 +375,8 @@ public:
 	VTAssembler();
 	~VTAssembler();
 
+	int					PerformSubstitution(CMacro* pMacro, const char* pLoc);
+	int					MacroSubstitution(void);
 	int					preprocessor(void);
 
 	// Define Preprocessor functions
@@ -440,6 +446,9 @@ public:
 	MString				m_FileDir;
 	FILE*				m_fd;				// File descriptor of open file
 	int					m_Line;
+	char*				m_pInLine;			// Pointer to expanded unput line
+	char*				m_pInPtr;			// Pointer to next char to process
+	int					m_InLineCount;		// Size of m_pInLine buffer
 	int					m_LastLabelLine;	// Line number of last label
 	int					m_FileIndex;
 	int					m_ProjectType;
@@ -479,6 +488,9 @@ public:
 	MString				m_IncludeName[32];
 	FILE*				m_IncludeStack[32];
 	int					m_IncludeIndex[32];
+	char*				m_IncludeInLine[32];
+	char*				m_IncludeInPtr[32];
+	int					m_IncludeInLineCount[32];
 	a85parse_pcb_struct m_ParserPCBs[32];
 	int					m_IncludeDepth;
 	MString				m_AsmOptions;		// Assembler options

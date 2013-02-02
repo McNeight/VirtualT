@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.10 2013/01/23 01:00:07 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.11 2013/01/26 21:30:23 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -141,6 +141,9 @@ VTAssembler::VTAssembler()
 	m_MsbFirst = FALSE;
 	m_LocalModuleChar = '_';
 	m_ActiveSeg = ASEG;
+	m_pInPtr = NULL;
+	m_InLineCount = 4096;
+	m_pInLine = new char[m_InLineCount];
 
 	// Create a new symbol module
 	m_ActiveMod = new CModule("basemod");
@@ -167,9 +170,325 @@ VTAssembler::~VTAssembler()
 {
 	ResetContent();
 
+	delete m_pInLine;
 	delete m_ActiveMod;
 	delete m_ActiveSeg;
 	delete m_ActiveSegLines;
+}
+
+/*
+============================================================================
+Perform macro substitution of the specified Macro at the location specified
+within the m_pInLine string.
+============================================================================
+*/
+int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
+{
+	int			args_needed, args_found, c;
+	const char	*pEndName, *pEnd, *ptr;
+	const char	*pArgs[64];
+	int			argLen[64], len, paren, quote, subst;
+	char		*pNewLine, *pNew;
+	char		quoteChar, ch, lastCh;
+	MString		err;
+	CExpression	*pExp;
+
+	// Calculate some control variables
+	args_needed = args_found = 0;
+	if (pMacro->m_ParamList != NULL)
+		args_needed = pMacro->m_ParamList->GetSize();
+	pEndName = pLoc + pMacro->m_Name.GetLength();
+
+	// Allocate storage for a new line and copy bytes up to the macro text
+	pNewLine = new char[m_InLineCount];
+	for (pNew = pNewLine, ptr = m_pInLine; ptr != pLoc; ptr++, pNew++)
+		*pNew = *ptr;
+
+	// Find all arguments in the macro invocation.  First skip white space
+	len = paren = quote = 0;
+	ptr = pEndName;
+	while (*ptr == ' ' || *ptr == '\t')
+		ptr++;
+	if (*ptr == '(')
+	{
+		// Skip the opening '('
+		ptr++;
+
+		// Keep looping until we reach the terminating paren or EOL
+		while (*ptr != ')' && *ptr != '\n' && *ptr != '\0')
+		{
+			// Save pointer to next arg
+			pArgs[args_found] = ptr;
+
+			// Test for end of argument
+			while ((*ptr != ',' && *ptr != ')') || ((quote || paren) &&
+					(*ptr != '\n' && *ptr != '\0')))
+			{
+				// Increment argument length
+				len++;
+
+				// Test for parenthesis within arg
+				if (*ptr == '(')
+				{
+					// If not in a quote, increment the paren depth
+					if (!quote)
+						paren++;
+				}
+				else if (*ptr == ')')
+				{
+					// If not in a quote, decrement the paren depth
+					if (!quote)
+						paren--;
+				}
+				else if (*ptr == '"')
+				{
+					// Test if we are in a quote block or not
+					if (!quote)
+					{
+						quote = TRUE;
+						quoteChar = '"';
+					}
+					else if (quoteChar == '"')
+						quote = FALSE;
+				}
+				else if (*ptr == '\'')
+				{
+					// Test if we are in a quoted block or not
+					if (!quote)
+					{
+						quote = TRUE;
+						quoteChar = '\'';
+					}
+					else if (quoteChar == '\'')
+						quote = FALSE;
+				}
+				else if (*ptr == '\\')
+				{
+					// Escape character.  Just skip past the escaped char
+					ptr++;
+					len++;
+				}
+
+				// Increment to next character
+				ptr++;
+			}
+
+			// Save length of this argument and increment args_found
+			argLen[args_found++] = len;
+			len = 0;
+
+			// If not ')', skip to next non-white and save ptr to next arg
+			if (*ptr == ',')
+			{
+				// Advance to byte after ','
+				ptr++;
+			}
+		}
+
+		// Validate we found the terminating ')'
+		if (*ptr != ')')
+		{
+			// Error, no terminating ')' in macro invocation
+			err.Format("Error in line %d(%s):  Expected terminating ')' for macro %s",
+					m_Line, gFilename, (const char *) pMacro->m_Name);
+			m_Errors.Add(err);
+
+			delete[] pNewLine;
+			return PREPROC_STAT_ERROR;
+		}
+
+		// Set the end of the macro based on the ptr
+		pEnd = ptr + 1;
+	}
+	else
+	{
+		// Set the macro end to the end of the name (no args)
+		pEnd = pEndName;
+	}
+
+	// Check if macro invocation has correct number of arguments
+	if (args_found != args_needed)
+	{
+		// Incorrect number of arguments
+		if (args_found < args_needed)
+			err.Format("Error in line %d(%s):  Too few arguments for macro %s",
+				m_Line, gFilename, (const char *) pMacro->m_Name);
+		else
+			err.Format("Error in line %d(%s):  Too many arguments for macro %s",
+				m_Line, gFilename, (const char *) pMacro->m_Name);
+		m_Errors.Add(err);
+
+		// Return an error code indicating we should skip processing on this line
+		delete[] pNewLine;
+		return PREPROC_STAT_ERROR;
+	}
+
+	// Test if the character before the macro name is '#' and remove if it is
+	if (pNew != pNewLine)
+	{
+		if (*(pNew-1) == '#')
+			pNew--;
+	}
+
+	// Now scan the macro's DefString and copy performing substitutions
+	ptr = (const char *) pMacro->m_DefString;
+	lastCh = ' ';
+	if (pMacro->m_ParamList == NULL)
+	{
+		// Perform simple substitution
+		while (*ptr != '\0')
+			*pNew++ = *ptr++;
+	}
+	else
+	{
+		// Perform parameterized replacement
+		while (*ptr != '\0')
+		{
+			subst = FALSE;
+
+			// Test if any of the parameters match at the current pointer
+			for (c = 0; c < args_needed; c++)
+			{
+				// Test next parameter
+				pExp = (CExpression *) pMacro->m_ParamList->GetAt(c);
+				if (strncmp(ptr, (const char *) pExp->m_Literal, pExp->m_Literal.GetLength()) == 0)
+				{
+					// We found a match.  Test for sub-string match
+					ch = *(ptr + pExp->m_Literal.GetLength());
+					if ((ch >= 'A' && ch <= 'a') || (ch >= 'a' && ch <= 'z') || (ch == '_'))
+						continue;
+
+					// Match found.  Test for '#' before param and remove from dest
+					if (lastCh == '#')
+						pNew--;
+
+					// Advance the pointer past the parameter
+					ptr += pExp->m_Literal.GetLength();
+
+					// Copy the replacement text to the new string
+					strcpy(pNew, pArgs[c]);
+					pNew += argLen[c];
+					subst = TRUE;
+					
+					// Break the for loop ... we found the arg
+					break;
+				}
+			}
+
+			// If we didn't perform substitution above, then copy the char to the new line as-is
+			if (!subst)
+				*pNew++ = *ptr++;
+		}
+	}
+
+	// Copy the remaining text to the new buffer
+	ptr = pEnd;
+	while (*ptr != '\0')
+		*pNew++ = *ptr++;
+	*pNew = '\0';
+
+	//printf("New line = %s", pNewLine);
+
+	// Delete the old m_pInLine and replace with the new one
+	delete[] m_pInLine;
+	m_pInLine = pNewLine;
+
+	return PREPROC_STAT_SUBST;
+}
+
+/*
+============================================================================
+Perform macro substitution on the text in m_pInLine
+============================================================================
+*/
+int VTAssembler::MacroSubstitution(void)
+{
+	int			count, c, len, quotes, comment;
+	char		ch_l, ch_r, quote_ch;
+	CMacro*		pMacro;
+	const char	*pStr, *pQstr;
+
+	// Loop through all known macros and search for that name in the line
+	count = m_Defines.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		// Get pointer to next macro
+		pMacro = (CMacro *) m_Defines[c];
+		len = pMacro->m_Name.GetLength();
+
+		// Test if this macro name found in the current line
+		if ((pStr = strstr(m_pInLine, (const char *) pMacro->m_Name)) != NULL)
+		{
+			ch_l = ' ';
+
+			// Okay, this macro name was found.  Now check if it is actually
+			// a macro substitution or not.  It could be enclosed in quotes or
+			// just a sub-string match, etc.
+			if (pStr != m_pInLine)
+			{
+				// Test for sub-string matches
+				ch_l = *(pStr - 1);
+				if ((ch_l >= 'A' && ch_l <= 'Z') || (ch_l >= 'a' && ch_l <= 'z'))
+					continue;
+				if ((ch_l >= '0' && ch_l <= '9') || (ch_l == '_'))
+					continue;
+			}
+
+			// Get character to the right of the string and test for sub-string match
+			ch_r = *(pStr + len);
+			if ((ch_r >= 'A' && ch_r <= 'Z') || (ch_r >= 'a' && ch_r <= 'z'))
+				continue;
+			if ((ch_r >= '0' && ch_r <= '9') || (ch_r == '_'))
+				continue;
+
+			// Not a sub-string match.  Test if it's a quoted string
+			comment = FALSE;
+			for (quotes = FALSE, pQstr = m_pInLine; pQstr != pStr; pQstr++)
+			{
+				// Check for an escaped quote
+				if (quotes && *pQstr == '\\')
+				{
+					pQstr++;
+					continue;
+				}
+
+				// Test for end of quotes
+				if (quotes && *pQstr == quote_ch)
+				{
+					quotes = FALSE;
+					continue;
+				}
+
+				// Test for beginning of quotes
+				if (*pQstr == '"' || *pQstr == '\'')
+				{
+					quotes = TRUE;
+					quote_ch = *pQstr;
+				}
+
+				// Test for assembly style comment
+				if (!quotes && *pQstr == ';')
+				{
+					comment = TRUE;
+					break;
+				}
+
+				// Test for C++ style comment
+				if (!quotes && *pQstr == '/' && *(pQstr+1) == '/')
+				{
+					comment = TRUE;
+					break;
+				}
+			}
+			if (quotes || comment)
+				continue;
+
+			// Okay, time to do a substitution
+			return PerformSubstitution(pMacro, pStr);
+		}
+	}
+
+	return FALSE;
 }
 
 /*
@@ -179,12 +498,45 @@ Implement a pre-processor to handle macro substitution.
 */
 int VTAssembler::preprocessor(void)
 {
-	int ch;
+	int		ret;
 
-	ch = fgetc(m_fd);
-	if (ch == 13)
-		ch = fgetc(m_fd);
-	return ch;
+	// Test if any chars left in current expanded line
+	if (m_pInPtr)
+	{
+		// filter out cr characters
+		if (*m_pInPtr == 13)
+			m_pInPtr++;
+
+		// If not at end of line, return the next char
+		if (*m_pInPtr != '\0')
+			return *m_pInPtr++;
+	}
+
+	// Read next line from input file
+	if (fgets(m_pInLine, m_InLineCount, m_fd) == NULL)
+	{
+		// Zero out the line
+		m_pInPtr = NULL;
+		return 0;
+	}
+
+	// Perform macro substitution on the line until no more substitutions left
+	while ((ret = MacroSubstitution()) == PREPROC_STAT_SUBST)
+		;
+
+	// Test for error during macro substitution
+	if (ret == PREPROC_STAT_ERROR)
+	{
+	}
+
+	// Return the 1st char from the expanded line
+	m_pInPtr = m_pInLine;
+
+	// filter out cr characters
+	if (*m_pInPtr == 13)
+		m_pInPtr++;
+
+	return *m_pInPtr++;
 }
 
 void VTAssembler::SetStdoutFunction(void *pContext, stdOutFunc_t pFunc)
@@ -292,6 +644,7 @@ void VTAssembler::ResetContent(void)
 	m_Address = 0;
 	m_DebugInfo = 0;
 	m_LastLabelAdded = 0;
+	m_pInPtr = NULL;
 
 	// Clean up include stack
 	while (m_IncludeDepth != 0)
@@ -1092,10 +1445,16 @@ void VTAssembler::include(const char *filename)
 		memcpy(&m_ParserPCBs[m_IncludeDepth], &a85parse_pcb,
 			sizeof(a85parse_pcb_type));
 		m_IncludeIndex[m_IncludeDepth] = m_FileIndex;
+		m_IncludeInLine[m_IncludeDepth] = m_pInLine;
+		m_IncludeInLineCount[m_IncludeDepth] = m_InLineCount;
+		m_IncludeInPtr[m_IncludeDepth] = m_pInPtr;
 		m_IncludeStack[m_IncludeDepth++] = m_fd;
 
-		// Check if this file already in the m_Filenames list!
+		m_InLineCount = 4096;
+		m_pInLine = new char[4096];
+		m_pInPtr = NULL;
 
+		// TODO: Check if this file already in the m_Filenames list!
 
 		m_FileIndex = m_Filenames.Add(filename);
 										  
@@ -1105,8 +1464,14 @@ void VTAssembler::include(const char *filename)
 		a85parse();
 		fclose(m_fd);
 
+		// Delete the m_pInLine
+		delete m_pInLine;
+
 		// Restore the previous FD
 		m_fd = m_IncludeStack[--m_IncludeDepth];
+		m_pInPtr = m_IncludeInPtr[m_IncludeDepth];
+		m_pInLine = m_IncludeInLine[m_IncludeDepth];
+		m_InLineCount = m_IncludeInLineCount[m_IncludeDepth];
 		m_FileIndex = m_IncludeIndex[m_IncludeDepth];
 		gFilename = (const char *) m_Filenames[m_FileIndex];
 		memcpy(&a85parse_pcb, &m_ParserPCBs[m_IncludeDepth],
@@ -1742,7 +2107,6 @@ void VTAssembler::directive_aseg()
 	
 	// Set segment of current module
 	m_Segments.Lookup(".aseg", (VTObject *&) pSeg);
-//	pSeg = (CSegment *) m_Segments[".aseg"];
 
 	// Activate the new segment
 	ActivateSegment(pSeg);
@@ -2620,6 +2984,8 @@ void VTAssembler::preproc_define()
 		// Add the macro to our array of defines
 		m_Defines.Add(gMacro);
 
+		// Test code to print the macros we find
+#if 0
 		if (gMacro->m_ParamList == NULL)
 			printf("Macro %s = '%s'\n", (const char *) gMacro->m_Name, (const char *) gMacro->m_DefString);
 		else
@@ -2639,6 +3005,7 @@ void VTAssembler::preproc_define()
 			}
 			printf(") = '%s'\n", (const char *) gMacro->m_DefString);
 		}
+#endif
 
 		// Add new instruction to the instruction list and create new expression list
 		gMacro = new CMacro;					// Create a new macro object
@@ -3144,7 +3511,6 @@ int VTAssembler::Assemble()
 						pRange = pRange->pNext;
 					}
 					relSeg->m_Reloc.Add(pRel);
-//					m_ActiveSeg->m_Reloc.Add(pRel);
 				}
 
 				// Check if operand is extern
@@ -3304,12 +3670,6 @@ int VTAssembler::Assemble()
 						// Point to next AddrRange
 						pRange = pRange->pNext;
 					}
-				}
-				else
-				{
-//					err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-//						pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//					m_Errors.Add(err);
 				}
 			}
 
@@ -3477,7 +3837,6 @@ int VTAssembler::Assemble()
 								pRange = pRange->pNext;
 							}
 							relSeg->m_Reloc.Add(pRel);
-//							m_ActiveSeg->m_Reloc.Add(pRel);
 						}
 
 						// Check if operand is extern
@@ -3526,13 +3885,6 @@ int VTAssembler::Assemble()
 				{
 					// Increment address counter based on equation
 					m_Address += (int) value;
-				}
-				else
-				{
-					// Report error
-//					err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-//						pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
-//					m_Errors.Add(err);
 				}
 			}
 			/*
@@ -5264,3 +5616,4 @@ CMacro::~CMacro()
 		delete m_ParamList;
 	}
 }
+
