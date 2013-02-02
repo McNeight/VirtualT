@@ -408,7 +408,7 @@ public:
 	void				directive_echo(void);
 	void				directive_echo(const char *msg);
 	void				directive_fill(void);
-	void				directive_printf(const char *fmt);
+	void				directive_printf(const char *fmt, int hasEquation = 1);
 	void				directive_extern(void);
 	void				directive_endian(int msbFirst);
 	void				directive_org();

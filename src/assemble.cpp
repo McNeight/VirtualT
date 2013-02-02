@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.11 2013/01/26 21:30:23 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.12 2013/02/02 13:44:31 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -1899,7 +1899,7 @@ void VTAssembler::directive_echo(const char *string)
 This function is called when a printf directive is encountered
 ============================================================================
 */
-void VTAssembler::directive_printf(const char *string)
+void VTAssembler::directive_printf(const char *string, int hasEquation)
 {
 	char		str[256];
 	double		value = 0.0;
@@ -1916,7 +1916,7 @@ void VTAssembler::directive_printf(const char *string)
 		return;
 	}
 
-	// Find the locaiton of the format specifier
+	// Find the location of the format specifier
 	ptr = string;
 	while ((*ptr != '%') && (*ptr != '\0'))
 		ptr++;
@@ -1930,26 +1930,34 @@ void VTAssembler::directive_printf(const char *string)
 	// Try to evaluate the equation.  Note that we may not be able to
 	// successfully evaluate it at this point because it may contain
 	// a forward reference, so don't report any errors yet.
-	if (Evaluate(gEq, &value, 0))
+	if (hasEquation)
 	{
-		if (fmtCh == 'f')
-			sprintf(str, string, value);
+		if (Evaluate(gEq, &value, 0))
+		{
+			if (fmtCh == 'f')
+				sprintf(str, string, value);
+			else
+			{
+				lval = (int) value;
+				sprintf(str, string, lval);
+			}
+		}
 		else
 		{
-			lval = (int) value;
-			sprintf(str, string, lval);
+			strncpy(str, string, (int) (ptr - string));
+			strcat(str, "#UNDEFINED");
+			if (*ptr != '\0')
+				strcat(str, ptr + 2 + fmtDigits);
 		}
+
+		if (m_pStdoutFunc != NULL)
+			m_pStdoutFunc(m_pStdoutContext, (const char *) str);
 	}
 	else
 	{
-		strncpy(str, string, (int) (ptr - string));
-		strcat(str, "#UNDEFINED");
-		if (*ptr != '\0')
-			strcat(str, ptr + 2 + fmtDigits);
+		if (m_pStdoutFunc != NULL)
+			m_pStdoutFunc(m_pStdoutContext, string);
 	}
-
-	if (m_pStdoutFunc != NULL)
-		m_pStdoutFunc(m_pStdoutContext, (const char *) str);
 }
 
 /*

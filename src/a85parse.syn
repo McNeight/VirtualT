@@ -41,7 +41,7 @@ label char      = '$' + '?' + '{' + '}'
 string char     = ~eof - ('"' + '\\' + '\n')
 rst arg			= '0-7'
 asm incl char	= 'a-z' + 'A-Z' + '0-9' + '_' + '.' + '\\' + '/'
-define chars	= ~eof - newline - '\\' - '#'
+define chars	= ~eof - newline - '\\'
 PLUS			= '+'
 MINUS			= '-'
 
@@ -92,6 +92,7 @@ statement
  -> preproc inst
  -> label, WS?..., '.'?, "equ", equation, WS?..., comment	= gAsm->equate((const char *) -1);
  -> label, WS?..., '.'?, "set", equation, WS?..., comment	= gAsm->directive_set((const char *) -1);
+ -> label, WS?..., "=", equation, WS?..., comment			= gAsm->directive_set((const char *) -1);
  -> WS?..., '.'?, {"include" | "incl"}, literal string, 
 		WS?..., comment								= gAsm->include(ss[ss_idx--]);
  -> WS?..., '.'?, {"include" | "incl"}, include string, 
@@ -123,6 +124,9 @@ preprocessor directive
  -> "else", WS?..., comment							= gAsm->preproc_else();
  -> "endif", WS?..., comment						= gAsm->preproc_endif();
  -> "error", literal string, WS?..., comment		= {if (gAsm->preproc_error(ss[ss_idx--])) gAbort = TRUE;}
+ -> "print", literal string, WS?..., comment		= gAsm->directive_printf(ss[ss_idx--], FALSE);
+ -> "printf", literal string, 
+		',', WS?..., equation, WS?..., comment		= gAsm->directive_printf(ss[ss_idx--]);
  -> "undef", literal name nows, WS?..., comment		= gAsm->preproc_undef(ss[ss_idx--]);
  -> "define", macro, WS?..., 
 		macro expansion, WS?..., comment			= { if (gMacroStack[ms_idx] != 0) { delete gMacroStack[ms_idx]; \
@@ -188,6 +192,7 @@ expression
  -> '.'?, "echo", equation							= gAsm->directive_echo();
  -> '.'?, "echo", literal string					= gAsm->directive_echo(ss[ss_idx--]);
  -> '.'?, "fill", WS?..., expression list			= gAsm->directive_fill();
+ -> '.'?, "print", literal string					= gAsm->directive_printf(ss[ss_idx--], FALSE);
  -> '.'?, "printf", literal string, 
 		',', WS?..., equation						= gAsm->directive_printf(ss[ss_idx--]);
  -> '.'?, "end"										= gAsm->directive_end("");

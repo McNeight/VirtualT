@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.21 2013/01/30 17:27:34 kpettit1 Exp $ */
+/* $Id: io.c,v 1.22 2013/01/30 18:04:18 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -264,7 +264,7 @@ void update_keys(void)
 		}
 	}
 
-	if ((gSpecialKeys & (MT_GRAPH | MT_CODE | MT_SHIFT) == 0) && !gCapture)
+	if (((gSpecialKeys & (MT_GRAPH | MT_CODE | MT_SHIFT)) == 0) && !gCapture)
 	{
 		FILE* fd;
 		int		d, col, row;
