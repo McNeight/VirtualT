@@ -73,6 +73,8 @@ unsigned char	gRexModel = 0;		/* Rex model */
 unsigned char	gRexFlashSel = 1;	/* Rex Flash enable signal */
 int				gRexKeyState = 0;	/* Rex Key State */
 int				gRexFlashPA = 0;	/* REX Flash Address Line during programing */
+unsigned char	gRex3Data = 0;		/* REX3 data to write for commands 2,5 and 6 */
+unsigned char	gRex3Cmd = 0;		/* REX3 command saved for state 6 */
 amd_flash_t		gRexFlash = { FLASH_STATE_RO, 0, FALSE, 0 };
 unsigned char	gRexKeyTable[6] = { 184, 242, 52, 176, 49, 191 };
 int				gIndex[65536];
@@ -2913,11 +2915,24 @@ unsigned char rex_read(unsigned short address)
 			gRexState = address & 0x07;
 			return gRexReturn;
 
-		case 1:		/* Set Sector CMD */
 		case 2:		/* Send AAA,AA CMD */
-		case 4:		/* Read from flash */
 		case 5:		/* Send 555,55 CMD */
 		case 6:		/* Send PA, PD */
+			/* For REX2 (PC8201), the state machine had to change because of no ALE.
+			   In this case, we transition to state 2 to await the data, then to state
+			   6 to await the address. */
+			if (gModel == MODEL_PC8201)
+			{
+				// Go to state 2
+				gRexState = 2;
+				gRex3Cmd = address & 0x07;
+				break;
+			}
+
+			// Fall through
+
+		case 1:		/* Set Sector CMD */
+		case 4:		/* Read from flash */
 			gRexState = address & 0x07;
 			gRexFlashPA = address & 0xFF;
 			break;
@@ -2949,11 +2964,21 @@ unsigned char rex_read(unsigned short address)
 		break;
 
 	case 2:		/* Send AAA, AD to Flash */
-		/* Write to the REX Flash object.  LSB of address is actually data */
-		amd_flash_write(&gRexFlash, gRexSector | gRexFlashPA, address & 0xFF);
+		if (gModel == MODEL_PC8201)
+		{
+			/* For REX3 (PC8201), we save the write data during state 2, then go to 
+			   state 6 to await the address */
+			gRex3Data = address & 0xFF;
+			gRexState = 6;
+		}
+		else
+		{
+			/* Write to the REX Flash object.  LSB of address is actually data */
+			amd_flash_write(&gRexFlash, gRexSector | gRexFlashPA, address & 0xFF);
 
-		/* Back to state 0 for next command */
-		gRexState = 0;
+			/* Back to state 0 for next command */
+			gRexState = 0;
+		}
 		break;
 
 	case 3:
@@ -2997,11 +3022,41 @@ unsigned char rex_read(unsigned short address)
 		break;
 
 	case 6:		/* Send PA,PD to flash, first we receive PA */
-		/* Save the address from this read as our Flash PA */
-		gRexFlashPA = address & 0x7FFF;
+		/* Test for REX3 (PC8201) */
+		if (gModel == MODEL_PC8201)
+		{
+			/* For REX3, we perform the write during state 6 */
+			switch (gRex3Cmd)
+			{
+				case 2:
+					gRexFlashPA = gRexSector | (address & 0xFF);
+					break;
+				case 5:
+					gRexFlashPA = address & 0xFF;
+					break;
+				case 6:
+					gRexFlashPA = gRexSector | (address & 0x7FFF);
+					break;
+				default:
+					gRexFlashPA = 0;
+					break;
+			}
 
-		/* Go to State 2 to await the data */
-		gRexState = 2;
+			/* Write to the REX Flash object.  LSB of address is actually data */
+			amd_flash_write(&gRexFlash, gRexFlashPA, gRex3Data);
+
+			/* Back to state 0 for next command */
+			gRexState = 0;
+		}
+		else
+		{
+			/* Save the address from this read as our Flash PA */
+			gRexFlashPA = address & 0x7FFF;
+
+			/* Go to State 2 to await the data */
+			gRexState = 2;
+		}
+
 		break;
 	}
 	return (unsigned char) (address & 0xFF);
