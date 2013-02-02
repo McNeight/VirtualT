@@ -18,8 +18,14 @@
 SRCDIR		=	 src
 OBJDIR		=    obj
 DEPDIR		=    .dep
-CFLAGS		+=	 -I $(SRCDIR)/FLU -O2 $(DEBUG)
-CPPFLAGS	+=	 -I $(SRCDIR) -O2 $(DEBUG)
+
+# Optimize only if not debug mode
+ifeq ($(DEBUG),)
+OPTIMIZE	=	-O2
+endif
+
+CFLAGS		+=	 -I $(SRCDIR)/FLU $(OPTIMIZE) $(DEBUG)
+CPPFLAGS	+=	 -I $(SRCDIR) $(OPTIMIZE) $(DEBUG)
 VIRTUALT	=	 virtualt
 CLIENT		=	 vt_client
 CC          =    $(CROSS_COMPILE)gcc
