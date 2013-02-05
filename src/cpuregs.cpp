@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.12 2013/02/05 03:15:24 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.13 2013/02/05 17:23:59 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -682,7 +682,7 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "0x%04X", get_memory16(SP+x*2));
+			sprintf(str, "%04XH", get_memory16(SP+x*2));
 			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
 
 			fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
@@ -713,7 +713,7 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "0x%04X", get_memory16(SP+x*2));
+			sprintf(str, "%04XH", get_memory16(SP+x*2));
 			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
 
 			// Now draw the Instruction Trace
