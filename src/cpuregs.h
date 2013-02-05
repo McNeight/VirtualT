@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.5 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.6 2013/02/05 01:36:11 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -214,6 +214,7 @@ public:
 	int					m_x, m_y, m_h, m_w;
 	int					m_lastH;
 	int					m_fontSize, m_fontHeight;
+	int					m_inverseHilight;
 };
 
 #endif

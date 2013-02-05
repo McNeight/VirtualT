@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.10 2013/02/05 01:39:53 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.11 2013/02/05 01:41:17 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -168,6 +168,14 @@ int str_to_i(const char *pStr)
 					hex = TRUE;
 					break;
 				}
+				if ((pStr[x] == 'h') || (pStr[x] == 'H'))
+				{
+					hex = TRUE;
+					break;
+				}
+
+				if (pStr[x] == ' ')
+					break;
 			}
 	}
 
@@ -175,7 +183,7 @@ int str_to_i(const char *pStr)
 	if (hex)
 	{
 		x = 0; val = 0;
-		while ((pStr[x] != '\0') && (pStr[x] != 'h') && (pStr[x] != 'H'))
+		while ((pStr[x] != '\0') && (pStr[x] != 'h') && (pStr[x] != 'H') && (pStr[x] != ' '))
 		{
 			digit = pStr[x] > '9' ? (pStr[x] | 0x60) - 'a' + 10 : pStr[x] - '0';
 			val = val * 16 + digit;
@@ -482,7 +490,10 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 	lines = gcpuw->m_pTraceBox->h() / gcpuw->m_fontHeight;
 
 	// Select 11 point Courier font
-	fl_font(FL_COURIER, gcpuw->m_fontSize);
+	if (gcpuw->m_inverseHilight)
+		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+	else
+		fl_font(FL_COURIER, gcpuw->m_fontSize);
 	fl_color(FL_BLACK);
 
 	// Initialize last_sp and last_pc in case trace is clear
@@ -505,7 +516,12 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 
 			// Now draw the Instruction Trace
 			if (x == lines-1)
-				fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+			{
+				if (gcpuw->m_inverseHilight)
+					fl_color(FL_DARK_BLUE);
+				else
+					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+			}
 			fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
 				gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
 			fl_draw(gcpuw->m_sInstTrace[draw], 25, trace_top+x*gcpuw->m_fontHeight);
@@ -540,13 +556,25 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 				/* Build the trace text */
 				last_pc = build_trace_line(draw, &lineStr[0]);
 
+				// Clip the drawing
+				fl_push_clip(gcpuw->m_pTraceBox->x()+2, gcpuw->m_pTraceBox->y()+3,
+					gcpuw->m_pTraceBox->w()-4, gcpuw->m_pTraceBox->h()-6);
+
 				/* If on the execution line, make the font bold */
 				if (x+firstLine == gcpuw->m_traceAvail-1)
-					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+				{
+					if (gcpuw->m_inverseHilight)
+					{
+						fl_color(FL_DARK_BLUE);
+						fl_rectf(gcpuw->m_pTraceBox->x()+3, trace_top+(x-1)*gcpuw->m_fontHeight+5,
+							gcpuw->m_pTraceBox->w()-6, gcpuw->m_fontHeight);
+						fl_color(FL_WHITE);
+					}
+					else
+						fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+				}
 
 				// Finally, draw the trace on the window
-				fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
-					gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
 				fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
 				fl_pop_clip();
 				if (++draw >= gcpuw->m_traceAvail)
@@ -556,7 +584,10 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 				if (x+firstLine == gcpuw->m_traceAvail-1)
 				{
 					// Change back to normal font
-					fl_font(FL_COURIER, gcpuw->m_fontSize);
+					if (gcpuw->m_inverseHilight)
+						fl_color(FL_BLACK);
+					else
+						fl_font(FL_COURIER, gcpuw->m_fontSize);
 
 					// Search opcode for conditional branching
 					if (((strncmp(&lineStr[7], "JZ", 2) == 0) ||
@@ -636,7 +667,12 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 
 				// If trace is empty, then make 1st (current) inst bold
 				if (x == 0)
-					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+				{
+					if (gcpuw->m_inverseHilight)
+						fl_color(FL_DARK_BLUE);
+					else
+						fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+				}
 
 				// Disassemble the next line that hasn't executed yet
 				last_pc += cpu_dis.DisassembleLine(last_pc, lineStr);
@@ -644,7 +680,12 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 					fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
 
 				if (x == 0)
-					fl_font(FL_COURIER, gcpuw->m_fontSize);
+				{
+					if (gcpuw->m_inverseHilight)
+						fl_color(FL_BLACK);
+					else
+						fl_font(FL_COURIER, gcpuw->m_fontSize);
+				}
 			}
 		}
 	}
@@ -2809,6 +2850,7 @@ void VTCpuRegs::LoadPrefs(void)
 	virtualt_prefs.get("CpuRegs_debugInts", temp, 1);
 	gDebugInts = temp;
 	virtualt_prefs.get("CpuRegs_rememberBreakpoints", m_saveBreakpoints, 1);
+	virtualt_prefs.get("CpuRegs_inversHilight", m_inverseHilight, 1);
 
 	if (m_saveBreakpoints)
 	{
@@ -2844,6 +2886,8 @@ void VTCpuRegs::SavePrefs(void)
 	virtualt_prefs.set("CpuRegs_disableTrace", gDisableRealtimeTrace);
 	virtualt_prefs.set("CpuRegs_debugInts", gDebugInts);
 	virtualt_prefs.set("CpuRegs_rememberBreakpoints", m_saveBreakpoints);
+	virtualt_prefs.set("CpuRegs_inversHilight", m_inverseHilight);
+
 	if (m_saveBreakpoints)
 	{
 		virtualt_prefs.set("CpuRegs_break1", m_pBreak1->value());
@@ -3086,10 +3130,11 @@ Define a local struct for the setup parameters.
 */
 typedef struct trace_setup_params
 {
-	Fl_Input*	pTraceDepth;
-	Fl_Input*	pFontSize;
-	char		sDepth[20];
-	char		sFontSize[20];
+	Fl_Input*			pTraceDepth;
+	Fl_Input*			pFontSize;
+	Fl_Check_Button*	pInverseHilight;
+	char				sDepth[20];
+	char				sFontSize[20];
 } trace_setup_params_t;
 
 /*
@@ -3125,6 +3170,9 @@ static void cb_setupdlg_OK(Fl_Widget* w, void* pOpaque)
 		fl_font(FL_COURIER, gcpuw->m_fontSize);
 		gcpuw->m_fontHeight = fl_height() + 1;
 	}
+
+	// Get Inverse Highlight selection
+	gcpuw->m_inverseHilight = p->pInverseHilight->value();
 
 	// Get the updated trace depth
 	newDepth = atoi(p->pTraceDepth->value());
@@ -3229,6 +3277,10 @@ void cb_setup_trace(Fl_Widget* w, void* pOpaque)
 	p.pFontSize->align(FL_ALIGN_LEFT);
 	sprintf(p.sFontSize, "%d", gcpuw->m_fontSize);
 	p.pFontSize->value(p.sFontSize);
+
+	/* Create checkbox for hilight style */
+	p.pInverseHilight = new Fl_Check_Button(20, 80, 190, 20, "Inverse Video Hilight");
+	p.pInverseHilight->value(gcpuw->m_inverseHilight);
 
 	// Cancel button
     { Fl_Button* o = new Fl_Button(80, 120, 60, 30, "Cancel");
