@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.28 2013/01/26 03:51:20 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.29 2013/01/30 16:29:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -35,7 +35,6 @@
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Help_Dialog.H>
-#include <FL/Fl_File_Chooser.H>
 #include <FL/Fl_Pixmap.H>
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
@@ -124,10 +123,16 @@ Fl_Button*			gFrameButton;
 Fl_Button*			gDetailButton;
 Fl_Button*			gFkeyLabelsButton;
 
+class VT_Ide;
+
 extern char*	print_xpm[];
 extern Fl_Menu_Item	gPrintMenu[];
+extern void		Ide_SavePrefs(void);
 
-extern Fl_Pixmap	gPrinterIcon;
+extern Fl_Pixmap		gPrinterIcon;
+extern VTCpuRegs*		gcpuw;
+extern Fl_Window*		gmew;
+extern VT_Ide *			gpIde;
 
 void switch_model(int model);
 void key_delay(void);
@@ -286,6 +291,39 @@ void close_disp_cb(Fl_Widget* w, void*)
 {
 	if (gpDisp != NULL)
 	{
+		int		cpuregs_was_open = FALSE;
+		int		ide_was_open = FALSE;
+		int		memedit_was_open = FALSE;
+
+		// Check if there is a CpuRegs window open and tell it to
+		// save user preferences if there is
+		if (gcpuw != NULL)
+		{
+			gcpuw->SavePrefs();
+			cpuregs_was_open = TRUE;
+		}
+
+		// Check if there is a Memory Edit window open and tell it to
+		// save user preferences is there is
+		if (gmew != NULL)
+		{
+			MemoryEditor_SavePrefs();
+			memedit_was_open = TRUE;
+		}
+
+		// Check if the IDE is opened and tell it to save user
+		// preferences if it is
+		if (gpIde != NULL)
+		{
+			Ide_SavePrefs();
+			ide_was_open = TRUE;
+		}
+
+		// Save open status
+		virtualt_prefs.set("WindowState_MemEdit", memedit_was_open);
+		virtualt_prefs.set("WindowState_CpuRegs", cpuregs_was_open);
+		virtualt_prefs.set("WindowState_IDE", ide_was_open);
+
 		gExitApp = 1;
 		gExitLoop = 1;
 	}
@@ -4749,5 +4787,32 @@ void T200_Disp::redraw_active()
 			}
 		}
 	}
+}
+
+/*
+=================================================================
+Initialize (open) other windows that were previously opened the
+last time the application closed.
+=================================================================
+*/
+void init_other_windows(void)
+{
+	int		memedit_was_open, cpuregs_was_open, ide_was_open;
+
+	/* Load the open state of various windows */
+	virtualt_prefs.get("WindowState_MemEdit", memedit_was_open, 0);
+	virtualt_prefs.get("WindowState_CpuRegs", cpuregs_was_open, 0);
+	virtualt_prefs.get("WindowState_IDE", ide_was_open, 0);
+
+	// If the Memory Editor was opened previously, then re-open it
+	if (memedit_was_open && (gmew == NULL))
+		cb_MemoryEditor(NULL, NULL);
+
+	// If the CpuRegs window was opened previously, then re-open it
+	if (cpuregs_was_open && (gcpuw == NULL))
+		cb_CpuRegs(NULL, NULL);
+
+	// Give the focus back to the main VirtualT window
+	MainWin->show();
 }
 

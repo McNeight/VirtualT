@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.11 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.12 2011/07/11 16:52:31 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -136,8 +136,9 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
 
 memedit_ctrl_t		memedit_ctrl;
 memedit_dialog_t	gDialog;
-Fl_Window		*gmew;				// Global Memory Edit Window
-unsigned char	gDispMemory[8192];
+Fl_Window			*gmew;				// Global Memory Edit Window
+unsigned char		gDispMemory[8192];
+extern	Fl_Preferences virtualt_prefs;
 
 /*
 ============================================================================
@@ -148,6 +149,8 @@ void cb_memeditwin (Fl_Widget* w, void*)
 {
 	gmew->hide();
 	mem_clear_monitor_callback(memory_monitor_cb);
+	MemoryEditor_SavePrefs();
+
 	delete gmew;
 	gmew = NULL;
 }
@@ -857,6 +860,23 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 
 	// Set Memory Monitor callback
 	mem_set_monitor_callback(memory_monitor_cb);
+
+	// Get the user preferences for the memory editor
+	MemoryEditor_LoadPrefs();
+
+	// Resize if user preferences have been set
+	if (memedit_ctrl.pMemEdit->m_x != -1 && memedit_ctrl.pMemEdit->m_y != -1 && 
+		memedit_ctrl.pMemEdit->m_w != -1 && memedit_ctrl.pMemEdit->m_h != -1)
+	{
+		int newx, newy, neww, newh;
+
+		newx = memedit_ctrl.pMemEdit->m_x;
+		newy = memedit_ctrl.pMemEdit->m_y;
+		neww = memedit_ctrl.pMemEdit->m_w;
+		newh = memedit_ctrl.pMemEdit->m_h;
+
+		gmew->resize(newx, newy, neww, newh);
+	}
 
 	gmew->show();
 }
@@ -2288,4 +2308,28 @@ void T100_MemEditor::UpdateAddressText()
 	memedit_ctrl.pMemRange->value(string);
 }
 
+/*
+============================================================================
+Load user preferences
+============================================================================
+*/
+void MemoryEditor_LoadPrefs(void)
+{
+	virtualt_prefs.get("MemEdit_x", memedit_ctrl.pMemEdit->m_x, -1);
+	virtualt_prefs.get("MemEdit_y", memedit_ctrl.pMemEdit->m_y, -1);
+	virtualt_prefs.get("MemEdit_w", memedit_ctrl.pMemEdit->m_w, -1);
+	virtualt_prefs.get("MemEdit_h", memedit_ctrl.pMemEdit->m_h, -1);
+}
 
+/*
+============================================================================
+Load user preferences
+============================================================================
+*/
+void MemoryEditor_SavePrefs(void)
+{
+	virtualt_prefs.set("MemEdit_x", gmew->x());
+	virtualt_prefs.set("MemEdit_y", gmew->y());
+	virtualt_prefs.set("MemEdit_w", gmew->w());
+	virtualt_prefs.set("MemEdit_h", gmew->h());
+}

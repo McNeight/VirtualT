@@ -1,6 +1,6 @@
 /* memedit.h */
 
-/* $Id: memedit.h,v 1.3 2007/03/31 22:09:16 kpettit1 Exp $ */
+/* $Id: memedit.h,v 1.4 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -37,6 +37,8 @@
 void cb_MemoryEditor (Fl_Widget* w, void*);
 void cb_MemoryEditorUpdate(void);
 
+void MemoryEditor_LoadPrefs(void);
+void MemoryEditor_SavePrefs(void);
 
 #define		MENU_HEIGHT	32
 
@@ -55,6 +57,7 @@ public:
 	void			UpdateDispMem(void);
 	void			MoveTo(int value);
 	int				m_FirstLine;
+	int				m_x, m_y, m_w, m_h;		// user preferences for window position
 				
 protected:
 //	virtual int handle(int event);
@@ -86,7 +89,6 @@ protected:
 	long			m_SelEndCol;
 
 	Fl_Scrollbar*	m_pScroll;
-
 };
 
 #endif

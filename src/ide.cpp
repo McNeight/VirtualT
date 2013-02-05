@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.11 2013/01/23 01:00:08 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.12 2013/01/26 03:51:20 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -244,6 +244,28 @@ Fl_Pixmap gTextDoc( textdoc_xpm ), gComputer( computer_xpm );
 
 /*
 =======================================================
+Save the user's preferences for IDE window size.
+=======================================================
+*/
+void Ide_SavePrefs(void)
+{
+	// Save window parameters to preferences
+	if (save_window_size)
+	{
+		virtualt_prefs.set("IdeX", gpIde->x());
+		virtualt_prefs.set("IdeY", gpIde->y());
+		virtualt_prefs.set("IdeW", gpIde->w());
+		virtualt_prefs.set("IdeH", gpIde->h());
+		int ideTabHeight = gpIde->h() - gpIde->SpliterHeight();
+		int ideTreeWidth = gpIde->SpliterWidth();
+		virtualt_prefs.set("IdeTabheight", ideTabHeight);
+		virtualt_prefs.set("IdeTreeWidth", ideTreeWidth);
+	}
+	gpIde->SavePrefs();
+}
+
+/*
+=======================================================
 Callback routine for the close box of the IDE window
 =======================================================
 */
@@ -264,19 +286,7 @@ void close_ide_cb(Fl_Widget* w, void*)
 				gpIde->SaveProject();
 		}
 
-		// Save window parameters to preferences
-		if (save_window_size)
-		{
-			virtualt_prefs.set("IdeX", gpIde->x());
-			virtualt_prefs.set("IdeY", gpIde->y());
-			virtualt_prefs.set("IdeW", gpIde->w());
-			virtualt_prefs.set("IdeH", gpIde->h());
-			int ideTabHeight = gpIde->h() - gpIde->SpliterHeight();
-			int ideTreeWidth = gpIde->SpliterWidth();
-			virtualt_prefs.set("IdeTabheight", ideTabHeight);
-			virtualt_prefs.set("IdeTreeWidth", ideTreeWidth);
-		}
-		gpIde->SavePrefs();
+		Ide_SavePrefs();
 
 		// Okay, close the window
 		setMonitorWindow(0);

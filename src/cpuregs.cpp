@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.7 2009/04/05 05:34:42 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -29,9 +29,10 @@
 
 #include <FL/Fl.H>
 #include <FL/fl_draw.H>
-#include <FL/Fl_Window.H>
 #include <FL/Fl_Menu_Item.H>
 #include <FL/Fl_Menu_Bar.H>
+
+#include "FLU/Flu_File_Chooser.h"
 
 #if defined(WIN32)
 #include <windows.h>
@@ -49,45 +50,64 @@
 #include "memory.h"
 #include "fileview.h"
 
-#define		MENU_HEIGHT	32
+#define		MENU_HEIGHT					32
 
-void cb_Ide(Fl_Widget* w, void*) ;
-
-VTDis	cpu_dis;
 /*
 ============================================================================
 Global variables
 ============================================================================
 */
-cpuregs_ctrl_t	cpuregs_ctrl;
-Fl_Window		*gcpuw = NULL;
+VTCpuRegs		*gcpuw = NULL;
 int				gStopCountdown = 0;
 int				gSaveFreq = 0;
 int				gDisableRealtimeTrace = 0;
-int				gDebugCount = 0;;
-int				gDebugMonitorFreq = 8192;
+int				gDebugCount = 0;
+int				gDebugMonitorFreq = 32768;
+VTDis			cpu_dis;
+
+extern			Fl_Preferences virtualt_prefs;
+extern volatile UINT64			cycles=0;
+
+// Menu item callback definitions
+void cb_save_trace(Fl_Widget* w, void*);
+void cb_clear_trace(Fl_Widget* w, void*);
+void cb_menu_run(Fl_Widget* w, void*);
+void cb_menu_stop(Fl_Widget* w, void*);
+void cb_menu_step(Fl_Widget* w, void*);
+void cb_menu_step_over(Fl_Widget* w, void*);
+void cb_setup_trace(Fl_Widget* w, void*);
+
+// Other prototypes
+void debug_cpuregs_cb (int);
+void cb_Ide(Fl_Widget* w, void*) ;
 
 // Menu items for the disassembler
 Fl_Menu_Item gCpuRegs_menuitems[] = {
+  { "T&race", 0, 0, 0, FL_SUBMENU },
+	{ "Save",					FL_CTRL + 's', cb_save_trace },
+	{ "Clear",					0, cb_clear_trace, 0, FL_MENU_DIVIDER },
+	{ "Run",					FL_F + 5, cb_menu_run },
+	{ "Stop",					FL_F + 6, cb_menu_stop },
+	{ "Step",					FL_F + 8, cb_menu_step },
+	{ "Step Over  ",			FL_F + 10, cb_menu_step_over, 0, FL_MENU_DIVIDER },
+	{ "Setup...",				0, cb_setup_trace },
+	{ 0 },
   { "&Tools", 0, 0, 0, FL_SUBMENU },
 	{ "Assembler / IDE",       0, cb_Ide },
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
-//	{ "Simulation Log Viewer", 0, 0 },
 	{ "Model T File Viewer",   0, cb_FileView },
 	{ 0 },
   { 0 }
 };
-
-void debug_cpuregs_cb (int);
 
 /*
 ============================================================================
 Callback routine for the CPU Regs window
 ============================================================================
 */
-void cb_cpuregswin (Fl_Widget* w, void*)
+void cb_cpuregswin (Fl_Widget* w, void* pOpaque)
 {
 	// Hide the window
 	gcpuw->hide();
@@ -104,11 +124,13 @@ void cb_cpuregswin (Fl_Widget* w, void*)
 	// Remove ourselves as a debug monitor
 	debug_clear_monitor_callback(debug_cpuregs_cb);
 
+	// Save the user preferences
+	gcpuw->SavePrefs();
+
 	// Delete the window and set to NULL
 	delete gcpuw;
 	gcpuw = NULL;
 }
-
 
 /*
 ============================================================================
@@ -167,18 +189,93 @@ int str_to_i(const char *pStr)
 
 /*
 ============================================================================
+Check the breakpoint entries
+============================================================================
+*/
+void VTCpuRegs::check_breakpoint_entries(void)
+{
+	const char*		pStr;
+	int				val;
+	int				x;
+
+	// Get value of Breakpoint 1
+	pStr = m_pBreak1->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		m_breakAddr[0] = val;
+	}
+	else
+		m_breakAddr[0] = -1;
+
+	// Get value of Breakpoint 2
+	pStr = m_pBreak2->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		m_breakAddr[1] = val;
+	}
+	else
+		m_breakAddr[1] = -1;
+
+	// Get value of Breakpoint 3
+	pStr = m_pBreak3->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		m_breakAddr[2] = val;
+	}
+	else
+		m_breakAddr[2] = -1;
+
+	// Get value of Breakpoint 4
+	pStr = m_pBreak4->value();
+	if (pStr[0] != 0)
+	{
+		val = str_to_i(pStr);
+		m_breakAddr[3] = val;
+	}
+	else
+		m_breakAddr[3] = -1;
+
+	// Check if any breakpoints set
+	for (x = 0; x < 4; x++)
+		if (m_breakAddr[x] != -1)
+			break;
+
+	// If no breakpoints set, restore old monitor frequency
+	if (x == 4)
+	{
+		if (m_breakMonitorFreq != 0)
+			gSaveFreq = m_breakMonitorFreq;
+	}
+	else
+	{
+		if (m_breakMonitorFreq == 0)
+			m_breakMonitorFreq = gSaveFreq;
+		gSaveFreq = 1;
+		gDebugMonitorFreq = 1;
+	}
+
+	m_breakEnable[0] = !m_pBreakDisable1->value();
+	m_breakEnable[1] = !m_pBreakDisable2->value();
+	m_breakEnable[2] = !m_pBreakDisable3->value();
+	m_breakEnable[3] = !m_pBreakDisable4->value();
+}
+
+/*
+============================================================================
 get_reg_edits:	This routine reads all register input fields and updates the
 				CPU registers accordingly.
 ============================================================================
 */
-void get_reg_edits(void)
+void VTCpuRegs::get_reg_edits(void)
 {
 	const char*		pStr;
 	int				val, flags;
-	int				x;
 
 	// Get value of PC
-	pStr = cpuregs_ctrl.pRegPC->value();
+	pStr = m_pRegPC->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -186,7 +283,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of SP
-	pStr = cpuregs_ctrl.pRegSP->value();
+	pStr = m_pRegSP->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -194,7 +291,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of A
-	pStr = cpuregs_ctrl.pRegA->value();
+	pStr = m_pRegA->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -202,7 +299,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of M
-	pStr = cpuregs_ctrl.pRegM->value();
+	pStr = m_pRegM->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -210,7 +307,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of BC
-	pStr = cpuregs_ctrl.pRegBC->value();
+	pStr = m_pRegBC->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -223,14 +320,14 @@ void get_reg_edits(void)
 		else
 		{
 			// BC didn't change - test B and C individually
-			pStr = cpuregs_ctrl.pRegB->value();
+			pStr = m_pRegB->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
 				B = val;
 			}
 			// Now get new value for C
-			pStr = cpuregs_ctrl.pRegC->value();
+			pStr = m_pRegC->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
@@ -240,7 +337,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of DE
-	pStr = cpuregs_ctrl.pRegDE->value();
+	pStr = m_pRegDE->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -253,14 +350,14 @@ void get_reg_edits(void)
 		else
 		{
 			// DE didn't change - test D and E individually
-			pStr = cpuregs_ctrl.pRegD->value();
+			pStr = m_pRegD->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
 				D = val;
 			}
 			// Now get new value for E
-			pStr = cpuregs_ctrl.pRegE->value();
+			pStr = m_pRegE->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
@@ -270,7 +367,7 @@ void get_reg_edits(void)
 	}
 
 	// Get value of HL
-	pStr = cpuregs_ctrl.pRegHL->value();
+	pStr = m_pRegHL->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -283,14 +380,14 @@ void get_reg_edits(void)
 		else
 		{
 			// HL didn't change - test H and L individually
-			pStr = cpuregs_ctrl.pRegH->value();
+			pStr = m_pRegH->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
 				H = val;
 			}
 			// Now get new value for L
-			pStr = cpuregs_ctrl.pRegL->value();
+			pStr = m_pRegL->value();
 			if (pStr[0] != 0)
 			{
 				val = str_to_i(pStr);
@@ -301,86 +398,24 @@ void get_reg_edits(void)
 
 	// Finally get updates to the flags
 	flags = 0;
-	if (cpuregs_ctrl.pSFlag->value())
+	if (m_pSFlag->value())
 		flags |= 0x80;
-	if (cpuregs_ctrl.pZFlag->value())
+	if (m_pZFlag->value())
 		flags |= 0x40;
-	if (cpuregs_ctrl.pTSFlag->value())
+	if (m_pTSFlag->value())
 		flags |= 0x20;
-	if (cpuregs_ctrl.pACFlag->value())
+	if (m_pACFlag->value())
 		flags |= 0x10;
-	if (cpuregs_ctrl.pPFlag->value())
+	if (m_pPFlag->value())
 		flags |= 0x04;
-	if (cpuregs_ctrl.pOVFlag->value())
+	if (m_pOVFlag->value())
 		flags |= 0x02;
-	if (cpuregs_ctrl.pCFlag->value())
+	if (m_pCFlag->value())
 		flags |= 0x01;
 
 	F = flags;
 
-	// Get value of Breakpoint 1
-	pStr = cpuregs_ctrl.pBreak1->value();
-	if (pStr[0] != 0)
-	{
-		val = str_to_i(pStr);
-		cpuregs_ctrl.breakAddr[0] = val;
-	}
-	else
-		cpuregs_ctrl.breakAddr[0] = -1;
-
-	// Get value of Breakpoint 2
-	pStr = cpuregs_ctrl.pBreak2->value();
-	if (pStr[0] != 0)
-	{
-		val = str_to_i(pStr);
-		cpuregs_ctrl.breakAddr[1] = val;
-	}
-	else
-		cpuregs_ctrl.breakAddr[1] = -1;
-
-	// Get value of Breakpoint 3
-	pStr = cpuregs_ctrl.pBreak3->value();
-	if (pStr[0] != 0)
-	{
-		val = str_to_i(pStr);
-		cpuregs_ctrl.breakAddr[2] = val;
-	}
-	else
-		cpuregs_ctrl.breakAddr[2] = -1;
-
-	// Get value of Breakpoint 4
-	pStr = cpuregs_ctrl.pBreak4->value();
-	if (pStr[0] != 0)
-	{
-		val = str_to_i(pStr);
-		cpuregs_ctrl.breakAddr[3] = val;
-	}
-	else
-		cpuregs_ctrl.breakAddr[3] = -1;
-
-	// Check if any breakpoints set
-	for (x = 0; x < 4; x++)
-		if (cpuregs_ctrl.breakAddr[x] != -1)
-			break;
-
-	// If no breakpoints set, restore old monitor frequency
-	if (x == 4)
-	{
-		if (cpuregs_ctrl.breakMonitorFreq != 0)
-			gSaveFreq = cpuregs_ctrl.breakMonitorFreq;
-	}
-	else
-	{
-		if (cpuregs_ctrl.breakMonitorFreq == 0)
-			cpuregs_ctrl.breakMonitorFreq = gSaveFreq;
-		gSaveFreq = 1;
-		gDebugMonitorFreq = 1;
-	}
-
-	cpuregs_ctrl.breakEnable[0] = !cpuregs_ctrl.pBreakDisable1->value();
-	cpuregs_ctrl.breakEnable[1] = !cpuregs_ctrl.pBreakDisable2->value();
-	cpuregs_ctrl.breakEnable[2] = !cpuregs_ctrl.pBreakDisable3->value();
-	cpuregs_ctrl.breakEnable[3] = !cpuregs_ctrl.pBreakDisable4->value();
+	check_breakpoint_entries();
 }
 
 /*
@@ -388,38 +423,255 @@ void get_reg_edits(void)
 Callback routine to redraw the trace and stack areas
 ============================================================================
 */
-void cb_redraw_trace(Fl_Widget* w, void*)
+int build_trace_line(int line, char* lineStr)
 {
-	int		x, draw;
-	char	str[10];
+	char				str[100], flags[20];
+	int					y, len, last_pc;
+	cpu_trace_data_t*	pTrace = &gcpuw->m_pTraceData[line];
 
+	// Disassemble the opcode
+	last_pc = pTrace->pc + cpu_dis.DisassembleLine(pTrace->pc, (unsigned char) 
+		pTrace->opcode, pTrace->operand, lineStr);
+
+	// Append spaces after opcode
+	len = 20 - strlen(lineStr);
+	for (y = 0; y < len; y++)
+		strcat(lineStr, " ");
+
+	// Format flags string
+	unsigned char fl = pTrace->af & 0xFF;
+	sprintf(flags, "%c%c%c%c%c%c%c%c", fl & SF_BIT ?'S':' ', fl & ZF_BIT ?'Z':' ', fl & TS_BIT ?'T':' ',
+		fl & AC_BIT ? 'A':' ', fl & PF_BIT ? 'P':' ', fl & OV_BIT ? 'O':' ', fl & XF_BIT ? 'X':' ', 
+		fl & CF_BIT ? 'C':' ');
+
+	// Append regs after opcode
+	sprintf(str, "A:%02X %s B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
+		pTrace->af >> 8, flags, pTrace->bc >> 8, pTrace->bc & 0xFF, pTrace->de >> 8, 
+		pTrace->de & 0xFF, pTrace->hl >> 8, pTrace->de & 0xFF, pTrace->sp);
+	strcat(lineStr, str);
+
+	return last_pc;
+}
+
+/*
+============================================================================
+Callback routine to redraw the trace and stack areas
+============================================================================
+*/
+void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
+{
+	int		x, draw, lines, last_pc, last_sp;
+	char	lineStr[120], str[100];
+	int		trace_top = gcpuw->m_pTraceBox->y() + gcpuw->m_fontHeight - 4;
+	int		lookahead = 0;
+
+	// Make our window current for drawing
 	gcpuw->make_current();
 
 	// Clear rectangle
 	fl_color(FL_GRAY);
-	fl_rectf(25, 205+MENU_HEIGHT, 510, 115);
-	fl_rectf(555, 205+MENU_HEIGHT, 54, 115);
+	fl_rectf(gcpuw->m_pTraceBox->x()+3, gcpuw->m_pTraceBox->y()+3,
+		gcpuw->m_pTraceBox->w()-6, gcpuw->m_pTraceBox->h()-6);
+	fl_rectf(gcpuw->m_pStackBox->x()+3, gcpuw->m_pStackBox->y()+3,
+		gcpuw->m_pStackBox->w()-6, gcpuw->m_pStackBox->h()-6);
+
+	lines = gcpuw->m_pTraceBox->h() / gcpuw->m_fontHeight;
 
 	// Select 11 point Courier font
-	fl_font(FL_COURIER,11);
+	fl_font(FL_COURIER, gcpuw->m_fontSize);
 	fl_color(FL_BLACK);
 
-	// Determine first trace to draw
-	draw = cpuregs_ctrl.iInstTraceHead;
-	for (x = 0; x < 8; x++)
+	// Initialize last_sp and last_pc in case trace is clear
+	last_sp = SP;
+	last_pc = PC;
+
+	// Draw either real-time (sampled every so often) data if stopped
+	// or actual address-by-address data if we are stopped
+	if (!gStopped)
 	{
-		// Draw the Stack
-		sprintf(str, "0x%02X", get_memory8(SP+x));
-		fl_draw(str, 560, 212+MENU_HEIGHT+x*15);
+		// Determine first trace to draw
+		draw = gcpuw->m_iInstTraceHead - lines;
+		if (draw < 0)
+			draw += 64;
+		for (x = 0; x < lines; x++)
+		{
+			// Draw the Stack
+			sprintf(str, "0x%02X", get_memory8(SP+x));
+			fl_draw(str, gcpuw->m_pStackBox->x()+10, trace_top+x*gcpuw->m_fontHeight);
 
-		// Now draw the Instruction Trace
-		if (x == 7)
-			fl_font(FL_COURIER_BOLD, 11);
-		fl_draw(cpuregs_ctrl.sInstTrace[draw], 25, 212+MENU_HEIGHT+x*15);
-		if (++draw >= 8)
-			draw = 0;
-
+			// Now draw the Instruction Trace
+			if (x == lines-1)
+				fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+			fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
+				gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
+			fl_draw(gcpuw->m_sInstTrace[draw], 25, trace_top+x*gcpuw->m_fontHeight);
+			fl_pop_clip();
+			if (++draw >= 64)
+				draw = 0;
+		}
 	}
+	else
+	{
+		// Draw actual trace information
+		int firstLine = gcpuw->m_pScroll->value();
+		if (firstLine < 0)
+			firstLine = 0;
+		int draw = gcpuw->m_iTraceHead + firstLine;
+		if (draw >= gcpuw->m_traceAvail)
+			draw -= gcpuw->m_traceAvail;
+		last_sp = SP;
+
+		for (x = 0; x < lines; x++)
+		{
+			// Draw the Stack
+			sprintf(str, "0x%02X", get_memory8(SP+x));
+			fl_draw(str, gcpuw->m_pStackBox->x()+10, trace_top+x*gcpuw->m_fontHeight);
+
+			// Now draw the Instruction Trace
+			if (x + firstLine < gcpuw->m_traceAvail)
+			{
+				cpu_trace_data_t*	pTrace = &gcpuw->m_pTraceData[draw];
+				unsigned char fl = pTrace->af & 0xFF;
+
+				/* Build the trace text */
+				last_pc = build_trace_line(draw, &lineStr[0]);
+
+				/* If on the execution line, make the font bold */
+				if (x+firstLine == gcpuw->m_traceAvail-1)
+					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+
+				// Finally, draw the trace on the window
+				fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
+					gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
+				fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+				fl_pop_clip();
+				if (++draw >= gcpuw->m_traceAvail)
+					draw = 0;
+
+				// If we just drew the execution line, do special processing
+				if (x+firstLine == gcpuw->m_traceAvail-1)
+				{
+					// Change back to normal font
+					fl_font(FL_COURIER, gcpuw->m_fontSize);
+
+					// Search opcode for conditional branching
+					if (((strncmp(&lineStr[7], "JZ", 2) == 0) ||
+						(strncmp(&lineStr[7], "CZ", 2) == 0)) &&
+						(fl & ZF_BIT))
+							last_pc = str_to_i(&lineStr[10]);
+					else if (((strncmp(&lineStr[7], "JNZ", 3) == 0) ||
+						(strncmp(&lineStr[7], "CNZ", 3) == 0)) &&
+						!(fl & ZF_BIT))
+							last_pc = str_to_i(&lineStr[11]);
+					else if (((strncmp(&lineStr[7], "JC", 2) == 0) ||
+						(strncmp(&lineStr[7], "CC", 2) == 0)) &&
+						(fl & CF_BIT))
+							last_pc = str_to_i(&lineStr[10]);
+					else if (((strncmp(&lineStr[7], "JNC", 3) == 0) ||
+						(strncmp(&lineStr[7], "CNC", 3) == 0)) &&
+						!(fl & CF_BIT))
+							last_pc = str_to_i(&lineStr[11]);
+					else if (((strncmp(&lineStr[7], "JP", 2) == 0) ||
+						(strncmp(&lineStr[7], "CP", 2) == 0)) &&
+						(fl & SF_BIT))
+							last_pc = str_to_i(&lineStr[10]);
+					else if (((strncmp(&lineStr[7], "JM ", 3) == 0) ||
+						(strncmp(&lineStr[7], "CM ", 3) == 0)) &&
+						!(fl & SF_BIT))
+							last_pc = str_to_i(&lineStr[10]);
+					else if (((strncmp(&lineStr[7], "JPE", 3) == 0) ||
+						(strncmp(&lineStr[7], "CPE", 3) == 0)) &&
+						(fl & PF_BIT))
+							last_pc = str_to_i(&lineStr[11]);
+					else if (((strncmp(&lineStr[7], "JPO", 3) == 0) ||
+						(strncmp(&lineStr[7], "CPO", 3) == 0)) &&
+						!(fl & PF_BIT))
+							last_pc = str_to_i(&lineStr[11]);
+
+					// Conditional RETurns
+					else if ((strncmp(&lineStr[7], "RC", 2) == 0) && (fl & CF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RNC", 3) == 0) && !(fl & CF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RZ", 2) == 0) && (fl & ZF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RNZ", 3) == 0) && !(fl & ZF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RP", 2) == 0) && (fl & SF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RM", 2) == 0) && !(fl & SF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RPE", 3) == 0) && (fl & PF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+					else if ((strncmp(&lineStr[7], "RPO", 3) == 0) && !(fl & PF_BIT))
+						last_pc = get_memory16(pTrace->sp);
+
+					else if (strncmp(&lineStr[7], "PCHL", 4) == 0)
+						last_pc = HL;
+				}
+			}
+			else
+			{
+				// Check opcode for various changes to the PC
+				if (strncmp(&lineStr[7], "CALL", 4) == 0)
+					last_pc = str_to_i(&lineStr[12]);
+				else if (strncmp(&lineStr[7], "JMP", 3) == 0)
+					last_pc = str_to_i(&lineStr[11]);
+				else if (strncmp(&lineStr[7], "POP", 3) == 0)
+					last_sp += 2;
+				else if (strncmp(&lineStr[7], "RET", 3) == 0)
+				{
+					last_pc = get_memory16(last_sp);
+					last_sp += 2;
+				}
+				else if (strncmp(&lineStr[7], "RST", 3) == 0)
+				{
+					last_sp -= 2;
+					last_pc = str_to_i(&lineStr[11]) * 8;
+				}
+
+				// If trace is empty, then make 1st (current) inst bold
+				if (x == 0)
+					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+
+				// Disassemble the next line that hasn't executed yet
+				last_pc += cpu_dis.DisassembleLine(last_pc, lineStr);
+				if (lookahead++ < 4)
+					fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+
+				if (x == 0)
+					fl_font(FL_COURIER, gcpuw->m_fontSize);
+			}
+		}
+	}
+}
+
+/*
+============================================================================
+Callback for the trace scroll bar
+============================================================================
+*/
+void cb_scrollbar (Fl_Widget* w, void*)
+{
+	int size = (int) (gcpuw->m_pScroll->h() / gcpuw->m_fontHeight);
+	int max_size = gcpuw->m_traceAvail-size+4;
+
+	// Update the max size of the scrollbar
+	if (gcpuw->m_traceAvail < gcpuw->m_traceCount)
+		max_size++;
+	if (max_size < 0)
+		max_size = 4;
+	gcpuw->m_pScroll->maximum(max_size);
+	gcpuw->m_pScroll->linesize(1);
+	if (gcpuw->m_traceAvail > 0)
+	{
+		gcpuw->m_pScroll->step(size / gcpuw->m_traceAvail);
+		gcpuw->m_pScroll->slider_size((double) size/ (double) gcpuw->m_traceAvail);
+	}
+	else
+		gcpuw->m_pScroll->slider_size(1.0);
+
+	cb_redraw_trace(NULL, NULL);
 }
 
 /*
@@ -436,7 +688,7 @@ void debug_monitor_cb(int fMonType, unsigned char data)
 
 unsigned char get_m()
 {
-	if (gReMem)
+	if (gReMem & !gRex)
 		return (gMemory[gIndex[HL]][HL & 0x3FF]);
 	else
 		return gBaseMemory[HL];
@@ -448,49 +700,49 @@ activate_controls:	This routine activates all the CPU controls except the
 STOP button, which it deactivates.
 ============================================================================
 */
-void activate_controls()
+void VTCpuRegs::activate_controls(void)
 {
 	// Change activation state of processor controls
-	cpuregs_ctrl.pStop->deactivate();
-	cpuregs_ctrl.pStep->activate();
-	cpuregs_ctrl.pStepOver->activate();
-	cpuregs_ctrl.pRun->activate();
-	cpuregs_ctrl.pRedraw->activate();
+	m_pStop->deactivate();
+	m_pStep->activate();
+	m_pStepOver->activate();
+	m_pRun->activate();
+	m_pScroll->activate();
 
 	// Activate the edit fields to allow register updates
-	cpuregs_ctrl.pRegA->activate();
-	cpuregs_ctrl.pRegB->activate();
-	cpuregs_ctrl.pRegC->activate();
-	cpuregs_ctrl.pRegD->activate();
-	cpuregs_ctrl.pRegE->activate();
-	cpuregs_ctrl.pRegH->activate();
-	cpuregs_ctrl.pRegL->activate();
-	cpuregs_ctrl.pRegPC->activate();
-	cpuregs_ctrl.pRegSP->activate();
-	cpuregs_ctrl.pRegBC->activate();
-	cpuregs_ctrl.pRegDE->activate();
-	cpuregs_ctrl.pRegHL->activate();
-	cpuregs_ctrl.pRegM->activate();
+	m_pRegA->activate();
+	m_pRegB->activate();
+	m_pRegC->activate();
+	m_pRegD->activate();
+	m_pRegE->activate();
+	m_pRegH->activate();
+	m_pRegL->activate();
+	m_pRegPC->activate();
+	m_pRegSP->activate();
+	m_pRegBC->activate();
+	m_pRegDE->activate();
+	m_pRegHL->activate();
+	m_pRegM->activate();
 
 	// Activate Flags
-	cpuregs_ctrl.pSFlag->activate();
-	cpuregs_ctrl.pZFlag->activate();
-	cpuregs_ctrl.pCFlag->activate();
-	cpuregs_ctrl.pTSFlag->activate();
-	cpuregs_ctrl.pACFlag->activate();
-	cpuregs_ctrl.pPFlag->activate();
-	cpuregs_ctrl.pOVFlag->activate();
-	cpuregs_ctrl.pXFlag->activate();
+	m_pSFlag->activate();
+	m_pZFlag->activate();
+	m_pCFlag->activate();
+	m_pTSFlag->activate();
+	m_pACFlag->activate();
+	m_pPFlag->activate();
+	m_pOVFlag->activate();
+	m_pXFlag->activate();
 
 	// Activate Breakpoints
-	cpuregs_ctrl.pBreak1->activate();
-	cpuregs_ctrl.pBreak2->activate();
-	cpuregs_ctrl.pBreak3->activate();
-	cpuregs_ctrl.pBreak4->activate();
-	cpuregs_ctrl.pBreakDisable1->activate();
-	cpuregs_ctrl.pBreakDisable2->activate();
-	cpuregs_ctrl.pBreakDisable3->activate();
-	cpuregs_ctrl.pBreakDisable4->activate();
+	m_pBreak1->activate();
+	m_pBreak2->activate();
+	m_pBreak3->activate();
+	m_pBreak4->activate();
+	m_pBreakDisable1->activate();
+	m_pBreakDisable2->activate();
+	m_pBreakDisable3->activate();
+	m_pBreakDisable4->activate();
 }
 
 void clear_trace(void)
@@ -498,7 +750,29 @@ void clear_trace(void)
 	int 	x;
 
 	for (x = 0; x < 8; x++)
-		cpuregs_ctrl.sInstTrace[x][0] = 0;
+		gcpuw->m_sInstTrace[x][0] = 0;
+}
+
+void inline trace_instruction(void)
+{
+	if (gcpuw->m_pTraceData != NULL)
+	{
+		int idx = gcpuw->m_iTraceHead++;
+		if (gcpuw->m_iTraceHead >= gcpuw->m_traceCount)
+			gcpuw->m_iTraceHead = 0;
+		gcpuw->m_pTraceData[idx].pc = PC;
+		gcpuw->m_pTraceData[idx].sp = SP;
+		gcpuw->m_pTraceData[idx].hl = HL;
+		gcpuw->m_pTraceData[idx].de = DE;
+		gcpuw->m_pTraceData[idx].bc = BC;
+		gcpuw->m_pTraceData[idx].af = AF;
+		gcpuw->m_pTraceData[idx].opcode = get_memory8(PC);
+		gcpuw->m_pTraceData[idx].operand = get_memory16(PC+1);
+	}
+
+	/* Increment the available trace count until it reaches the max */
+	if (gcpuw->m_traceAvail < gcpuw->m_traceCount)
+		gcpuw->m_traceAvail++;
 }
 
 /*
@@ -519,23 +793,30 @@ void debug_cpuregs_cb (int reason)
 	{
 		for (x = 0; x < 5; x++)
 		{
-			if ((PC == cpuregs_ctrl.breakAddr[x]) && (cpuregs_ctrl.breakEnable[x]))
+			if ((PC == gcpuw->m_breakAddr[x]) && (gcpuw->m_breakEnable[x]))
 			{
-				activate_controls();
+				gcpuw->activate_controls();
 				gStopped = 1;
 
 				// Clear 'step over' breakpoint
 				if (x == 4)
-					cpuregs_ctrl.breakAddr[x] = -1;
+					gcpuw->m_breakAddr[x] = -1;
 				else
 					clear_trace();
+
+				// Scroll to bottom of window if needed
+				if (gcpuw->m_autoScroll)
+					gcpuw->ScrollToBottom();
 			}
 		}
 	}
 
+	/* Trace this instruction */
+	trace_instruction();
+
 	if (!gStopped)
 	{
-		if (cpuregs_ctrl.breakAddr[4] != -1)
+		if (gcpuw->m_breakAddr[4] != -1)
 			return;
 		if (++gDebugCount < gDebugMonitorFreq)
 			return;
@@ -544,76 +825,76 @@ void debug_cpuregs_cb (int reason)
 	gDebugCount = 0;
 
 	// Update PC edit box
-	sprintf(str, cpuregs_ctrl.sPCfmt, PC);
-	cpuregs_ctrl.pRegPC->value(str);
+	sprintf(str, gcpuw->m_sPCfmt, PC);
+	gcpuw->m_pRegPC->value(str);
 
 	// Update SP edit box
-	sprintf(str, cpuregs_ctrl.sSPfmt, SP);
-	cpuregs_ctrl.pRegSP->value(str);
+	sprintf(str, gcpuw->m_sSPfmt, SP);
+	gcpuw->m_pRegSP->value(str);
 
 	// Update A edit box
-	sprintf(str, cpuregs_ctrl.sAfmt, A);
-	cpuregs_ctrl.pRegA->value(str);
+	sprintf(str, gcpuw->m_sAfmt, A);
+	gcpuw->m_pRegA->value(str);
 
 	// Update B edit box
-	sprintf(str, cpuregs_ctrl.sBfmt, B);
-	cpuregs_ctrl.pRegB->value(str);
+	sprintf(str, gcpuw->m_sBfmt, B);
+	gcpuw->m_pRegB->value(str);
 
 	// Update C edit box
-	sprintf(str, cpuregs_ctrl.sCfmt, C);
-	cpuregs_ctrl.pRegC->value(str);
+	sprintf(str, gcpuw->m_sCfmt, C);
+	gcpuw->m_pRegC->value(str);
 
 	// Update D edit box
-	sprintf(str, cpuregs_ctrl.sDfmt, D);
-	cpuregs_ctrl.pRegD->value(str);
+	sprintf(str, gcpuw->m_sDfmt, D);
+	gcpuw->m_pRegD->value(str);
 
 	// Update E edit box
-	sprintf(str, cpuregs_ctrl.sEfmt, E);
-	cpuregs_ctrl.pRegE->value(str);
+	sprintf(str, gcpuw->m_sEfmt, E);
+	gcpuw->m_pRegE->value(str);
 
 	// Update H edit box
-	sprintf(str, cpuregs_ctrl.sHfmt, H);
-	cpuregs_ctrl.pRegH->value(str);
+	sprintf(str, gcpuw->m_sHfmt, H);
+	gcpuw->m_pRegH->value(str);
 
 	// Update L edit box
-	sprintf(str, cpuregs_ctrl.sLfmt, L);
-	cpuregs_ctrl.pRegL->value(str);
+	sprintf(str, gcpuw->m_sLfmt, L);
+	gcpuw->m_pRegL->value(str);
 
 	// Update BC edit box
-	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
-	cpuregs_ctrl.pRegBC->value(str);
+	sprintf(str, gcpuw->m_sBCfmt, BC);
+	gcpuw->m_pRegBC->value(str);
 
 	// Update DE edit box
-	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
-	cpuregs_ctrl.pRegDE->value(str);
+	sprintf(str, gcpuw->m_sDEfmt, DE);
+	gcpuw->m_pRegDE->value(str);
 
 	// Update HL edit box
-	sprintf(str, cpuregs_ctrl.sHLfmt, HL);
-	cpuregs_ctrl.pRegHL->value(str);
+	sprintf(str, gcpuw->m_sHLfmt, HL);
+	gcpuw->m_pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	sprintf(str, gcpuw->m_sMfmt, get_m());
+	gcpuw->m_pRegM->value(str);
 
 	// Update flags
-	cpuregs_ctrl.pSFlag->value(SF);
-	cpuregs_ctrl.pZFlag->value(ZF);
-	cpuregs_ctrl.pTSFlag->value(TS);
-	cpuregs_ctrl.pACFlag->value(AC);
-	cpuregs_ctrl.pPFlag->value(PF);
-	cpuregs_ctrl.pOVFlag->value(OV);
-	cpuregs_ctrl.pXFlag->value(XF);
-	cpuregs_ctrl.pCFlag->value(CF);
+	gcpuw->m_pSFlag->value(SF);
+	gcpuw->m_pZFlag->value(ZF);
+	gcpuw->m_pTSFlag->value(TS);
+	gcpuw->m_pACFlag->value(AC);
+	gcpuw->m_pPFlag->value(PF);
+	gcpuw->m_pOVFlag->value(OV);
+	gcpuw->m_pXFlag->value(XF);
+	gcpuw->m_pCFlag->value(CF);
 
 	if (!gDisableRealtimeTrace || (gStopCountdown != 0) || gStopped)
 	{
 		// Disassemble 1 instruction
-		cpu_dis.DisassembleLine(PC, cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead]);
+		cpu_dis.DisassembleLine(PC, gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead]);
 
 		// Append spaces after opcode
-		len = 20 - strlen(cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead]);
+		len = 20 - strlen(gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead]);
 		for (x = 0; x < len; x++)
-			strcat(cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead], " ");
+			strcat(gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead], " ");
 
 		// Format flags string
 		sprintf(flags, "%c%c%c%c%c%c%c%c", SF?'S':' ', ZF?'Z':' ', TS?'T':' ',AC?'A':' ',
@@ -622,13 +903,19 @@ void debug_cpuregs_cb (int reason)
 		// Append regs after opcode
 		sprintf(str, "A:%02X %s B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
 			A, flags, B, C, D, E, H, L, SP);
-		strcat(cpuregs_ctrl.sInstTrace[cpuregs_ctrl.iInstTraceHead++], str);
+		strcat(gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead++], str);
 
-		if (cpuregs_ctrl.iInstTraceHead >= 8)
-			cpuregs_ctrl.iInstTraceHead= 0;
+		if (gcpuw->m_iInstTraceHead >= 64)
+			gcpuw->m_iInstTraceHead= 0;
 
 		// Update Trace data on window
 		cb_redraw_trace(NULL, NULL);
+
+		// Update monitor frequency based on cpu speed
+		if (fullspeed == 0)
+			gDebugMonitorFreq = 8192;
+		else
+			gDebugMonitorFreq = 32768;
 	}
 
 	// Check if processor stop requested
@@ -642,6 +929,13 @@ void debug_cpuregs_cb (int reason)
 				gStopped = 1;
 				gDebugMonitorFreq = gSaveFreq;
 				gStopCountdown = 0;
+
+				// Scroll to bottom of window if needed
+				if (gcpuw->m_autoScroll)
+					gcpuw->ScrollToBottom();
+
+				// Redraw the trace window
+				cb_redraw_trace(NULL, NULL);
 			}
 		}
 		else
@@ -655,49 +949,49 @@ void debug_cpuregs_cb (int reason)
 Routine to deactivate the debugging controls
 ============================================================================
 */
-void deactivate_controls(void)
+void VTCpuRegs::deactivate_controls(void)
 {
 	// Change activation state of processor controls
-	cpuregs_ctrl.pStop->activate();
-	cpuregs_ctrl.pStep->deactivate();
-	cpuregs_ctrl.pStepOver->deactivate();
-	cpuregs_ctrl.pRun->deactivate();
-	cpuregs_ctrl.pRedraw->deactivate();
+	m_pStop->activate();
+	m_pStep->deactivate();
+	m_pStepOver->deactivate();
+	m_pRun->deactivate();
+	m_pScroll->deactivate();
 
 	// Deactivate the edit fields to allow register updates
-	cpuregs_ctrl.pRegA->deactivate();
-	cpuregs_ctrl.pRegB->deactivate();
-	cpuregs_ctrl.pRegC->deactivate();
-	cpuregs_ctrl.pRegD->deactivate();
-	cpuregs_ctrl.pRegE->deactivate();
-	cpuregs_ctrl.pRegH->deactivate();
-	cpuregs_ctrl.pRegL->deactivate();
-	cpuregs_ctrl.pRegPC->deactivate();
-	cpuregs_ctrl.pRegSP->deactivate();
-	cpuregs_ctrl.pRegBC->deactivate();
-	cpuregs_ctrl.pRegDE->deactivate();
-	cpuregs_ctrl.pRegHL->deactivate();
-	cpuregs_ctrl.pRegM->deactivate();
+	m_pRegA->deactivate();
+	m_pRegB->deactivate();
+	m_pRegC->deactivate();
+	m_pRegD->deactivate();
+	m_pRegE->deactivate();
+	m_pRegH->deactivate();
+	m_pRegL->deactivate();
+	m_pRegPC->deactivate();
+	m_pRegSP->deactivate();
+	m_pRegBC->deactivate();
+	m_pRegDE->deactivate();
+	m_pRegHL->deactivate();
+	m_pRegM->deactivate();
 
 	// Deactivate Flags
-	cpuregs_ctrl.pSFlag->deactivate();
-	cpuregs_ctrl.pZFlag->deactivate();
-	cpuregs_ctrl.pCFlag->deactivate();
-	cpuregs_ctrl.pTSFlag->deactivate();
-	cpuregs_ctrl.pACFlag->deactivate();
-	cpuregs_ctrl.pPFlag->deactivate();
-	cpuregs_ctrl.pOVFlag->deactivate();
-	cpuregs_ctrl.pXFlag->deactivate();
+	m_pSFlag->deactivate();
+	m_pZFlag->deactivate();
+	m_pCFlag->deactivate();
+	m_pTSFlag->deactivate();
+	m_pACFlag->deactivate();
+	m_pPFlag->deactivate();
+	m_pOVFlag->deactivate();
+	m_pXFlag->deactivate();
 
 	// Deactivate breakpoints
-	cpuregs_ctrl.pBreak1->deactivate();
-	cpuregs_ctrl.pBreak2->deactivate();
-	cpuregs_ctrl.pBreak3->deactivate();
-	cpuregs_ctrl.pBreak4->deactivate();
-	cpuregs_ctrl.pBreakDisable1->deactivate();
-	cpuregs_ctrl.pBreakDisable2->deactivate();
-	cpuregs_ctrl.pBreakDisable3->deactivate();
-	cpuregs_ctrl.pBreakDisable4->deactivate();
+	m_pBreak1->deactivate();
+	m_pBreak2->deactivate();
+	m_pBreak3->deactivate();
+	m_pBreak4->deactivate();
+	m_pBreakDisable1->deactivate();
+	m_pBreakDisable2->deactivate();
+	m_pBreakDisable3->deactivate();
+	m_pBreakDisable4->deactivate();
 }
 
 /*
@@ -705,35 +999,42 @@ void deactivate_controls(void)
 Routine to handle 'Step Over' button
 ============================================================================
 */
-void cb_debug_step_over(Fl_Widget* w, void*)
+void cb_debug_step_over(Fl_Widget* w, void* pOpaque)
 {
-	int		inst;
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+	int			inst;
 
 	// Get Register updates
-	get_reg_edits();
+	pCpuRegs->get_reg_edits();
 
 	// Determine the 'step over' breakpoint location
 	inst = get_memory8(PC);
 	if (((inst & 0xC7) == 0xC4) || (inst == 0xCD)) 
 	{
-		cpuregs_ctrl.breakAddr[4] = PC+3;
+		pCpuRegs->m_breakAddr[4] = PC+3;
 	}
 	else if ((inst & 0xC7) == 0xC7)
 	{
 		if ((inst == 0xCF) || (inst == 0xFF))
-			cpuregs_ctrl.breakAddr[4] = PC+2;
+			pCpuRegs->m_breakAddr[4] = PC+2;
 		else
-			cpuregs_ctrl.breakAddr[4] = PC+1;
+			pCpuRegs->m_breakAddr[4] = PC+1;
 	}
 	else
 	{
 		// Single step the processor
 		gSingleStep = 1;
+
+		// If auto scroll is enabled, then scroll to th bottom
+		if (pCpuRegs->m_autoScroll)
+			pCpuRegs->ScrollToBottom();
+
 		return;
 	}
 
-	// Deactivate the controls
-//	deactivate_controls();
+	// If auto scroll is enabled, then scroll to th bottom
+	if (pCpuRegs->m_autoScroll)
+		pCpuRegs->ScrollToBottom();
 
 	// Start the processor
 	gStopped = 0;
@@ -744,12 +1045,22 @@ void cb_debug_step_over(Fl_Widget* w, void*)
 Routine to handle Stop button
 ============================================================================
 */
-void cb_debug_stop(Fl_Widget* w, void*)
+void cb_debug_stop(Fl_Widget* w, void* pOpaque)
 {
-	activate_controls();
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
+	// Activate the controls
+	pCpuRegs->activate_controls();
+
+	// Update the scrollbar
+	cb_scrollbar(pCpuRegs->m_pScroll, pOpaque);
+
+	// If auto scroll is enabled, then scroll to the bottom
+	if (pCpuRegs->m_autoScroll)
+		pCpuRegs->ScrollToBottom();
 
 	// Stop the processor
-	gStopCountdown = 8;
+	gStopCountdown = 1;
 	gSaveFreq = gDebugMonitorFreq;
 	gDebugMonitorFreq = 1;
 }
@@ -759,10 +1070,16 @@ void cb_debug_stop(Fl_Widget* w, void*)
 Routine to handle Step button
 ============================================================================
 */
-void cb_debug_step(Fl_Widget* w, void*)
+void cb_debug_step(Fl_Widget* w, void* pOpaque)
 {
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
 	// Get Register updates
-	get_reg_edits();
+	pCpuRegs->get_reg_edits();
+
+	// If auto scroll is enabled, then scroll to th bottom
+	if (pCpuRegs->m_autoScroll)
+		pCpuRegs->ScrollToBottom();
 
 	// Single step the processor
 	gSingleStep = 1;
@@ -773,16 +1090,21 @@ void cb_debug_step(Fl_Widget* w, void*)
 Routine to handle Run button
 ============================================================================
 */
-void cb_debug_run(Fl_Widget* w, void*)
+void cb_debug_run(Fl_Widget* w, void* pOpaque)
 {
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
 	// Deactivate the debug controls
-	deactivate_controls();
+	pCpuRegs->deactivate_controls();
 
 	// Get Register updates
-	get_reg_edits();
+	pCpuRegs->get_reg_edits();
 
 	// Start the processor
 	gStopped = 0;
+
+	// Redraw the trace in case real-time trace is off
+	gcpuw->redraw();
 }
 
 /*
@@ -823,27 +1145,28 @@ int remote_cpureg_step(void)
 Routine to handle Change to PC edit field
 ============================================================================
 */
-void cb_reg_pc_changed(Fl_Widget* w, void*)
+void cb_reg_pc_changed(Fl_Widget* w, void* pOpaque)
 {
 	int				new_pc;
 	const char		*pStr;
 	int				trace_tail;
 	char			str[120], flags[20];
 	int				len, x;
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegPC->value();
+	pStr = pCpuRegs->m_pRegPC->value();
 	new_pc = str_to_i(pStr);
-	trace_tail = cpuregs_ctrl.iInstTraceHead - 1;
+	trace_tail = pCpuRegs->m_iInstTraceHead - 1;
 	if (trace_tail < 0)
 		trace_tail = 7;
 
 	// Disassemble 1 instruction
-	cpu_dis.DisassembleLine(new_pc, cpuregs_ctrl.sInstTrace[trace_tail]);
+	cpu_dis.DisassembleLine(new_pc, pCpuRegs->m_sInstTrace[trace_tail]);
 
 	// Append spaces after opcode
-	len = 20 - strlen(cpuregs_ctrl.sInstTrace[trace_tail]);
+	len = 20 - strlen(pCpuRegs->m_sInstTrace[trace_tail]);
 	for (x = 0; x < len; x++)
-		strcat(cpuregs_ctrl.sInstTrace[trace_tail], " ");
+		strcat(pCpuRegs->m_sInstTrace[trace_tail], " ");
 
 	// Format flags string
 	sprintf(flags, "%c%c%c%c%c%c%c%c", SF?'S':' ', ZF?'Z':' ', TS?'T':' ',AC?'A':' ',
@@ -852,7 +1175,7 @@ void cb_reg_pc_changed(Fl_Widget* w, void*)
 	// Append regs after opcode
 	sprintf(str, "A:%02X %s B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
 		A, flags, B, C, D, E, H, L, SP);
-	strcat(cpuregs_ctrl.sInstTrace[trace_tail], str);
+	strcat(pCpuRegs->m_sInstTrace[trace_tail], str);
 
 	// Update Trace data on window
 	cb_redraw_trace(NULL, NULL);
@@ -863,25 +1186,26 @@ void cb_reg_pc_changed(Fl_Widget* w, void*)
 Routine to handle Change to BC edit field
 ============================================================================
 */
-void cb_reg_bc_changed(Fl_Widget* w, void*)
+void cb_reg_bc_changed(Fl_Widget* w, void* pOpaque)
 {
 	int				new_bc;
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegBC->value();
+	pStr = pCpuRegs->m_pRegBC->value();
 	new_bc = str_to_i(pStr);
 
 	B = (new_bc >> 8) & 0xFF;
 	C = new_bc & 0xFF;
 
 	// Update B edit box
-	sprintf(str, cpuregs_ctrl.sBfmt, B);
-	cpuregs_ctrl.pRegB->value(str);
+	sprintf(str, pCpuRegs->m_sBfmt, B);
+	pCpuRegs->m_pRegB->value(str);
 
 	// Update C edit box
-	sprintf(str, cpuregs_ctrl.sCfmt, C);
-	cpuregs_ctrl.pRegC->value(str);
+	sprintf(str, pCpuRegs->m_sCfmt, C);
+	pCpuRegs->m_pRegC->value(str);
 }
 
 /*
@@ -889,21 +1213,22 @@ void cb_reg_bc_changed(Fl_Widget* w, void*)
 Routine to handle Change to B edit field
 ============================================================================
 */
-void cb_reg_b_changed(Fl_Widget* w, void*)
+void cb_reg_b_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegB->value();
+	pStr = pCpuRegs->m_pRegB->value();
 	B = str_to_i(pStr);
 
 	// Update B edit box
-	sprintf(str, cpuregs_ctrl.sBfmt, B);
-	cpuregs_ctrl.pRegB->value(str);
+	sprintf(str, pCpuRegs->m_sBfmt, B);
+	pCpuRegs->m_pRegB->value(str);
 
 	// Update BC edit box
-	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
-	cpuregs_ctrl.pRegBC->value(str);
+	sprintf(str, pCpuRegs->m_sBCfmt, BC);
+	pCpuRegs->m_pRegBC->value(str);
 }
 
 /*
@@ -911,21 +1236,22 @@ void cb_reg_b_changed(Fl_Widget* w, void*)
 Routine to handle Change to C edit field
 ============================================================================
 */
-void cb_reg_c_changed(Fl_Widget* w, void*)
+void cb_reg_c_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegC->value();
+	pStr = pCpuRegs->m_pRegC->value();
 	C = str_to_i(pStr);
 
 	// Update C edit box
-	sprintf(str, cpuregs_ctrl.sCfmt, C);
-	cpuregs_ctrl.pRegC->value(str);
+	sprintf(str, pCpuRegs->m_sCfmt, C);
+	pCpuRegs->m_pRegC->value(str);
 
 	// Update BC edit box
-	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
-	cpuregs_ctrl.pRegBC->value(str);
+	sprintf(str, pCpuRegs->m_sBCfmt, BC);
+	pCpuRegs->m_pRegBC->value(str);
 }
 
 /*
@@ -933,25 +1259,26 @@ void cb_reg_c_changed(Fl_Widget* w, void*)
 Routine to handle Change to DE edit field
 ============================================================================
 */
-void cb_reg_de_changed(Fl_Widget* w, void*)
+void cb_reg_de_changed(Fl_Widget* w, void* pOpaque)
 {
 	int				new_de;
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegDE->value();
+	pStr = pCpuRegs->m_pRegDE->value();
 	new_de = str_to_i(pStr);
 
 	D = (new_de >> 8) & 0xFF;
 	E = new_de & 0xFF;
 
 	// Update D edit box
-	sprintf(str, cpuregs_ctrl.sDfmt, D);
-	cpuregs_ctrl.pRegD->value(str);
+	sprintf(str, pCpuRegs->m_sDfmt, D);
+	pCpuRegs->m_pRegD->value(str);
 
 	// Update E edit box
-	sprintf(str, cpuregs_ctrl.sEfmt, E);
-	cpuregs_ctrl.pRegE->value(str);
+	sprintf(str, pCpuRegs->m_sEfmt, E);
+	pCpuRegs->m_pRegE->value(str);
 }
 
 /*
@@ -959,21 +1286,22 @@ void cb_reg_de_changed(Fl_Widget* w, void*)
 Routine to handle Change to D edit field
 ============================================================================
 */
-void cb_reg_d_changed(Fl_Widget* w, void*)
+void cb_reg_d_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegD->value();
+	pStr = pCpuRegs->m_pRegD->value();
 	D = str_to_i(pStr);
 
 	// Update B edit box
-	sprintf(str, cpuregs_ctrl.sDfmt, D);
-	cpuregs_ctrl.pRegD->value(str);
+	sprintf(str, pCpuRegs->m_sDfmt, D);
+	pCpuRegs->m_pRegD->value(str);
 
 	// Update BC edit box
-	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
-	cpuregs_ctrl.pRegDE->value(str);
+	sprintf(str, pCpuRegs->m_sDEfmt, DE);
+	pCpuRegs->m_pRegDE->value(str);
 }
 
 /*
@@ -981,21 +1309,22 @@ void cb_reg_d_changed(Fl_Widget* w, void*)
 Routine to handle Change to E edit field
 ============================================================================
 */
-void cb_reg_e_changed(Fl_Widget* w, void*)
+void cb_reg_e_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegE->value();
+	pStr = pCpuRegs->m_pRegE->value();
 	E = str_to_i(pStr);
 
 	// Update C edit box
-	sprintf(str, cpuregs_ctrl.sEfmt, E);
-	cpuregs_ctrl.pRegE->value(str);
+	sprintf(str, pCpuRegs->m_sEfmt, E);
+	pCpuRegs->m_pRegE->value(str);
 
 	// Update DE edit box
-	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
-	cpuregs_ctrl.pRegDE->value(str);
+	sprintf(str, pCpuRegs->m_sDEfmt, DE);
+	pCpuRegs->m_pRegDE->value(str);
 }
 
 /*
@@ -1003,29 +1332,30 @@ void cb_reg_e_changed(Fl_Widget* w, void*)
 Routine to handle Change to HL edit field
 ============================================================================
 */
-void cb_reg_hl_changed(Fl_Widget* w, void*)
+void cb_reg_hl_changed(Fl_Widget* w, void* pOpaque)
 {
 	int				new_hl;
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegHL->value();
+	pStr = pCpuRegs->m_pRegHL->value();
 	new_hl = str_to_i(pStr);
 
 	H = (new_hl >> 8) & 0xFF;
 	L = new_hl & 0xFF;
 
 	// Update H edit box
-	sprintf(str, cpuregs_ctrl.sHfmt, H);
-	cpuregs_ctrl.pRegH->value(str);
+	sprintf(str, pCpuRegs->m_sHfmt, H);
+	pCpuRegs->m_pRegH->value(str);
 
 	// Update L edit box
-	sprintf(str, cpuregs_ctrl.sLfmt, L);
-	cpuregs_ctrl.pRegL->value(str);
+	sprintf(str, pCpuRegs->m_sLfmt, L);
+	pCpuRegs->m_pRegL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	sprintf(str, pCpuRegs->m_sMfmt, get_m());
+	pCpuRegs->m_pRegM->value(str);
 
 }
 
@@ -1034,25 +1364,26 @@ void cb_reg_hl_changed(Fl_Widget* w, void*)
 Routine to handle Change to H edit field
 ============================================================================
 */
-void cb_reg_h_changed(Fl_Widget* w, void*)
+void cb_reg_h_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegH->value();
+	pStr = pCpuRegs->m_pRegH->value();
 	H = str_to_i(pStr);
 
 	// Update H edit box
-	sprintf(str, cpuregs_ctrl.sHfmt, H);
-	cpuregs_ctrl.pRegH->value(str);
+	sprintf(str, pCpuRegs->m_sHfmt, H);
+	pCpuRegs->m_pRegH->value(str);
 
 	// Update HL edit box
-	sprintf(str, cpuregs_ctrl.sHLfmt, HL);
-	cpuregs_ctrl.pRegHL->value(str);
+	sprintf(str, pCpuRegs->m_sHLfmt, HL);
+	pCpuRegs->m_pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	sprintf(str, pCpuRegs->m_sMfmt, get_m());
+	pCpuRegs->m_pRegM->value(str);
 
 }
 
@@ -1061,25 +1392,26 @@ void cb_reg_h_changed(Fl_Widget* w, void*)
 Routine to handle Change to L edit field
 ============================================================================
 */
-void cb_reg_l_changed(Fl_Widget* w, void*)
+void cb_reg_l_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	char			str[20];
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	pStr = cpuregs_ctrl.pRegL->value();
+	pStr = pCpuRegs->m_pRegL->value();
 	L = str_to_i(pStr);
 
 	// Update H edit box
-	sprintf(str, cpuregs_ctrl.sLfmt, L);
-	cpuregs_ctrl.pRegL->value(str);
+	sprintf(str, pCpuRegs->m_sLfmt, L);
+	pCpuRegs->m_pRegL->value(str);
 
 	// Update HL edit box
-	sprintf(str, cpuregs_ctrl.sHLfmt, HL);
-	cpuregs_ctrl.pRegHL->value(str);
+	sprintf(str, pCpuRegs->m_sHLfmt, HL);
+	pCpuRegs->m_pRegHL->value(str);
 
 	// Update M edit box
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	sprintf(str, pCpuRegs->m_sMfmt, get_m());
+	pCpuRegs->m_pRegM->value(str);
 
 }
 
@@ -1088,13 +1420,14 @@ void cb_reg_l_changed(Fl_Widget* w, void*)
 Routine to handle Change to SP edit field
 ============================================================================
 */
-void cb_reg_sp_changed(Fl_Widget* w, void*)
+void cb_reg_sp_changed(Fl_Widget* w, void* pOpaque)
 {
 	const char		*pStr;
 	int				val;
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
 
 	// Get value of SP
-	pStr = cpuregs_ctrl.pRegSP->value();
+	pStr = pCpuRegs->m_pRegSP->value();
 	if (pStr[0] != 0)
 	{
 		val = str_to_i(pStr);
@@ -1110,18 +1443,15 @@ void cb_reg_sp_changed(Fl_Widget* w, void*)
 Routine to handle disabling realtime trace
 ============================================================================
 */
-void cb_disable_realtime_trace(Fl_Widget* w, void*)
+void cb_disable_realtime_trace(Fl_Widget* w, void* pOpaque)
 {
-	gDisableRealtimeTrace = cpuregs_ctrl.pDisableTrace->value();
+	VTCpuRegs*		pCpuRegs = (VTCpuRegs *) pOpaque;
+
+	gDisableRealtimeTrace = pCpuRegs->m_pDisableTrace->value();
 
 	if (gDisableRealtimeTrace)
 	{
-		gcpuw->make_current();
-
-		// Clear rectangle
-		fl_color(FL_GRAY);
-		fl_rectf(25, 205+MENU_HEIGHT, 510, 115);
-		fl_rectf(555, 205+MENU_HEIGHT, 54, 115);
+		pCpuRegs->redraw();
 	}
 }
 
@@ -1130,16 +1460,17 @@ void cb_disable_realtime_trace(Fl_Widget* w, void*)
 Routine to handle Reg A Hex display mode
 ============================================================================
 */
-void cb_reg_a_hex(Fl_Widget* w, void*)
+void cb_reg_a_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sAfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sAfmt, A);
-	cpuregs_ctrl.pRegA->value(str);
+	strcpy(pCpuRegs->m_sAfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sAfmt, A);
+	pCpuRegs->m_pRegA->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1147,16 +1478,17 @@ void cb_reg_a_hex(Fl_Widget* w, void*)
 Routine to handle Reg A Dec display mode
 ============================================================================
 */
-void cb_reg_a_dec(Fl_Widget* w, void*)
+void cb_reg_a_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sAfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sAfmt, A);
-	cpuregs_ctrl.pRegA->value(str);
+	strcpy(pCpuRegs->m_sAfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sAfmt, A);
+	pCpuRegs->m_pRegA->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1164,16 +1496,17 @@ void cb_reg_a_dec(Fl_Widget* w, void*)
 Routine to handle Reg B Hex display mode
 ============================================================================
 */
-void cb_reg_b_hex(Fl_Widget* w, void*)
+void cb_reg_b_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sBfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sBfmt, B);
-	cpuregs_ctrl.pRegB->value(str);
+	strcpy(pCpuRegs->m_sBfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sBfmt, B);
+	pCpuRegs->m_pRegB->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1181,16 +1514,17 @@ void cb_reg_b_hex(Fl_Widget* w, void*)
 Routine to handle Reg B Dec display mode
 ============================================================================
 */
-void cb_reg_b_dec(Fl_Widget* w, void*)
+void cb_reg_b_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sBfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sBfmt, B);
-	cpuregs_ctrl.pRegB->value(str);
+	strcpy(pCpuRegs->m_sBfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sBfmt, B);
+	pCpuRegs->m_pRegB->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1198,16 +1532,17 @@ void cb_reg_b_dec(Fl_Widget* w, void*)
 Routine to handle Reg C Hex display mode
 ============================================================================
 */
-void cb_reg_c_hex(Fl_Widget* w, void*)
+void cb_reg_c_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sCfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sCfmt, C);
-	cpuregs_ctrl.pRegC->value(str);
+	strcpy(pCpuRegs->m_sCfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sCfmt, C);
+	pCpuRegs->m_pRegC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1215,16 +1550,17 @@ void cb_reg_c_hex(Fl_Widget* w, void*)
 Routine to handle Reg C Dec display mode
 ============================================================================
 */
-void cb_reg_c_dec(Fl_Widget* w, void*)
+void cb_reg_c_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sCfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sCfmt, C);
-	cpuregs_ctrl.pRegC->value(str);
+	strcpy(pCpuRegs->m_sCfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sCfmt, C);
+	pCpuRegs->m_pRegC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1232,16 +1568,17 @@ void cb_reg_c_dec(Fl_Widget* w, void*)
 Routine to handle Reg D Hex display mode
 ============================================================================
 */
-void cb_reg_d_hex(Fl_Widget* w, void*)
+void cb_reg_d_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sDfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sDfmt, D);
-	cpuregs_ctrl.pRegD->value(str);
+	strcpy(pCpuRegs->m_sDfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sDfmt, D);
+	pCpuRegs->m_pRegD->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1249,16 +1586,17 @@ void cb_reg_d_hex(Fl_Widget* w, void*)
 Routine to handle Reg D Dec display mode
 ============================================================================
 */
-void cb_reg_d_dec(Fl_Widget* w, void*)
+void cb_reg_d_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sDfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sDfmt, D);
-	cpuregs_ctrl.pRegD->value(str);
+	strcpy(pCpuRegs->m_sDfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sDfmt, D);
+	pCpuRegs->m_pRegD->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1266,16 +1604,17 @@ void cb_reg_d_dec(Fl_Widget* w, void*)
 Routine to handle Reg E Hex display mode
 ============================================================================
 */
-void cb_reg_e_hex(Fl_Widget* w, void*)
+void cb_reg_e_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sEfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sEfmt, E);
-	cpuregs_ctrl.pRegE->value(str);
+	strcpy(pCpuRegs->m_sEfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sEfmt, E);
+	pCpuRegs->m_pRegE->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1283,16 +1622,17 @@ void cb_reg_e_hex(Fl_Widget* w, void*)
 Routine to handle Reg E Dec display mode
 ============================================================================
 */
-void cb_reg_e_dec(Fl_Widget* w, void*)
+void cb_reg_e_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sEfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sEfmt, E);
-	cpuregs_ctrl.pRegE->value(str);
+	strcpy(pCpuRegs->m_sEfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sEfmt, E);
+	pCpuRegs->m_pRegE->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1300,16 +1640,17 @@ void cb_reg_e_dec(Fl_Widget* w, void*)
 Routine to handle Reg H Hex display mode
 ============================================================================
 */
-void cb_reg_h_hex(Fl_Widget* w, void*)
+void cb_reg_h_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sHfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sHfmt, H);
-	cpuregs_ctrl.pRegH->value(str);
+	strcpy(pCpuRegs->m_sHfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sHfmt, H);
+	pCpuRegs->m_pRegH->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1317,16 +1658,17 @@ void cb_reg_h_hex(Fl_Widget* w, void*)
 Routine to handle Reg H Dec display mode
 ============================================================================
 */
-void cb_reg_h_dec(Fl_Widget* w, void*)
+void cb_reg_h_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sHfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sHfmt, H);
-	cpuregs_ctrl.pRegH->value(str);
+	strcpy(pCpuRegs->m_sHfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sHfmt, H);
+	pCpuRegs->m_pRegH->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1334,16 +1676,17 @@ void cb_reg_h_dec(Fl_Widget* w, void*)
 Routine to handle Reg L Hex display mode
 ============================================================================
 */
-void cb_reg_l_hex(Fl_Widget* w, void*)
+void cb_reg_l_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sLfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sLfmt, L);
-	cpuregs_ctrl.pRegL->value(str);
+	strcpy(pCpuRegs->m_sLfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sLfmt, L);
+	pCpuRegs->m_pRegL->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1351,16 +1694,17 @@ void cb_reg_l_hex(Fl_Widget* w, void*)
 Routine to handle Reg L Dec display mode
 ============================================================================
 */
-void cb_reg_l_dec(Fl_Widget* w, void*)
+void cb_reg_l_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sLfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sLfmt, L);
-	cpuregs_ctrl.pRegL->value(str);
+	strcpy(pCpuRegs->m_sLfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sLfmt, L);
+	pCpuRegs->m_pRegL->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1368,16 +1712,17 @@ void cb_reg_l_dec(Fl_Widget* w, void*)
 Routine to handle Reg PC Hex display mode
 ============================================================================
 */
-void cb_reg_pc_hex(Fl_Widget* w, void*)
+void cb_reg_pc_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sPCfmt,  "0x%04X");
-	sprintf(str, cpuregs_ctrl.sPCfmt, PC);
-	cpuregs_ctrl.pRegPC->value(str);
+	strcpy(pCpuRegs->m_sPCfmt,  "0x%04X");
+	sprintf(str, pCpuRegs->m_sPCfmt, PC);
+	pCpuRegs->m_pRegPC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1385,16 +1730,17 @@ void cb_reg_pc_hex(Fl_Widget* w, void*)
 Routine to handle Reg PC Dec display mode
 ============================================================================
 */
-void cb_reg_pc_dec(Fl_Widget* w, void*)
+void cb_reg_pc_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sPCfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sPCfmt, PC);
-	cpuregs_ctrl.pRegPC->value(str);
+	strcpy(pCpuRegs->m_sPCfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sPCfmt, PC);
+	pCpuRegs->m_pRegPC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1402,16 +1748,17 @@ void cb_reg_pc_dec(Fl_Widget* w, void*)
 Routine to handle Reg SP Hex display mode
 ============================================================================
 */
-void cb_reg_sp_hex(Fl_Widget* w, void*)
+void cb_reg_sp_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sSPfmt,  "0x%04X");
-	sprintf(str, cpuregs_ctrl.sSPfmt, SP);
-	cpuregs_ctrl.pRegSP->value(str);
+	strcpy(pCpuRegs->m_sSPfmt,  "0x%04X");
+	sprintf(str, pCpuRegs->m_sSPfmt, SP);
+	pCpuRegs->m_pRegSP->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1419,16 +1766,17 @@ void cb_reg_sp_hex(Fl_Widget* w, void*)
 Routine to handle Reg SP Dec display mode
 ============================================================================
 */
-void cb_reg_sp_dec(Fl_Widget* w, void*)
+void cb_reg_sp_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sSPfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sSPfmt, SP);
-	cpuregs_ctrl.pRegSP->value(str);
+	strcpy(pCpuRegs->m_sSPfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sSPfmt, SP);
+	pCpuRegs->m_pRegSP->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1436,16 +1784,17 @@ void cb_reg_sp_dec(Fl_Widget* w, void*)
 Routine to handle Reg BC Hex display mode
 ============================================================================
 */
-void cb_reg_bc_hex(Fl_Widget* w, void*)
+void cb_reg_bc_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sBCfmt,  "0x%04X");
-	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
-	cpuregs_ctrl.pRegBC->value(str);
+	strcpy(pCpuRegs->m_sBCfmt,  "0x%04X");
+	sprintf(str, pCpuRegs->m_sBCfmt, BC);
+	pCpuRegs->m_pRegBC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1453,16 +1802,17 @@ void cb_reg_bc_hex(Fl_Widget* w, void*)
 Routine to handle Reg BC Dec display mode
 ============================================================================
 */
-void cb_reg_bc_dec(Fl_Widget* w, void*)
+void cb_reg_bc_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sBCfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sBCfmt, BC);
-	cpuregs_ctrl.pRegBC->value(str);
+	strcpy(pCpuRegs->m_sBCfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sBCfmt, BC);
+	pCpuRegs->m_pRegBC->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1470,16 +1820,17 @@ void cb_reg_bc_dec(Fl_Widget* w, void*)
 Routine to handle Reg DE Hex display mode
 ============================================================================
 */
-void cb_reg_de_hex(Fl_Widget* w, void*)
+void cb_reg_de_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sDEfmt,  "0x%04X");
-	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
-	cpuregs_ctrl.pRegDE->value(str);
+	strcpy(pCpuRegs->m_sDEfmt,  "0x%04X");
+	sprintf(str, pCpuRegs->m_sDEfmt, DE);
+	pCpuRegs->m_pRegDE->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1487,16 +1838,17 @@ void cb_reg_de_hex(Fl_Widget* w, void*)
 Routine to handle Reg DE Dec display mode
 ============================================================================
 */
-void cb_reg_de_dec(Fl_Widget* w, void*)
+void cb_reg_de_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sDEfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sDEfmt, DE);
-	cpuregs_ctrl.pRegDE->value(str);
+	strcpy(pCpuRegs->m_sDEfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sDEfmt, DE);
+	pCpuRegs->m_pRegDE->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1504,16 +1856,17 @@ void cb_reg_de_dec(Fl_Widget* w, void*)
 Routine to handle Reg HL Hex display mode
 ============================================================================
 */
-void cb_reg_hl_hex(Fl_Widget* w, void*)
+void cb_reg_hl_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sHLfmt,  "0x%04X");
-	sprintf(str, cpuregs_ctrl.sHLfmt, HL);
-	cpuregs_ctrl.pRegHL->value(str);
+	strcpy(pCpuRegs->m_sHLfmt,  "0x%04X");
+	sprintf(str, pCpuRegs->m_sHLfmt, HL);
+	pCpuRegs->m_pRegHL->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1521,16 +1874,17 @@ void cb_reg_hl_hex(Fl_Widget* w, void*)
 Routine to handle Reg HL Dec display mode
 ============================================================================
 */
-void cb_reg_hl_dec(Fl_Widget* w, void*)
+void cb_reg_hl_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sHLfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sHLfmt, HL);
-	cpuregs_ctrl.pRegHL->value(str);
+	strcpy(pCpuRegs->m_sHLfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sHLfmt, HL);
+	pCpuRegs->m_pRegHL->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1538,16 +1892,17 @@ void cb_reg_hl_dec(Fl_Widget* w, void*)
 Routine to handle Reg M Hex display mode
 ============================================================================
 */
-void cb_reg_m_hex(Fl_Widget* w, void*)
+void cb_reg_m_hex(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sMfmt,  "0x%02X");
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	strcpy(pCpuRegs->m_sMfmt,  "0x%02X");
+	sprintf(str, pCpuRegs->m_sMfmt, get_m());
+	pCpuRegs->m_pRegM->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1555,16 +1910,17 @@ void cb_reg_m_hex(Fl_Widget* w, void*)
 Routine to handle Reg M Dec display mode
 ============================================================================
 */
-void cb_reg_m_dec(Fl_Widget* w, void*)
+void cb_reg_m_dec(Fl_Widget* w, void* pOpaque)
 {
-	char str[8];
+	char		str[8];
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
 
-	strcpy(cpuregs_ctrl.sMfmt,  "%d");
-	sprintf(str, cpuregs_ctrl.sMfmt, get_m());
-	cpuregs_ctrl.pRegM->value(str);
+	strcpy(pCpuRegs->m_sMfmt,  "%d");
+	sprintf(str, pCpuRegs->m_sMfmt, get_m());
+	pCpuRegs->m_pRegM->value(str);
 
-	cpuregs_ctrl.pAllHex->value(0);
-	cpuregs_ctrl.pAllDec->value(0);
+	pCpuRegs->m_pAllHex->value(0);
+	pCpuRegs->m_pAllDec->value(0);
 }
 
 /*
@@ -1572,55 +1928,61 @@ void cb_reg_m_dec(Fl_Widget* w, void*)
 Routine to handle Reg All Hex display mode
 ============================================================================
 */
-void cb_reg_all_hex(Fl_Widget* w, void*)
+void cb_reg_all_hex(Fl_Widget* w, void* pOpaque)
+{
+	VTCpuRegs* pCpuRegs = (VTCpuRegs *) pOpaque;
+	pCpuRegs->RegAllHex();
+}
+
+void VTCpuRegs::RegAllHex(void)
 {
 	// Change format to "Hex" for all
-	cb_reg_a_hex(w, NULL);
-	cb_reg_b_hex(w, NULL);
-	cb_reg_c_hex(w, NULL);
-	cb_reg_d_hex(w, NULL);
-	cb_reg_e_hex(w, NULL);
-	cb_reg_h_hex(w, NULL);
-	cb_reg_l_hex(w, NULL);
-	cb_reg_pc_hex(w, NULL);
-	cb_reg_sp_hex(w, NULL);
-	cb_reg_bc_hex(w, NULL);
-	cb_reg_de_hex(w, NULL);
-	cb_reg_hl_hex(w, NULL);
-	cb_reg_m_hex(w, NULL);
+	cb_reg_a_hex(NULL, this);
+	cb_reg_b_hex(NULL, this);
+	cb_reg_c_hex(NULL, this);
+	cb_reg_d_hex(NULL, this);
+	cb_reg_e_hex(NULL, this);
+	cb_reg_h_hex(NULL, this);
+	cb_reg_l_hex(NULL, this);
+	cb_reg_pc_hex(NULL, this);
+	cb_reg_sp_hex(NULL, this);
+	cb_reg_bc_hex(NULL, this);
+	cb_reg_de_hex(NULL, this);
+	cb_reg_hl_hex(NULL, this);
+	cb_reg_m_hex(NULL, this);
 
 	// Deselect all "Dec" buttons
-	cpuregs_ctrl.pADec->value(0);
-	cpuregs_ctrl.pBDec->value(0);
-	cpuregs_ctrl.pCDec->value(0);
-	cpuregs_ctrl.pDDec->value(0);
-	cpuregs_ctrl.pEDec->value(0);
-	cpuregs_ctrl.pHDec->value(0);
-	cpuregs_ctrl.pLDec->value(0);
-	cpuregs_ctrl.pPCDec->value(0);
-	cpuregs_ctrl.pSPDec->value(0);
-	cpuregs_ctrl.pBCDec->value(0);
-	cpuregs_ctrl.pDEDec->value(0);
-	cpuregs_ctrl.pHLDec->value(0);
-	cpuregs_ctrl.pMDec->value(0);
+	m_pADec->value(0);
+	m_pBDec->value(0);
+	m_pCDec->value(0);
+	m_pDDec->value(0);
+	m_pEDec->value(0);
+	m_pHDec->value(0);
+	m_pLDec->value(0);
+	m_pPCDec->value(0);
+	m_pSPDec->value(0);
+	m_pBCDec->value(0);
+	m_pDEDec->value(0);
+	m_pHLDec->value(0);
+	m_pMDec->value(0);
 
 	// Select all "Hex" buttons
-	cpuregs_ctrl.pAHex->value(1);
-	cpuregs_ctrl.pBHex->value(1);
-	cpuregs_ctrl.pCHex->value(1);
-	cpuregs_ctrl.pDHex->value(1);
-	cpuregs_ctrl.pEHex->value(1);
-	cpuregs_ctrl.pHHex->value(1);
-	cpuregs_ctrl.pLHex->value(1);
-	cpuregs_ctrl.pPCHex->value(1);
-	cpuregs_ctrl.pSPHex->value(1);
-	cpuregs_ctrl.pBCHex->value(1);
-	cpuregs_ctrl.pDEHex->value(1);
-	cpuregs_ctrl.pHLHex->value(1);
-	cpuregs_ctrl.pMHex->value(1);
+	m_pAHex->value(1);
+	m_pBHex->value(1);
+	m_pCHex->value(1);
+	m_pDHex->value(1);
+	m_pEHex->value(1);
+	m_pHHex->value(1);
+	m_pLHex->value(1);
+	m_pPCHex->value(1);
+	m_pSPHex->value(1);
+	m_pBCHex->value(1);
+	m_pDEHex->value(1);
+	m_pHLHex->value(1);
+	m_pMHex->value(1);
 
 	// reselect the "All Hex" button
-	cpuregs_ctrl.pAllHex->value(1);
+	m_pAllHex->value(1);
 }
 
 /*
@@ -1628,55 +1990,107 @@ void cb_reg_all_hex(Fl_Widget* w, void*)
 Routine to handle Reg All Dec display mode
 ============================================================================
 */
-void cb_reg_all_dec(Fl_Widget* w, void*)
+void cb_reg_all_dec(Fl_Widget* w, void* pOpaque)
+{
+	VTCpuRegs* pCpuRegs = (VTCpuRegs *) pOpaque;
+	pCpuRegs->RegAllDec();
+}
+
+void VTCpuRegs::RegAllDec(void)
 {
 	// Change format of all items to Dec
-	cb_reg_a_dec(w, NULL);
-	cb_reg_b_dec(w, NULL);
-	cb_reg_c_dec(w, NULL);
-	cb_reg_d_dec(w, NULL);
-	cb_reg_e_dec(w, NULL);
-	cb_reg_h_dec(w, NULL);
-	cb_reg_l_dec(w, NULL);
-	cb_reg_pc_dec(w, NULL);
-	cb_reg_sp_dec(w, NULL);
-	cb_reg_bc_dec(w, NULL);
-	cb_reg_de_dec(w, NULL);
-	cb_reg_hl_dec(w, NULL);
-	cb_reg_m_dec(w, NULL);
+	cb_reg_a_dec(NULL, this);
+	cb_reg_b_dec(NULL, this);
+	cb_reg_c_dec(NULL, this);
+	cb_reg_d_dec(NULL, this);
+	cb_reg_e_dec(NULL, this);
+	cb_reg_h_dec(NULL, this);
+	cb_reg_l_dec(NULL, this);
+	cb_reg_pc_dec(NULL, this);
+	cb_reg_sp_dec(NULL, this);
+	cb_reg_bc_dec(NULL, this);
+	cb_reg_de_dec(NULL, this);
+	cb_reg_hl_dec(NULL, this);
+	cb_reg_m_dec(NULL, this);
 
 	// Deselect all "Hex" buttons
-	cpuregs_ctrl.pAHex->value(0);
-	cpuregs_ctrl.pBHex->value(0);
-	cpuregs_ctrl.pCHex->value(0);
-	cpuregs_ctrl.pDHex->value(0);
-	cpuregs_ctrl.pEHex->value(0);
-	cpuregs_ctrl.pHHex->value(0);
-	cpuregs_ctrl.pLHex->value(0);
-	cpuregs_ctrl.pPCHex->value(0);
-	cpuregs_ctrl.pSPHex->value(0);
-	cpuregs_ctrl.pBCHex->value(0);
-	cpuregs_ctrl.pDEHex->value(0);
-	cpuregs_ctrl.pHLHex->value(0);
-	cpuregs_ctrl.pMHex->value(0);
+	m_pAHex->value(0);
+	m_pBHex->value(0);
+	m_pCHex->value(0);
+	m_pDHex->value(0);
+	m_pEHex->value(0);
+	m_pHHex->value(0);
+	m_pLHex->value(0);
+	m_pPCHex->value(0);
+	m_pSPHex->value(0);
+	m_pBCHex->value(0);
+	m_pDEHex->value(0);
+	m_pHLHex->value(0);
+	m_pMHex->value(0);
 
 	// Select all "Dec" buttons
-	cpuregs_ctrl.pADec->value(1);
-	cpuregs_ctrl.pBDec->value(1);
-	cpuregs_ctrl.pCDec->value(1);
-	cpuregs_ctrl.pDDec->value(1);
-	cpuregs_ctrl.pEDec->value(1);
-	cpuregs_ctrl.pHDec->value(1);
-	cpuregs_ctrl.pLDec->value(1);
-	cpuregs_ctrl.pPCDec->value(1);
-	cpuregs_ctrl.pSPDec->value(1);
-	cpuregs_ctrl.pBCDec->value(1);
-	cpuregs_ctrl.pDEDec->value(1);
-	cpuregs_ctrl.pHLDec->value(1);
-	cpuregs_ctrl.pMDec->value(1);
+	m_pADec->value(1);
+	m_pBDec->value(1);
+	m_pCDec->value(1);
+	m_pDDec->value(1);
+	m_pEDec->value(1);
+	m_pHDec->value(1);
+	m_pLDec->value(1);
+	m_pPCDec->value(1);
+	m_pSPDec->value(1);
+	m_pBCDec->value(1);
+	m_pDEDec->value(1);
+	m_pHLDec->value(1);
+	m_pMDec->value(1);
 
 	// Reselect "All" Dec button
-	cpuregs_ctrl.pAllDec->value(1);
+	m_pAllDec->value(1);
+}
+
+/*
+============================================================================
+Routine to handle debugInts checkbox clicks
+============================================================================
+*/
+void cb_debugInts(Fl_Widget* w, void* pOpaque)
+{
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
+	gDebugInts = pCpuRegs->m_pDebugInts->value();
+}
+
+/*
+============================================================================
+Routine to handle autoScroll checkbox clicks
+============================================================================
+*/
+void cb_autoscroll(Fl_Widget* w, void* pOpaque)
+{
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
+	pCpuRegs->m_autoScroll = pCpuRegs->m_pAutoScroll->value();
+}
+
+/*
+============================================================================
+Routine to handle saveBreak checkbox clicks
+============================================================================
+*/
+void cb_saveBreakpoints(Fl_Widget* w, void* pOpaque)
+{
+	VTCpuRegs*	pCpuRegs = (VTCpuRegs *) pOpaque;
+
+	pCpuRegs->m_saveBreakpoints = pCpuRegs->m_pSaveBreak->value();
+}
+
+/*
+============================================================================
+This routine is the timout callback for enabling debug monitoring.
+============================================================================
+*/
+void cb_enable_monitor(void *pOpaque)
+{
+	debug_set_monitor_callback(debug_cpuregs_cb);
 }
 
 /*
@@ -1686,20 +2100,80 @@ Routine to create the PeripheralSetup Window and tabs
 */
 void cb_CpuRegs (Fl_Widget* w, void*)
 {
-	Fl_Box*			o;
-
 	if (gcpuw != NULL)
 		return;
 
 	// Create Peripheral Setup window
-	gcpuw = new Fl_Window(630, 480, "CPU Registers");
-	gcpuw->callback(cb_cpuregswin);
+	gcpuw = new VTCpuRegs(640, 480, "CPU Registers");
+	gcpuw->callback(cb_cpuregswin, gcpuw);
+
+	// Show the new window
+	gcpuw->show();
+
+	// Resize if user preferences have been set
+	if (gcpuw->m_x != -1 && gcpuw->m_y != -1 && gcpuw->m_w != -1 && gcpuw->m_h != -1)
+	{
+		int newx, newy, neww, newh;
+
+		newx = gcpuw->m_x;
+		newy = gcpuw->m_y;
+		neww = gcpuw->m_w;
+		newh = gcpuw->m_h;
+
+		gcpuw->resize(newx, newy, neww, newh);
+	}
+
+	// Check if VirtualT has had time to initialize yet.  If not, we set a
+	// timeout callback to enable monitoring, otherwise we just enable it directly
+	if (cycles < 10000000)
+		Fl::add_timeout(1.0, cb_enable_monitor, gcpuw);
+	else
+		debug_set_monitor_callback(debug_cpuregs_cb);
+
+	// Indicate an active debug window
+	gDebugActive++;
+}
+
+/*
+============================================================================
+CpuRegisters class constructor.  Creates all controls within the window.
+============================================================================
+*/
+VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
+	Fl_Double_Window(x, y, title)
+{
+	Fl_Box*			o;
+	int				c;
+
+	/* Load the user preferences for window size, etc. */
+	LoadPrefs();
+
+	// Allocate the trace buffer
+	m_pTraceData = new cpu_trace_data_t[m_traceCount];
+
+	// Clear debugging data
+	m_traceAvail = 0;
+	m_breakMonitorFreq = 0;
+	for (c = 0; c < 5; c++)
+	{
+		m_breakAddr[c] = -1;
+		m_breakEnable[c] = 1;
+	}
+
+	for (c = 0; c < 64; c++)
+		m_sInstTrace[c][0] = '\0';
+	m_lastH = 0;
+
+	fl_font(FL_COURIER, m_fontSize);
+	m_fontHeight = fl_height() + 1;
 
 	// Create a menu for the new window.
-	cpuregs_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 630, MENU_HEIGHT-2);
-	cpuregs_ctrl.pMenu->menu(gCpuRegs_menuitems);
+	m_pMenu = new Fl_Menu_Bar(0, 0, x, MENU_HEIGHT-2);
+	m_pMenu->menu(gCpuRegs_menuitems);
 
 	// Create static text boxes
+	Fl_Group* g1 = new Fl_Group(0, 20+MENU_HEIGHT, x, 170+MENU_HEIGHT-20);
+
 	o = new Fl_Box(FL_NO_BOX, 20, 20+MENU_HEIGHT, 50, 15, "PC");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	o = new Fl_Box(FL_NO_BOX, 20, 45+MENU_HEIGHT, 50, 15, "SP");
@@ -1731,478 +2205,1038 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 
 
 	// Program Counter edit box
-	cpuregs_ctrl.pRegPC = new Fl_Input(50, 19+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegPC->deactivate();
-	cpuregs_ctrl.pRegPC->callback(cb_reg_pc_changed);
-	cpuregs_ctrl.pRegPC->value("0x0000");
+	m_pRegPC = new Fl_Input(50, 19+MENU_HEIGHT, 60, 20, "");
+	m_pRegPC->deactivate();
+	m_pRegPC->callback(cb_reg_pc_changed, this);
+	m_pRegPC->value("0x0000");
 
 	// Accumulator Edit Box
-	cpuregs_ctrl.pRegA = new Fl_Input(150, 19+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegA->deactivate();
-	cpuregs_ctrl.pRegA->value("0x00");
+	m_pRegA = new Fl_Input(150, 19+MENU_HEIGHT, 60, 20, "");
+	m_pRegA->deactivate();
+	m_pRegA->value("0x00");
 
 	// Stack Pointer edit box
-	cpuregs_ctrl.pRegSP = new Fl_Input(50, 44+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegSP->deactivate();
-	cpuregs_ctrl.pRegSP->callback(cb_reg_sp_changed);
-	cpuregs_ctrl.pRegSP->value("0x0000");
+	m_pRegSP = new Fl_Input(50, 44+MENU_HEIGHT, 60, 20, "");
+	m_pRegSP->deactivate();
+	m_pRegSP->callback(cb_reg_sp_changed, this);
+	m_pRegSP->value("0x0000");
 
 	// Create Flag checkboxes
 	// Sign flag
-	cpuregs_ctrl.pSFlag = new Fl_Check_Button(223, 19+MENU_HEIGHT, 30, 20, "S");
-	cpuregs_ctrl.pSFlag->deactivate();
+	m_pSFlag = new Fl_Check_Button(223, 19+MENU_HEIGHT, 30, 20, "S");
+	m_pSFlag->deactivate();
 
 	// Zero flag
-	cpuregs_ctrl.pZFlag = new Fl_Check_Button(253, 19+MENU_HEIGHT, 30, 20, "Z");
-	cpuregs_ctrl.pZFlag->deactivate();
+	m_pZFlag = new Fl_Check_Button(253, 19+MENU_HEIGHT, 30, 20, "Z");
+	m_pZFlag->deactivate();
 
 	// Carry flag
-	cpuregs_ctrl.pCFlag = new Fl_Check_Button(290, 19+MENU_HEIGHT, 30, 20, "C");
-	cpuregs_ctrl.pCFlag->deactivate();
+	m_pCFlag = new Fl_Check_Button(290, 19+MENU_HEIGHT, 30, 20, "C");
+	m_pCFlag->deactivate();
 
 	// TS flag
-	cpuregs_ctrl.pTSFlag = new Fl_Check_Button(148, 44+MENU_HEIGHT, 40, 20, "TS");
-	cpuregs_ctrl.pTSFlag->deactivate();
+	m_pTSFlag = new Fl_Check_Button(148, 44+MENU_HEIGHT, 40, 20, "TS");
+	m_pTSFlag->deactivate();
 
 	// AC flag
-	cpuregs_ctrl.pACFlag = new Fl_Check_Button(185, 44+MENU_HEIGHT, 40, 20, "AC");
-	cpuregs_ctrl.pACFlag->deactivate();
+	m_pACFlag = new Fl_Check_Button(185, 44+MENU_HEIGHT, 40, 20, "AC");
+	m_pACFlag->deactivate();
 
 	// Parity flag
-	cpuregs_ctrl.pPFlag = new Fl_Check_Button(223, 44+MENU_HEIGHT, 30, 20, "P");
-	cpuregs_ctrl.pPFlag->deactivate();
+	m_pPFlag = new Fl_Check_Button(223, 44+MENU_HEIGHT, 30, 20, "P");
+	m_pPFlag->deactivate();
 
 	// Overflow flag
-	cpuregs_ctrl.pOVFlag = new Fl_Check_Button(253, 44+MENU_HEIGHT, 40, 20, "OV");
-	cpuregs_ctrl.pOVFlag->deactivate();
+	m_pOVFlag = new Fl_Check_Button(253, 44+MENU_HEIGHT, 40, 20, "OV");
+	m_pOVFlag->deactivate();
 
 	// X flag
-	cpuregs_ctrl.pXFlag = new Fl_Check_Button(290, 44+MENU_HEIGHT, 30, 20, "X");
-	cpuregs_ctrl.pXFlag->deactivate();
+	m_pXFlag = new Fl_Check_Button(290, 44+MENU_HEIGHT, 30, 20, "X");
+	m_pXFlag->deactivate();
 
 	// Register B  Edit Box
-	cpuregs_ctrl.pRegB = new Fl_Input(50, 69+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegB->deactivate();
-	cpuregs_ctrl.pRegB->callback(cb_reg_b_changed);
-	cpuregs_ctrl.pRegB->value("0x00");
+	m_pRegB = new Fl_Input(50, 69+MENU_HEIGHT, 60, 20, "");
+	m_pRegB->deactivate();
+	m_pRegB->callback(cb_reg_b_changed, this);
+	m_pRegB->value("0x00");
 
 	// Register C Edit Box
-	cpuregs_ctrl.pRegC = new Fl_Input(150, 69+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegC->deactivate();
-	cpuregs_ctrl.pRegC->callback(cb_reg_c_changed);
-	cpuregs_ctrl.pRegC->value("0x00");
+	m_pRegC = new Fl_Input(150, 69+MENU_HEIGHT, 60, 20, "");
+	m_pRegC->deactivate();
+	m_pRegC->callback(cb_reg_c_changed, this);
+	m_pRegC->value("0x00");
 
 	// Register BC Edit Box
-	cpuregs_ctrl.pRegBC = new Fl_Input(250, 69+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegBC->deactivate();
-	cpuregs_ctrl.pRegBC->callback(cb_reg_bc_changed);
-	cpuregs_ctrl.pRegBC->value("0x0000");
+	m_pRegBC = new Fl_Input(250, 69+MENU_HEIGHT, 60, 20, "");
+	m_pRegBC->deactivate();
+	m_pRegBC->callback(cb_reg_bc_changed, this);
+	m_pRegBC->value("0x0000");
 
 	// Register D  Edit Box
-	cpuregs_ctrl.pRegD = new Fl_Input(50, 94+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegD->deactivate();
-	cpuregs_ctrl.pRegD->callback(cb_reg_d_changed);
-	cpuregs_ctrl.pRegD->value("0x00");
+	m_pRegD = new Fl_Input(50, 94+MENU_HEIGHT, 60, 20, "");
+	m_pRegD->deactivate();
+	m_pRegD->callback(cb_reg_d_changed, this);
+	m_pRegD->value("0x00");
 
 	// Register E Edit Box
-	cpuregs_ctrl.pRegE = new Fl_Input(150, 94+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegE->deactivate();
-	cpuregs_ctrl.pRegE->callback(cb_reg_e_changed);
-	cpuregs_ctrl.pRegE->value("0x00");
+	m_pRegE = new Fl_Input(150, 94+MENU_HEIGHT, 60, 20, "");
+	m_pRegE->deactivate();
+	m_pRegE->callback(cb_reg_e_changed, this);
+	m_pRegE->value("0x00");
 
 	// Register DE Edit Box
-	cpuregs_ctrl.pRegDE = new Fl_Input(250, 94+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegDE->deactivate();
-	cpuregs_ctrl.pRegDE->callback(cb_reg_de_changed);
-	cpuregs_ctrl.pRegDE->value("0x0000");
+	m_pRegDE = new Fl_Input(250, 94+MENU_HEIGHT, 60, 20, "");
+	m_pRegDE->deactivate();
+	m_pRegDE->callback(cb_reg_de_changed, this);
+	m_pRegDE->value("0x0000");
 
 	// Register H  Edit Box
-	cpuregs_ctrl.pRegH = new Fl_Input(50, 119+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegH->deactivate();
-	cpuregs_ctrl.pRegH->callback(cb_reg_h_changed);
-	cpuregs_ctrl.pRegH->value("0x00");
+	m_pRegH = new Fl_Input(50, 119+MENU_HEIGHT, 60, 20, "");
+	m_pRegH->deactivate();
+	m_pRegH->callback(cb_reg_h_changed, this);
+	m_pRegH->value("0x00");
 
 	// Register L Edit Box
-	cpuregs_ctrl.pRegL = new Fl_Input(150, 119+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegL->deactivate();
-	cpuregs_ctrl.pRegL->callback(cb_reg_l_changed);
-	cpuregs_ctrl.pRegL->value("0x00");
+	m_pRegL = new Fl_Input(150, 119+MENU_HEIGHT, 60, 20, "");
+	m_pRegL->deactivate();
+	m_pRegL->callback(cb_reg_l_changed, this);
+	m_pRegL->value("0x00");
 
 	// Register HL Edit Box
-	cpuregs_ctrl.pRegHL = new Fl_Input(250, 119+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegHL->deactivate();
-	cpuregs_ctrl.pRegHL->callback(cb_reg_hl_changed);
-	cpuregs_ctrl.pRegHL->value("0x0000");
+	m_pRegHL = new Fl_Input(250, 119+MENU_HEIGHT, 60, 20, "");
+	m_pRegHL->deactivate();
+	m_pRegHL->callback(cb_reg_hl_changed, this);
+	m_pRegHL->value("0x0000");
 
 	// Register M Edit Box
-	cpuregs_ctrl.pRegM = new Fl_Input(250, 144+MENU_HEIGHT, 60, 20, "");
-	cpuregs_ctrl.pRegM->deactivate();
-	cpuregs_ctrl.pRegM->value("0x00");
+	m_pRegM = new Fl_Input(250, 144+MENU_HEIGHT, 60, 20, "");
+	m_pRegM->deactivate();
+	m_pRegM->value("0x00");
 
 
-	strcpy(cpuregs_ctrl.sPCfmt, "0x%04X");
-	strcpy(cpuregs_ctrl.sSPfmt, "0x%04X");
-	strcpy(cpuregs_ctrl.sBCfmt, "0x%04X");
-	strcpy(cpuregs_ctrl.sDEfmt, "0x%04X");
-	strcpy(cpuregs_ctrl.sHLfmt, "0x%04X");
-	strcpy(cpuregs_ctrl.sAfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sBfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sCfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sDfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sEfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sHfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sLfmt,  "0x%02X");
-	strcpy(cpuregs_ctrl.sMfmt,  "0x%02X");
+	strcpy(m_sPCfmt, "0x%04X");
+	strcpy(m_sSPfmt, "0x%04X");
+	strcpy(m_sBCfmt, "0x%04X");
+	strcpy(m_sDEfmt, "0x%04X");
+	strcpy(m_sHLfmt, "0x%04X");
+	strcpy(m_sAfmt,  "0x%02X");
+	strcpy(m_sBfmt,  "0x%02X");
+	strcpy(m_sCfmt,  "0x%02X");
+	strcpy(m_sDfmt,  "0x%02X");
+	strcpy(m_sEfmt,  "0x%02X");
+	strcpy(m_sHfmt,  "0x%02X");
+	strcpy(m_sLfmt,  "0x%02X");
+	strcpy(m_sMfmt,  "0x%02X");
 
 	// Group the Reg "All" radio buttons together
 	{
-		cpuregs_ctrl.g = new Fl_Group(440, 10 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(440, 10 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg A
 		o = new Fl_Box(FL_NO_BOX, 410, 11+MENU_HEIGHT, 50, 15, "All");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pAllHex = new Fl_Round_Button(440, 10 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pAllHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pAllHex->callback(cb_reg_all_hex);
-		cpuregs_ctrl.pAllHex->value(1);
+		m_pAllHex = new Fl_Round_Button(440, 10 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pAllHex->type(FL_RADIO_BUTTON);
+		m_pAllHex->callback(cb_reg_all_hex, this);
+		m_pAllHex->value(1);
 
-		cpuregs_ctrl.pAllDec  = new Fl_Round_Button(490, 10 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pAllDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pAllDec->callback(cb_reg_all_dec);
-		cpuregs_ctrl.g->end();
+		m_pAllDec  = new Fl_Round_Button(490, 10 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pAllDec->type(FL_RADIO_BUTTON);
+		m_pAllDec->callback(cb_reg_all_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg A radio buttons together
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 30 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 30 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg A
 		o = new Fl_Box(FL_NO_BOX, 340, 31+MENU_HEIGHT, 50, 15, "A");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pAHex = new Fl_Round_Button(370, 30 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pAHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pAHex->callback(cb_reg_a_hex);
-		cpuregs_ctrl.pAHex->value(1);
+		m_pAHex = new Fl_Round_Button(370, 30 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pAHex->type(FL_RADIO_BUTTON);
+		m_pAHex->callback(cb_reg_a_hex, this);
+		m_pAHex->value(1);
 
-		cpuregs_ctrl.pADec  = new Fl_Round_Button(420, 30 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pADec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pADec->callback(cb_reg_a_dec);
-		cpuregs_ctrl.g->end();
+		m_pADec  = new Fl_Round_Button(420, 30 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pADec->type(FL_RADIO_BUTTON);
+		m_pADec->callback(cb_reg_a_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg B radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 50 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 50 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg B
 		o = new Fl_Box(FL_NO_BOX, 340, 51+MENU_HEIGHT, 50, 15, "B");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pBHex = new Fl_Round_Button(370, 50 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pBHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pBHex->callback(cb_reg_b_hex);
-		cpuregs_ctrl.pBHex->value(1);
+		m_pBHex = new Fl_Round_Button(370, 50 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pBHex->type(FL_RADIO_BUTTON);
+		m_pBHex->callback(cb_reg_b_hex, this);
+		m_pBHex->value(1);
 
-		cpuregs_ctrl.pBDec  = new Fl_Round_Button(420, 50 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pBDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pBDec->callback(cb_reg_b_dec);
-		cpuregs_ctrl.g->end();
+		m_pBDec  = new Fl_Round_Button(420, 50 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pBDec->type(FL_RADIO_BUTTON);
+		m_pBDec->callback(cb_reg_b_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg C radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 70 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 70 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg C
 		o = new Fl_Box(FL_NO_BOX, 340, 71+MENU_HEIGHT, 50, 15, "C");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pCHex = new Fl_Round_Button(370, 70 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pCHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pCHex->callback(cb_reg_c_hex);
-		cpuregs_ctrl.pCHex->value(1);
+		m_pCHex = new Fl_Round_Button(370, 70 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pCHex->type(FL_RADIO_BUTTON);
+		m_pCHex->callback(cb_reg_c_hex, this);
+		m_pCHex->value(1);
 
-		cpuregs_ctrl.pCDec  = new Fl_Round_Button(420, 70 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pCDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pCDec->callback(cb_reg_c_dec);
-		cpuregs_ctrl.g->end();
+		m_pCDec  = new Fl_Round_Button(420, 70 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pCDec->type(FL_RADIO_BUTTON);
+		m_pCDec->callback(cb_reg_c_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg D radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 90 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 90 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg D
 		o = new Fl_Box(FL_NO_BOX, 340, 91+MENU_HEIGHT, 50, 15, "D");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pDHex = new Fl_Round_Button(370, 90 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pDHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pDHex->callback(cb_reg_d_hex);
-		cpuregs_ctrl.pDHex->value(1);
+		m_pDHex = new Fl_Round_Button(370, 90 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pDHex->type(FL_RADIO_BUTTON);
+		m_pDHex->callback(cb_reg_d_hex, this);
+		m_pDHex->value(1);
 
-		cpuregs_ctrl.pDDec  = new Fl_Round_Button(420, 90 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pDDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pDDec->callback(cb_reg_d_dec);
-		cpuregs_ctrl.g->end();
+		m_pDDec  = new Fl_Round_Button(420, 90 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pDDec->type(FL_RADIO_BUTTON);
+		m_pDDec->callback(cb_reg_d_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg E radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 110 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 110 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg E
 		o = new Fl_Box(FL_NO_BOX, 340, 111+MENU_HEIGHT, 50, 15, "E");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pEHex = new Fl_Round_Button(370, 110 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pEHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pEHex->callback(cb_reg_e_hex);
-		cpuregs_ctrl.pEHex->value(1);
+		m_pEHex = new Fl_Round_Button(370, 110 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pEHex->type(FL_RADIO_BUTTON);
+		m_pEHex->callback(cb_reg_e_hex, this);
+		m_pEHex->value(1);
 
-		cpuregs_ctrl.pEDec  = new Fl_Round_Button(420, 110 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pEDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pEDec->callback(cb_reg_e_dec);
-		cpuregs_ctrl.g->end();
+		m_pEDec  = new Fl_Round_Button(420, 110 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pEDec->type(FL_RADIO_BUTTON);
+		m_pEDec->callback(cb_reg_e_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg H radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 130 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 130 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg H
 		o = new Fl_Box(FL_NO_BOX, 340, 131+MENU_HEIGHT, 50, 15, "H");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pHHex = new Fl_Round_Button(370, 130 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pHHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pHHex->callback(cb_reg_h_hex);
-		cpuregs_ctrl.pHHex->value(1);
+		m_pHHex = new Fl_Round_Button(370, 130 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pHHex->type(FL_RADIO_BUTTON);
+		m_pHHex->callback(cb_reg_h_hex, this);
+		m_pHHex->value(1);
 
-		cpuregs_ctrl.pHDec  = new Fl_Round_Button(420, 130 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pHDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pHDec->callback(cb_reg_h_dec);
-		cpuregs_ctrl.g->end();
+		m_pHDec  = new Fl_Round_Button(420, 130 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pHDec->type(FL_RADIO_BUTTON);
+		m_pHDec->callback(cb_reg_h_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg L radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(370, 150 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(370, 150 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg L
 		o = new Fl_Box(FL_NO_BOX, 340, 151+MENU_HEIGHT, 50, 15, "L");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pLHex = new Fl_Round_Button(370, 150 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pLHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pLHex->callback(cb_reg_l_hex);
-		cpuregs_ctrl.pLHex->value(1);
+		m_pLHex = new Fl_Round_Button(370, 150 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pLHex->type(FL_RADIO_BUTTON);
+		m_pLHex->callback(cb_reg_l_hex, this);
+		m_pLHex->value(1);
 
-		cpuregs_ctrl.pLDec  = new Fl_Round_Button(420, 150 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pLDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pLDec->callback(cb_reg_l_dec);
-		cpuregs_ctrl.g->end();
+		m_pLDec  = new Fl_Round_Button(420, 150 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pLDec->type(FL_RADIO_BUTTON);
+		m_pLDec->callback(cb_reg_l_dec, this);
+		m_g->end();
 	}
 
 
 	// Group the Reg PC radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 30 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 30 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg L
 		o = new Fl_Box(FL_NO_BOX, 490, 31+MENU_HEIGHT, 50, 15, "PC");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pPCHex = new Fl_Round_Button(520, 30 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pPCHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pPCHex->callback(cb_reg_pc_hex);
-		cpuregs_ctrl.pPCHex->value(1);
+		m_pPCHex = new Fl_Round_Button(520, 30 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pPCHex->type(FL_RADIO_BUTTON);
+		m_pPCHex->callback(cb_reg_pc_hex, this);
+		m_pPCHex->value(1);
 
-		cpuregs_ctrl.pPCDec  = new Fl_Round_Button(570, 30 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pPCDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pPCDec->callback(cb_reg_pc_dec);
-		cpuregs_ctrl.g->end();
+		m_pPCDec  = new Fl_Round_Button(570, 30 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pPCDec->type(FL_RADIO_BUTTON);
+		m_pPCDec->callback(cb_reg_pc_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg SP radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 50 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 50 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg L
 		o = new Fl_Box(FL_NO_BOX, 490, 51+MENU_HEIGHT, 50, 15, "SP");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pSPHex = new Fl_Round_Button(520, 50 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pSPHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pSPHex->callback(cb_reg_sp_hex);
-		cpuregs_ctrl.pSPHex->value(1);
+		m_pSPHex = new Fl_Round_Button(520, 50 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pSPHex->type(FL_RADIO_BUTTON);
+		m_pSPHex->callback(cb_reg_sp_hex, this);
+		m_pSPHex->value(1);
 
-		cpuregs_ctrl.pSPDec  = new Fl_Round_Button(570, 50 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pSPDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pSPDec->callback(cb_reg_sp_dec);
-		cpuregs_ctrl.g->end();
+		m_pSPDec  = new Fl_Round_Button(570, 50 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pSPDec->type(FL_RADIO_BUTTON);
+		m_pSPDec->callback(cb_reg_sp_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg BC radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 70 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 70 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg L
 		o = new Fl_Box(FL_NO_BOX, 490, 71+MENU_HEIGHT, 50, 15, "BC");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pBCHex = new Fl_Round_Button(520, 70 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pBCHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pBCHex->callback(cb_reg_bc_hex);
-		cpuregs_ctrl.pBCHex->value(1);
+		m_pBCHex = new Fl_Round_Button(520, 70 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pBCHex->type(FL_RADIO_BUTTON);
+		m_pBCHex->callback(cb_reg_bc_hex, this);
+		m_pBCHex->value(1);
 
-		cpuregs_ctrl.pBCDec  = new Fl_Round_Button(570, 70 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pBCDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pBCDec->callback(cb_reg_bc_dec);
-		cpuregs_ctrl.g->end();
+		m_pBCDec  = new Fl_Round_Button(570, 70 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pBCDec->type(FL_RADIO_BUTTON);
+		m_pBCDec->callback(cb_reg_bc_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg DE radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 90 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 90 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg L
 		o = new Fl_Box(FL_NO_BOX, 490, 91+MENU_HEIGHT, 50, 15, "DE");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pDEHex = new Fl_Round_Button(520, 90 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pDEHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pDEHex->callback(cb_reg_de_hex);
-		cpuregs_ctrl.pDEHex->value(1);
+		m_pDEHex = new Fl_Round_Button(520, 90 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pDEHex->type(FL_RADIO_BUTTON);
+		m_pDEHex->callback(cb_reg_de_hex, this);
+		m_pDEHex->value(1);
 
-		cpuregs_ctrl.pDEDec  = new Fl_Round_Button(570, 90 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pDEDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pDEDec->callback(cb_reg_de_dec);
-		cpuregs_ctrl.g->end();
+		m_pDEDec  = new Fl_Round_Button(570, 90 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pDEDec->type(FL_RADIO_BUTTON);
+		m_pDEDec->callback(cb_reg_de_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg HL radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 110 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 110 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg HL
 		o = new Fl_Box(FL_NO_BOX, 490, 111+MENU_HEIGHT, 50, 15, "HL");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pHLHex = new Fl_Round_Button(520, 110 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pHLHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pHLHex->callback(cb_reg_hl_hex);
-		cpuregs_ctrl.pHLHex->value(1);
+		m_pHLHex = new Fl_Round_Button(520, 110 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pHLHex->type(FL_RADIO_BUTTON);
+		m_pHLHex->callback(cb_reg_hl_hex, this);
+		m_pHLHex->value(1);
 
-		cpuregs_ctrl.pHLDec  = new Fl_Round_Button(570, 110 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pHLDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pHLDec->callback(cb_reg_hl_dec);
-		cpuregs_ctrl.g->end();
+		m_pHLDec  = new Fl_Round_Button(570, 110 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pHLDec->type(FL_RADIO_BUTTON);
+		m_pHLDec->callback(cb_reg_hl_dec, this);
+		m_g->end();
 	}
 
 	// Group the Reg M radio buttons togther
 	{
-		cpuregs_ctrl.g = new Fl_Group(520, 130 + MENU_HEIGHT, 100, 20, "");
+		m_g = new Fl_Group(520, 130 + MENU_HEIGHT, 100, 20, "");
 
 		// Display format for Reg HL
 		o = new Fl_Box(FL_NO_BOX, 490, 131+MENU_HEIGHT, 50, 15, "M");
 		o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
-		cpuregs_ctrl.pMHex = new Fl_Round_Button(520, 130 + MENU_HEIGHT, 50, 20, "Hex");
-		cpuregs_ctrl.pMHex->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pMHex->callback(cb_reg_m_hex);
-		cpuregs_ctrl.pMHex->value(1);
+		m_pMHex = new Fl_Round_Button(520, 130 + MENU_HEIGHT, 50, 20, "Hex");
+		m_pMHex->type(FL_RADIO_BUTTON);
+		m_pMHex->callback(cb_reg_m_hex, this);
+		m_pMHex->value(1);
 
-		cpuregs_ctrl.pMDec  = new Fl_Round_Button(570, 130 + MENU_HEIGHT, 50, 20, "Dec");
-		cpuregs_ctrl.pMDec->type(FL_RADIO_BUTTON);
-		cpuregs_ctrl.pMDec->callback(cb_reg_m_dec);
-		cpuregs_ctrl.g->end();
+		m_pMDec  = new Fl_Round_Button(570, 130 + MENU_HEIGHT, 50, 20, "Dec");
+		m_pMDec->type(FL_RADIO_BUTTON);
+		m_pMDec->callback(cb_reg_m_dec, this);
+		m_g->end();
 	}
+
+	o = new Fl_Box(FL_NO_BOX, x-5, 170+MENU_HEIGHT, 5, 5, "");
+	o->hide();
+	g1->resizable(o);
+	g1->end();
 
 	// Create Instruction Trace Text Boxes
 	o = new Fl_Box(FL_NO_BOX, 20, 180+MENU_HEIGHT, 50, 15, "Instruction Trace");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	o = new Fl_Box(FL_DOWN_BOX, 20, 200+MENU_HEIGHT, 520, 124, "");
-	cpuregs_ctrl.iInstTraceHead = 0;
+	m_pTraceBox = new Fl_Box(FL_DOWN_BOX, 20, 200+MENU_HEIGHT, 530-CPUREGS_TRACE_SCROLL_W, 124, "");
+
+	// Create scroll bar for trace data
+	m_pScroll = new Fl_Scrollbar(550-CPUREGS_TRACE_SCROLL_W, 200+MENU_HEIGHT, CPUREGS_TRACE_SCROLL_W, 124);
+	m_pScroll->deactivate();
+
+	// Set maximum value of scroll 
+	int size = (int) (m_pScroll->h() / m_fontHeight);
+	m_pScroll->value(m_traceAvail - size+4, m_traceAvail/size, 0, 4);
+	m_pScroll->linesize(1);
+	m_pScroll->slider_size(1.0);
+	m_pScroll->callback(cb_scrollbar);
+
+	Fl_Box* resize_box = new Fl_Box(FL_DOWN_BOX, 500, 200+MENU_HEIGHT, 5, 5, "");
+	resize_box->hide();
+	m_iInstTraceHead = 0;
+	m_iTraceHead = 0;
 
 	// Create checkbox to disable realtime trace
-	cpuregs_ctrl.pDisableTrace = new Fl_Check_Button(200, 180+MENU_HEIGHT, 180, 20, "Disable Real-time Trace");
-	cpuregs_ctrl.pDisableTrace->callback(cb_disable_realtime_trace);
-
+	m_pDisableTrace = new Fl_Check_Button(200, 180+MENU_HEIGHT, 180, 20, "Disable Real-time Trace");
+	m_pDisableTrace->value(gDisableRealtimeTrace);
+	m_pDisableTrace->callback(cb_disable_realtime_trace, this);
 
 	// Create Stack Box
-	o = new Fl_Box(FL_NO_BOX, 550, 180+MENU_HEIGHT, 50, 15, "Stack");
+	o = new Fl_Box(FL_NO_BOX, 560, 180+MENU_HEIGHT, 50, 15, "Stack");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	o = new Fl_Box(FL_DOWN_BOX, 550, 200+MENU_HEIGHT, 60, 124, "");
+	m_pStackBox = new Fl_Box(FL_DOWN_BOX, 560, 200+MENU_HEIGHT, 60, 124, "");
 
 	// Create Breakpoint edit boxes
-	o = new Fl_Box(FL_NO_BOX, 20, 375, 100, 15, "Breakpoints:");
+	o = new Fl_Box(FL_NO_BOX, 20, 380, 100, 15, "Breakpoints:");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	cpuregs_ctrl.pBreak1 = new Fl_Input(120, 375, 60, 20, "");
-	cpuregs_ctrl.pBreak1->deactivate();
-	cpuregs_ctrl.pBreak1->value("");
-	cpuregs_ctrl.pBreakDisable1 = new Fl_Check_Button(125, 395, 40, 20, "Off");
-	cpuregs_ctrl.pBreakDisable1->deactivate();
-	cpuregs_ctrl.pBreak2 = new Fl_Input(200, 375, 60, 20, "");
-	cpuregs_ctrl.pBreak2->deactivate();
-	cpuregs_ctrl.pBreak2->value("");
-	cpuregs_ctrl.pBreakDisable2 = new Fl_Check_Button(205, 395, 40, 20, "Off");
-	cpuregs_ctrl.pBreakDisable2->deactivate();
-	cpuregs_ctrl.pBreak3 = new Fl_Input(280, 375, 60, 20, "");
-	cpuregs_ctrl.pBreak3->deactivate();
-	cpuregs_ctrl.pBreak3->value("");
-	cpuregs_ctrl.pBreakDisable3 = new Fl_Check_Button(285, 395, 40, 20, "Off");
-	cpuregs_ctrl.pBreakDisable3->deactivate();
-	cpuregs_ctrl.pBreak4 = new Fl_Input(360, 375, 60, 20, "");
-	cpuregs_ctrl.pBreak4->deactivate();
-	cpuregs_ctrl.pBreak4->value("");
-	cpuregs_ctrl.pBreakDisable4 = new Fl_Check_Button(365, 395, 40, 20, "Off");
-	cpuregs_ctrl.pBreakDisable4->deactivate();
 
-	cpuregs_ctrl.pDebugInts = new Fl_Check_Button(465, 375, 40, 20, "Debug ISRs");
-	cpuregs_ctrl.pDebugInts->value(gDebugInts);
+	// Breakpoint 1
+	o = new Fl_Box(FL_NO_BOX, 120, 365, 60, 15, "F1");
+	o->align(FL_ALIGN_INSIDE);
+	m_pBreak1 = new Fl_Input(120, 380, 60, 20, "");
+	m_pBreak1->deactivate();
+	m_pBreak1->value("");
+	m_pBreakDisable1 = new Fl_Check_Button(125, 400, 40, 20, "Off");
+	m_pBreakDisable1->deactivate();
+
+	// Breakpoint 2
+	o = new Fl_Box(FL_NO_BOX, 200, 365, 60, 15, "F2");
+	o->align(FL_ALIGN_INSIDE);
+	m_pBreak2 = new Fl_Input(200, 380, 60, 20, "");
+	m_pBreak2->deactivate();
+	m_pBreak2->value("");
+	m_pBreakDisable2 = new Fl_Check_Button(205, 400, 40, 20, "Off");
+	m_pBreakDisable2->deactivate();
+
+	// Breakpoint 3
+	o = new Fl_Box(FL_NO_BOX, 280, 365, 60, 15, "F3");
+	o->align(FL_ALIGN_INSIDE);
+	m_pBreak3 = new Fl_Input(280, 380, 60, 20, "");
+	m_pBreak3->deactivate();
+	m_pBreak3->value("");
+	m_pBreakDisable3 = new Fl_Check_Button(285, 400, 40, 20, "Off");
+	m_pBreakDisable3->deactivate();
+
+	// Breakpoint 4
+	o = new Fl_Box(FL_NO_BOX, 360, 365, 60, 15, "F4");
+	o->align(FL_ALIGN_INSIDE);
+	m_pBreak4 = new Fl_Input(360, 380, 60, 20, "");
+	m_pBreak4->deactivate();
+	m_pBreak4->value("");
+	m_pBreakDisable4 = new Fl_Check_Button(365, 400, 40, 20, "Off");
+	m_pBreakDisable4->deactivate();
+
+	if (m_saveBreakpoints)
+	{
+		// Set breakpoint values from user preferences
+		m_pBreak1->value((const char *) m_sBreak1);
+		m_pBreakDisable1->value(m_iBreakDis1);
+		m_pBreak2->value((const char *) m_sBreak2);
+		m_pBreakDisable2->value(m_iBreakDis2);
+		m_pBreak3->value((const char *) m_sBreak3);
+		m_pBreakDisable3->value(m_iBreakDis3);
+		m_pBreak4->value((const char *) m_sBreak4);
+		m_pBreakDisable4->value(m_iBreakDis4);
+	}
+
+	m_pDebugInts = new Fl_Check_Button(465, 375, 90, 20, "Debug ISRs");
+	m_pDebugInts->value(gDebugInts);
+	m_pDebugInts->callback(cb_debugInts, this);
+
+	m_pAutoScroll = new Fl_Check_Button(465, 395, 80, 20, "Auto Scroll");
+	m_pAutoScroll->value(m_autoScroll);
+	m_pAutoScroll->callback(cb_autoscroll, this);
+
+	m_pSaveBreak = new Fl_Check_Button(465, 415, 120, 20, "Save Breakpoints");
+	m_pSaveBreak->value(m_saveBreakpoints);
+	m_pSaveBreak->callback(cb_saveBreakpoints, this);
 
 	// Create Stop button
-	cpuregs_ctrl.pStop = new Fl_Button(30, 445, 80, 25, "Stop");
-	cpuregs_ctrl.pStop->callback(cb_debug_stop);
+	m_pStop = new Fl_Button(30, 445, 80, 25, "Stop");
+	m_pStop->callback(cb_debug_stop, this);
 
 	// Create Step button
-	cpuregs_ctrl.pStep = new Fl_Button(130, 445, 80, 25, "Step");
-	cpuregs_ctrl.pStep->deactivate();
-	cpuregs_ctrl.pStep->callback(cb_debug_step);
+	m_pStep = new Fl_Button(130, 445, 80, 25, "Step");
+	m_pStep->deactivate();
+	m_pStep->callback(cb_debug_step, this);
 
 	// Create Step button
-	cpuregs_ctrl.pStepOver = new Fl_Button(230, 445, 100, 25, "Step Over");
-	cpuregs_ctrl.pStepOver->deactivate();
-	cpuregs_ctrl.pStepOver->callback(cb_debug_step_over);
+	m_pStepOver = new Fl_Button(230, 445, 100, 25, "Step Over");
+	m_pStepOver->deactivate();
+	m_pStepOver->callback(cb_debug_step_over, this);
 
 	// Create Run button
-	cpuregs_ctrl.pRun = new Fl_Button(350, 445, 80, 25, "Run");
-	cpuregs_ctrl.pRun->deactivate();
-	cpuregs_ctrl.pRun->callback(cb_debug_run);
+	m_pRun = new Fl_Button(350, 445, 80, 25, "Run");
+	m_pRun->deactivate();
+	m_pRun->callback(cb_debug_run, this);
 
-	// Create Redraw button
-	cpuregs_ctrl.pRedraw = new Fl_Button(450, 445, 80, 25, "Redraw");
-	cpuregs_ctrl.pRedraw->deactivate();
-	cpuregs_ctrl.pRedraw->callback(cb_redraw_trace);
+	resizable(resize_box);
 
-	// Set Debug callback
-	debug_set_monitor_callback(debug_cpuregs_cb);
+	check_breakpoint_entries();
+}
 
-	// Show the new window
-	gcpuw->show();
-
-	// Indicate an active debug window
-	gDebugActive++;
-	cpuregs_ctrl.breakMonitorFreq = 0;
-	for (int x = 0; x < 5; x++)
+/*
+============================================================================
+CpuRegisters class destructor.
+============================================================================
+*/
+VTCpuRegs::~VTCpuRegs()
+{
+	// Delete the trace data buffer
+	if (m_pTraceData != NULL)
 	{
-		cpuregs_ctrl.breakAddr[x] = -1;
-		cpuregs_ctrl.breakEnable[x] = 1;
+		delete m_pTraceData;
+		m_pTraceData = NULL;
 	}
 }
 
+void VTCpuRegs::draw(void)
+{
+	static int drawcount = 0;
+	Fl_Double_Window::draw();
 
+	// Select 12 point Courier font
+	fl_font(FL_COURIER, m_fontSize);
+	m_fontHeight = fl_height() + 1;
 
+	// Test for a change in height
+	if (m_lastH != m_pTraceBox->h())
+	{
+		// Save the current trace box height
+		m_lastH = m_pTraceBox->h();
+
+		int current_val = m_pScroll->value();
+		int size = (int) (m_pScroll->h() / m_fontHeight);
+		if (current_val + size + 4 > m_traceAvail)
+			current_val = m_traceAvail - size + 4;
+		int max_size =  m_traceAvail-size+4;
+		if (max_size < 0)
+			max_size = 4;
+		m_pScroll->value(current_val, m_traceAvail/size, 0, max_size);
+	}
+
+	if (gDisableRealtimeTrace && !gStopped)
+	{
+		// Make our window current for drawing
+		make_current();
+
+		// Clear rectangle
+		fl_color(FL_GRAY);
+		fl_rectf(m_pTraceBox->x()+3, m_pTraceBox->y()+3,
+			m_pTraceBox->w()-6, m_pTraceBox->h()-6);
+		fl_rectf(m_pStackBox->x()+3, m_pStackBox->y()+3,
+			m_pStackBox->w()-6, m_pStackBox->h()-6);
+
+		// Select 11 point Courier font
+		fl_font(FL_COURIER,18);
+		fl_color(FL_BLACK);
+
+		fl_draw("Realtime trace disabled", 55, 212+MENU_HEIGHT+3*m_fontHeight);
+	}
+	else
+		cb_redraw_trace(NULL, this);
+}
+
+/*
+============================================================================
+Load user preferences
+============================================================================
+*/
+void VTCpuRegs::LoadPrefs(void)
+{
+	int		temp;
+	char	str[100];
+
+	virtualt_prefs.get("CpuRegs_autoScroll", m_autoScroll, 1);
+	virtualt_prefs.get("CpuRegs_x", m_x, -1);
+	virtualt_prefs.get("CpuRegs_y", m_y, -1);
+	virtualt_prefs.get("CpuRegs_w", m_w, -1);
+	virtualt_prefs.get("CpuRegs_h", m_h, -1);
+	virtualt_prefs.get("CpuRegs_traceCount", m_traceCount, CPUREGS_TRACE_COUNT);
+	virtualt_prefs.get("CpuRegs_fontSize", m_fontSize, 12);
+	virtualt_prefs.get("CpuRegs_disableTrace", gDisableRealtimeTrace, 0);
+	virtualt_prefs.get("CpuRegs_debugInts", temp, 1);
+	gDebugInts = temp;
+	virtualt_prefs.get("CpuRegs_rememberBreakpoints", m_saveBreakpoints, 1);
+
+	if (m_saveBreakpoints)
+	{
+		virtualt_prefs.get("CpuRegs_break1", str, "", sizeof(str));
+		m_sBreak1 = str;
+		virtualt_prefs.get("CpuRegs_break2", str, "", sizeof(str));
+		m_sBreak2 = str;
+		virtualt_prefs.get("CpuRegs_break3", str, "", sizeof(str));
+		m_sBreak3 = str;
+		virtualt_prefs.get("CpuRegs_break4", str, "", sizeof(str));
+		m_sBreak4 = str;
+		virtualt_prefs.get("CpuRegs_break1_disable", m_iBreakDis1, 0);
+		virtualt_prefs.get("CpuRegs_break2_disable", m_iBreakDis2, 0);
+		virtualt_prefs.get("CpuRegs_break3_disable", m_iBreakDis3, 0);
+		virtualt_prefs.get("CpuRegs_break4_disable", m_iBreakDis4, 0);
+	}
+}
+
+/*
+============================================================================
+Load user preferences
+============================================================================
+*/
+void VTCpuRegs::SavePrefs(void)
+{
+	virtualt_prefs.set("CpuRegs_autoScroll", m_autoScroll);
+	virtualt_prefs.set("CpuRegs_x", x());
+	virtualt_prefs.set("CpuRegs_y", y());
+	virtualt_prefs.set("CpuRegs_w", w());
+	virtualt_prefs.set("CpuRegs_h", h());
+	virtualt_prefs.set("CpuRegs_traceCount", m_traceCount);
+	virtualt_prefs.set("CpuRegs_fontSize", m_fontSize);
+	virtualt_prefs.set("CpuRegs_disableTrace", gDisableRealtimeTrace);
+	virtualt_prefs.set("CpuRegs_debugInts", gDebugInts);
+	virtualt_prefs.set("CpuRegs_rememberBreakpoints", m_saveBreakpoints);
+	if (m_saveBreakpoints)
+	{
+		virtualt_prefs.set("CpuRegs_break1", m_pBreak1->value());
+		virtualt_prefs.set("CpuRegs_break2", m_pBreak2->value());
+		virtualt_prefs.set("CpuRegs_break3", m_pBreak3->value());
+		virtualt_prefs.set("CpuRegs_break4", m_pBreak4->value());
+		virtualt_prefs.set("CpuRegs_break1_disable", m_pBreakDisable1->value());
+		virtualt_prefs.set("CpuRegs_break2_disable", m_pBreakDisable2->value());
+		virtualt_prefs.set("CpuRegs_break3_disable", m_pBreakDisable3->value());
+		virtualt_prefs.set("CpuRegs_break4_disable", m_pBreakDisable4->value());
+	}
+}
+
+/*
+============================================================================
+Scroll to bottom of trace window
+============================================================================
+*/
+void VTCpuRegs::ScrollToBottom(void)
+{
+	// Update the value to the bottom of the scroll window
+	int size = (int) (m_pScroll->h() / m_fontHeight);
+	int max_size = m_traceAvail-size+4;
+	int new_value = m_traceAvail - size+4;
+
+	// Test if we have less than a screen of data to display
+	if (m_traceAvail < m_traceCount)
+		new_value++;
+	if (max_size < 0)
+		max_size = 4;
+	if (new_value < 0)
+		new_value = 0;
+	m_pScroll->value(new_value, m_traceAvail/size, 0, max_size);
+	m_pScroll->linesize(1);
+	if (m_traceAvail > 0)
+	{
+		m_pScroll->step(size / m_traceAvail);
+		m_pScroll->slider_size((double) size/ (double) m_traceAvail);
+	}
+	else
+		m_pScroll->slider_size(1.0);
+}
+
+/*
+============================================================================
+Our FLTK event handler.  Capture key-strokes here and don't allow ESC to
+close our window, which is the default.
+============================================================================
+*/
+int VTCpuRegs::handle(int eventId)
+{
+	unsigned int key;
+
+	switch (eventId)
+	{
+	case FL_KEYDOWN:
+		key = Fl::event_key();
+
+		if (key == FL_Escape)
+			return 1;
+		else if (key == FL_F + 1)
+		{
+			m_pBreak1->take_focus();
+			m_pBreak1->position(0, m_pBreak1->size());
+		}
+		else if (key == FL_F + 2)
+		{
+			m_pBreak2->take_focus();
+			m_pBreak2->position(0, m_pBreak2->size());
+		}
+		else if (key == FL_F + 3)
+		{
+			m_pBreak3->take_focus();
+			m_pBreak3->position(0, m_pBreak3->size());
+		}
+		else if (key == FL_F + 4)
+		{
+			m_pBreak4->take_focus();
+			m_pBreak4->position(0, m_pBreak4->size());
+		}
+
+		break;
+	
+	default:
+		break;
+	}
+
+	return Fl_Double_Window::handle(eventId);
+}
+
+/*
+============================================================================
+Menu callback for saving trace data
+============================================================================
+*/
+void cb_save_trace(Fl_Widget* w, void* pOpaque)
+{
+	FILE			*fd;
+	Flu_File_Chooser *fc;
+	int				c, idx;
+	char			lineStr[120];
+
+	fl_cursor(FL_CURSOR_WAIT);
+#ifdef __APPLE__
+	fc = new Flu_File_Chooser(path,"*.txt",Fl_File_Chooser::CREATE,"Save trace as");
+#else
+	fc = new Flu_File_Chooser(".","*.txt",Fl_File_Chooser::CREATE,"Save trace as");
+#endif
+	fl_cursor(FL_CURSOR_DEFAULT);
+	fc->preview(0);
+	// FileWin.value(0)="RAM.bin"
+	fc->show();
+
+	while (fc->visible())
+		Fl::wait();
+
+	// Check if a file was selected
+	if (fc->value() == 0)
+	{
+		delete fc;
+		return;
+	}
+	if (strlen(fc->value()) == 0)
+	{
+		delete fc;
+		return;
+	}
+
+	// Try to open the ouput file
+	fd = fopen(fc->value(), "rb+");
+	if (fd != NULL)
+	{
+		// File already exists! Check for overwrite!
+		fclose(fd);
+
+		c = fl_choice("Overwrite existing file?", "Cancel", "Yes", "No");
+
+		if ((c == 0) || (c == 2))
+		{
+			delete fc;
+			return;
+		}
+	}
+
+	fd = fopen(fc->value(), "wb+");
+	if (fd == NULL)
+	{
+		fl_message("Error opening %s for write", fc->value());
+		delete fc;
+		return;
+	}
+
+	delete fc;
+
+	// Now write trace data to the file
+	idx = gcpuw->m_iTraceHead;
+	for (c = 0; c < gcpuw->m_traceAvail; c++)
+	{
+		build_trace_line(idx, lineStr);
+		fprintf(fd, "%s\n", lineStr);
+		if (++idx >= gcpuw->m_traceCount)
+			idx = 0;
+	}
+
+	// Finally,close the file
+	fclose(fd);
+}
+
+/*
+============================================================================
+Menu callback for clearing trace data
+============================================================================
+*/
+void cb_clear_trace(Fl_Widget* w, void* pOpaque)
+{
+	// Set availalbe trace items to zero
+	gcpuw->m_traceAvail = 0;
+	gcpuw->m_iTraceHead = 0;
+
+	// Trace the current instruction
+	trace_instruction();
+
+	// Update the scrollbar and redraw
+	cb_scrollbar(gcpuw->m_pScroll, gcpuw);
+	int size = (int) (gcpuw->m_pScroll->h() / gcpuw->m_fontHeight);
+	gcpuw->m_pScroll->value(0, gcpuw->m_traceAvail/size, 0, 4);
+	gcpuw->redraw();
+}
+
+/*
+============================================================================
+Menu callback for run
+============================================================================
+*/
+static void cb_menu_run(Fl_Widget* w, void* pOpaque)
+{
+	if (gStopped)
+		cb_debug_run(w, gcpuw);
+}
+
+/*
+============================================================================
+Menu callback for stop
+============================================================================
+*/
+static void cb_menu_stop(Fl_Widget* w, void* pOpaque)
+{
+	if (!gStopped)
+		cb_debug_stop(w, gcpuw);
+}
+
+/*
+============================================================================
+Menu callback for step
+============================================================================
+*/
+static void cb_menu_step(Fl_Widget* w, void* pOpaque)
+{
+	if (gStopped)
+		cb_debug_step(w, gcpuw);
+}
+
+/*
+============================================================================
+Menu callback for step over
+============================================================================
+*/
+static void cb_menu_step_over(Fl_Widget* w, void* pOpaque)
+{
+	if (gStopped)
+		cb_debug_step_over(w, gcpuw);
+}
+
+/*
+============================================================================
+Define a local struct for the setup parameters.
+============================================================================
+*/
+typedef struct trace_setup_params
+{
+	Fl_Input*	pTraceDepth;
+	Fl_Input*	pFontSize;
+	char		sDepth[20];
+	char		sFontSize[20];
+} trace_setup_params_t;
+
+/*
+============================================================================
+Callback for Trace Setup dialog
+============================================================================
+*/
+static void cb_setupdlg_win(Fl_Widget* w, void* pOpaque)
+{
+}
+
+/*
+============================================================================
+Callback for Trace Setup Ok button
+============================================================================
+*/
+static void cb_setupdlg_OK(Fl_Widget* w, void* pOpaque)
+{
+	trace_setup_params_t*	p = (trace_setup_params_t *) pOpaque;
+	cpu_trace_data_t*		pData;
+	int						newDepth, copyLen;
+	int						srcIdx, dstIdx;
+
+	// Save values
+	if (strlen(p->pFontSize->value()) > 0)
+	{
+		// update the font size
+		gcpuw->m_fontSize = atoi(p->pFontSize->value());
+		if (gcpuw->m_fontSize < 6)
+			gcpuw->m_fontSize = 6;
+
+		// Upate the font height base on the font size
+		fl_font(FL_COURIER, gcpuw->m_fontSize);
+		gcpuw->m_fontHeight = fl_height() + 1;
+	}
+
+	// Get the updated trace depth
+	newDepth = atoi(p->pTraceDepth->value());
+	if (newDepth > 0 && newDepth != gcpuw->m_traceCount)
+	{
+		if (newDepth > 64000000)
+		{
+			show_error("Come on, seriously?  That's over a Gig of RAM!  The max I'm willing to do is 64,000,000.");
+			return;
+		}
+		// Allocate a new buffer for trace data
+		pData = new cpu_trace_data_t[newDepth];
+
+		if (pData == NULL)
+		{
+			MString	err;
+
+			err.Format("Unable to allocate %d bytes!\n", newDepth * sizeof(cpu_trace_data_t));
+			show_error((const char *) err);
+			return;
+		}
+
+		// Calculate length of new copy
+		copyLen = newDepth;
+		if (copyLen > gcpuw->m_traceAvail)
+			copyLen = gcpuw->m_traceAvail;
+
+		// Copy data from old buffer to new buffer
+		srcIdx = gcpuw->m_iTraceHead;
+		for (dstIdx = 0; dstIdx < copyLen; dstIdx++)
+		{
+			// Check if srcIdx has rolled over
+			if (srcIdx >= gcpuw->m_traceAvail)
+				srcIdx =0;
+
+			// Copy the data
+			pData[dstIdx] = gcpuw->m_pTraceData[srcIdx++];
+		}
+
+		// Test for overflow during copy
+		if (srcIdx >= newDepth)
+			srcIdx = 0;
+
+		// Now replace the old buffer with the new one and update the count
+		delete gcpuw->m_pTraceData;
+		gcpuw->m_pTraceData = pData;
+		gcpuw->m_iTraceHead = srcIdx;
+		gcpuw->m_traceCount = newDepth;
+		gcpuw->m_traceAvail = copyLen;
+
+		// Redraw the window
+		gcpuw->ScrollToBottom();
+	}
+
+	// Redraw the window
+	cb_redraw_trace(NULL, NULL);
+	
+	// Now hide the parent dialog
+	w->parent()->hide();
+}
+
+/*
+============================================================================
+Callback for Trace Setup Cancel button
+============================================================================
+*/
+static void cb_setupdlg_cancel(Fl_Widget* w, void* pOpaque)
+{
+	// Hide the parent dialog so we cancel out
+	w->parent()->hide();
+}
+
+/*
+============================================================================
+Menu callback for setup trace
+============================================================================
+*/
+void cb_setup_trace(Fl_Widget* w, void* pOpaque)
+{
+	Fl_Box*					b;
+	Fl_Window*				pWin;
+	trace_setup_params_t	p;
+
+	// Get socket interface preferences
+	// Create Peripheral Setup window
+	pWin = new Fl_Window(300, 160, "Trace Configuration");
+
+	/* Create input field for trace depth */
+	b = new Fl_Box(20, 20, 100, 20, "Trace Depth");
+	b->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	p.pTraceDepth = new Fl_Input(120, 20, 80, 20, "");
+	p.pTraceDepth->align(FL_ALIGN_LEFT);
+	sprintf(p.sDepth, "%d", gcpuw->m_traceCount);
+	p.pTraceDepth->value(p.sDepth);
+	b = new Fl_Box(210, 20, 100, 20, "64M max");
+	b->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+
+	/* Create input field for font size */
+	b = new Fl_Box(20, 50, 100, 20, "Font Size");
+	b->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	p.pFontSize = new Fl_Input(120, 50, 60, 20, "");
+	p.pFontSize->align(FL_ALIGN_LEFT);
+	sprintf(p.sFontSize, "%d", gcpuw->m_fontSize);
+	p.pFontSize->value(p.sFontSize);
+
+	// Cancel button
+    { Fl_Button* o = new Fl_Button(80, 120, 60, 30, "Cancel");
+      o->callback((Fl_Callback*) cb_setupdlg_cancel);
+    }
+
+	// OK button
+    { Fl_Return_Button* o = new Fl_Return_Button(160, 120, 60, 30, "OK");
+      o->callback((Fl_Callback*) cb_setupdlg_OK, &p);
+    }
+
+	// Loop until user presses OK or Cancel
+	pWin->show();
+	while (pWin->visible())
+		Fl::wait();
+
+	// Delete the window
+	delete pWin;
+}

@@ -857,7 +857,7 @@ void cold_boot_mem(void)
 {
 	int		x;
 
-	if (gReMem)
+	if (gReMem && (gRex == 0))
 	{
 	}
 	else
@@ -954,6 +954,15 @@ void save_remem_ram(void)
 	/* Open ReMem file */
 	fd = fopen(mem_setup.remem_file, "wb+");
 
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not save Remem file %s", mem_setup.remem_file);
+		show_error(msg);
+		return;
+	}
+
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
@@ -985,6 +994,15 @@ void save_rampac_ram(void)
 	/* Open Rampac file */
 	fd = fopen(mem_setup.rampac_file, "wb+");
 
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not save Rampac file %s", mem_setup.rampac_file);
+		show_error(msg);
+		return;
+	}
+
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
@@ -1015,6 +1033,15 @@ void save_rex2_ram(void)
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex2_ram_file, "wb+");
 
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not save REX2 RAM file %s", mem_setup.rex2_ram_file);
+		show_error(msg);
+		return;
+	}
+
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
@@ -1041,6 +1068,15 @@ void save_rex_flash(void)
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex_flash_file, "wb+");
+
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not save REX file %s", mem_setup.rex_flash_file);
+		show_error(msg);
+		return;
+	}
 
 	/* Check if file opened successfully */
 	if (fd != 0)
@@ -1170,6 +1206,15 @@ void load_remem_ram(void)
 	/* Open ReMem file */
 	fd = fopen(mem_setup.remem_file, "rb+");
 
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not open Remem file %s", mem_setup.remem_file);
+		show_error(msg);
+		return;
+	}
+
 	/* Check if file opened successfully */
 	if ((fd != 0) && (gReMemFlash1.pFlash != NULL) && (gReMemFlash2.pFlash != NULL))
 	{
@@ -1236,6 +1281,15 @@ void load_rampac_ram(void)
 	/* Open Rampac file */
 	fd = fopen(mem_setup.rampac_file, "rb+");
 
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not open Rampac file %s", mem_setup.rampac_file);
+		show_error(msg);
+		return;
+	}
+
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
@@ -1263,6 +1317,15 @@ void load_rex_flash(void)
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex_flash_file, "rb+");
+
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not open REX file %s", mem_setup.rex_flash_file);
+		show_error(msg);
+		return;
+	}
 
 	/* Check if file opened successfully */
 	if ((fd != 0) && (gRexFlash.pFlash != NULL))
@@ -1294,6 +1357,15 @@ void load_rex2_ram(void)
 
 	/* Open ReMem file */
 	fd = fopen(mem_setup.rex2_ram_file, "rb+");
+
+	/* Print error if unable to open the file */
+	if (fd == NULL)
+	{
+		char  msg[100];
+		sprintf("Could not open REX2 RAM file %s", mem_setup.rex2_ram_file);
+		show_error(msg);
+		return;
+	}
 
 	/* Check if file opened successfully */
 	if (fd != 0)

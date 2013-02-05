@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.6 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: display.h,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -52,6 +52,7 @@ void t200_command(unsigned char ir, unsigned char data);
 unsigned char t200_readport(unsigned char port);
 void handle_simkey(void);
 void switch_model(int);
+void init_other_windows(void);
 
 typedef int (*get_key_t)(int);
 typedef int (*event_key_t)(void);

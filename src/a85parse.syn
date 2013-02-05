@@ -69,6 +69,7 @@ comment
  -> ';', any text char?..., '\n'
 // -> ',', any text char?..., '\n'
  -> '\n'
+ -> eof
 
 cstyle comment
  -> cstyle comment head, "*/"
@@ -102,6 +103,7 @@ statement
  -> WS..., cdseg statement							= gAsm->directive_cdseg(seg, page);
  -> label, WS?..., cdseg statement					= gAsm->directive_cdseg(seg, page);
  -> error, '\n'										= handle_error();
+ -> WS..., '\n'
 
 preproc start
  -> "#"
@@ -124,8 +126,10 @@ preprocessor directive
  -> "else", WS?..., comment							= gAsm->preproc_else();
  -> "endif", WS?..., comment						= gAsm->preproc_endif();
  -> "error", literal string, WS?..., comment		= {if (gAsm->preproc_error(ss[ss_idx--])) gAbort = TRUE;}
- -> "print", literal string, WS?..., comment		= gAsm->directive_printf(ss[ss_idx--], FALSE);
- -> "printf", literal string, 
+ -> "echo", WS?..., literal string, WS?..., comment	= gAsm->directive_printf(ss[ss_idx--], FALSE);
+ -> "echo", WS?..., equation, WS?..., comment		= gAsm->directive_printf("%d");
+ -> "print", WS?..., literal string, WS?..., comment= gAsm->directive_printf(ss[ss_idx--], FALSE);
+ -> "printf", WS?..., literal string, 
 		',', WS?..., equation, WS?..., comment		= gAsm->directive_printf(ss[ss_idx--]);
  -> "undef", literal name nows, WS?..., comment		= gAsm->preproc_undef(ss[ss_idx--]);
  -> "define", macro, WS?..., 
@@ -192,6 +196,8 @@ expression
  -> '.'?, "echo", equation							= gAsm->directive_echo();
  -> '.'?, "echo", literal string					= gAsm->directive_echo(ss[ss_idx--]);
  -> '.'?, "fill", WS?..., expression list			= gAsm->directive_fill();
+ -> '.'?, "echo", WS?..., literal string			= gAsm->directive_printf(ss[ss_idx--], FALSE);
+ -> '.'?, "echo", WS?..., equation					= gAsm->directive_printf("%d");
  -> '.'?, "print", literal string					= gAsm->directive_printf(ss[ss_idx--], FALSE);
  -> '.'?, "printf", literal string, 
 		',', WS?..., equation						= gAsm->directive_printf(ss[ss_idx--]);

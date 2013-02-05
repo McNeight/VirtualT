@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.30 2013/01/22 23:04:28 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.31 2013/01/23 01:00:08 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1459,6 +1459,7 @@ int main(int argc, char **argv)
 	init_throttle_timer();		/* Initialize the throttle timer */
 	init_remote();				/* Initialize the remote control */
 	init_lpt();					/* Initialize the printer subsystem */
+	init_other_windows();		/* Initialize other windows that were opened (memedit, regs, etc. */
 	get_model_time();			/* Load the emulated time for current model */
 
 	/* Perform Emulation */

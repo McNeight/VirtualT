@@ -31,6 +31,15 @@ v1.6
 
 7.  Made the FX80 Virtual Paper display resizeable.
 
+8.  MAJOR modifications to CPU Registers window to implement program tracing with 
+    scrolling, configurable font sizes and trace depths, auto-redraw vs manual
+    redraw button, saving of breakpoints and window position when VirtualT terminates,
+    resizeable window, saving trace data to a file, keyboard shortcuts.
+    
+9.  Added saving and restoring of opened windows when VirtualT is shutdown and restarted.
+
+10. Now reports error if REX / ReMem memory cannot be loaded / saved.
+
 ====================
 v1.5  July 9th, 2011
 ====================

@@ -1,6 +1,6 @@
 /* ide.h */
 
-/* $Id: ide.h,v 1.3 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: ide.h,v 1.4 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -36,6 +36,9 @@
 #include "FLU/Flu_Combo_List.h"
 #include "FLU/Flu_Return_Button.h"
 #include "FLU/Flu_Button.h"
+#include "FLU/Flu_Tree_Browser.h"
+#include "FLU/flu_pixmaps.h"
+#include "FLU/Flu_File_Chooser.h"
 
 #include "MString.h"
 #include "vtobj.h"

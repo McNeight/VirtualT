@@ -1,5 +1,5 @@
-#ifndef A85PARSE_H_1359807348
-#define A85PARSE_H_1359807348
+#ifndef A85PARSE_H_1359819567
+#define A85PARSE_H_1359819567
 
 typedef union {
   long alignment;
@@ -26,9 +26,9 @@ typedef enum {
   a85parse_equation_token = 57, a85parse_cdseg_statement_token = 63,
   a85parse_error_token, a85parse_preproc_start_token,
   a85parse_preprocessor_directive_token = 67, a85parse_condition_token = 77,
-  a85parse_macro_token = 88, a85parse_macro_expansion_token,
-  a85parse_expression_list_token = 91, a85parse_define_chars_token = 94,
-  a85parse_cdseg_statement_start_token = 96, a85parse_name_list_token = 115,
+  a85parse_macro_token = 89, a85parse_macro_expansion_token,
+  a85parse_expression_list_token = 92, a85parse_define_chars_token = 95,
+  a85parse_cdseg_statement_start_token = 97, a85parse_name_list_token = 116,
   a85parse_literal_alpha_token = 133, a85parse_digit_token = 138,
   a85parse_asm_incl_char_token, a85parse_str_escape_char_token = 142,
   a85parse_hex_digit_token = 156, a85parse_condition_start_token = 166,

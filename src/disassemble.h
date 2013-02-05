@@ -1,6 +1,6 @@
 /* disassemble.h */
 
-/* $Id: disassemble.h,v 1.1.1.1 2004/08/05 06:46:12 deuce Exp $ */
+/* $Id: disassemble.h,v 1.7 2008/01/26 14:42:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -51,6 +51,7 @@ public:
 	void 		SetTextViewer(class Fl_Text_Editor* pTextViewer);
 	void 		CopyIntoMem(unsigned char * ptr, int len);
 	int			DisassembleLine(int address, char* line);
+	int			DisassembleLine(int address, unsigned char opcode, unsigned short operand, char* line);
 	void		SetBaseAddress(int address);
 	void		AppendComments(char* line, int opcode, int address);
 

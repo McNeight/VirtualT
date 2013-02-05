@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.3 2008/01/26 14:42:51 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.4 2008/09/23 00:06:13 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -36,115 +36,184 @@
 #include <FL/Fl_Check_Button.H>
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Input.H>
+#include <FL/Fl_Scrollbar.H>
+#include <FL/Fl_Double_Window.H>
+
+#include "MString.h"
 
 void cb_CpuRegs(Fl_Widget* w, void*);
 
-typedef struct cpuregs_ctrl_struct
+/*
+================================================
+Structure to keep track of CPU instruction trace
+================================================
+*/
+typedef struct cpu_trace_data
 {
-	Fl_Menu_Bar*			pMenu;
+	unsigned short		pc;
+	unsigned short		sp;
+	unsigned short		hl;
+	unsigned short		de;
+	unsigned short		bc;
+	unsigned short		af;
+	unsigned short		opcode;
+	unsigned short		operand;
+} cpu_trace_data_t;
 
-	Fl_Check_Button*	pEnable;
+#define	CPUREGS_TRACE_COUNT		1024
+#define	CPUREGS_TRACE_SCROLL_W	15
 
-	Fl_Input*			pRegA;
-	Fl_Input*			pRegF;
-	Fl_Input*			pRegB;
-	Fl_Input*			pRegC;
-	Fl_Input*			pRegD;
-	Fl_Input*			pRegE;
-	Fl_Input*			pRegH;
-	Fl_Input*			pRegL;
-	Fl_Input*			pRegBC;
-	Fl_Input*			pRegDE;
-	Fl_Input*			pRegHL;
-	Fl_Input*			pRegPC;
-	Fl_Input*			pRegSP;
-	Fl_Input*			pRegM;
+/*
+================================================
+The CPU Registers Window
+================================================
+*/
+class VTCpuRegs : public Fl_Double_Window
+{
+public:
+	VTCpuRegs(int x, int y, const char* title);
+	~VTCpuRegs();
 
-	Fl_Input*			pBreak1;
-	Fl_Input*			pBreak2;
-	Fl_Input*			pBreak3;
-	Fl_Input*			pBreak4;
-	Fl_Check_Button*	pBreakDisable1;
-	Fl_Check_Button*	pBreakDisable2;
-	Fl_Check_Button*	pBreakDisable3;
-	Fl_Check_Button*	pBreakDisable4;
+	void				RegAllDec(void);
+	void				RegAllHex(void);
 
-	Fl_Check_Button*	pDebugInts;
+	void				activate_controls(void);
+	void				deactivate_controls(void);
+	void				get_reg_edits(void);
+	void				check_breakpoint_entries(void);
+	void				LoadPrefs(void);
+	void				SavePrefs(void);
+	void				ScrollToBottom(void);
 
-	Fl_Check_Button*	pSFlag;
-	Fl_Check_Button*	pZFlag;
-	Fl_Check_Button*	pTSFlag;
-	Fl_Check_Button*	pACFlag;
-	Fl_Check_Button*	pPFlag;
-	Fl_Check_Button*	pOVFlag;
-	Fl_Check_Button*	pXFlag;
-	Fl_Check_Button*	pCFlag;
+	virtual void		draw(void);
+	virtual int			handle(int event);
 
-	Fl_Round_Button*	pAllHex;
-	Fl_Round_Button*	pAllDec;
-	Fl_Round_Button*	pAHex;
-	Fl_Round_Button*	pADec;
-	Fl_Round_Button*	pBHex;
-	Fl_Round_Button*	pBDec;
-	Fl_Round_Button*	pCHex;
-	Fl_Round_Button*	pCDec;
-	Fl_Round_Button*	pDHex;
-	Fl_Round_Button*	pDDec;
-	Fl_Round_Button*	pEHex;
-	Fl_Round_Button*	pEDec;
-	Fl_Round_Button*	pHHex;
-	Fl_Round_Button*	pHDec;
-	Fl_Round_Button*	pLHex;
-	Fl_Round_Button*	pLDec;
-	Fl_Round_Button*	pPCHex;
-	Fl_Round_Button*	pPCDec;
-	Fl_Round_Button*	pSPHex;
-	Fl_Round_Button*	pSPDec;
-	Fl_Round_Button*	pBCHex;
-	Fl_Round_Button*	pBCDec;
-	Fl_Round_Button*	pDEHex;
-	Fl_Round_Button*	pDEDec;
-	Fl_Round_Button*	pHLHex;
-	Fl_Round_Button*	pHLDec;
-	Fl_Round_Button*	pMHex;
-	Fl_Round_Button*	pMDec;
-	Fl_Round_Button*	pBreakHex;
-	Fl_Round_Button*	pBreakDec;
+	Fl_Menu_Bar*		m_pMenu;
+	Fl_Check_Button*	m_pEnable;
 
-	Fl_Box*				pInstTrace[8];
-	char				sInstTrace[8][120];
-	int					iInstTraceHead;
-	Fl_Check_Button*	pDisableTrace;
+	Fl_Input*			m_pRegA;
+	Fl_Input*			m_pRegF;
+	Fl_Input*			m_pRegB;
+	Fl_Input*			m_pRegC;
+	Fl_Input*			m_pRegD;
+	Fl_Input*			m_pRegE;
+	Fl_Input*			m_pRegH;
+	Fl_Input*			m_pRegL;
+	Fl_Input*			m_pRegBC;
+	Fl_Input*			m_pRegDE;
+	Fl_Input*			m_pRegHL;
+	Fl_Input*			m_pRegPC;
+	Fl_Input*			m_pRegSP;
+	Fl_Input*			m_pRegM;
 
-	int					breakAddr[5];
-	int					breakEnable[5];
-	int					breakMonitorFreq;
+	Fl_Input*			m_pBreak1;
+	Fl_Input*			m_pBreak2;
+	Fl_Input*			m_pBreak3;
+	Fl_Input*			m_pBreak4;
+	Fl_Check_Button*	m_pBreakDisable1;
+	Fl_Check_Button*	m_pBreakDisable2;
+	Fl_Check_Button*	m_pBreakDisable3;
+	Fl_Check_Button*	m_pBreakDisable4;
 
-	Fl_Button*			pStop;
-	Fl_Button*			pStep;
-	Fl_Button*			pStepOver;
-	Fl_Button*			pRun;
-	Fl_Button*			pRedraw;
+	Fl_Check_Button*	m_pDebugInts;
 
-	char				sPCfmt[8];
-	char				sSPfmt[8];
-	char				sAfmt[8];
-	char				sBfmt[8];
-	char				sCfmt[8];
-	char				sDfmt[8];
-	char				sEfmt[8];
-	char				sHfmt[8];
-	char				sLfmt[8];
-	char				sBCfmt[8];
-	char				sDEfmt[8];
-	char				sHLfmt[8];
-	char				sMfmt[8];
-	char				sBreakfmt[8];
+	Fl_Check_Button*	m_pSFlag;
+	Fl_Check_Button*	m_pZFlag;
+	Fl_Check_Button*	m_pTSFlag;
+	Fl_Check_Button*	m_pACFlag;
+	Fl_Check_Button*	m_pPFlag;
+	Fl_Check_Button*	m_pOVFlag;
+	Fl_Check_Button*	m_pXFlag;
+	Fl_Check_Button*	m_pCFlag;
 
-	Fl_Group*			g;
+	Fl_Round_Button*	m_pAllHex;
+	Fl_Round_Button*	m_pAllDec;
+	Fl_Round_Button*	m_pAHex;
+	Fl_Round_Button*	m_pADec;
+	Fl_Round_Button*	m_pBHex;
+	Fl_Round_Button*	m_pBDec;
+	Fl_Round_Button*	m_pCHex;
+	Fl_Round_Button*	m_pCDec;
+	Fl_Round_Button*	m_pDHex;
+	Fl_Round_Button*	m_pDDec;
+	Fl_Round_Button*	m_pEHex;
+	Fl_Round_Button*	m_pEDec;
+	Fl_Round_Button*	m_pHHex;
+	Fl_Round_Button*	m_pHDec;
+	Fl_Round_Button*	m_pLHex;
+	Fl_Round_Button*	m_pLDec;
+	Fl_Round_Button*	m_pPCHex;
+	Fl_Round_Button*	m_pPCDec;
+	Fl_Round_Button*	m_pSPHex;
+	Fl_Round_Button*	m_pSPDec;
+	Fl_Round_Button*	m_pBCHex;
+	Fl_Round_Button*	m_pBCDec;
+	Fl_Round_Button*	m_pDEHex;
+	Fl_Round_Button*	m_pDEDec;
+	Fl_Round_Button*	m_pHLHex;
+	Fl_Round_Button*	m_pHLDec;
+	Fl_Round_Button*	m_pMHex;
+	Fl_Round_Button*	m_pMDec;
+	Fl_Round_Button*	m_pBreakHex;
+	Fl_Round_Button*	m_pBreakDec;
 
-} cpuregs_ctrl_t;
+	Fl_Box*				m_pTraceBox;
+	Fl_Box*				m_pStackBox;
+	char				m_sInstTrace[64][120];
+	int					m_iInstTraceHead;
+	Fl_Check_Button*	m_pDisableTrace;
 
+	cpu_trace_data_t*	m_pTraceData;
+	int					m_iTraceHead;
+	int					m_traceCount;
+	int					m_traceAvail;
+
+	int					m_breakAddr[5];
+	int					m_breakEnable[5];
+	int					m_breakMonitorFreq;
+
+	Fl_Button*			m_pStop;
+	Fl_Button*			m_pStep;
+	Fl_Button*			m_pStepOver;
+	Fl_Button*			m_pRun;
+
+	char				m_sPCfmt[8];
+	char				m_sSPfmt[8];
+	char				m_sAfmt[8];
+	char				m_sBfmt[8];
+	char				m_sCfmt[8];
+	char				m_sDfmt[8];
+	char				m_sEfmt[8];
+	char				m_sHfmt[8];
+	char				m_sLfmt[8];
+	char				m_sBCfmt[8];
+	char				m_sDEfmt[8];
+	char				m_sHLfmt[8];
+	char				m_sMfmt[8];
+	char				m_sBreakfmt[8];
+
+	MString				m_sBreak1;
+	MString				m_sBreak2;
+	MString				m_sBreak3;
+	MString				m_sBreak4;
+	int					m_iBreakDis1;
+	int					m_iBreakDis2;
+	int					m_iBreakDis3;
+	int					m_iBreakDis4;
+
+	Fl_Scrollbar*		m_pScroll;					// Trace buffer scroll bar
+	Fl_Group*			m_g;
+
+	Fl_Check_Button*	m_pAutoScroll;
+	Fl_Check_Button*	m_pSaveBreak;
+
+	// Preferences
+	int					m_autoScroll;
+	int					m_saveBreakpoints;
+	int					m_x, m_y, m_h, m_w;
+	int					m_lastH;
+	int					m_fontSize, m_fontHeight;
+};
 
 #endif
 
