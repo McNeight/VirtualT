@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.9 2013/02/05 01:36:11 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.10 2013/02/05 01:39:53 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -68,7 +68,9 @@ VTDis			cpu_dis;
 extern			Fl_Preferences virtualt_prefs;
 
 extern "C"
+{
 extern volatile UINT64			cycles;
+}
 
 // Menu item callback definitions
 static void cb_save_trace(Fl_Widget* w, void*);
