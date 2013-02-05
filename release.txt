@@ -40,6 +40,8 @@ v1.6
 
 10. Now reports error if REX / ReMem memory cannot be loaded / saved.
 
+11. Updated REX emulation to support REX3 for PC8201 state machine changes.
+
 ====================
 v1.5  July 9th, 2011
 ====================

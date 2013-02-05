@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.7 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.8 2013/02/05 01:20:58 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -66,16 +66,16 @@ int				gDebugMonitorFreq = 32768;
 VTDis			cpu_dis;
 
 extern			Fl_Preferences virtualt_prefs;
-extern volatile UINT64			cycles=0;
+extern volatile UINT64			cycles;
 
 // Menu item callback definitions
-void cb_save_trace(Fl_Widget* w, void*);
-void cb_clear_trace(Fl_Widget* w, void*);
-void cb_menu_run(Fl_Widget* w, void*);
-void cb_menu_stop(Fl_Widget* w, void*);
-void cb_menu_step(Fl_Widget* w, void*);
-void cb_menu_step_over(Fl_Widget* w, void*);
-void cb_setup_trace(Fl_Widget* w, void*);
+static void cb_save_trace(Fl_Widget* w, void*);
+static void cb_clear_trace(Fl_Widget* w, void*);
+static void cb_menu_run(Fl_Widget* w, void*);
+static void cb_menu_stop(Fl_Widget* w, void*);
+static void cb_menu_step(Fl_Widget* w, void*);
+static void cb_menu_step_over(Fl_Widget* w, void*);
+static void cb_setup_trace(Fl_Widget* w, void*);
 
 // Other prototypes
 void debug_cpuregs_cb (int);
@@ -2140,7 +2140,8 @@ CpuRegisters class constructor.  Creates all controls within the window.
 ============================================================================
 */
 VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
-	Fl_Double_Window(x, y, title)
+	//Fl_Double_Window(x, y, title)
+	Fl_Window(x, y, title)
 {
 	Fl_Box*			o;
 	int				c;
@@ -2737,8 +2738,8 @@ VTCpuRegs::~VTCpuRegs()
 
 void VTCpuRegs::draw(void)
 {
-	static int drawcount = 0;
-	Fl_Double_Window::draw();
+	//Fl_Double_Window::draw();
+	Fl_Window::draw();
 
 	// Select 12 point Courier font
 	fl_font(FL_COURIER, m_fontSize);
@@ -2780,6 +2781,7 @@ void VTCpuRegs::draw(void)
 	}
 	else
 		cb_redraw_trace(NULL, this);
+
 }
 
 /*
@@ -2879,6 +2881,7 @@ void VTCpuRegs::ScrollToBottom(void)
 	}
 	else
 		m_pScroll->slider_size(1.0);
+	damage(FL_DAMAGE_ALL);
 }
 
 /*
@@ -2925,7 +2928,8 @@ int VTCpuRegs::handle(int eventId)
 		break;
 	}
 
-	return Fl_Double_Window::handle(eventId);
+	//return Fl_Double_Window::handle(eventId);
+	return Fl_Window::handle(eventId);
 }
 
 /*

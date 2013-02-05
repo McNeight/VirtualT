@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.4 2008/09/23 00:06:13 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.5 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -68,7 +68,8 @@ typedef struct cpu_trace_data
 The CPU Registers Window
 ================================================
 */
-class VTCpuRegs : public Fl_Double_Window
+//class VTCpuRegs : public Fl_Double_Window
+class VTCpuRegs : public Fl_Window
 {
 public:
 	VTCpuRegs(int x, int y, const char* title);

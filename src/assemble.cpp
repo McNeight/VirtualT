@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.12 2013/02/02 13:44:31 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.13 2013/02/02 15:29:02 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -125,6 +125,7 @@ unsigned char gShift[20] = { 0,
 };
 
 const char*		types[5] = { "", "a label", "an equate", "a set", "an extern" };
+static char		local_filename[256];
 
 VTAssembler::VTAssembler()
 {						 
@@ -366,7 +367,7 @@ int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
 					ptr += pExp->m_Literal.GetLength();
 
 					// Copy the replacement text to the new string
-					strcpy(pNew, pArgs[c]);
+					strncpy(pNew, pArgs[c], argLen[c]);
 					pNew += argLen[c];
 					subst = TRUE;
 					
@@ -387,7 +388,7 @@ int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
 		*pNew++ = *ptr++;
 	*pNew = '\0';
 
-	//printf("New line = %s", pNewLine);
+	printf("New line = %s", pNewLine);
 
 	// Delete the old m_pInLine and replace with the new one
 	delete[] m_pInLine;
@@ -1460,7 +1461,8 @@ void VTAssembler::include(const char *filename)
 										  
 		// Now loading from a different FD!
 		m_fd = fd;
-		gFilename = filename;
+		strcpy(local_filename, filename);
+		gFilename = local_filename;
 		a85parse();
 		fclose(m_fd);
 
@@ -1473,7 +1475,8 @@ void VTAssembler::include(const char *filename)
 		m_pInLine = m_IncludeInLine[m_IncludeDepth];
 		m_InLineCount = m_IncludeInLineCount[m_IncludeDepth];
 		m_FileIndex = m_IncludeIndex[m_IncludeDepth];
-		gFilename = (const char *) m_Filenames[m_FileIndex];
+		strcpy(local_filename, (const char *) m_Filenames[m_FileIndex]);
+		gFilename = local_filename;
 		memcpy(&a85parse_pcb, &m_ParserPCBs[m_IncludeDepth],
 			sizeof(a85parse_pcb_type));
 	}
@@ -1516,6 +1519,8 @@ void VTAssembler::equate(const char *name)
 		pSymbol->m_FileIndex = m_FileIndex;			// Save index of the current file
 		pSymbol->m_SymType = SYM_EQUATE;
 		pSymbol->m_pRange = m_ActiveAddr;
+
+			printf("EQU: %s\n", (const char *) pSymbol->m_Name);
 
 		// Try to evaluate the equation.  Note that we may not be able to
 		// successfully evaluate it at this point because it may contain
