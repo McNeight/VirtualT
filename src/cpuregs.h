@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.6 2013/02/05 01:36:11 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.7 2013/02/05 03:15:24 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -60,6 +60,19 @@ typedef struct cpu_trace_data
 	unsigned short		operand;
 } cpu_trace_data_t;
 
+typedef struct cpu_trace_colors
+{
+	Fl_Color			addr;
+	Fl_Color			number;
+	Fl_Color			inst;
+	Fl_Color			reg;
+	Fl_Color			flags;
+	Fl_Color			reg_val;
+	Fl_Color			foreground;
+	Fl_Color			background;
+	Fl_Color			hilight;
+} cpu_trace_colors_t;
+
 #define	CPUREGS_TRACE_COUNT		1024
 #define	CPUREGS_TRACE_SCROLL_W	15
 
@@ -68,8 +81,11 @@ typedef struct cpu_trace_data
 The CPU Registers Window
 ================================================
 */
-//class VTCpuRegs : public Fl_Double_Window
+#ifdef WIN32
+class VTCpuRegs : public Fl_Double_Window
+#else
 class VTCpuRegs : public Fl_Window
+#endif
 {
 public:
 	VTCpuRegs(int x, int y, const char* title);
@@ -77,6 +93,7 @@ public:
 
 	void				RegAllDec(void);
 	void				RegAllHex(void);
+	void				SetTraceColors(void);
 
 	void				activate_controls(void);
 	void				deactivate_controls(void);
@@ -168,6 +185,7 @@ public:
 	int					m_iTraceHead;
 	int					m_traceCount;
 	int					m_traceAvail;
+	cpu_trace_colors_t	m_traceColors;
 
 	int					m_breakAddr[5];
 	int					m_breakEnable[5];
@@ -215,6 +233,8 @@ public:
 	int					m_lastH;
 	int					m_fontSize, m_fontHeight;
 	int					m_inverseHilight;
+	int					m_showAs16Bit;
+	int					m_colorSyntaxHilight;
 };
 
 #endif

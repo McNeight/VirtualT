@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.11 2013/02/05 01:41:17 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.12 2013/02/05 03:15:24 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -432,6 +432,176 @@ void VTCpuRegs::get_reg_edits(void)
 
 /*
 ============================================================================
+Draws the specified string at the given x,y location using color syntax
+hilighting rules.
+============================================================================
+*/
+void draw_color_syntax(const char* lineStr, int x, int y, int bold = FALSE)
+{
+	int					curx, idx, c, char_width;
+	char				str[20];
+	cpu_trace_colors_t*	pColors = &gcpuw->m_traceColors;
+
+	// Start at given x location
+	curx = x;
+	char_width = (int) fl_width(" ");
+	
+	// Copy and draw the address
+	strncpy(str, lineStr, 7);
+	str[7] = '\0';
+	idx = 7;
+	fl_color(pColors->addr);
+	if (bold && !gcpuw->m_inverseHilight)
+		fl_font(FL_COURIER_BOLD_ITALIC, gcpuw->m_fontSize);
+	else if (gcpuw->m_inverseHilight)
+		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+	else
+		fl_font(FL_COURIER, gcpuw->m_fontSize);
+	fl_draw(str, curx, y);
+	curx += (int) fl_width(str);
+
+	// Copy and draw the instruction
+	c = 0;
+	while (lineStr[idx] != ' ' && lineStr[idx] != '\0')
+		str[c++] = lineStr[idx++];
+	// Get the space too
+	if (lineStr[idx] != '\0')
+		str[c++] = lineStr[idx++];
+	str[c] = '\0';
+	fl_color(pColors->inst);
+	if (!bold)
+		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+	fl_draw(str, curx, y);
+	curx += (int) fl_width(str);
+
+	// Back to the selected font size
+	if (bold && !gcpuw->m_inverseHilight)
+		fl_font(FL_COURIER_BOLD_ITALIC, gcpuw->m_fontSize);
+	else if (gcpuw->m_inverseHilight)
+		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+	else
+		fl_font(FL_COURIER, gcpuw->m_fontSize);
+
+	// Check for end of string in case this is a look-ahead instruction
+	if (lineStr[idx] == '\0')
+	{
+		// Back to foreground color and return
+		fl_color(pColors->foreground);
+		return;
+	}
+
+	// Determine the operand type.  First check for A,blah format
+	if (lineStr[idx+1] == ',')
+	{
+		fl_color(pColors->reg);
+		str[0] = lineStr[idx];
+		str[1] = '\0';
+		fl_draw(str, curx, y);
+		curx += char_width;
+		fl_color(pColors->foreground);
+		fl_draw(",", curx, y);
+		curx += char_width;
+		idx += 2;
+	}
+
+	// Now determine any remaining operand type.  First look for register A, B, M, PSW, etc.
+	if (lineStr[idx+1] == ' ' || lineStr[idx+1] == 'S' || lineStr[idx+1] == '\0')
+		// It's a register operand
+		fl_color(pColors->reg);
+	else if (lineStr[idx+2] == 'H')
+		// It's a numeric value
+		fl_color(pColors->number);
+	else
+		// It's an address
+		fl_color(pColors->addr);
+
+	// Copy the operand up to the 1st space
+	c = 0;
+	while (lineStr[idx] != ' ' && lineStr[idx] != '\0')
+		str[c++] = lineStr[idx++];
+
+	// Now copy the spaces
+	while (lineStr[idx] == ' ')
+		str[c++] = lineStr[idx++];
+	str[c] = '\0';
+
+	// Draw the operand
+	fl_draw(str, curx, y);
+	curx += (int) fl_width(str);
+
+	// Check if we have trace data or if this is a look-ahead instruction
+	if (lineStr[idx] == '\0')
+	{
+		// Back to the default color
+		fl_color(pColors->foreground);
+		return;
+	}
+
+	// Draw the A register
+	fl_color(pColors->reg);
+	str[0] = lineStr[idx++];
+	str[1] = '\0';
+	fl_draw(str, curx, y);
+	curx += char_width;
+	fl_color(pColors->foreground);
+	str[0] = lineStr[idx++];
+	fl_draw(str, curx, y);
+	curx += char_width;
+
+	// Draw the A register value
+	fl_color(pColors->number);
+	strncpy(str, &lineStr[idx], 2);
+	str[2] = '\0';
+	fl_draw(str, curx, y);
+	curx += char_width * 2;
+	idx += 2;
+
+	// Draw the flags
+	fl_color(pColors->flags);
+	strncpy(str, &lineStr[idx], 11);
+	str[11] = '\0';
+	fl_draw(str, curx, y);
+	curx += (int) fl_width(str);
+	idx += 11;
+
+	// Now print the registers
+	while (lineStr[idx] != '\0')
+	{
+		// Copy next register to our temp string
+		c = 0;
+		while (lineStr[idx] != ':')
+			str[c++] = lineStr[idx++];
+		str[c] = '\0';
+		fl_color(pColors->reg);
+		fl_draw(str, curx, y);
+		curx += (int) fl_width(str);
+
+		// Copy and draw the ':' and spaces
+		fl_color(pColors->foreground);
+		fl_draw(":", curx, y);
+		curx += char_width;
+		idx++;
+
+		// Copy the register value
+		c = 0;
+		str[c++] = lineStr[idx++];
+		while (lineStr[idx] != ' ' && lineStr[idx] != '\0')
+			str[c++] = lineStr[idx++];
+		// Copy the spaces too
+		while (lineStr[idx] == ' ')
+			str[c++] = lineStr[idx++];
+		str[c] = '\0';
+		fl_color(pColors->foreground);
+		fl_draw(str, curx, y);
+		curx += (int) fl_width(str);
+	}
+
+	// Back to the default color
+	fl_color(pColors->foreground);
+}
+
+/*
+============================================================================
 Callback routine to redraw the trace and stack areas
 ============================================================================
 */
@@ -457,9 +627,13 @@ int build_trace_line(int line, char* lineStr)
 		fl & CF_BIT ? 'C':' ');
 
 	// Append regs after opcode
-	sprintf(str, "A:%02X %s B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
-		pTrace->af >> 8, flags, pTrace->bc >> 8, pTrace->bc & 0xFF, pTrace->de >> 8, 
-		pTrace->de & 0xFF, pTrace->hl >> 8, pTrace->de & 0xFF, pTrace->sp);
+	if (gcpuw->m_showAs16Bit)
+		sprintf(str, "A:%02X %s  BC:%04X  DE:%04X  HL:%04X  SP:%02X",
+			pTrace->af >> 8, flags, pTrace->bc, pTrace->de, pTrace->hl, pTrace->sp);
+	else
+		sprintf(str, "A:%02X %s  B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
+			pTrace->af >> 8, flags, pTrace->bc >> 8, pTrace->bc & 0xFF, pTrace->de >> 8, 
+			pTrace->de & 0xFF, pTrace->hl >> 8, pTrace->de & 0xFF, pTrace->sp);
 	strcat(lineStr, str);
 
 	return last_pc;
@@ -470,18 +644,15 @@ int build_trace_line(int line, char* lineStr)
 Callback routine to redraw the trace and stack areas
 ============================================================================
 */
-void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
+void redraw_trace(Fl_Widget* w, void* pOpaque)
 {
 	int		x, draw, lines, last_pc, last_sp;
 	char	lineStr[120], str[100];
 	int		trace_top = gcpuw->m_pTraceBox->y() + gcpuw->m_fontHeight - 4;
-	int		lookahead = 0;
-
-	// Make our window current for drawing
-	gcpuw->make_current();
+	int		lookahead = 0, bold;
 
 	// Clear rectangle
-	fl_color(FL_GRAY);
+	fl_color(gcpuw->m_traceColors.background);
 	fl_rectf(gcpuw->m_pTraceBox->x()+3, gcpuw->m_pTraceBox->y()+3,
 		gcpuw->m_pTraceBox->w()-6, gcpuw->m_pTraceBox->h()-6);
 	fl_rectf(gcpuw->m_pStackBox->x()+3, gcpuw->m_pStackBox->y()+3,
@@ -494,7 +665,7 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
 	else
 		fl_font(FL_COURIER, gcpuw->m_fontSize);
-	fl_color(FL_BLACK);
+	fl_color(gcpuw->m_traceColors.foreground);
 
 	// Initialize last_sp and last_pc in case trace is clear
 	last_sp = SP;
@@ -511,20 +682,18 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "0x%02X", get_memory8(SP+x));
-			fl_draw(str, gcpuw->m_pStackBox->x()+10, trace_top+x*gcpuw->m_fontHeight);
+			sprintf(str, "0x%04X", get_memory16(SP+x*2));
+			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
 
-			// Now draw the Instruction Trace
-			if (x == lines-1)
-			{
-				if (gcpuw->m_inverseHilight)
-					fl_color(FL_DARK_BLUE);
-				else
-					fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
-			}
 			fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
 				gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
-			fl_draw(gcpuw->m_sInstTrace[draw], 25, trace_top+x*gcpuw->m_fontHeight);
+			if (gcpuw->m_colorSyntaxHilight)
+			{
+				if (gcpuw->m_sInstTrace[draw][0] != '\0')
+					draw_color_syntax(gcpuw->m_sInstTrace[draw], 25, trace_top+x*gcpuw->m_fontHeight);
+			}
+			else
+				fl_draw(gcpuw->m_sInstTrace[draw], 25, trace_top+x*gcpuw->m_fontHeight);
 			fl_pop_clip();
 			if (++draw >= 64)
 				draw = 0;
@@ -544,8 +713,8 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "0x%02X", get_memory8(SP+x));
-			fl_draw(str, gcpuw->m_pStackBox->x()+10, trace_top+x*gcpuw->m_fontHeight);
+			sprintf(str, "0x%04X", get_memory16(SP+x*2));
+			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
 
 			// Now draw the Instruction Trace
 			if (x + firstLine < gcpuw->m_traceAvail)
@@ -563,19 +732,27 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 				/* If on the execution line, make the font bold */
 				if (x+firstLine == gcpuw->m_traceAvail-1)
 				{
+					bold = TRUE;
 					if (gcpuw->m_inverseHilight)
 					{
-						fl_color(FL_DARK_BLUE);
+						fl_color(gcpuw->m_traceColors.hilight);
 						fl_rectf(gcpuw->m_pTraceBox->x()+3, trace_top+(x-1)*gcpuw->m_fontHeight+5,
 							gcpuw->m_pTraceBox->w()-6, gcpuw->m_fontHeight);
 						fl_color(FL_WHITE);
 					}
 					else
+					{
 						fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
+					}
 				}
+				else
+					bold = FALSE;
 
 				// Finally, draw the trace on the window
-				fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+				if (gcpuw->m_colorSyntaxHilight)
+					draw_color_syntax(lineStr, 25, trace_top+x*gcpuw->m_fontHeight, bold);
+				else
+					fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
 				fl_pop_clip();
 				if (++draw >= gcpuw->m_traceAvail)
 					draw = 0;
@@ -585,7 +762,7 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 				{
 					// Change back to normal font
 					if (gcpuw->m_inverseHilight)
-						fl_color(FL_BLACK);
+						fl_color(gcpuw->m_traceColors.foreground);
 					else
 						fl_font(FL_COURIER, gcpuw->m_fontSize);
 
@@ -677,12 +854,17 @@ void cb_redraw_trace(Fl_Widget* w, void* pOpaque)
 				// Disassemble the next line that hasn't executed yet
 				last_pc += cpu_dis.DisassembleLine(last_pc, lineStr);
 				if (lookahead++ < 4)
-					fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+				{
+					if (gcpuw->m_colorSyntaxHilight)
+						draw_color_syntax(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+					else
+						fl_draw(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
+				}
 
 				if (x == 0)
 				{
 					if (gcpuw->m_inverseHilight)
-						fl_color(FL_BLACK);
+						fl_color(gcpuw->m_traceColors.foreground);
 					else
 						fl_font(FL_COURIER, gcpuw->m_fontSize);
 				}
@@ -716,7 +898,7 @@ void cb_scrollbar (Fl_Widget* w, void*)
 	else
 		gcpuw->m_pScroll->slider_size(1.0);
 
-	cb_redraw_trace(NULL, NULL);
+	gcpuw->redraw();
 }
 
 /*
@@ -946,19 +1128,25 @@ void debug_cpuregs_cb (int reason)
 			PF?'P':' ',OV?'O':' ',XF?'X':' ', CF?'C':' ');
 
 		// Append regs after opcode
-		sprintf(str, "A:%02X %s B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
-			A, flags, B, C, D, E, H, L, SP);
+		if (gcpuw->m_showAs16Bit)
+			sprintf(str, "A:%02X %s  BC:%04X  DE:%04X  HL:%04X  SP:%02X",
+				A, flags, BC, DE, HL, SP);
+		else		
+			sprintf(str, "A:%02X %s  B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%02X",
+				A, flags, B, C, D, E, H, L, SP);
 		strcat(gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead++], str);
 
 		if (gcpuw->m_iInstTraceHead >= 64)
 			gcpuw->m_iInstTraceHead= 0;
 
 		// Update Trace data on window
-		cb_redraw_trace(NULL, NULL);
+		gcpuw->redraw();
 
 		// Update monitor frequency based on cpu speed
 		if (fullspeed == 0)
 			gDebugMonitorFreq = 8192;
+		else if (fullspeed == 3)
+			gDebugMonitorFreq = 65536;
 		else
 			gDebugMonitorFreq = 32768;
 	}
@@ -980,7 +1168,7 @@ void debug_cpuregs_cb (int reason)
 					gcpuw->ScrollToBottom();
 
 				// Redraw the trace window
-				cb_redraw_trace(NULL, NULL);
+				gcpuw->redraw();
 			}
 		}
 		else
@@ -1223,7 +1411,7 @@ void cb_reg_pc_changed(Fl_Widget* w, void* pOpaque)
 	strcat(pCpuRegs->m_sInstTrace[trace_tail], str);
 
 	// Update Trace data on window
-	cb_redraw_trace(NULL, NULL);
+	gcpuw->redraw();
 }
 
 /*
@@ -1480,7 +1668,7 @@ void cb_reg_sp_changed(Fl_Widget* w, void* pOpaque)
 	}
 
 	// Update Trace data on window
-	cb_redraw_trace(NULL, NULL);
+	gcpuw->redraw();
 }
 
 /*
@@ -2184,15 +2372,46 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 CpuRegisters class constructor.  Creates all controls within the window.
 ============================================================================
 */
+void VTCpuRegs::SetTraceColors(void) 
+{
+	/* Setup some trace colors */
+	if (m_colorSyntaxHilight)
+	{
+		m_traceColors.addr = FL_WHITE;
+		m_traceColors.inst = (Fl_Color) 221;
+		m_traceColors.number = (Fl_Color) 166;
+		m_traceColors.flags = FL_DARK_GREEN;
+		m_traceColors.reg = (Fl_Color) 95;
+		m_traceColors.reg_val = (Fl_Color) 166;
+		m_traceColors.foreground = FL_WHITE;
+		m_traceColors.background = FL_BLACK;
+		m_traceColors.hilight = FL_DARK_BLUE;
+	}
+	else
+	{
+		m_traceColors.foreground = FL_BLACK;
+		m_traceColors.background = FL_GRAY;
+	}
+}
+
+/*
+============================================================================
+CpuRegisters class constructor.  Creates all controls within the window.
+============================================================================
+*/
 VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
-	//Fl_Double_Window(x, y, title)
+#ifdef WIN32
+	Fl_Double_Window(x, y, title)
+#else
 	Fl_Window(x, y, title)
+#endif
 {
 	Fl_Box*			o;
 	int				c;
 
 	/* Load the user preferences for window size, etc. */
 	LoadPrefs();
+	SetTraceColors();
 
 	// Allocate the trace buffer
 	m_pTraceData = new cpu_trace_data_t[m_traceCount];
@@ -2218,7 +2437,7 @@ VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
 	m_pMenu->menu(gCpuRegs_menuitems);
 
 	// Create static text boxes
-	Fl_Group* g1 = new Fl_Group(0, 20+MENU_HEIGHT, x, 170+MENU_HEIGHT-20);
+	Fl_Group* g1 = new Fl_Group(0, 2+MENU_HEIGHT, x, 170+MENU_HEIGHT-2);
 
 	o = new Fl_Box(FL_NO_BOX, 20, 20+MENU_HEIGHT, 50, 15, "PC");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
@@ -2673,9 +2892,9 @@ VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
 	m_pDisableTrace->callback(cb_disable_realtime_trace, this);
 
 	// Create Stack Box
-	o = new Fl_Box(FL_NO_BOX, 560, 180+MENU_HEIGHT, 50, 15, "Stack");
+	o = new Fl_Box(FL_NO_BOX, 560, 180+MENU_HEIGHT, 50, 20, "Stack");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	m_pStackBox = new Fl_Box(FL_DOWN_BOX, 560, 200+MENU_HEIGHT, 60, 124, "");
+	m_pStackBox = new Fl_Box(FL_DOWN_BOX, 560, 200+MENU_HEIGHT, 65, 124, "");
 
 	// Create Breakpoint edit boxes
 	o = new Fl_Box(FL_NO_BOX, 20, 380, 100, 15, "Breakpoints:");
@@ -2783,8 +3002,13 @@ VTCpuRegs::~VTCpuRegs()
 
 void VTCpuRegs::draw(void)
 {
-	//Fl_Double_Window::draw();
+	make_current();
+
+#ifdef WIN32
+	Fl_Double_Window::draw();
+#else
 	Fl_Window::draw();
+#endif
 
 	// Select 12 point Courier font
 	fl_font(FL_COURIER, m_fontSize);
@@ -2812,7 +3036,7 @@ void VTCpuRegs::draw(void)
 		make_current();
 
 		// Clear rectangle
-		fl_color(FL_GRAY);
+		fl_color(m_traceColors.background);
 		fl_rectf(m_pTraceBox->x()+3, m_pTraceBox->y()+3,
 			m_pTraceBox->w()-6, m_pTraceBox->h()-6);
 		fl_rectf(m_pStackBox->x()+3, m_pStackBox->y()+3,
@@ -2820,12 +3044,12 @@ void VTCpuRegs::draw(void)
 
 		// Select 11 point Courier font
 		fl_font(FL_COURIER,18);
-		fl_color(FL_BLACK);
+		fl_color(m_traceColors.foreground);
 
 		fl_draw("Realtime trace disabled", 55, 212+MENU_HEIGHT+3*m_fontHeight);
 	}
 	else
-		cb_redraw_trace(NULL, this);
+		redraw_trace(NULL, this);
 
 }
 
@@ -2850,7 +3074,9 @@ void VTCpuRegs::LoadPrefs(void)
 	virtualt_prefs.get("CpuRegs_debugInts", temp, 1);
 	gDebugInts = temp;
 	virtualt_prefs.get("CpuRegs_rememberBreakpoints", m_saveBreakpoints, 1);
-	virtualt_prefs.get("CpuRegs_inversHilight", m_inverseHilight, 1);
+	virtualt_prefs.get("CpuRegs_inverseHilight", m_inverseHilight, 1);
+	virtualt_prefs.get("CpuRegs_showAs16Bit", m_showAs16Bit, 0);
+	virtualt_prefs.get("CpuRegs_colorSyntaxHilight", m_colorSyntaxHilight, 1);
 
 	if (m_saveBreakpoints)
 	{
@@ -2886,7 +3112,8 @@ void VTCpuRegs::SavePrefs(void)
 	virtualt_prefs.set("CpuRegs_disableTrace", gDisableRealtimeTrace);
 	virtualt_prefs.set("CpuRegs_debugInts", gDebugInts);
 	virtualt_prefs.set("CpuRegs_rememberBreakpoints", m_saveBreakpoints);
-	virtualt_prefs.set("CpuRegs_inversHilight", m_inverseHilight);
+	virtualt_prefs.set("CpuRegs_inverseHilight", m_inverseHilight);
+	virtualt_prefs.set("CpuRegs_showAs16Bit", m_showAs16Bit);
 
 	if (m_saveBreakpoints)
 	{
@@ -2976,8 +3203,11 @@ int VTCpuRegs::handle(int eventId)
 		break;
 	}
 
-	//return Fl_Double_Window::handle(eventId);
+#ifdef WIN32
+	return Fl_Double_Window::handle(eventId);
+#else
 	return Fl_Window::handle(eventId);
+#endif
 }
 
 /*
@@ -3133,6 +3363,8 @@ typedef struct trace_setup_params
 	Fl_Input*			pTraceDepth;
 	Fl_Input*			pFontSize;
 	Fl_Check_Button*	pInverseHilight;
+	Fl_Check_Button*	pShowAs16Bit;
+	Fl_Check_Button*	pColorHilight;
 	char				sDepth[20];
 	char				sFontSize[20];
 } trace_setup_params_t;
@@ -3173,6 +3405,13 @@ static void cb_setupdlg_OK(Fl_Widget* w, void* pOpaque)
 
 	// Get Inverse Highlight selection
 	gcpuw->m_inverseHilight = p->pInverseHilight->value();
+
+	// Get show as 16-bit selection
+	gcpuw->m_showAs16Bit = p->pShowAs16Bit->value();
+
+	// Get hilighting option
+	gcpuw->m_colorSyntaxHilight = p->pColorHilight->value();
+	gcpuw->SetTraceColors();
 
 	// Get the updated trace depth
 	newDepth = atoi(p->pTraceDepth->value());
@@ -3228,7 +3467,7 @@ static void cb_setupdlg_OK(Fl_Widget* w, void* pOpaque)
 	}
 
 	// Redraw the window
-	cb_redraw_trace(NULL, NULL);
+	gcpuw->redraw();
 	
 	// Now hide the parent dialog
 	w->parent()->hide();
@@ -3258,7 +3497,7 @@ void cb_setup_trace(Fl_Widget* w, void* pOpaque)
 
 	// Get socket interface preferences
 	// Create Peripheral Setup window
-	pWin = new Fl_Window(300, 160, "Trace Configuration");
+	pWin = new Fl_Window(300, 200, "Trace Configuration");
 
 	/* Create input field for trace depth */
 	b = new Fl_Box(20, 20, 100, 20, "Trace Depth");
@@ -3282,13 +3521,21 @@ void cb_setup_trace(Fl_Widget* w, void* pOpaque)
 	p.pInverseHilight = new Fl_Check_Button(20, 80, 190, 20, "Inverse Video Hilight");
 	p.pInverseHilight->value(gcpuw->m_inverseHilight);
 
+	/* Create checkbox for 16-bit register style */
+	p.pShowAs16Bit = new Fl_Check_Button(20, 100, 200, 20, "Show registers as 16 bit");
+	p.pShowAs16Bit->value(gcpuw->m_showAs16Bit);
+
+	/* Create checkbox for 16-bit register style */
+	p.pColorHilight = new Fl_Check_Button(20, 120, 200, 20, "Color syntax hilighting");
+	p.pColorHilight->value(gcpuw->m_colorSyntaxHilight);
+
 	// Cancel button
-    { Fl_Button* o = new Fl_Button(80, 120, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(80, 160, 60, 30, "Cancel");
       o->callback((Fl_Callback*) cb_setupdlg_cancel);
     }
 
 	// OK button
-    { Fl_Return_Button* o = new Fl_Return_Button(160, 120, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(160, 160, 60, 30, "OK");
       o->callback((Fl_Callback*) cb_setupdlg_OK, &p);
     }
 
