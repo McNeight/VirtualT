@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.8 2013/02/05 01:20:58 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.9 2013/02/05 01:36:11 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -66,6 +66,8 @@ int				gDebugMonitorFreq = 32768;
 VTDis			cpu_dis;
 
 extern			Fl_Preferences virtualt_prefs;
+
+extern "C"
 extern volatile UINT64			cycles;
 
 // Menu item callback definitions
