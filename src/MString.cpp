@@ -1,5 +1,5 @@
 /*  
-  $Id: MString.cpp,v 1.9 2005/04/11 15:33:53 pez4brian Exp $
+  $Id: MString.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
 
   MString - Dynamic string data type library
   Copyright (C) 2001-2005 Jesse L. Lovelace (jesse at aslogicsys dot com)
@@ -20,6 +20,9 @@
 
   -----
     $Log: MString.cpp,v $
+    Revision 1.1  2007/03/31 22:09:17  kpettit1
+    Fixed issue with Read from HD in normal memory mode.  Added many files for IDE & Assember.  This is a work in progress and not complete yet.
+
     Revision 1.9  2005/04/11 15:33:53  pez4brian
     Update for 0.70 release
 
@@ -1529,6 +1532,26 @@ MString MString::SpanExcluding(char* string) const {
 		tmp = tmp->MLink_Forward;
 	}
 	return tmpStr;
+}
+
+MString MString::Filename(void) const {  //100%
+
+	MString tmp;
+	int  idx = ReverseFind('/');
+
+	if (idx == -1)
+		idx = ReverseFind('\\');
+
+	if (idx == -1)
+		return *this;	
+
+	int length = GetLength();
+	tmp = Right(length - idx - 1);
+	return tmp;
+
+//	MString tmp;
+//	MakeRightChain(headMNode, nCount, tmp.headMNode);
+
 }
 
 char* MString::ToChar(int nStart,int nCount) {

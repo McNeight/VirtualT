@@ -268,6 +268,7 @@ public:
 	MString Right(int nCount) const; //Idea from CString
 	MString SpanIncluding(char* string) const; //Idea from CString
 	MString SpanExcluding(char* string) const; //Idea from CString
+	MString Filename(void) const;
 	char* ToChar(int nStart = 0,int nCount = -1); 
 	// PRE: nStart is >0 and < GetLength().
 	// POST: returns a pointer to a new null-terminated character array
