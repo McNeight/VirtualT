@@ -1,6 +1,6 @@
 /* vtobj.cpp */
 
-/* $Id: vtobj.cpp,v 1.2 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: vtobj.cpp,v 1.3 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -32,6 +32,7 @@
 #include    <string.h>
 #include	"VirtualT.h"
 #include	"vtobj.h"
+#include	<stdio.h>
 
 const struct VTClass VTObject::classVTObject =
 	{ "VTObject", sizeof(VTObject), 0, 0, 0};
@@ -141,7 +142,6 @@ void VTObArray::InsertAt(int nIndex, VTObject *newElement)
 
 void VTObArray::RemoveAt(int nIndex, int nCount)
 {
-	char*	pRemoveLoc;
 	int		c;
 
 	if (m_Count == 0)
@@ -151,10 +151,8 @@ void VTObArray::RemoveAt(int nIndex, int nCount)
 	if (nIndex == -1)
 		nIndex = m_Count - 1;
 
-	pRemoveLoc = (char *) m_pData + (nIndex * sizeof(VTObject *));
-
-	for (c = nIndex; c < m_Count; c++)
-		memcpy(pRemoveLoc + c * sizeof(VTObject *), pRemoveLoc + (c + 1) * sizeof(VTObject *),
+	for (c = nIndex; c < m_Count-nCount; c++)
+		memcpy((char *) m_pData + c * sizeof(VTObject *), (char *) m_pData + (c + nCount) * sizeof(VTObject *),
 			sizeof(VTObject *));
 
 	// Drecrement count
