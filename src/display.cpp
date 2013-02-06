@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.29 2013/01/30 16:29:16 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.30 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -4811,6 +4811,10 @@ void init_other_windows(void)
 	// If the CpuRegs window was opened previously, then re-open it
 	if (cpuregs_was_open && (gcpuw == NULL))
 		cb_CpuRegs(NULL, NULL);
+
+	// If the IDE window was opened previously, then re-open it
+	if (ide_was_open && gpIde == NULL)
+		cb_Ide(NULL, NULL);
 
 	// Give the focus back to the main VirtualT window
 	MainWin->show();
