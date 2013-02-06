@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.12 2013/01/26 03:51:20 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.13 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -3008,11 +3008,16 @@ void VT_Ide::DeleteItem(Flu_Tree_Browser::Node* n)
 		{
 			// For groups, ask before deleting the entire group
 			VT_IdeGroup* pGroup = (VT_IdeGroup*) pObj;
-			ans = fl_choice("Delete gropu %s and all its members?", "No", "Yes", NULL, (const char *) pGroup->m_Name);
+			int count = pGroup->m_Objects.GetSize();
+			
+			// If group is empty, then don't ask, just delete it
+			if (count == 0)
+				ans = 1;
+			else
+				ans = fl_choice("Delete group %s and all its members?", "No", "Yes", NULL, (const char *) pGroup->m_Name);
 			if (ans == 1)
 			{
 				// First delete all subitems from the group
-				int count = pGroup->m_Objects.GetSize();
 				while (count != 0)
 				{
 					VT_IdeSource* pSrc = (VT_IdeSource*) pGroup->m_Objects[0];
@@ -3063,6 +3068,15 @@ void VT_Ide::DeleteItem(Flu_Tree_Browser::Node* n)
 		}
 		else
 		{
+			if (strcmp(pObj->GetClass()->m_ClassName, "VT_IdeSource") != 0)
+			{
+				MString err;
+				err.Format("Internal error on line %d of file %s\n", __LINE__, __FILE__);
+				show_error((const char *) err);
+				return;
+			}
+
+			// We are deleting a source entry
 			VT_IdeSource* pSrc = (VT_IdeSource*) pObj;
 			Flu_Tree_Browser::Node* pNext = pSrc->m_Node->next();
 
