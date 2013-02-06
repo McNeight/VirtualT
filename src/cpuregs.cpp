@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.13 2013/02/05 17:23:59 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.14 2013/02/05 18:23:34 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -1049,7 +1049,8 @@ void debug_cpuregs_cb (int reason)
 			return;
 	}
 
-	gDebugCount = 0;
+	if (gDebugCount >= gDebugMonitorFreq + 64)
+		gDebugCount = 0;
 
 	// Update PC edit box
 	sprintf(str, gcpuw->m_sPCfmt, PC);
