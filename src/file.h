@@ -1,6 +1,6 @@
 /* file.h */
 
-/* $Id: file.h,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: file.h,v 1.8 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -38,13 +38,14 @@
 #define	TYPE_DO	0xC0
 #define TYPE_HEX 0x40
 
-void cb_LoadRam (Fl_Widget* w, void*);
-void cb_SaveRam (Fl_Widget* w, void*);
-void cb_LoadOptRom (Fl_Widget* w, void*);
-void cb_UnloadOptRom (Fl_Widget* w, void*);
-void cb_LoadFromHost(Fl_Widget* w, void*);
-void cb_SaveToHost(Fl_Widget* w, void*);
-int  load_optrom_file(const char* filename);
+void	cb_LoadRam (Fl_Widget* w, void*);
+void	cb_SaveRam (Fl_Widget* w, void*);
+void	cb_LoadOptRom (Fl_Widget* w, void*);
+void	cb_UnloadOptRom (Fl_Widget* w, void*);
+void	cb_LoadFromHost(Fl_Widget* w, void*);
+void	cb_SaveToHost(Fl_Widget* w, void*);
+int  	load_optrom_file(const char* filename);
+int		delete_file(const char* filename, unsigned short addr = 0);
 
 #define	FILE_ERROR_INVALID_HEX			1
 #define FILE_ERROR_FILE_NOT_FOUND		2
@@ -68,3 +69,4 @@ extern char path[255];
 #endif
 
 #endif
+

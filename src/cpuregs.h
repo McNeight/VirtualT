@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.7 2013/02/05 03:15:24 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.8 2013/02/05 17:23:59 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -71,6 +71,7 @@ typedef struct cpu_trace_colors
 	Fl_Color			foreground;
 	Fl_Color			background;
 	Fl_Color			hilight;
+	Fl_Color			select;
 } cpu_trace_colors_t;
 
 #define	CPUREGS_TRACE_COUNT		1024
@@ -235,6 +236,9 @@ public:
 	int					m_inverseHilight;
 	int					m_showAs16Bit;
 	int					m_colorSyntaxHilight;
+	int					m_selStart;
+	int					m_selEnd;
+	int					m_haveMouse;
 };
 
 #endif

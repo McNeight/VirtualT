@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.13 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.14 2013/02/06 17:06:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -67,6 +67,8 @@
 #include "multiwin.h"
 #include "idetabs.h"
 #include "pref_form.h"
+#include "file.h"
+#include "memory.h"
 
 /*
 =======================================================
@@ -3711,6 +3713,44 @@ void VT_Ide::BuildProject(void)
 			// Check if we generated a MAP file and the MAP file is opened
 
 			// Now check if auto-reload of the generated file is enabled
+			if (m_ActivePrj->m_AutoLoad)
+			{
+				switch (m_ActivePrj->m_ProjectType)
+				{
+					case VT_PROJ_TYPE_CO:	
+						{
+							// Test if we should update himem
+							if (m_ActivePrj->m_UpdateHIMEM)
+							{
+								// Set Himem
+								set_memory16(gStdRomDesc->sHimem, linker.GetStartAddress());
+
+								// May need to change some other parameters??
+							}
+
+							// Load file from host to emulation
+							MString coPath = m_ActivePrj->m_RootPath + (char *) "/" + 
+								m_ActivePrj->m_OutputName;
+							cb_LoadFromHost(NULL, (void *) (const char *) coPath);
+						}
+						break;
+
+					case VT_PROJ_TYPE_OBJ:
+						break;
+
+					case VT_PROJ_TYPE_ROM:
+						break;
+
+					case VT_PROJ_TYPE_LIB:
+						break;
+
+					case VT_PROJ_TYPE_BA:
+						break;
+
+					default:
+						break;
+				}
+			}
 		}
 	}
 }

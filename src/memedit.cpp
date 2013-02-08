@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.12 2011/07/11 16:52:31 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.13 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -946,7 +946,7 @@ void T100_MemEditor::SetRegionOptions(void)
 	{
 		if (gRex)
 		{
-			if (gModel == MODEL_T200)
+			if (gModel == MODEL_T200 || gModel == MODEL_PC8201)
 			{
 				memedit_ctrl.pRegion->add("RAM 1");
 				memedit_ctrl.pRegion->add("RAM 2");
@@ -1023,7 +1023,7 @@ void T100_MemEditor::SetScrollSize(void)
 		if (gRex)
 		{
 			region = memedit_ctrl.pRegion->value();
-			if (gModel == MODEL_T200)
+			if (gModel == MODEL_T200 || gModel == MODEL_PC8201)
 			{
 				switch (region)
 				{

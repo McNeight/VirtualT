@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.16 2011/07/11 16:52:31 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.17 2013/01/23 01:00:08 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -59,6 +59,7 @@ void jump_to_zero(void);
 
 int		BasicSaveMode = 0;
 int		COSaveMode = 0;
+int 	gLoadError;				// Indicates load error (for remote interface)
 extern	Fl_Preferences virtualt_prefs;
 extern	char gsMenuROM[40];
 
@@ -224,6 +225,12 @@ const char *gKeywordTable[] = {
 	""
 };
 
+/*
+=======================================================
+This routine relocates BASIC files in the emulation by 
+updating all the start of line pointers.
+=======================================================
+*/
 int relocate(unsigned char* in, unsigned char* out, unsigned short addr)
 {
 	int				c;
@@ -306,6 +313,12 @@ int relocate(unsigned char* in, unsigned char* out, unsigned short addr)
 	return c;
 }
 
+/*
+=======================================================
+This is the tokenizer that converts ASCII mode BASIC files
+to actual .BA files in the Model 100/102/200 format.
+=======================================================
+*/
 #define	STATE_LINENUM	1
 #define	STATE_WHITE		2
 #define	STATE_TOKENIZE	3
@@ -528,9 +541,294 @@ int tokenize(unsigned char* in, unsigned char* out, unsigned short addr)
 	return out_len + 2;
 }
 
+/*
+=======================================================
+Find the address of directory entry for the specified file.
+=======================================================
+*/
+unsigned short find_file_in_directory(const char* filename)
+{
+	unsigned short 	addr;
+	int				dir_index, x;
 
-int gLoadError;
+	// Determine if file alaready exists in directory
+	addr = gStdRomDesc->sDirectory;
+	dir_index = 0;
+	while (dir_index < gStdRomDesc->sDirCount)
+	{
+		// Test if this slot is empty
+		if ((get_memory8(addr) & 0x80) == 0)
+		{
+			addr += 11;
+			dir_index++;
+			continue;
+		}
 
+		// Compare this entry to the file being added
+		for (x = 0; x < 8; x++)
+		{
+			if (get_memory8(addr + 3 + x) != filename[x])
+				break;
+		}
+
+		// Test if we matched the file (i.e. it exists already)
+		if (x == 8)
+		{
+			// File return the address
+			return addr;
+		}
+
+		// Advance to next file in directory
+		addr += 11;
+		dir_index++;
+	}
+
+	// File not found, return address of zero
+	return 0;
+}
+
+/*
+=======================================================
+Add an offset to all entries in the directory whose
+file content is higher in memory than the specified
+address.
+=======================================================
+*/
+void update_file_offsets(unsigned short start_addr, int len)
+{
+	unsigned short	dir_addr;
+	unsigned short	file_addr;
+	int				dir_index;
+
+	// Update existing Directory entry addresses
+	dir_addr = gStdRomDesc->sDirectory;
+	dir_index = 0;
+	while (dir_index < gStdRomDesc->sDirCount)
+	{
+		// Check if this entry is active
+		if (get_memory8(dir_addr) == 0)
+		{
+			dir_addr += 11;
+			dir_index++;
+			continue;
+		}
+
+		// Get address of this file
+		file_addr = get_memory16(dir_addr + 1);
+		
+		// Check if file moved
+		if (file_addr >= start_addr)
+			set_memory16(dir_addr + 1, file_addr + len);
+
+		dir_addr += 11;   
+		dir_index++;
+	}
+}
+
+/*
+=======================================================
+Routine to load files from host into the emulation.
+=======================================================
+*/
+int delete_file(const char* filename, unsigned short dir_addr)
+{
+	unsigned short	file_addr;	// Address of file data
+	unsigned short	len;
+	unsigned short	tmp_addr;
+	unsigned short	reloc_addr;
+	int				file_type, dir_index;
+	int				x, i;
+	char			mt_file[10];
+
+	// First determine if an address was given.  If not, find it
+	if (dir_addr == 0)
+	{
+		// Convert filename to MT format
+		i = 0;
+		if (filename[i] == '"')
+			i++;
+		for (x = 0; x < 6; x++)
+		{
+			if  (filename[i] == '.' || filename[i] == '"')
+				mt_file[x] = ' ';
+			else
+				mt_file[x] = toupper(filename[i++]);
+		}
+		if (filename[i] == '.')
+			i++;
+		for (; x < 8; x++)
+		{
+			if (filename[i] == '\0' || filename[i] == '"')
+				mt_file[x] = ' ';
+			else
+				mt_file[x] = toupper(filename[i++]);
+		}
+
+		// Find the filename in the directory
+		dir_addr = find_file_in_directory(mt_file);
+		if (dir_addr == 0)
+			return 0;
+	}
+
+	// Get the file address
+	file_addr = get_memory16(dir_addr + 1);
+
+	// Determine length of file being deleted
+	len = 0;
+	tmp_addr = file_addr;
+	if (get_memory8(dir_addr + 3 + 6) == 'D')
+	{
+		// Set the file type to .DO
+		file_type = TYPE_DO;
+
+		// Find end of .DO file
+		while (get_memory8(tmp_addr) != 0x1A)
+		{
+			len++;
+			tmp_addr++;
+		}
+		// Include terminating 0x1A in length
+		len++;
+	}
+	else if (get_memory8(dir_addr + 3 + 6) == 'C')
+	{
+		// Set the file type to .CO
+		file_type = TYPE_CO;
+
+		// Deleting a binary file
+		len = get_memory16(file_addr + 2);
+	}
+	else
+	{
+		// Set the file type to .BA
+		file_type = TYPE_BA;
+
+		// Must be a BASIC file, but validate that
+		if (get_memory8(dir_addr + 3 + 6) != 'B')
+		{
+			// ERROR!  TODO: Report it somehow!!
+			return 0;
+		}
+
+		// Yep, it's a BASIC file.  Find end of BASIC program
+		while (get_memory16(tmp_addr) != 0)
+			tmp_addr = get_memory16(tmp_addr);
+
+		// Be sure to include the terminating 0x0000 in the length
+		len = tmp_addr - file_addr + 2;
+	}
+
+	// Delete the file from the directory (mark it invalid)
+	set_memory8(dir_addr, 0);
+
+	// Move files and variable data after this file (i.e. higher in 
+	// memory space) to delete it from the "file system"
+	int move_len = get_memory16(gStdRomDesc->sUnusedMem) - (file_addr + len);
+	for (x = 0; x < move_len; x++)
+		set_memory8(file_addr + x, get_memory8(file_addr + len + x)); 
+
+	// Update existing Directory entry addresses
+	update_file_offsets(file_addr, -len);
+
+	// Update pointers of all BASIC programs
+	dir_addr = gStdRomDesc->sDirectory;
+	dir_index = 0;
+	while (dir_index < gStdRomDesc->sDirCount)
+	{
+		// Check if this entry is active
+		if (get_memory8(dir_addr) != TYPE_BA)
+		{
+			dir_addr += 11;
+			dir_index++;
+			continue;
+		}
+
+		// Get address of this file
+		reloc_addr = get_memory16(dir_addr + 1);
+		if (reloc_addr >= file_addr)
+		{
+			// Update BASIC pointers for this file
+			while (get_memory16(reloc_addr) != 0)
+			{
+				// Subtract len from current pointer
+				set_memory16(reloc_addr, get_memory16(reloc_addr) - len);
+
+				// Get pointer to next line
+				reloc_addr = get_memory16(reloc_addr);
+			}
+		}
+
+		// Advance to next entry in directory
+		dir_addr += 11;   
+		dir_index++;
+	}
+
+	// If a .BA file was added, renumber the address
+	// pointers in any "unsaved" BASIC program that
+	// may exist.
+	if (file_type == TYPE_BA)
+	{
+		// Update BASIC pointers for the Unsaved BASIC program
+		reloc_addr = get_memory16(gStdRomDesc->sFilePtrBA);
+
+		while (get_memory16(reloc_addr) != 0)
+		{
+			set_memory16(reloc_addr, get_memory16(reloc_addr)-len);
+			reloc_addr = get_memory16(reloc_addr);
+		}
+	}
+
+	// Update system pointers
+	reloc_addr = get_memory16(gStdRomDesc->sBeginArray);
+	if (reloc_addr >= file_addr)
+		set_memory16(gStdRomDesc->sBeginArray, reloc_addr - len);
+
+	if ((file_type != TYPE_CO) || (file_type == TYPE_HEX))
+	{
+		reloc_addr = get_memory16(gStdRomDesc->sBeginCO);
+		if (reloc_addr > file_addr)
+			set_memory16(gStdRomDesc->sBeginCO, reloc_addr - len);
+	}
+
+	// If we deleted a BASIC file, then update the beginning of .DO file pointer
+	if (file_type == TYPE_BA)
+	{
+		/* Update beginning of .DO file pointer */
+		reloc_addr = get_memory16(gStdRomDesc->sBeginDO);
+		if (reloc_addr > file_addr)
+			set_memory16(gStdRomDesc->sBeginDO, reloc_addr - len);
+
+		/* Update BASIC size variable */
+		reloc_addr = get_memory16(gStdRomDesc->sBasicSize);
+		set_memory16(gStdRomDesc->sBasicSize, reloc_addr - (len-2));
+		//set_memory16(gStdRomDesc->sBasicSize, reloc_addr - len);
+	}
+
+	// Update beginning of variable space pointer
+	reloc_addr = get_memory16(gStdRomDesc->sBeginVar);
+	if (reloc_addr >= file_addr)
+		set_memory16(gStdRomDesc->sBeginVar, reloc_addr - len);
+
+	// Update unused memory variable
+	reloc_addr = get_memory16(gStdRomDesc->sUnusedMem);
+	if (reloc_addr >= file_addr)
+		set_memory16(gStdRomDesc->sUnusedMem, reloc_addr - len);
+
+	// Update file view if open
+	fileview_model_changed();
+
+	// Reset the system so file will show up
+	jump_to_zero();
+
+	// Indicate file deleted successfully
+	return 1;
+}
+
+/*
+=======================================================
+Routine to load files from host into the emulation.
+=======================================================
+*/
 void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 {
 	int					count, i, x;
@@ -572,7 +870,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 			return;
 		}
 
-	// Get Filename
+		// Get Filename
 		filename = fc->value();
 		if (filename == 0)
 		{
@@ -764,11 +1062,41 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		}
 	}
 
+	// Dont add zero length files
 	if (len == 0)
 	{
 		if (fc != NULL)
 			delete fc;
 		return;
+	}
+
+	// Determine if file alaready exists in directory
+	addr2 = find_file_in_directory(mt_file);
+	if (addr2 != 0)
+	{
+		// File exists.  If we are calling from the menu, validate they want to replace
+		if (w != NULL)
+		{
+			int ans = fl_choice("Replace existing file?", "Cancel", "Yes", NULL);
+
+			// Test if "Cancel" was selected
+			if (ans == 0)
+			{
+				if (fc != NULL)
+					delete fc;
+				return;
+			}
+		}
+
+		// Delete the file
+		if (!delete_file(mt_file, addr2))
+		{
+			// Could not delete the file for some reason??
+			if (fc != NULL)
+				delete fc;
+			gLoadError = 1;
+			return;
+		}
 	}
 
 	// Determine if file will fit in memory
@@ -783,41 +1111,6 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		if (fc != NULL)
 			delete fc;
 		return;
-	}
-
-	// Determine if file alaready exists in directory
-	addr2 = gStdRomDesc->sDirectory;
-	dir_index = 0;
-	while (dir_index < gStdRomDesc->sDirCount)
-	{
-		// Test if this slot is empty
-		if (get_memory8(addr2) == 0)
-		{
-			addr2 += 11;
-			dir_index++;
-			continue;
-		}
-
-		// Compare this entry to the file being added
-		for (x = 0; x < 8; x++)
-		{
-			if (get_memory8(addr2 + 3 + x) != mt_file[x])
-				break;
-		}
-
-		if (x == 8)
-		{
-			if (w != NULL)
-				fl_message("File %s already exists", filename_name);
-			else
-				gLoadError = 1;
-			if (fc != NULL)
-				delete fc;
-			return;
-		}
-
-		addr2 += 11;
-		dir_index++;
 	}
 
 	// Determine Directory entry location for new file
@@ -845,28 +1138,7 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 		set_memory8(addr1+len+x, get_memory8(addr1+x)); 
 
 	// Update existing Directory entry addresses
-	addr2 = gStdRomDesc->sDirectory;
-	dir_index = 0;
-	while (dir_index < gStdRomDesc->sDirCount)
-	{
-		// Check if this entry is active
-		if (get_memory8(addr2) == 0)
-		{
-			addr2 += 11;
-			dir_index++;
-			continue;
-		}
-
-		// Get address of this file
-		addr3 = get_memory16(addr2+1);
-		
-		// Check if file moved
-		if (addr3 >= addr1)
-			set_memory16(addr2+1, addr3+len);
-
-		addr2 += 11;   
-		dir_index++;
-	}
+	update_file_offsets(addr1, len);
 
 	// Add new Directory entry
 	if (file_type == TYPE_HEX)
@@ -876,7 +1148,6 @@ void cb_LoadFromHost(Fl_Widget* w, void* host_filename)
 	set_memory16(addr4+1, addr1);
 	for (x = 0; x < 8; x++)
 		set_memory8(addr4+3+x, mt_file[x]);
-
 
 	// If a .BA file was added, renumber the address
 	// pointers in any "unsaved" BASIC program that
@@ -1189,7 +1460,6 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 	int					dir_index;
 	unsigned char		file_type;
 	int					x, c;
-//	int					col_widths[] = {120, 100,100, 0};
 	model_t_files_t		tFiles[100];
 	int					tCount;
 
@@ -1200,10 +1470,6 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 	fsave->callback(cb_save);
 	fcancel = new Fl_Button(130, 288, 80, 25, "Cancel");
 	fcancel->callback(cb_cancel);
-
-	// Add header & columns for size, address, etc.
-//	fsb->add("@b@_File\t@b@_Size\t@b@_Address");
-//	fsb->column_widths(col_widths);
 
 	// Add Model T files to the browser
 	addr1 = gStdRomDesc->sDirectory;
@@ -1245,14 +1511,6 @@ void cb_SaveToHost(Fl_Widget* w, void*)
 		addr1 += 11;
 	}
 
-	// Loop through all tFiles and add to the Browser
-/*	for (c = 0; c < tCount; c++)
-	{
-		// Add filename to Select Browser
-		sprintf(string, "%s\t%d\t%d", tFiles[c].name, 0, tFiles[c].address);
-		fsb->add(string);
-	}
-*/
 	// Show the window
 	gSaveToHost->resizable(fsb);
 	gSaveToHost->show();

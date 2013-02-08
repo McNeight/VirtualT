@@ -505,7 +505,13 @@ public:
 
 // Operations
 	int					Evaluate(class CRpnEquation* eq, double* value,  
-							int reportError);
+							int reportError, MString& errVariable);
+	inline int			Evaluate(class CRpnEquation* eq, double* value,  
+							int reportError)
+							{
+								MString str;
+								return Evaluate(eq, value, reportError, str);
+							}
 	int					Assemble();
 	int					GetValue(MString & string, int & value);
 	int					LookupSymbol(MString& name, CSymbol *& symbol);

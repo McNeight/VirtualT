@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.16 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.17 2013/01/26 03:51:20 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -1171,6 +1171,22 @@ std::string cmd_load(ServerSocket& sock, std::string& args)
 	if (remote_load_from_host(args.c_str()))
 	{
 		std::string ret = "Load Error" + gLineTerm + gOk;
+		return ret;
+	}
+
+	return gOk;
+}
+
+/*
+=======================================================
+Kill command:  Kills a file within the target
+=======================================================
+*/
+std::string cmd_kill(ServerSocket& sock, std::string& args)
+{
+	if (!delete_file(args.c_str()))
+	{
+		std::string ret = "Kill Error" + gLineTerm + gOk;
 		return ret;
 	}
 
@@ -2876,6 +2892,9 @@ std::string process_command(ServerSocket& sock, char *sockdata, int len)
 
 	else if (cmd_word == "load")
 		ret = cmd_load(sock, args);
+
+	else if (cmd_word == "kill")
+		ret = cmd_kill(sock, args);
 
 	else if ((cmd_word == "read_mem") || (cmd_word == "rm"))
 		ret = cmd_read_mem(sock, args);

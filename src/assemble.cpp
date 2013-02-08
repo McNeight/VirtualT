@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.13 2013/02/02 15:29:02 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.14 2013/02/05 01:36:11 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -363,6 +363,15 @@ int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
 					if (lastCh == '#')
 						pNew--;
 
+					// Test for invalid expression (shouldn't have equation)
+					if (pExp->m_Equation != NULL)
+					{
+						// Try to evaluate the equation
+						double dval;
+						Evaluate(pExp->m_Equation, &dval, 0);
+						break;
+					}
+
 					// Advance the pointer past the parameter
 					ptr += pExp->m_Literal.GetLength();
 
@@ -388,7 +397,7 @@ int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
 		*pNew++ = *ptr++;
 	*pNew = '\0';
 
-	printf("New line = %s", pNewLine);
+	//printf("New line = %s", pNewLine);
 
 	// Delete the old m_pInLine and replace with the new one
 	delete[] m_pInLine;
@@ -723,7 +732,7 @@ reportError flag is TRUE.
 ============================================================================
 */
 int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,  
-	int reportError)
+	int reportError, MString& errVariable)
 {
 	double				s1, s2;
 	CSymbol*			symbol;
@@ -766,6 +775,10 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 					temp = m_ActiveMod->m_Name + (char *) "%%" + op.m_Variable;
 					local = 1;
 				}
+				else if (temp[0] == '$' && temp.GetLength() > 1)
+				{
+					temp = op.m_Variable.Right(op.m_Variable.GetLength()-1);
+				}
 			}
 
 			// Lookup symbol in active module
@@ -786,7 +799,10 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 				if ((symbol->m_SymType & SYM_HASVALUE) == 0)
 				{
 					if ((symbol->m_SymType & 0xFF) == SYM_EXTERN)
+					{
+						errVariable = op.m_Variable;
 						return 0;
+					}
 
 					if (GetValue(symbol->m_Name, int_value))
 					{
@@ -798,10 +814,12 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 						if (reportError)
 						{
 							errMsg.Format("Error in line %d(%s):  Symbol %s has no numeric value", 
-								m_Line, (const char *) m_Filenames[m_FileIndex], 
+								m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 								(const char *) op.m_Variable);
 							m_Errors.Add(errMsg);
 						}
+						else 
+							errVariable = op.m_Variable;
 						return 0;
 					}
 				}
@@ -824,7 +842,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 						if (local)
 						{
 							errMsg.Format("Error in line %d(%s):  Local symbol %s undefined", m_Line,
-								(const char *) m_Filenames[m_FileIndex], (const char *) op.m_Variable);
+								(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) op.m_Variable);
 						}
 						else
 						{
@@ -841,12 +859,14 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 								return 0;
 							}
 							errMsg.Format("Error in line %d(%s):  Symbol %s undefined", m_Line,
-								(const char *) m_Filenames[m_FileIndex], (const char *) op.m_Variable);
+								(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) op.m_Variable);
 						}
 						m_Errors.Add(errMsg);
 						m_UndefSymbols[op.m_Variable] = 0;
 					}
 				}
+				else 
+					errVariable = op.m_Variable;
 				return 0;
 			}
 			break;
@@ -870,7 +890,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 				if (reportError)
 				{
 					errMsg.Format("Error in line %d(%s):  Divide by zero!", 
-						m_Line, (const char *) m_Filenames[m_FileIndex]);
+						m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 					m_Errors.Add(errMsg);
 				}
 				return 0;
@@ -1008,6 +1028,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 			break;
 
 		}
+		errVariable = "";
 	}
 
 	// Get the result from the equation and return to calling function
@@ -1052,6 +1073,12 @@ int VTAssembler::GetValue(MString & string, int & value)
 	if ((string[0] == '%') && (string[1] != 0))
 	{
 		myStr = m_LastLabel + (char *) "%%" + string;
+	}
+	else if (string[0] == '$' && string.GetLength() > 1)
+	{
+		printf("Found %s\n", (const char *) string);
+		myStr = string.Right(string.GetLength()-1);
+		printf("New string %s\n", (const char *) myStr);
 	}
 
 	// Lookup the symbol in all modules
@@ -1438,7 +1465,7 @@ void VTAssembler::include(const char *filename)
 	{
 		MString errMsg;
 		errMsg.Format("Error in line %d(%s):  Unable to open include file %s",
-			m_Line, (const char *) m_Filenames[m_FileIndex], (const char *) filename);
+			m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), (const char *) filename);
 		m_Errors.Add(errMsg);
 		return;
 	} else {
@@ -1520,7 +1547,6 @@ void VTAssembler::equate(const char *name)
 		pSymbol->m_SymType = SYM_EQUATE;
 		pSymbol->m_pRange = m_ActiveAddr;
 
-			printf("EQU: %s\n", (const char *) pSymbol->m_Name);
 
 		// Try to evaluate the equation.  Note that we may not be able to
 		// successfully evaluate it at this point because it may contain
@@ -1529,11 +1555,13 @@ void VTAssembler::equate(const char *name)
 		{
 			pSymbol->m_Value = (long) value;
 			pSymbol->m_SymType |= SYM_HASVALUE;
+			//printf("EQU: %s = %d\n", (const char *) pSymbol->m_Name, (int) value);
 		}
 		else
 		{
 			// Symbol did not evaluate, save as an equation
 			pSymbol->m_SymType |= SYM_ISEQ;
+			//printf("EQU: %s = equation\n", (const char *) pSymbol->m_Name);
 		}
 
 		// Save equation
@@ -1561,7 +1589,7 @@ void VTAssembler::equate(const char *name)
 			{
 				MString string;
 				string.Format("Error in line %d(%s): Symbol %s already defined as %s",
-					pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex], 
+					pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 					(const char *) pSymbol->m_Name,
 					types[((CSymbol *)dummy)->m_SymType & 0x00FF]);
 				m_Errors.Add(string);
@@ -1636,7 +1664,7 @@ void VTAssembler::label(const char *label, int address)
 		if (dummy != NULL)
 		{
 			string.Format("Error in line %d(%s): Label %s already defined as %s",
-				pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex], 
+				pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 				(const char *) pSymbol->m_Name,
 				types[((CSymbol *)dummy)->m_SymType & 0x00FF]);
 			m_Errors.Add(string);
@@ -1764,7 +1792,7 @@ void VTAssembler::directive_set(const char *name)
 				{
 					MString string;
 					string.Format("Error in line %d(%s): Symbol %s already defined as %s",
-						pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex], 
+						pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 						(const char *) pSymbol->m_Name,	types[symtype]);
 					m_Errors.Add(string);
 
@@ -1949,11 +1977,16 @@ void VTAssembler::directive_printf(const char *string, int hasEquation)
 		}
 		else
 		{
-			strncpy(str, string, (int) (ptr - string));
+			int len = (int) (ptr - string);
+			strncpy(str, string, len);
+			str[len] = '\0';
 			strcat(str, "#UNDEFINED");
 			if (*ptr != '\0')
 				strcat(str, ptr + 2 + fmtDigits);
 		}
+
+		delete gEq;									// Delete the unused equaiton
+		gEq = new CRpnEquation;						// Allocate new equation for parser
 
 		if (m_pStdoutFunc != NULL)
 			m_pStdoutFunc(m_pStdoutContext, (const char *) str);
@@ -2203,7 +2236,7 @@ void VTAssembler::directive_cdseg(int segType, int page)
 		if (pSeg == NULL)
 		{
 			err.Format("Error in line %d(%s):  Error allocating new segment %s", m_Line, 
-				(const char *) m_Filenames[m_FileIndex], name);
+				(const char *) m_Filenames[m_FileIndex].Filename(), name);
 			m_Errors.Add(err);
 			return;
 		}
@@ -2297,7 +2330,7 @@ void VTAssembler::directive_fill()
 		{
 			// Log an error
 			string.Format("Error in line %d(%s): Too many expressions for fill",
-				m_Line, (const char *) m_Filenames[m_FileIndex]);
+				m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 			m_Errors.Add(string);
 		}
 		else
@@ -2318,7 +2351,7 @@ void VTAssembler::directive_fill()
 				{
 					// Log an error
 					string.Format("Error in line %d(%s): Must be able to evaluate fill size on first pass!",
-						m_Line, (const char *) m_Filenames[m_FileIndex]);
+						m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 					m_Errors.Add(string);
 				}
 			}
@@ -2326,7 +2359,7 @@ void VTAssembler::directive_fill()
 			{
 				// Log an error
 				string.Format("Error in line %d(%s): Number of bytes for fill must be an equation",
-					m_Line, (const char *) m_Filenames[m_FileIndex]);
+					m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 				m_Errors.Add(string);
 			}
 		}
@@ -2485,7 +2518,7 @@ void VTAssembler::directive_extern()
 			{
 				MString string;
 				string.Format("Error in line %d(%s): Symbol %s already defined as %s",
-					pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex], 
+					pSymbol->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 					(const char *) (*gNameList)[c],
 					types[pSymbol->m_SymType & 0x00FF]);
 				m_Errors.Add(string);
@@ -2679,7 +2712,7 @@ void VTAssembler::directive_module(const char *name)
 	if (pMod == NULL)
 	{
 		err.Format("Error in line %d(%s):  Error creating new module %s", m_Line, 
-			(const char *) m_Filenames[m_FileIndex], name);
+			(const char *) m_Filenames[m_FileIndex].Filename(), name);
 		m_Errors.Add(err);
 	}
 
@@ -2711,7 +2744,7 @@ void VTAssembler::directive_name(const char *name)
 		MString	string;
 
 		string.Format("Error in line %d(%s): Module name already specified as %s",
-			m_Line, (const char *) m_Filenames[m_FileIndex], 
+			m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 			(const char *) m_ActiveMod->m_Name);
 		m_Errors.Add(string);
 
@@ -2747,7 +2780,7 @@ void VTAssembler::directive_title(const char *name)
 		MString	string;
 
 		string.Format("Error in line %d(%s): Module title already specified as %s",
-			m_Line, (const char *) m_Filenames[m_FileIndex], 
+			m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 			(const char *) m_ActiveMod->m_Title);
 		m_Errors.Add(string);
 
@@ -2844,7 +2877,7 @@ int VTAssembler::preproc_error(const char *string)
 
 	MString err = string;
 	err.Format("Error in line %d(%s):  %s", m_Line, 
-		(const char *) m_Filenames[m_FileIndex], string);
+		(const char *) m_Filenames[m_FileIndex].Filename(), string);
 	m_Errors.Add(err);
 
 	return TRUE;
@@ -2884,7 +2917,7 @@ void VTAssembler::preproc_ifdef(const char* name, int negate)
 	{
 		m_IfDepth--;
 		err.Format("Error in line %d(%s):  Too many nested ifs", m_Line, 
-			(const char *) m_Filenames[m_FileIndex]);
+			(const char *) m_Filenames[m_FileIndex].Filename());
 		m_Errors.Add(err);
 	}
 	else if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR)
@@ -3061,7 +3094,7 @@ int VTAssembler::preproc_macro()
 			{
 				// Invalid number of parameters to macro!
 				err.Format("Error in line %d(%s):  Macro %s expects %d parameters", m_Line, 
-					(const char *) m_Filenames[m_FileIndex], (const char *) pMacro->m_Name, 
+					(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) pMacro->m_Name, 
 					pMacro->m_ParamList->GetSize());
 				m_Errors.Add(err);
 				return FALSE;
@@ -3071,7 +3104,7 @@ int VTAssembler::preproc_macro()
 		{
 			// Invalid number of parameters to macro!
 			err.Format("Error in line %d(%s):  Macro %s expects no parameters", m_Line, 
-				(const char *) m_Filenames[m_FileIndex], (const char *) pMacro->m_Name);
+				(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) pMacro->m_Name);
 			m_Errors.Add(err);
 			return FALSE;
 		}
@@ -3141,9 +3174,10 @@ void VTAssembler::directive_if(int inst)
 {
 	double		valuel, valuer;
 	MString		err;
+	MString		errVar;
 
 	// Update line number
-	m_Line = (PCB).line;
+	m_Line = (PCB).line - 1;
 	
 //	CInstruction*	pInst = new CInstruction;
 //	if (pInst != NULL)
@@ -3174,7 +3208,7 @@ void VTAssembler::directive_if(int inst)
 			{
 				m_IfDepth--;
 				err.Format("Error in line %d(%s):  Too many nested ifs", m_Line, 
-					(const char *) m_Filenames[m_FileIndex]);
+					(const char *) m_Filenames[m_FileIndex].Filename());
 				m_Errors.Add(err);
 				gCond = new CCondition;
 //				m_Instructions->Add(pInst);
@@ -3186,7 +3220,7 @@ void VTAssembler::directive_if(int inst)
 			if (m_IfDepth == 0)
 			{
 				err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
-					(const char *) m_Filenames[m_FileIndex]);
+					(const char *) m_Filenames[m_FileIndex].Filename());
 				m_Errors.Add(err);
 				return;
 			}
@@ -3201,12 +3235,12 @@ void VTAssembler::directive_if(int inst)
 		// Determine if both equations can be evaluated
 		if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR)
 		{
-			if (Evaluate(gCond->m_EqLeft, &valuel, 0))
+			if (Evaluate(gCond->m_EqLeft, &valuel, 0, errVar))
 			{
 				// Check if condition contains 2 equations or not
 				if (gCond->m_EqRight != 0)
 				{
-					if (Evaluate(gCond->m_EqRight, &valuer, 0))
+					if (Evaluate(gCond->m_EqRight, &valuer, 0, errVar))
 					{
 						m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
 
@@ -3255,6 +3289,13 @@ void VTAssembler::directive_if(int inst)
 				}
 			}
 		}		
+		if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR || errVar != "")
+		{
+			err.Format("Error in line %d(%s):  Symbol %s undefined", m_Line,
+				(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) errVar);
+			m_Errors.Add(err);
+		}
+
 		gCond = new CCondition;
 //		m_Instructions->Add(pInst);
 //	}
@@ -3270,7 +3311,7 @@ void VTAssembler::directive_else()
 	MString		err;
 
 	// Update line number
-	m_Line = (PCB).line;
+	m_Line = (PCB).line - 1;
 	
 //	CInstruction*	pInst = new CInstruction;
 //	if (pInst != NULL)
@@ -3286,7 +3327,7 @@ void VTAssembler::directive_else()
 		if (m_IfDepth == 0)
 		{
 			err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
-				(const char *) m_Filenames[m_FileIndex]);
+				(const char *) m_Filenames[m_FileIndex].Filename());
 			m_Errors.Add(err);
 			return;
 		}
@@ -3311,7 +3352,7 @@ void VTAssembler::directive_endif()
 	MString		err;
 
 	// Update line number
-	m_Line = (PCB).line;
+	m_Line = (PCB).line - 1;
 	
 //	CInstruction*	pInst = new CInstruction;
 //	if (pInst != NULL)
@@ -3325,7 +3366,7 @@ void VTAssembler::directive_endif()
 		if (m_IfDepth == 0)
 		{
 			err.Format("Error in line %d(%s):  ENDIF without a matching IF", m_Line, 
-				(const char *) m_Filenames[m_FileIndex]);
+				(const char *) m_Filenames[m_FileIndex].Filename());
 			m_Errors.Add(err);
 			return;
 		}
@@ -3364,7 +3405,7 @@ int VTAssembler::Assemble()
 	char			rel_mask;
 	int				valid, extern_label;
 	POSITION		pos;
-	MString			key;
+	MString			key, errSymbol;
 	CSegment*		relSeg;
 
 	/*
@@ -3465,7 +3506,7 @@ int VTAssembler::Assemble()
 						size = 2;
 
 					// Try to get value of the equation
-					if (Evaluate((CRpnEquation *) pInst->m_Group, &value, 1))
+					if (Evaluate((CRpnEquation *) pInst->m_Group, &value, 1, errSymbol))
 					{
 						// Equation evaluated to a value.  Check if it is 
 						// relative to a relocatable segment
@@ -3498,6 +3539,10 @@ int VTAssembler::Assemble()
 						}
 						else
 						{
+							err.Format("Error in line %d(%s):  Invalid relocation relative to symbol %s",
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
+								(const char *) errSymbol);
+							m_Errors.Add(err);
 							valid = 0;
 						}
 					}
@@ -3559,7 +3604,7 @@ int VTAssembler::Assemble()
 						{
 							// Error - branch out of range
 							err.Format("Error in line %d(%s):  Branch (%d) out of range +127/-128",
-								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), diff);
 							m_Errors.Add(err);
 							valid = 0;
 						}
@@ -3570,7 +3615,7 @@ int VTAssembler::Assemble()
 						{
 							// Error - branch out of range
 							err.Format("Error in line %d(%s):  Branch (%d) out of range +31/-32",
-								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), diff);
 							m_Errors.Add(err);
 							valid = 0;
 						}
@@ -3581,7 +3626,7 @@ int VTAssembler::Assemble()
 						{
 							// Error - branch out of range
 							err.Format("Error in line %d(%s):  RCALL (%d) out of range +32768/-32768",
-								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), diff);
 							m_Errors.Add(err);
 							valid = 0;
 						}
@@ -3592,7 +3637,7 @@ int VTAssembler::Assemble()
 						{
 							// Error - branch out of range
 							err.Format("Error in line %d(%s):  Branch (%d) out of range +4095/-4096",
-								pInst->m_Line, (const char *) m_Filenames[m_FileIndex], diff);
+								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), diff);
 							m_Errors.Add(err);
 							valid = 0;
 						}
@@ -3621,7 +3666,7 @@ int VTAssembler::Assemble()
 				{
 					// Error - Segment size too big
 					err.Format("Error in line %d(%s):  Address too big - Max segment size is %d (0x%06X)",
-						pInst->m_Line, (const char *) m_Filenames[m_FileIndex], MAX_SEG_SIZE, MAX_SEG_SIZE);
+						pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), MAX_SEG_SIZE, MAX_SEG_SIZE);
 					m_Errors.Add(err);
 					valid = 0;
 					break;
@@ -3823,7 +3868,7 @@ int VTAssembler::Assemble()
 							else
 							{
 								err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-									pInst->m_Line, (const char *) m_Filenames[m_FileIndex]);
+									pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 								m_Errors.Add(err);
 								valid = 0;
 							}
@@ -3928,7 +3973,7 @@ int VTAssembler::Assemble()
 					{
 						// Report error
 						err.Format("Error in line %d(%s):  Symbol %s undefined",
-							pInst->m_Line, (const char *) m_Filenames[m_FileIndex], 
+							pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
 							(const char *) (*pNameList)[x]);
 						m_Errors.Add(err);
 					}
@@ -4790,7 +4835,8 @@ void VTAssembler::ParseExternalDefines(void)
 {
 	int			startIndex, endIndex;
 	MString		def;
-	int			len;
+	int			valIdx, len;
+	int			value = -1;
 
 	// If zero length then we're done
 	if ((len = m_ExtDefines.GetLength()) == 0)
@@ -4811,6 +4857,25 @@ void VTAssembler::ParseExternalDefines(void)
 		// Extract the define from the string
 		def = m_ExtDefines.Mid(startIndex, endIndex - startIndex);
 
+		// Test if the define has an embedded '='
+		if ((valIdx = def.Find('=')) != -1)
+		{
+			MString name = def.Left(valIdx);
+
+			MString val = def.Mid(valIdx+1, endIndex - (valIdx+1));
+			if (!GetValue(val, value))
+			{
+				MString errMsg;
+
+				errMsg.Format("Error in invocation:  Value for %s cannot be evaluated",
+					(const char *) name);
+				m_Errors.Add(errMsg);
+			}
+
+			// The value was valid.  Replace the def name
+			def = name;
+		}
+
 		// Now assign this define
 		CSymbol*	pSymbol = new CSymbol;
 		if (pSymbol != NULL)
@@ -4820,6 +4885,9 @@ void VTAssembler::ParseExternalDefines(void)
 			pSymbol->m_SymType = SYM_DEFINE;
 			pSymbol->m_pRange = NULL;
 			pSymbol->m_FileIndex = -1;
+			pSymbol->m_Value = value;
+			if (value != -1)
+				pSymbol->m_SymType |= SYM_HASVALUE;
 
 			// Assign symbol to active segment
 			const char *pStr = (const char *) pSymbol->m_Name;
@@ -4881,10 +4949,10 @@ void VTAssembler::Parse(MString filename)
 		{
 			if (m_LastIfElseIsIf)
 				errMsg.Format("Error in line %d(%s):  #ifdef without matching #endif", 
-					m_Line, (const char *) m_Filenames[m_FileIndex]);
+					m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 			else
 				errMsg.Format("Error in line %d(%s):  #else without matching #endif", 
-					m_Line, (const char *) m_Filenames[m_FileIndex]);
+					m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
 			m_Errors.Add(errMsg);
 		}
 
@@ -5133,7 +5201,7 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 			{
 				MString err;
 				err.Format("Error in line %d(%s):  Internal parse error - Segment line mismatch", 
-					lineNo,	(const char *) m_Filenames[m_FileIndex]);
+					lineNo,	(const char *) m_Filenames[m_FileIndex].Filename());
 				m_Errors.Add(err);
 				break;
 			}

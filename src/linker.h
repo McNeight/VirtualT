@@ -218,6 +218,8 @@ private:
 	int					m_Command;			// Script command during file parsing
 	int					m_TotalCodeSpace;	// Total space used by code
 	int					m_TotalDataSpace;	// Total space used for data
+	unsigned short		m_StartAddress;		// Start address of generated code
+	unsigned short		m_EntryAddress;		// Entry address of generated code
 	MString				m_OutputName;		// Name of output file
 	MString				m_ObjFileList;		// Comma separated list of files
 	MString				m_ObjPath;			// Comma separated list of directories
@@ -277,6 +279,8 @@ private:
 public:
 // Public Access functions
 	int					Link();
+	unsigned short		GetEntryAddress(void);
+	unsigned short		GetStartAddress(void);
 	void				SetLinkOptions(const MString& options);
 	void				SetObjFiles(const MString& options);
 	void				SetLinkerScript(const MString& script);

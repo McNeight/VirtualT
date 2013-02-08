@@ -40,6 +40,8 @@ VTLinker::VTLinker()
 	m_DebugInfo = 0;
 	m_TotalCodeSpace = 0;
 	m_TotalDataSpace = 0;
+	m_EntryAddress = 0;
+	m_StartAddress = 0;
 	
 	// Clear out the Segment assignement map
 	for (x = 0; x < sizeof(m_SegMap) / sizeof(CObjSegment *); x++)
@@ -160,6 +162,8 @@ void VTLinker::ResetContent(void)
 	m_Hex = FALSE;
 	m_DebugInfo = FALSE;
 	m_Map = FALSE;
+	m_EntryAddress = 0;
+	m_StartAddress = 0;
 }
 
 /*
@@ -2192,6 +2196,10 @@ int VTLinker::GenerateOutputFile()
 			break;
 		}
 	}
+
+	// Save the start address and entry address
+	m_StartAddress = startAddr;
+	m_EntryAddress = startAddr;
 	
 	// If build type is .CO, then create the .CO file
 	if (m_ProjectType == VT_PROJ_TYPE_CO)
@@ -2219,6 +2227,9 @@ int VTLinker::GenerateOutputFile()
 				return FALSE;
 			}
 		}
+
+		// Update the entry address
+		m_EntryAddress = entryAddr;
 
 		// Report that we are generating the output file
 		if (m_pStdoutFunc != NULL)
@@ -2787,6 +2798,26 @@ MString VTLinker::PreprocessDirectory(const char *pDir)
 		temp = pDir;
 
 	return temp;
+}
+
+/*
+============================================================================
+Returns the Start address (lowest address) of the generated code.
+============================================================================
+*/
+unsigned short VTLinker::GetStartAddress(void)
+{
+	return m_StartAddress;
+}
+
+/*
+============================================================================
+Returns the Entry address (lowest address) of the generated code.
+============================================================================
+*/
+unsigned short VTLinker::GetEntryAddress(void)
+{
+	return m_EntryAddress;
 }
 
 /*

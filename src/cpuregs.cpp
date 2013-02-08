@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.14 2013/02/05 18:23:34 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.15 2013/02/06 17:08:30 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -650,6 +650,7 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 	char	lineStr[120], str[100];
 	int		trace_top = gcpuw->m_pTraceBox->y() + gcpuw->m_fontHeight - 4;
 	int		lookahead = 0, bold;
+	int		selStart, selEnd;
 
 	// Clear rectangle
 	fl_color(gcpuw->m_traceColors.background);
@@ -709,6 +710,13 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 		if (draw >= gcpuw->m_traceAvail)
 			draw -= gcpuw->m_traceAvail;
 		last_sp = SP;
+		selStart = gcpuw->m_selStart;
+		selEnd = gcpuw->m_selEnd;
+		if (selStart > selEnd)
+		{
+			selStart = gcpuw->m_selEnd;
+			selEnd = gcpuw->m_selStart;
+		}
 
 		for (x = 0; x < lines; x++)
 		{
@@ -729,8 +737,18 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 				fl_push_clip(gcpuw->m_pTraceBox->x()+2, gcpuw->m_pTraceBox->y()+3,
 					gcpuw->m_pTraceBox->w()-4, gcpuw->m_pTraceBox->h()-6);
 
+				// Test if drawing a selected item
+				if (x+firstLine >= selStart && x+firstLine <= selEnd)
+				{
+					// Draw the selection box
+					fl_color(gcpuw->m_traceColors.select);
+					fl_rectf(gcpuw->m_pTraceBox->x()+3, trace_top+(x-1)*gcpuw->m_fontHeight+5,
+						gcpuw->m_pTraceBox->w()-6, gcpuw->m_fontHeight);
+					fl_color(FL_WHITE);
+				}
+
 				/* If on the execution line, make the font bold */
-				if (x+firstLine == gcpuw->m_traceAvail-1)
+				else if (x+firstLine == gcpuw->m_traceAvail-1)
 				{
 					bold = TRUE;
 					if (gcpuw->m_inverseHilight)
@@ -757,8 +775,12 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 				if (++draw >= gcpuw->m_traceAvail)
 					draw = 0;
 
+				// If we just drew a selected line, then change back to regular font color
+				if (x+firstLine >= selStart && x+firstLine <= selEnd)
+					fl_color(gcpuw->m_traceColors.foreground);
+
 				// If we just drew the execution line, do special processing
-				if (x+firstLine == gcpuw->m_traceAvail-1)
+				else if (x+firstLine == gcpuw->m_traceAvail-1)
 				{
 					// Change back to normal font
 					if (gcpuw->m_inverseHilight)
@@ -995,6 +1017,17 @@ void inline trace_instruction(void)
 		gcpuw->m_pTraceData[idx].af = AF;
 		gcpuw->m_pTraceData[idx].opcode = get_memory8(PC);
 		gcpuw->m_pTraceData[idx].operand = get_memory16(PC+1);
+
+		// Update trace selections
+		if (gcpuw->m_selStart >= 0)
+			gcpuw->m_selStart--;
+		if (gcpuw->m_selEnd >= 0)
+		{
+			// Decrement selEnd and test if the range needs to update
+			gcpuw->m_selEnd--;
+			if (gcpuw->m_selEnd >= 0 && gcpuw->m_selStart == -1)
+				gcpuw->m_selStart = 0;
+		}
 	}
 
 	/* Increment the available trace count until it reaches the max */
@@ -2387,6 +2420,7 @@ void VTCpuRegs::SetTraceColors(void)
 		m_traceColors.foreground = FL_WHITE;
 		m_traceColors.background = FL_BLACK;
 		m_traceColors.hilight = FL_DARK_BLUE;
+		m_traceColors.select = fl_darker(FL_RED);
 	}
 	else
 	{
@@ -2420,6 +2454,9 @@ VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
 	// Clear debugging data
 	m_traceAvail = 0;
 	m_breakMonitorFreq = 0;
+	m_selStart = -1;
+	m_selEnd = -1;
+	m_haveMouse = FALSE;
 	for (c = 0; c < 5; c++)
 	{
 		m_breakAddr[c] = -1;
@@ -3168,7 +3205,9 @@ close our window, which is the default.
 */
 int VTCpuRegs::handle(int eventId)
 {
-	unsigned int key;
+	unsigned int 	key;
+	int				mx, my;
+	int				tx, ty, th, tw;
 
 	switch (eventId)
 	{
@@ -3200,6 +3239,106 @@ int VTCpuRegs::handle(int eventId)
 
 		break;
 	
+	case FL_DRAG:
+		if (m_haveMouse)
+		{
+			// Get the coords
+			mx = Fl::event_x();
+			my = Fl::event_y();
+
+			// Get coords of the trace box
+			tx = m_pTraceBox->x();
+			ty = m_pTraceBox->y();
+			tw = m_pTraceBox->w();
+			th = m_pTraceBox->h();
+
+			// Test if mouse pressed within trace window
+			if ((mx >= tx) && (mx <= tx+tw) && (my >= ty) && (my <= ty+th))
+			{
+				int firstLine = m_pScroll->value();
+				int	line = (my-ty-2) / m_fontHeight;
+				int	selection = firstLine + line;
+
+				// Bound selection on bottom
+				if (selection > m_traceAvail)
+					selection = m_traceAvail - 1;
+				m_selEnd = selection;
+				damage(FL_DAMAGE_EXPOSE, tx, ty, tw, th);
+				//redraw();
+			}
+
+			// Not in window.  Test if we are above or below the window and 
+			// do a scroll
+			else if (mx >= tx && mx <= tx+tw)
+			{
+				// We are either above or below the window.  Perform scroll
+			}
+		}
+		break;
+
+	case FL_RELEASE:
+		m_haveMouse = FALSE;
+		Fl::release();
+
+		if (m_selStart > m_selEnd)
+		{
+			mx = m_selStart;
+			m_selStart = m_selEnd;
+			m_selEnd = mx;
+		}
+		break;
+
+	case FL_PUSH:
+		// Get the push coords
+		mx = Fl::event_x();
+		my = Fl::event_y();
+
+		// Grab the mouse
+		Fl::grab();
+		m_haveMouse = TRUE;
+
+		// Get coords of the trace box
+		tx = m_pTraceBox->x();
+		ty = m_pTraceBox->y();
+		tw = m_pTraceBox->w();
+		th = m_pTraceBox->h();
+
+		// Test if mouse pressed within trace window
+		if ((mx >= tx) && (mx <= tx+tw) && (my >= ty) && (my <= ty+th))
+		{
+			int firstLine = m_pScroll->value();
+			int	line = (my-ty-2) / m_fontHeight;
+			int	selection = firstLine + line;
+
+			// Check if we clicked within current selection
+			if (selection >= m_selStart && selection <= m_selEnd)
+			{
+				// Click within current selection
+			}
+			else if (selection >= m_traceAvail)
+			{
+				// Selection below the trace data.  De-select
+				m_selStart = -1;
+				m_selEnd = -1;
+				m_haveMouse = FALSE;
+				Fl::release();
+				redraw();
+				break;
+			}
+			else
+			{
+				// Start of new selection
+				m_selStart = firstLine + line;
+				m_selEnd = m_selStart;
+
+				// Issue a redraw to show new selection
+				redraw();
+				return 1;
+			}
+
+		}
+		break;
+
 	default:
 		break;
 	}
