@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Editor.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $"
+// "$Id: My_Text_Editor.cpp,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -439,10 +439,11 @@ int My_Text_Editor::handle_key() {
   
   if(Fl::event_key()==FL_Enter && smart_indent) 
   {
+	  int max = insert_position() - buffer()->line_start(insert_position());
 	char *line = new char[strlen(buffer()->line_text(insert_position()))+1];
 	strcpy(line, buffer()->line_text(insert_position()));
 	for(unsigned int i = 0; i < strlen(line); i++) {
-		if(line[i]!=' ' && line[i]!='\t') line[i]='\0';
+		if(line[i]!=' ' && line[i]!='\t' || i >= max) line[i]='\0';
 	}
 	kf_enter(c,this);
   	insert(line); 
@@ -606,5 +607,5 @@ void My_Text_Editor::UpdateStatusBar(void)
 }
 
 //
-// End of "$Id: My_Text_Editor.cpp,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $".
+// End of "$Id: My_Text_Editor.cpp,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $".
 //
