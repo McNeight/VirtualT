@@ -26,6 +26,7 @@ memory.c
 #include "filewrap.h"
 
 uchar			*gMemory[64];		/* CPU Memory space */
+int				gRamBottom = 0xa000;/* Defines the amount of RAM installed */
 uchar			gBaseMemory[65536];	/* System Memory */
 uchar			gSysROM[65536];		/* System ROM */
 uchar			gOptROM[32768];		/* Option ROM */
@@ -112,7 +113,7 @@ unsigned char get_memory8(unsigned short address)
 		}
 	}
 	else
-		return gBaseMemory[address];
+		return (address>ROMSIZE&&address<RAMBOTTOM)? 0xFF:gBaseMemory[address];
 }
 
 unsigned short get_memory16(unsigned short address)
@@ -124,7 +125,7 @@ unsigned short get_memory16(unsigned short address)
 		return gMemory[address>>10][address&0x3FF] + (gMemory[(address+1)>>10][(address+1)&0x3FF] << 8);
 	}
 	else
-		return gBaseMemory[address] + (gBaseMemory[address+1] << 8);
+		return (address>ROMSIZE&&address<RAMBOTTOM)? 0xFFFF: gBaseMemory[address] + (gBaseMemory[address+1] << 8);
 }
 
 void set_memory8(unsigned short address, unsigned char data)
@@ -702,6 +703,8 @@ void init_mem(void)
 	}
 	gRampacEmulation = 0;
 	gRampacSectPtr = NULL;
+	gRamBank = 0;
+	gRomBank = 0;
 
 	// Initialize ROM size base on current model
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
@@ -2953,7 +2956,7 @@ unsigned char rex_read(unsigned short address)
 	else
 	{
 		if (address & 0x8000)
-			return gBaseMemory[address];
+			return (address>ROMSIZE&&address<RAMBOTTOM)? 0xFF : gBaseMemory[address];
 	}
 
 	// If the RexFlash is busy, we need to process the timer
@@ -3142,7 +3145,10 @@ rex_set8:	This routine processes writes during REX emulation mode.
 void rex_set8(unsigned short address, unsigned char val)
 {
 	if (address >= ROMSIZE)
-		gBaseMemory[address] = val;
+	{
+		if (address>=RAMBOTTOM)
+			gBaseMemory[address] = val;
+	}
 	else
 	{
 		if (gRex == REX2)

@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.17 2013/01/26 03:51:20 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.18 2013/02/08 00:07:52 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -455,7 +455,7 @@ void cb_remote_debug(int reason)
 	char			str[40];
 
 	// Test if callback is for an interrupt
-	if (reason == DEBUG_INTERRUPT)
+	if (reason == DEBUG_INTERRUPT || reason == DEBUG_CPU_STEP)
 	{
 		return;
 	}

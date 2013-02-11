@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.14 2013/02/06 17:06:51 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.15 2013/02/08 00:07:52 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -2881,10 +2881,20 @@ int VT_Ide::ParsePrjFile(const char *name)
 			if (value != 0)
 				m_ActivePrj->m_AutoLoad = atoi(value);
 		}
+		else if (strcmp(sPtr, "LOADERFILENAME") == 0)
+		{
+			if (value != 0)
+				m_ActivePrj->m_LoaderFilename = value;
+		}
 		else if (strcmp(sPtr, "UPDATEHIMEM") == 0)
 		{
 			if (value != 0)
 				m_ActivePrj->m_UpdateHIMEM = atoi(value);
+		}
+		else if (strcmp(sPtr, "CREATELOADER") == 0)
+		{
+			if (value != 0)
+				m_ActivePrj->m_CreateLoader = atoi(value);
 		}
 		else if (strcmp(sPtr, "TYPE") == 0)
 		{
@@ -3689,6 +3699,10 @@ void VT_Ide::BuildProject(void)
 		linkerFiles = linkerFiles + (char *) "," + m_ActivePrj->m_LinkLibs;
 		linker.SetObjFiles(linkerFiles);
 		linker.SetStdoutFunction(this, ideStdoutProc);
+		if (m_ActivePrj->m_CreateLoader)
+		{
+			linker.SetLoaderFilename(m_ActivePrj->m_LoaderFilename);
+		}
 		
 		// Now finally perform the link operation
 		linker.Link();

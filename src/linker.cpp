@@ -24,6 +24,20 @@ extern "C"
 char			path[512];
 }
 
+static const char *gLoaderCode[] = {
+	"89GOTO96\n",
+	"90V=VARPTR(A$):P=PEEK(V+1)+PEEK(V+2)*M\n",
+	"91C=PEEK(P):IFC=34THENRETURN\n",
+	"92V=0:FORX=0TO4:T=PEEK(P):V=V*85+T-35:K=K+T:P=P+1:NEXT\n",
+	"93H=INT(V/M/M):L=V-H*M*M:POKES,H/M:POKES+1,H-INT(H/M)*M:POKES+2,L/M:POKES+3,L-INT(L/M)*M:S=S+4\n",
+	"94L=D:D=D+I:IFD>184THEND=184\n",
+	"95FORX=L+1TOD:PSET(X,27):NEXT:PSET(D,27):PSET(D-1,26):PSET(D-2,25):PSET(D-1,28):PSET(D-2,29):PRESET(L-1,26):PRESET(L-2,25):PRESET(L-1,28):PRESET(L-2,29):GOTO 91\n",
+	"96CLS:PRINT@56,\"Loading\":PRINT@129,CHR$(245);:PRINT@151,CHR$(245);:D=59:I=%.3f:S=%d:M=256:FORJ%=1TO%d:READA$:GOSUB90:NEXT\n",
+	"97IFK<>%dTHEN99ELSE PRINT@200,\"Success! Issue command: clear 256,%d\"\n",
+	"98SAVEM\"%s\",%d,%d,%d:END\n",
+	"99PRINT@200,\"Chksum error! Need %d, got\";S:END\n"
+};
+
 static const char *gsEdl = "Error during linking:  ";
 
 /*
@@ -2287,6 +2301,15 @@ int VTLinker::GenerateOutputFile()
 
 		// Close the output file
 		fclose(fd);
+
+		// Now check if we need to generate a loader for the .CO
+		if (m_LoaderFilename != "")
+		{
+			MString msg;
+			msg.Format("Generating BASIC loader file %s\n", (const char *) m_LoaderFilename);
+			m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+			GenerateLoaderFile(startAddr, endAddr, entryAddr);
+		}
 	}
 
 	// Test if project type is Assembly ROM and create HEX output if it is
@@ -2374,6 +2397,182 @@ int VTLinker::GenerateOutputFile()
 	{
 	}
 	return TRUE;
+}
+
+/*
+============================================================================
+Generates a quintuple, base 85 number from the given ascii85 value and 
+writes it to the file while updating control variables.
+============================================================================
+*/
+int VTLinker::CreateQuintuple(FILE* fd, unsigned long& ascii85, int& lineNo, 
+					int& dataCount, int& lastDataFilePos, 
+					int& lineCount, int& checksum)
+{
+	int		q;
+	char	quintuple[5];
+
+	// Loop for 5 digits of base 85 number
+	for (q = 4; q >= 0; q--)
+	{
+		// Create base 85 number
+		quintuple[q] = (char) (ascii85 % 85) + '#';
+		checksum += quintuple[q];
+		ascii85 /= 85;
+	}
+
+	// Write results to file
+	if (fwrite(quintuple, 1, 5, fd) != 5)
+	{
+		// Error writing to file
+		return FALSE;
+	}
+
+	// Add 5 more bytes to line length and check if time for a new line
+	lineCount += 5;
+	if (lineCount >= MAX_LOADER_LINE_LEN)
+	{
+		// Terminate the current data statement
+		fprintf(fd, "\"\n");
+		lineCount = 0;
+
+		// Start a new data line.  First grab the file position
+		lastDataFilePos = ftell(fd);
+		fprintf(fd, "%d DATA\"", ++lineNo);
+		dataCount++;
+	}
+
+	return TRUE;
+}
+
+/*
+============================================================================
+Generates a BASIC loader text file for the generated .CO file.
+============================================================================
+*/
+int VTLinker::GenerateLoaderFile(int startAddr, int endAddr, int entryAddr)
+{
+	MString		err;
+	FILE*		fd;
+	int			checksum, lineNo, dataCount, quadtuple, quintupleCount;
+	int			lastDataFilePos, lineCount;
+	int			c, x;
+	unsigned	long ascii85;
+	MString		filePath;
+
+	// Generate file path
+	filePath = m_RootPath + (char *) "/" + m_LoaderFilename;
+
+	// Open the output file for output
+	if ((fd = fopen((const char *) filePath, "wb")) == NULL)
+	{
+		err.Format("%sUnable to open output file %s", gsEdl, (const char *) m_LoaderFilename);
+		m_Errors.Add(err);
+		return FALSE;
+	}
+
+	// Write the output data to the file
+	lineNo = checksum = 0;
+	lineCount = quadtuple = quintupleCount = 0;
+	ascii85 = 0;
+
+	// Issue the 1st Data statement
+	lastDataFilePos = ftell(fd);
+	fprintf(fd, "%d DATA\"", ++lineNo);
+	dataCount = 1;
+
+	// Loop for all data
+	for (c = startAddr; c <= endAddr; )
+	{
+		// Write the next block of bytes
+		CObjFileSection *pSect = m_SegMap[c];
+		for (x = 0; x < pSect->m_Size; x++)
+		{
+			// Munge next byte into ascii85 calculation
+			ascii85 = ascii85 * 256 + (unsigned char) pSect->m_pProgBytes[x];
+			printf("%02X\t", (unsigned char) pSect->m_pProgBytes[x]);
+			
+			// Check if time to output a quintuple from our quadtuple
+			if (++quadtuple == 4)
+			{
+				printf("%d\n", ascii85);
+				CreateQuintuple(fd, ascii85, lineNo, dataCount, lastDataFilePos, 
+					lineCount, checksum);
+
+				// Reset the quadtuple counter
+				quadtuple = 0;
+				ascii85 = 0;
+				quintupleCount++;
+			}
+		}
+
+		// Update to the next byte to write
+		c += pSect->m_Size;
+
+		while ((m_SegMap[c] == NULL || m_SegMap[endAddr]->m_Name == ".bss") &&
+			c <= endAddr)
+		{
+			// We added a zero.  Check if time to output a quintuple from our quadtuple
+			if (++quadtuple == 4)
+			{
+				CreateQuintuple(fd, ascii85, lineNo, dataCount, lastDataFilePos, 
+					lineCount, checksum);
+
+				// Reset the quadtuple counter
+				quadtuple = 0;
+				ascii85 = 0;
+				quintupleCount++;
+			}
+			c++;
+		}
+	}
+
+	// Check if anything left over that didn't get written yet
+	if (ascii85 != 0)
+	{
+		CreateQuintuple(fd, ascii85, lineNo, dataCount, lastDataFilePos, 
+			lineCount, checksum);
+		quintupleCount++;
+	}
+
+	// Check if last data statement was empty
+	if (lineCount == 0)
+	{
+		// Rewind file to last data statement to remove the statement
+		fseek(fd, lastDataFilePos, SEEK_SET);
+		dataCount--;
+	}
+	else
+	{
+		// Terminate the last DATA statement
+		fprintf(fd, "\"\n");
+	}
+
+	// Now write the rest of the program to the file
+	for (x = 0; x < 7; x++)
+		fwrite(gLoaderCode[x], 1, strlen(gLoaderCode[x]), fd);
+
+	// Calculate increment value for progress indicator
+	double inc = 128.0;
+	if (quintupleCount != 0)
+		inc = (double) 128 / (double) quintupleCount;
+
+	// Print next line with increment, start address, and data count
+	fprintf(fd, gLoaderCode[7], (float) inc, ((int) startAddr)-65536, dataCount);
+
+	// Print line with checksum validation and CLEAR statement
+	fprintf(fd, gLoaderCode[8], checksum, startAddr);
+
+	// Print the line with the SAVEM filename command
+	fprintf(fd, gLoaderCode[9], (const char *) m_LoaderFilename, startAddr, endAddr, entryAddr);
+
+	// Finally print the line reporting the checksum error
+	fprintf(fd, gLoaderCode[10], checksum);
+
+	// Now close the file and we're all done
+	fclose(fd);
+
+	return 1;
 }
 
 /*
@@ -2705,6 +2904,17 @@ void VTLinker::SetRootPath(const MString& path)
 
 	// Recalculate the include directories
 	CalcObjDirs();
+}
+
+/*
+============================================================================
+Sets the name of the BASIC loader file to be generated
+============================================================================
+*/
+void VTLinker::SetLoaderFilename(const MString& loaderFilename)
+{
+	// Save the string in case we need it later
+	m_LoaderFilename = loaderFilename;
 }
 
 /*

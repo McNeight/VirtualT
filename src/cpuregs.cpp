@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.15 2013/02/06 17:08:30 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.16 2013/02/08 00:07:52 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -41,6 +41,7 @@
 #include <string.h>
 #include <time.h>
 
+#include "VirtualT.h"
 #include "cpuregs.h"
 #include "m100emu.h"
 #include "disassemble.h"
@@ -65,7 +66,8 @@ int				gDebugCount = 0;
 int				gDebugMonitorFreq = 32768;
 VTDis			cpu_dis;
 
-extern			Fl_Preferences virtualt_prefs;
+extern			Fl_Preferences	virtualt_prefs;
+extern			Fl_Window*		gmew;				// Global Memory Edit Window
 
 extern "C"
 {
@@ -447,9 +449,9 @@ void draw_color_syntax(const char* lineStr, int x, int y, int bold = FALSE)
 	char_width = (int) fl_width(" ");
 	
 	// Copy and draw the address
-	strncpy(str, lineStr, 7);
-	str[7] = '\0';
-	idx = 7;
+	strncpy(str, lineStr, 4);
+	str[4] = '\0';
+	idx = 4;
 	fl_color(pColors->addr);
 	if (bold && !gcpuw->m_inverseHilight)
 		fl_font(FL_COURIER_BOLD_ITALIC, gcpuw->m_fontSize);
@@ -457,6 +459,14 @@ void draw_color_syntax(const char* lineStr, int x, int y, int bold = FALSE)
 		fl_font(FL_COURIER_BOLD, gcpuw->m_fontSize);
 	else
 		fl_font(FL_COURIER, gcpuw->m_fontSize);
+	fl_draw(str, curx, y);
+	curx += (int) fl_width(str);
+
+	// Copy and draw the execution location
+	strncpy(str, &lineStr[4], 3);
+	str[3] = '\0';
+	idx += 3;
+	fl_color(pColors->number);
 	fl_draw(str, curx, y);
 	curx += (int) fl_width(str);
 
@@ -613,7 +623,15 @@ int build_trace_line(int line, char* lineStr)
 
 	// Disassemble the opcode
 	last_pc = pTrace->pc + cpu_dis.DisassembleLine(pTrace->pc, (unsigned char) 
-		pTrace->opcode, pTrace->operand, lineStr);
+		pTrace->opcode & 0xFF, pTrace->operand, lineStr);
+
+	// Replace 'H' in address with execution location ('s'ystem, 'o'pt rom, 'r'am)
+	if (pTrace->pc > ROMSIZE)
+		lineStr[4] = 'r';
+	else if ((pTrace->opcode >> 8) == 0)
+		lineStr[4] = 's';
+	else
+		lineStr[4] = 'o';
 
 	// Append spaces after opcode
 	len = 20 - strlen(lineStr);
@@ -683,8 +701,12 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "%04XH", get_memory16(SP+x*2));
+			sprintf(str, "%04X", get_memory16(SP+x*2));
 			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
+			if (gcpuw->m_colorSyntaxHilight)
+				fl_color(gcpuw->m_traceColors.number);
+			fl_draw("H", gcpuw->m_pStackBox->x()+6+4*(int) fl_width(" "), trace_top+x*gcpuw->m_fontHeight);
+			fl_color(gcpuw->m_traceColors.foreground);
 
 			fl_push_clip(gcpuw->m_pTraceBox->x(), gcpuw->m_pTraceBox->y(),
 				gcpuw->m_pTraceBox->w()-3, gcpuw->m_pTraceBox->h());
@@ -721,8 +743,13 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 		for (x = 0; x < lines; x++)
 		{
 			// Draw the Stack
-			sprintf(str, "%04XH", get_memory16(SP+x*2));
+			sprintf(str, "%04X", get_memory16(SP+x*2));
 			fl_draw(str, gcpuw->m_pStackBox->x()+6, trace_top+x*gcpuw->m_fontHeight);
+
+			if (gcpuw->m_colorSyntaxHilight)
+				fl_color(gcpuw->m_traceColors.number);
+			fl_draw("H", gcpuw->m_pStackBox->x()+6+4*(int) fl_width(" "), trace_top+x*gcpuw->m_fontHeight);
+			fl_color(gcpuw->m_traceColors.foreground);
 
 			// Now draw the Instruction Trace
 			if (x + firstLine < gcpuw->m_traceAvail)
@@ -877,6 +904,14 @@ void redraw_trace(Fl_Widget* w, void* pOpaque)
 				last_pc += cpu_dis.DisassembleLine(last_pc, lineStr);
 				if (lookahead++ < 4)
 				{
+					// Replace 'H' in address with execution location ('s'ystem, 'o'pt rom, 'r'am)
+					if (last_pc > ROMSIZE)
+						lineStr[4] = 'r';
+					else if (get_rom_bank() == 0)
+						lineStr[4] = 's';
+					else
+						lineStr[4] = 'o';
+
 					if (gcpuw->m_colorSyntaxHilight)
 						draw_color_syntax(lineStr, 25, trace_top+x*gcpuw->m_fontHeight);
 					else
@@ -1015,7 +1050,7 @@ void inline trace_instruction(void)
 		gcpuw->m_pTraceData[idx].de = DE;
 		gcpuw->m_pTraceData[idx].bc = BC;
 		gcpuw->m_pTraceData[idx].af = AF;
-		gcpuw->m_pTraceData[idx].opcode = get_memory8(PC);
+		gcpuw->m_pTraceData[idx].opcode = get_memory8(PC) | (get_rom_bank() << 8);
 		gcpuw->m_pTraceData[idx].operand = get_memory16(PC+1);
 
 		// Update trace selections
@@ -1048,6 +1083,13 @@ void debug_cpuregs_cb (int reason)
 	char	flags[10];
 	int		x, len;
 
+	if (reason == DEBUG_CPU_STEP)
+	{
+		if (gmew != NULL)
+			gmew->redraw();
+		return;
+	}
+
 	// Check for breakpoint
 	if (!gStopped)
 	{
@@ -1067,6 +1109,10 @@ void debug_cpuregs_cb (int reason)
 				// Scroll to bottom of window if needed
 				if (gcpuw->m_autoScroll)
 					gcpuw->ScrollToBottom();
+
+				// Ensure the memory window is refreshed if it's open
+				if (gmew != NULL)
+					gmew->redraw();
 			}
 		}
 	}
@@ -1147,10 +1193,36 @@ void debug_cpuregs_cb (int reason)
 	gcpuw->m_pXFlag->value(XF);
 	gcpuw->m_pCFlag->value(CF);
 
+	// Update RAM bank
+	if (gModel == MODEL_T200 || gModel == MODEL_PC8201)
+	{
+		int bank = get_ram_bank();
+		switch (bank)
+		{
+		case 0:
+			gcpuw->m_pRamBank->label("RAM Bank 1");
+			break;
+		case 1:
+			gcpuw->m_pRamBank->label("RAM Bank 2");
+			break;
+		case 2:
+			gcpuw->m_pRamBank->label("RAM Bank 3");
+			break;
+		}
+	}
+	else
+		gcpuw->m_pRamBank->label("");
+
 	if (!gDisableRealtimeTrace || (gStopCountdown != 0) || gStopped)
 	{
 		// Disassemble 1 instruction
 		cpu_dis.DisassembleLine(PC, gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead]);
+		if (PC > ROMSIZE)
+			gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead][4] = 'r';
+		else if (get_rom_bank() == 0)
+			gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead][4] = 's';
+		else
+			gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead][4] = 'o';
 
 		// Append spaces after opcode
 		len = 20 - strlen(gcpuw->m_sInstTrace[gcpuw->m_iInstTraceHead]);
@@ -2934,44 +3006,49 @@ VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	m_pStackBox = new Fl_Box(FL_DOWN_BOX, 560, 200+MENU_HEIGHT, 65, 124, "");
 
+	// Create a text box to show the selected RAM bank
+	m_pRamBank = new Fl_Box(FL_NO_BOX, 20, 360, 100, 18, "");
+	m_pRamBank->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
+	m_pRamBank->labelfont(FL_HELVETICA_BOLD);
+
 	// Create Breakpoint edit boxes
-	o = new Fl_Box(FL_NO_BOX, 20, 380, 100, 15, "Breakpoints:");
+	o = new Fl_Box(FL_NO_BOX, 20, 390, 100, 15, "Breakpoints:");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 
 	// Breakpoint 1
-	o = new Fl_Box(FL_NO_BOX, 120, 365, 60, 15, "F1");
+	o = new Fl_Box(FL_NO_BOX, 120, 375, 60, 15, "F1");
 	o->align(FL_ALIGN_INSIDE);
-	m_pBreak1 = new Fl_Input(120, 380, 60, 20, "");
+	m_pBreak1 = new Fl_Input(120, 390, 60, 20, "");
 	m_pBreak1->deactivate();
 	m_pBreak1->value("");
-	m_pBreakDisable1 = new Fl_Check_Button(125, 400, 40, 20, "Off");
+	m_pBreakDisable1 = new Fl_Check_Button(125, 410, 40, 20, "Off");
 	m_pBreakDisable1->deactivate();
 
 	// Breakpoint 2
-	o = new Fl_Box(FL_NO_BOX, 200, 365, 60, 15, "F2");
+	o = new Fl_Box(FL_NO_BOX, 200, 375, 60, 15, "F2");
 	o->align(FL_ALIGN_INSIDE);
-	m_pBreak2 = new Fl_Input(200, 380, 60, 20, "");
+	m_pBreak2 = new Fl_Input(200, 390, 60, 20, "");
 	m_pBreak2->deactivate();
 	m_pBreak2->value("");
-	m_pBreakDisable2 = new Fl_Check_Button(205, 400, 40, 20, "Off");
+	m_pBreakDisable2 = new Fl_Check_Button(205, 410, 40, 20, "Off");
 	m_pBreakDisable2->deactivate();
 
 	// Breakpoint 3
-	o = new Fl_Box(FL_NO_BOX, 280, 365, 60, 15, "F3");
+	o = new Fl_Box(FL_NO_BOX, 280, 375, 60, 15, "F3");
 	o->align(FL_ALIGN_INSIDE);
-	m_pBreak3 = new Fl_Input(280, 380, 60, 20, "");
+	m_pBreak3 = new Fl_Input(280, 390, 60, 20, "");
 	m_pBreak3->deactivate();
 	m_pBreak3->value("");
-	m_pBreakDisable3 = new Fl_Check_Button(285, 400, 40, 20, "Off");
+	m_pBreakDisable3 = new Fl_Check_Button(285, 410, 40, 20, "Off");
 	m_pBreakDisable3->deactivate();
 
 	// Breakpoint 4
-	o = new Fl_Box(FL_NO_BOX, 360, 365, 60, 15, "F4");
+	o = new Fl_Box(FL_NO_BOX, 360, 375, 60, 15, "F4");
 	o->align(FL_ALIGN_INSIDE);
-	m_pBreak4 = new Fl_Input(360, 380, 60, 20, "");
+	m_pBreak4 = new Fl_Input(360, 390, 60, 20, "");
 	m_pBreak4->deactivate();
 	m_pBreak4->value("");
-	m_pBreakDisable4 = new Fl_Check_Button(365, 400, 40, 20, "Off");
+	m_pBreakDisable4 = new Fl_Check_Button(365, 410, 40, 20, "Off");
 	m_pBreakDisable4->deactivate();
 
 	if (m_saveBreakpoints)
@@ -3263,8 +3340,8 @@ int VTCpuRegs::handle(int eventId)
 				if (selection > m_traceAvail)
 					selection = m_traceAvail - 1;
 				m_selEnd = selection;
-				damage(FL_DAMAGE_EXPOSE, tx, ty, tw, th);
-				//redraw();
+				//damage(FL_DAMAGE_EXPOSE, tx, ty, tw, th);
+				redraw();
 			}
 
 			// Not in window.  Test if we are above or below the window and 
@@ -3511,15 +3588,6 @@ typedef struct trace_setup_params
 
 /*
 ============================================================================
-Callback for Trace Setup dialog
-============================================================================
-*/
-static void cb_setupdlg_win(Fl_Widget* w, void* pOpaque)
-{
-}
-
-/*
-============================================================================
 Callback for Trace Setup Ok button
 ============================================================================
 */
@@ -3635,8 +3703,7 @@ void cb_setup_trace(Fl_Widget* w, void* pOpaque)
 	Fl_Window*				pWin;
 	trace_setup_params_t	p;
 
-	// Get socket interface preferences
-	// Create Peripheral Setup window
+	/* Create a new window for the trace configuration */
 	pWin = new Fl_Window(300, 200, "Trace Configuration");
 
 	/* Create input field for trace depth */

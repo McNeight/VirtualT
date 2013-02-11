@@ -105,6 +105,7 @@ extern "C" {
 #define	REGION_RAMPAC				10
 #define	REGION_REX_FLASH			11
 #define	REGION_REX2_RAM				12
+#define	REGION_MAX					13
 
 #define	REX							1
 #define	REX2						2

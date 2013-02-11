@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.7 2011/07/11 16:52:31 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.8 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -380,6 +380,8 @@ void cb_settings_ok(Fl_Widget* w, void*)
 	pProject->m_TargetModel = pProj->getTargetModel();
 	pProject->m_AutoLoad = pProj->getAutoLoad();
 	pProject->m_UpdateHIMEM = pProj->getUpdateHIMEM();
+	pProject->m_CreateLoader = pProj->getCreateLoader();
+	pProject->m_LoaderFilename = pProj->getLoaderFilename();
 
 	// Update the Assembler Options
 	pProject->AsmDebugInfo(pProj->getAsmDebugInfo());
@@ -424,12 +426,12 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pProject = pProj;
 
 	// Create new window
-	m_pWnd = new Fl_Double_Window(100, 150, 380,320, "Project Settings");
+	m_pWnd = new Fl_Double_Window(100, 150, 380,380, "Project Settings");
 
-	m_pTabs = new Fl_Tabs(10, 10, 360, 260);
+	m_pTabs = new Fl_Tabs(10, 10, 360, 320);
 	
 	// Create the General tab
-	g = new Fl_Group(10, 30, 380, 280, "General");
+	g = new Fl_Group(10, 30, 380, 340, "General");
 
 	// Text for the project type
 	o = new Fl_Box(20, 50, 100, 20, "Project Type");
@@ -483,10 +485,19 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	if (m_pProject->m_AutoLoad == 0)
 		EnableUpdateHIMEM(FALSE);
 
+	// Create checkbox for Create BASIC loader
+	m_pCreateLoader = new Fl_Check_Button(24, 260, 250, 20, "Create BASIC loader");
+	m_pCreateLoader->value(m_pProject->m_CreateLoader);
+
+	// Create edit field for loader filename
+	o = new Fl_Box(44, 280, 200, 20, "BASIC Loader Filename");
+	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+	m_pLoaderFilename = new Fl_Input(44, 300, 300, 20, "");
+	m_pLoaderFilename->value((const char *) m_pProject->m_LoaderFilename);
 	g->end();
 
 	// Create an Assembler tab
-	g = new Fl_Group(10, 30, 380, 280, "Assembler");
+	g = new Fl_Group(10, 30, 380, 340, "Assembler");
 
 	// Create checkboxes
 	m_pAsmDebugInfo = new Fl_Check_Button(20, 50, 165, 20, "Generate Debug Info");
@@ -502,19 +513,19 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	o = new Fl_Box(20, 110, 100, 20, "Additional Include Directories");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pIncludeDirs = new Fl_Input(20, 130, 320, 20, "");
-	m_pIncludeDirs->value(m_pProject->m_IncludePath);
+	m_pIncludeDirs->value((const char *) m_pProject->m_IncludePath);
 
 	// Create edit field for Additional Defines
 	o = new Fl_Box(20, 170, 100, 20, "Additional Assembler Defines");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pDefines = new Fl_Input(20, 190, 320, 20, "");
-	m_pDefines->value(m_pProject->m_Defines);
+	m_pDefines->value((const char *) m_pProject->m_Defines);
 
 	// End the Assembler tab
 	g->end();
 
 	// Create a Linker tab
-	g = new Fl_Group(10, 30, 380, 280, "Linker");
+	g = new Fl_Group(10, 30, 380, 340, "Linker");
 
 	// Create checkboxes
 	m_pLinkDebugInfo = new Fl_Check_Button(20, 50, 165, 20, "Generate Debug Info");
@@ -558,12 +569,12 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 
     // OK button
 	{ 
-		Fl_Button* o = new Fl_Button(200, 282, 60, 30, "Cancel");
+		Fl_Button* o = new Fl_Button(200, 342, 60, 30, "Cancel");
 		o->callback((Fl_Callback*)cb_settings_cancel);
 		o->user_data(this);
 	}
     { 
-		Fl_Return_Button* o = new Fl_Return_Button(280, 282, 60, 30, "OK");
+		Fl_Return_Button* o = new Fl_Return_Button(280, 342, 60, 30, "OK");
 		o->callback((Fl_Callback*)cb_settings_ok);
 		o->user_data(this);
 	}
@@ -655,6 +666,22 @@ int VT_ProjectSettings::getUpdateHIMEM()
 		return 0;
 
 	return m_pUpdateHIMEM->value();
+}
+
+int VT_ProjectSettings::getCreateLoader()
+{
+	if (m_pCreateLoader == NULL)
+		return 0;
+
+	return m_pCreateLoader->value();
+}
+
+MString VT_ProjectSettings::getLoaderFilename()
+{
+	if (m_pLoaderFilename == NULL)
+		return "";
+
+	return m_pLoaderFilename->value();
 }
 
 MString VT_ProjectSettings::getDefines(void)
@@ -975,6 +1002,8 @@ void VT_Project::SaveProject(void)
 	fprintf(fd, "TARGET=%s\n", model);
 	fprintf(fd, "AUTOLOAD=%d\n", m_AutoLoad);
 	fprintf(fd, "UPDATEHIMEM=%d\n", m_UpdateHIMEM);
+	fprintf(fd, "CREATELOADER=%d\n", m_CreateLoader);
+	fprintf(fd, "LOADERFILENAME=%s\n", (const char *) m_LoaderFilename);
 	fprintf(fd, "\n");
 
 	// Write group information to the file

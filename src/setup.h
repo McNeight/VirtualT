@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.6 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -70,6 +70,7 @@ extern peripheral_setup_t setup;
 typedef struct memory_setup
 {
 	int		mem_mode;					// Mode for Memory emulation
+	int		mem_installed;				// Amount of memory installed
 	int		remem_override;				// Override setting for ReMem's Rampac
 	char	remem_file[256];			// Filename for ReMem storage
 	char	rampac_file[256];			// Filename for RamPac storage

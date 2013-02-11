@@ -45,6 +45,8 @@
 #define		CSEG			1
 #define		DSEG			2
 
+#define		MAX_LOADER_LINE_LEN		220
+
 #define	VT_ISDIGIT(x)  (((x) >= '0') && ((x) <= '9'))
 
 #ifdef WIN32
@@ -225,6 +227,7 @@ private:
 	MString				m_ObjPath;			// Comma separated list of directories
 	MString				m_LinkOptions;		// Linker options
 	MString				m_RootPath;			// Root path of project.
+	MString				m_LoaderFilename;	// Filename of loader to be generated, if any
 	MString				m_LinkerScript;		// Name of the linker script
 	MString				m_EntryLabel;		// Label or address of program entry
 	MStringArray		m_ObjDirs;			// Array of '/' terminated object dirs
@@ -275,6 +278,9 @@ private:
 	int					GenerateOutputFile(void);
 	int					GenerateMapFile(void);
 	int					BackAnnotateListingFiles(void);
+	int					CreateQuintuple(FILE* fd, unsigned long& ascii85, int& lineNo, 
+							int& dataCount, int& lastDataFilePos, int& lineCount, int& checksum);
+	int					GenerateLoaderFile(int startAddr, int endAddr, int entryAddr);
 
 public:
 // Public Access functions
@@ -286,6 +292,7 @@ public:
 	void				SetLinkerScript(const MString& script);
 	void				SetObjDirs(const MString& dirs);
 	void				SetRootPath(const MString& rootPath);
+	void				SetLoaderFilename(const MString& loaderFilename);
 	void				SetProjectType(int type);
 	void				SetStdoutFunction(void *pContext, stdOutFunc_t pFunc);
 	const MStringArray&		GetErrors() { return m_Errors; };

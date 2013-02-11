@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.32 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.33 2013/02/08 00:05:57 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -68,6 +68,7 @@ int				gModel = MODEL_M100;
 
 volatile uchar	cpu[14];
 extern uchar	*gMemory[64];
+extern int		gRamBottom;
 extern uchar	gMsplanROM[32768];
 extern uchar	gOptROM[32768];
 extern int		gInMsPlanROM;
@@ -146,6 +147,7 @@ char					gIntActive = 0;
 unsigned short			gIntSP = 0;
 char					gStopped = 0;
 char					gSingleStep = 0;
+char					gLastWasSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
 void					periph_mon_update_lpt_log(void);
 
@@ -746,7 +748,7 @@ void init_cpu(void)
 	/* Clear the system memory RAM area */
 	for (i = 0; i < RAMSIZE; i++)
 		gBaseMemory[RAMSTART + i] = 0;
-
+	
 	/* Read RAM from file in emulation directory */
 	load_ram();
 
@@ -1088,6 +1090,15 @@ void do_debug_stuff(void)
 
 	if (gStopped)
 	{
+		if (gLastWasSingleStep)
+		{
+			for (i = 0; i < 3; i++)
+			{
+				if (gpDebugMonitors[i] != NULL)
+					gpDebugMonitors[i](DEBUG_CPU_STEP);
+			}
+		}
+
 		gOsDelay = 1;
 		/* Loop until not stopped or single step */
 		while (gStopped && !gSingleStep && !gExitApp)
@@ -1095,8 +1106,8 @@ void do_debug_stuff(void)
 			process_windows_event();
 		}
 		gOsDelay = 0;
-//		if (!gIntActive)
-			gSingleStep = 0;
+		gLastWasSingleStep = gSingleStep;
+		gSingleStep = 0;
 	}
 	lock_remote();
 }
@@ -1149,7 +1160,9 @@ void emulate(void)
 				if (gSingleStep)
 				{
 					if (!gIntActive)
+					{
 						gSingleStep = 0;
+					}
 				}
 
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */
@@ -1204,7 +1217,9 @@ void emulate(void)
 				if (gSingleStep)
 				{
 					if (!gIntActive)
+					{
 						gSingleStep = 0;
+					}
 				}
 
 				/* Do maintenance tasks (Windows events, interrupts, etc.) */

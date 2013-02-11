@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.16 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.18 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -52,6 +52,7 @@
 
 #include "FLU/Flu_File_Chooser.h"
 
+#include "VirtualT.h"
 #include "m100emu.h"
 #include "serial.h"
 #include "setup.h"
@@ -112,10 +113,10 @@ typedef struct setup_ctrl_struct
 	} clock;
 } setup_ctrl_t;
 
-
 typedef struct memory_ctrl_struct	
 {
 	Fl_Round_Button*	pNone;
+	Fl_Choice*			pMemInstalled;
 	Fl_Round_Button*	pReMem;
 	Fl_Round_Button*	pRampac;
 	Fl_Round_Button*	pReMem_Rampac;
@@ -138,6 +139,7 @@ typedef struct memory_ctrl_struct
 extern "C" {
 extern int			gOptRomRW;
 extern int			gShowVersion;
+extern int			gRamBottom;
 }
 
 
@@ -624,6 +626,35 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 
 /*
 ============================================================================
+Sets the current gRamBottom base on model.
+============================================================================
+*/
+void set_memory_base(void)
+{
+	switch (gModel)
+	{
+	case MODEL_T200:
+		break;
+
+	case MODEL_PC8201:
+		break;
+
+	default:
+		switch (mem_setup.mem_installed)
+		{
+		case 0:  gRamBottom = 0x8000; break;
+		case 1:	 gRamBottom = 0xA000; break;
+		case 2:  gRamBottom = 0xC000; break;
+		case 3:  gRamBottom = 0xE000; break;
+		default: gRamBottom = 0x8000; break;
+		}
+
+		break;
+	}
+}
+
+/*
+============================================================================
 Routines to load and save setup structure to the user preferences
 ============================================================================
 */
@@ -638,6 +669,10 @@ void save_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_MemMode");
 	virtualt_prefs.set(pref, mem_setup.mem_mode);
+
+	strcpy(pref, str);
+	strcat(pref, "_MemInstalled");
+	virtualt_prefs.set(pref, mem_setup.mem_installed);
 
 	strcpy(pref, str);
 	strcat(pref, "_ReMemOverride");
@@ -666,6 +701,9 @@ void save_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_ShowVersion");
 	virtualt_prefs.set(pref, gShowVersion);
+
+	// Update the BASE RAM size
+	set_memory_base();
 }
 
 void load_memory_preferences(void)
@@ -680,6 +718,11 @@ void load_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_MemMode");
 	virtualt_prefs.get(pref, mem_setup.mem_mode,0);
+
+	// Load mem size installed based on Model
+	strcpy(pref, str);
+	strcat(pref, "_MemInstalled");
+	virtualt_prefs.get(pref, mem_setup.mem_installed,0);
 
 	// Load ReMemOverride setting
 	strcpy(pref, str);
@@ -731,6 +774,9 @@ void load_memory_preferences(void)
 	strcpy(pref, str);
 	strcat(pref, "_ShowVersion");
 	virtualt_prefs.get(pref, gShowVersion, 1);
+
+	// Update the BASE RAM size
+	set_memory_base();
 }
 
 /*
@@ -817,6 +863,9 @@ void cb_memory_OK(Fl_Widget* w, void*)
 		mem_setup.mem_mode = SETUP_MEM_REX;
 	else if (mem_ctrl.pRex2->value() == 1)
 		mem_setup.mem_mode = SETUP_MEM_REX2;
+
+	// Get Memory installed selection
+	mem_setup.mem_installed = mem_ctrl.pMemInstalled->value();
 
 	// Get OptRom R/W Enable setting
 	gOptRomRW = mem_ctrl.pOptRomRW->value();
@@ -944,6 +993,7 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	load_sys_rom();
 
 	/* Reset the CPU */
+	init_cpu();
 	resetcpu();
 	gExitLoop = 1;
 
@@ -1292,11 +1342,35 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
-	mem_ctrl.pNone = new Fl_Round_Button(20, 20, 180, 20, "Base Memory");
+	mem_ctrl.pNone = new Fl_Round_Button(20, 20, 120, 20, "Base Memory");
 	mem_ctrl.pNone->type(FL_RADIO_BUTTON);
 	mem_ctrl.pNone->callback(cb_radio_base_memory);
 	if (mem_setup.mem_mode == SETUP_MEM_BASE)
 		mem_ctrl.pNone->value(1);
+
+	// Create list box for the amount of installed memory
+	mem_ctrl.pMemInstalled = new Fl_Choice(280, 20, 60, 20, "Memory Installed:");
+	mem_ctrl.pMemInstalled->align(FL_ALIGN_LEFT);
+	if (gModel == MODEL_T200)
+	{
+		mem_ctrl.pMemInstalled->add("72K");
+		mem_ctrl.pMemInstalled->add("48K");
+		mem_ctrl.pMemInstalled->add("24K");
+	}
+	else if (gModel == MODEL_PC8201)
+	{
+		mem_ctrl.pMemInstalled->add("96K");
+		mem_ctrl.pMemInstalled->add("64K");
+		mem_ctrl.pMemInstalled->add("32K");
+	}
+	else if (gModel != MODEL_T200)
+	{
+		mem_ctrl.pMemInstalled->add("32K");
+		mem_ctrl.pMemInstalled->add("24K");
+		mem_ctrl.pMemInstalled->add("16K");
+		mem_ctrl.pMemInstalled->add("8K");
+	}
+	mem_ctrl.pMemInstalled->value(mem_setup.mem_installed);
 
 	mem_ctrl.pRampac = new Fl_Round_Button(20, 45, 180, 20, "RamPac  (256K RAM)");
 	mem_ctrl.pRampac->type(FL_RADIO_BUTTON);

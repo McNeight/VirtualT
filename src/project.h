@@ -1,6 +1,6 @@
 /* project.h */
 
-/* $Id: project.h,v 1.3 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: project.h,v 1.4 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -56,7 +56,8 @@ class VT_Project
 {
 public:
     VT_Project()     { m_Dirty = 0; m_AutoLoad = 0; m_ProjectType = 0; 
-					m_TargetModel = 0; m_UpdateHIMEM = 0; m_LinkScript = ""; }
+					m_TargetModel = 0; m_UpdateHIMEM = 0; m_LinkScript = ""; 
+					m_CreateLoader = 0; }
     ~VT_Project();
 
 	void			AsmDebugInfo(int enable);
@@ -104,6 +105,8 @@ public:
     int             m_TargetModel;		// Target model to assemble for
 	int				m_AutoLoad;			// Load to emulator after assemble?
 	int				m_UpdateHIMEM;		// Auto update HIMEM variable?
+	int				m_CreateLoader;		// Create BASIC loader for .CO program?
+	MString			m_LoaderFilename;	// BASIC loader filename
 };
 
 class VT_NewProject 
@@ -156,6 +159,8 @@ public:
 	int					getTargetModel();
 	int					getAutoLoad();
 	int					getUpdateHIMEM();
+	int					getCreateLoader();
+	MString				getLoaderFilename(void);
 
 	MString				getDefines(void);
 	MString				getIncludeDirs(void);
@@ -190,6 +195,8 @@ protected:
 	Fl_Round_Button*	m_pKC85;
 	Fl_Check_Button*	m_pAutoLoad;
 	Fl_Check_Button*	m_pUpdateHIMEM;
+	Fl_Check_Button*	m_pCreateLoader;
+	Fl_Input*			m_pLoaderFilename;
 
 	// Define Assembler tab items
 	Fl_Button*			m_pAsmDebugInfo;

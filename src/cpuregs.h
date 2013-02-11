@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.8 2013/02/05 17:23:59 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.9 2013/02/08 00:07:52 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -135,6 +135,7 @@ public:
 	Fl_Check_Button*	m_pBreakDisable4;
 
 	Fl_Check_Button*	m_pDebugInts;
+	Fl_Box*				m_pRamBank;
 
 	Fl_Check_Button*	m_pSFlag;
 	Fl_Check_Button*	m_pZFlag;

@@ -1,6 +1,6 @@
 /* cpu.h */
 
-/* $Id: cpu.h,v 1.7 2008/11/04 07:31:22 kpettit1 Exp $ */
+/* $Id: cpu.h,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -155,15 +155,17 @@ the settings for ReMem support.
 #undef	MEMSET
 #undef	INS_INC
 
+#define	RAMBOTTOM	gRamBottom
+
 #ifdef NO_REMEM
 
 #define SETPCINS16 {int pc=PC; PCL=gBaseMemory[pc++]; PCH=gBaseMemory[pc];}
-#define M			gBaseMemory[HL]
-#define INS			gBaseMemory[PC]
+#define M			((HL>ROMSIZE&&HL<RAMBOTTOM)?0xFF:gBaseMemory[HL])
+#define INS			((PC>ROMSIZE&&PC<RAMBOTTOM)?0xFF:gBaseMemory[PC])
 #define INS_INC		gBaseMemory[PC]; INCPC;
-#define NXTINS		gBaseMemory[PC+1]
+#define NXTINS		((PC+1>ROMSIZE&&PC<RAMBOTTOM)?0xFF:gBaseMemory[PC+1])
 #define INS16		(((int)gBaseMemory[PC])|((int)gBaseMemory[PC+1]<<8))
-#define MEM(x)		gBaseMemory[x]
+#define MEM(x)		((x>ROMSIZE&&x<RAMBOTTOM)?0xFF:gBaseMemory[x])
 #define MEM16(x)	(((ushort)MEM(x))|((ushort)MEM(x+1))<<8)
 #define	MEMSET(a,v)	{if(a>=ROMSIZE) gBaseMemory[a] = v; }
 
