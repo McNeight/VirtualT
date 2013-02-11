@@ -2495,7 +2495,6 @@ int VTLinker::GenerateLoaderFile(int startAddr, int endAddr, int entryAddr)
 			// Check if time to output a quintuple from our quadtuple
 			if (++quadtuple == 4)
 			{
-				printf("%d\n", ascii85);
 				CreateQuintuple(fd, ascii85, lineNo, dataCount, lastDataFilePos, 
 					lineCount, checksum);
 
