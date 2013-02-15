@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.16 2013/02/15 13:03:26 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.17 2013/02/15 15:05:13 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -917,6 +917,7 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 
 	// Create the Memory Editor Window
 	gmew = new Fl_Double_Window(w, h+wh, "Memory Editor");
+
 	// Create a menu for the new window.
 	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, w, MENU_HEIGHT-2);
 
@@ -1826,6 +1827,10 @@ int T100_MemEditor::handle(int event)
 	int				xpos, ypos, actualAddr;
 	char			string[6];
 
+	if (event == 0)
+		return 0;
+
+	//printf("Event %d\n", event);
 	// Do some common processing before the switch
 	if (event == FL_PUSH || event == FL_MOVE || event == FL_DRAG)
 	{
@@ -1880,7 +1885,10 @@ int T100_MemEditor::handle(int event)
 			redraw();
 		}
 		else if (m_CursorRow != -1 && m_CursorCol != -1)
+		{
+			window()->make_current();
 			DrawCursor();
+		}
 		break;
 
 	case FL_UNFOCUS:
@@ -1980,9 +1988,6 @@ int T100_MemEditor::handle(int event)
 			cnt = 0;
 			col = 0;
 			line = lineIndex << 1;
-
-			// "Unselect" previous start or stop char
-			window()->make_current();
 
 			// Select 12 point Courier font
 			fl_font(m_Font, m_FontSize);
@@ -3175,7 +3180,6 @@ void T100_MemEditor::EraseCursor()
 	int		x_pos, y_pos, address, col;
 
 	// Clip the drawing
-	window()->make_current();
 	fl_push_clip(x(), y(), w(), h());
 
 	// Erase current cursor
@@ -3248,8 +3252,7 @@ void T100_MemEditor::DrawCursor()
 		return;
 
 	// Clip the drawing
-	window()->make_current();
-	fl_push_clip(x(), y(), w(), h());
+	fl_push_clip(window()->x(), window()->y(), window()->w(), window()->h());
 
 	// Draw new cursor
 	fl_color(m_colors.cursor);

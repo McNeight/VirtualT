@@ -1,6 +1,6 @@
 /* watchtable.cpp */
 
-/* $Id: watchtable.cpp,v 1.1 2013/02/15 13:03:27 kpettit1 Exp $ */
+/* $Id: watchtable.cpp,v 1.2 2013/02/15 15:05:13 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -455,7 +455,10 @@ void VT_Watch_Table::FormatVarValue(CWatchDef* pVar, char* str, int len)
 		sprintf(str, "%d", (unsigned short) pVar->m_Value);
 		break;		
 	case WATCH_TYPE_HEXCHAR:
-		sprintf(str, "%02XH '%c'", (unsigned char) pVar->m_Value, (char) pVar->m_Value);
+		if (pVar->m_Value >= ' ' && pVar->m_Value <= '~')
+			sprintf(str, "%02XH '%c'", (unsigned char) pVar->m_Value, (char) pVar->m_Value);
+		else
+			sprintf(str, "%02XH", (unsigned char) pVar->m_Value);
 		break;
 	case WATCH_TYPE_SCHAR:
 		if (pVar->m_Value > 127)
