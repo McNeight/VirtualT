@@ -1,6 +1,6 @@
 /* memedit.h */
 
-/* $Id: memedit.h,v 1.6 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: memedit.h,v 1.7 2013/02/15 13:03:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -29,6 +29,8 @@
 
 #ifndef MEMEDIT_H
 #define MEMEDIT_H
+
+#include <FL/Fl_Scrollbar.H>
 
 #include "vtobj.h"
 #include "MString.h"

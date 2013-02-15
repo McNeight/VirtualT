@@ -1,6 +1,6 @@
 /* watchtable.cpp */
 
-/* $Id: watchtable.cpp,v 1.15 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: watchtable.cpp,v 1.1 2013/02/15 13:03:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -39,6 +39,8 @@
 
 #if defined(WIN32)
 #include <windows.h>
+#else
+#include <unistd.h>
 #endif
 #include <stdio.h>
 #include <string.h>
@@ -113,7 +115,6 @@ static void cb_watch_scroll(Fl_Widget* pW, void* pOpaque)
 	// Get pointer to the parent
 	VT_Watch_Table* pTable = (VT_Watch_Table *) pOpaque;
 
-	printf("Scroll\n");
 	pTable->ScrollAction();
 }
 
@@ -665,7 +666,7 @@ void VT_Watch_Table::draw(void)
 	int			lines, topItem;
 	CWatchDef*	pVar;
 
-	window()->make_current();
+	//window()->make_current();
 
 	// Do our custom draw stuff
 	fl_font(FL_COURIER, m_FontSize);
@@ -987,6 +988,8 @@ int VT_Watch_Table::handle_variable_events(int event)
 		return 1;
 
 	case FL_ENTER:
+		// Set the cursor to default for this window
+		window()->cursor(FL_CURSOR_DEFAULT);
 	case FL_LEAVE:
 		// Indicate that we accept ENTER / LEAVE
 		return 1;
@@ -1104,7 +1107,6 @@ int VT_Watch_Table::handle(int event)
 {
 	int		ret;
 
-	printf("Event %d\n", event);
 	// Test for events inside the watch window
 	if (Fl::event_inside(m_pVarWindow))
 	{
@@ -1555,9 +1557,9 @@ static void cb_watch_item(Fl_Widget* pW, void *pOpaque)
 
 	// Determine which menu is active
 	if (pPopup->menu() == gWatchTypeMenu)
-		pWatch->SetSelectedType((int) pOpaque);
+		pWatch->SetSelectedType((intptr_t) pOpaque);
 	else if (pPopup->menu() == gWatchRegionMenu)
-		pWatch->SetSelectedRegion((int) pOpaque);
+		pWatch->SetSelectedRegion((intptr_t) pOpaque);
 }
 
 /*
@@ -1893,8 +1895,6 @@ Event handler for Table Input
 int VT_TableInput::handle(int event)
 {
 	int		key;
-
-	printf("Event %d\n", event);
 
 	// Clear the keypress
 	m_reason = 0;

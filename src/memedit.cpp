@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.15 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.16 2013/02/15 13:03:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -915,25 +915,21 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	if (gmew != NULL)
 		return;
 
-	// Create Peripheral Setup window
-#ifdef WIN32
+	// Create the Memory Editor Window
 	gmew = new Fl_Double_Window(w, h+wh, "Memory Editor");
 	// Create a menu for the new window.
 	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, w, MENU_HEIGHT-2);
-#else
-	gmew = new Fl_Window(735, h+wh, "Memory Editor");
-	// Create a menu for the new window.
-	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 735, MENU_HEIGHT-2);
-#endif
 
 	gmew->callback(cb_memeditwin);
 	memedit_ctrl.pMenu->menu(gMemEdit_menuitems);
 
-		// Create a tiled window to support Project, Edit, and debug regions
+	// Create a tiled window to support Project, Edit, and debug regions
 	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT,w,h+wh-MENU_HEIGHT-3);
 
+	// Create a top pane window in the tile for the memory editor controls
 	memedit_ctrl.pTopPane = new Fl_Double_Window(0, MENU_HEIGHT, w, h-MENU_HEIGHT, "");
 
+	// Create a group to manage resizing of just the editor window, not the other controls
 	Fl_Group* g = new Fl_Group(0, 10, w, 25, "");
 
 	// Create static text boxes
@@ -951,68 +947,48 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	memedit_ctrl.pMemRange->callback(cb_memory_range);
 	memedit_ctrl.pMemRange->when(FL_WHEN_ENTER_KEY|FL_WHEN_NOT_CHANGED);
 
-	// Create a resize box for the group and end the group
+	// Create a resize box for the group and end the group.  This resizing box within
+	// the group causes the region and address edit fields to maintain size / position
+	// while allowing the editor region to resize with the group.
 	o = new Fl_Box(w-15, 10, 5, 5, "");
 	o->hide();
 	g->resizable(o);
 	g->end();
 
-#ifdef WIN32
+	// Create the memory editor widget and scrollbar
 	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40/*+MENU_HEIGHT*/, 545, 350-MENU_HEIGHT+10);
 	memedit_ctrl.pScroll = new Fl_Scrollbar(555, 40/*+MENU_HEIGHT*/, 15, 350-MENU_HEIGHT+10, "");
-#else
-	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40/*+MENU_HEIGHT*/, 695, 350-MENU_HEIGHT);
-	memedit_ctrl.pScroll = new Fl_Scrollbar(705, 40/*+MENU_HEIGHT*/, 15, 350-MENU_HEIGHT, "");
-#endif
 
+	// Set initial values for scrollbar
 	memedit_ctrl.pScroll->type(FL_VERTICAL);
 	memedit_ctrl.pScroll->linesize(2);
 	memedit_ctrl.pScroll->maximum(2);
 	memedit_ctrl.pScroll->callback(cb_MemEditScroll);
 	memedit_ctrl.pScroll->slider_size(1);
 
-	// Make the menu and edit widget resizeable with the top tile window
+	// Make the menu and edit widget resizeable with the top pane window
 	memedit_ctrl.pTopPane->resizable(memedit_ctrl.pMemEdit);
 	memedit_ctrl.pTopPane->end();
 
-	// Create a window for the watches
+	// Create a bottom pane window for the watch table widget
 	memedit_ctrl.pBottomPane = new Fl_Double_Window(0, h, w, wh, "");
 
+	// Create a group to hold the framing box and the actual watch table widget
 	g = new Fl_Group(0, 0, w, wh, "");
 	Fl_Box* b = new Fl_Box(FL_DOWN_FRAME, 9, 2, w-22, wh-5, "");
 
+	// Create the Watch Table widget
 	memedit_ctrl.pWatchTable = new VT_Watch_Table(12, 4, w-27, wh-9);
 	memedit_ctrl.pWatchTable->header_color(fl_rgb_color(253, 252, 251));
 	memedit_ctrl.pWatchTable->EventHandler(cb_watch_events);
 
-#if 0
-	MString name = "test_data0";
-	MString addr = "0x8003";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data1";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data2";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data3";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data4";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data5";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data6";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data7";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-	name = "test_data8";
-	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
-#endif
-	// make the window resizable
+	// Make a box to define the window resize region within the group
 	b = new Fl_Box(FL_NO_BOX, 12, wh-9, 5, 3, "");
 	b->hide();
 	g->resizable(b);
 	g->end();
 
-
+	// Make the bottom pane resizable
 	memedit_ctrl.pBottomPane->resizable(g);
 	memedit_ctrl.pBottomPane->end();
 
@@ -1022,14 +998,15 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	tile->resizable(b);
 	tile->end();
 
-	// Make the window resizable
+	// Make the top level window resizable
 	gmew->resizable(memedit_ctrl.pMenu);
 	gmew->resizable(tile);
 	gmew->end();
 
+	// Update the scroll size controls for the editor window
 	memedit_ctrl.pMemEdit->SetScrollSize();
 
-	// Set Memory Monitor callback
+	// Set Memory Monitor callback.  This hooks us for real-time memory updates.
 	mem_set_monitor_callback(memory_monitor_cb);
 
 	// Get the user preferences for the memory editor
@@ -1050,11 +1027,14 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 		gmew->resize(newx, newy, neww, newh);
 	}
 
+	// Show the window
 	gmew->show();
 
 	// Resize top pane if user preference has been set
 	if (memedit_ctrl.iSplitH != -1)
 	{
+		// User preferences for the watch region have been defined.  Resize to
+		// match the saved geometry.  First test for sanity.
 		if (memedit_ctrl.iSplitH < 64)
 			memedit_ctrl.iSplitH = 64;
 		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), memedit_ctrl.pTopPane->y(),
@@ -1065,6 +1045,8 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	}
 	else
 	{
+		// User preferences not set yet.  Make the watch window a small region
+		// at the bottom of the window
 		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), 
 			memedit_ctrl.pTopPane->y(), memedit_ctrl.pTopPane->w(), 
 			memedit_ctrl.pTopPane->h()-20);
@@ -1073,9 +1055,14 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 			memedit_ctrl.pBottomPane->h()+20);
 	}
 
-	// Resize the column headers if user preferences have been set
+	// Finally resize the column headers if user preferences have been set
 	if (memedit_ctrl.iCol0W != -1)
 	{
+		// Set the location of all 5 column.  NOTE: we are not doing any
+		// sanity checks here.  If the column widths don't add up to
+		// match the tile width, then there will be problems.  Not an
+		// issue as long as the user doesn't manually changed the widths
+		// in the preferences file.
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(0, memedit_ctrl.iCol0W);
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(1, memedit_ctrl.iCol1W);
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(2, memedit_ctrl.iCol2W);
@@ -1137,12 +1124,18 @@ void T100_MemEditor::resize(int x, int y, int w, int h)
 	}
 	if (memedit_ctrl.pScroll != NULL)
 	{
+		// Test if making the window larger will leave empty space
+		// at the bottom of the editor window and adjust the scroll
+		// to prevent it
 		if (memedit_ctrl.pScroll->value() + size > m_Max)
 		{
 			memedit_ctrl.pScroll->value((int) (m_Max - size), 1, 0, (int) m_Max);
 			SetScrollSize();
 			redraw();
 		}
+
+		// Redraw the scrollbar.  On Linux, it sometimes disappears??
+		memedit_ctrl.pScroll->redraw();
 	}
 }
 

@@ -13,6 +13,8 @@ memory.h
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include "gen_defs.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -113,7 +115,6 @@ extern "C" {
 #define	REX_ROM_REPLACEMENT			0x01
 #define	REX2_RAM_MODE				0x02
 
-//#include "gen_defs.h"
 
 typedef	struct {
 	int				iFlashState;
