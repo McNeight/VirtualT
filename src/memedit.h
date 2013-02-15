@@ -1,6 +1,6 @@
 /* memedit.h */
 
-/* $Id: memedit.h,v 1.5 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: memedit.h,v 1.6 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -27,14 +27,12 @@
  * SUCH DAMAGE.
  */
 
-
 #ifndef MEMEDIT_H
 #define MEMEDIT_H
 
-#include "memory.h"
-
-#include "FL/Fl_File_Chooser.H"
-#include <FL/Fl_Menu_Button.H>
+#include "vtobj.h"
+#include "MString.h"
+#include "watchtable.h"
 
 void cb_MemoryEditor (Fl_Widget* w, void*);
 void cb_MemoryEditorUpdate(void);
@@ -42,8 +40,11 @@ void cb_MemoryEditorUpdate(void);
 void MemoryEditor_LoadPrefs(void);
 void MemoryEditor_SavePrefs(void);
 
-#define		MENU_HEIGHT	32
-
+/*
+============================================================================
+Class definition for Memory Editor
+============================================================================
+*/
 typedef struct memedit_colors
 {
 	Fl_Color			addr;
@@ -52,6 +53,8 @@ typedef struct memedit_colors
 	Fl_Color			changed;
 	Fl_Color			hilight;
 	Fl_Color			hilight_background;
+	Fl_Color			select;
+	Fl_Color			select_background;
 	Fl_Color			foreground;
 	Fl_Color			background;
 	Fl_Color			cursor;
@@ -64,12 +67,6 @@ typedef struct memedit_marker
 	int						endAddr;
 	struct memedit_marker*	pNext;
 } memedit_marker_t;
-
-class T100_MemEditWin : public Fl_Double_Window
-{
-public:
-	T100_MemEditWin(int x, int y, int w, int h, const char *title);
-};
 
 class T100_MemEditor : public Fl_Widget
 {
@@ -97,10 +94,15 @@ public:
 	int				GetSyntaxHilight(void) { return m_ColorSyntaxHilight; }
 	Fl_Color		GetMarkerForegroundColor(void) { return m_colors.hilight; }
 	Fl_Color		GetMarkerBackgroundColor(void) { return m_colors.hilight_background; }
+	Fl_Color		GetSelectedForegroundColor(void) { return m_colors.select; }
+	Fl_Color		GetSelectedBackgroundColor(void) { return m_colors.select_background; }
 	void			SetMarkerForegroundColor(Fl_Color c) { m_colors.hilight = c; redraw(); }
 	void			SetMarkerBackgroundColor(Fl_Color c) { m_colors.hilight_background = c; redraw(); }
+	void			SetSelectedForegroundColor(Fl_Color c) { m_colors.select = c; redraw(); }
+	void			SetSelectedBackgroundColor(Fl_Color c) { m_colors.select_background = c; redraw(); }
 
 	int				IsHilighted(int address);	// Returns TRUE if given address should e hilighted
+	int				IsSelected(int address);	// Returns TRUE if address is a marker region where the cursor is
 	int				HasMarker(int address);		// Returns TRUE if given address has a marker
 	void			AddMarker(int region=-1);	// Adds marker at current m_SelStart, m_SelEnd address
 	void			DeleteMarker(void);			// Delete the marker at the cursor
@@ -111,6 +113,7 @@ public:
 	void			AddMarkerToRegion(int start, int end, int region);
 	void			FindNextMarker(void);
 	void			FindPrevMarker(void);
+	memedit_marker_t*	GetMarker(int address);	// Returns a pointer to the marker struct for address
 
 	int				m_FirstLine;
 	int				m_x, m_y, m_w, m_h;		// user preferences for window position
@@ -118,6 +121,7 @@ public:
 protected:
 //	virtual int handle(int event);
 	void			draw();
+	virtual void resize(int x, int y, int w, int h);
 	virtual int		handle(int event);
 	void			DrawCursor(void);
 	void			EraseCursor(void);

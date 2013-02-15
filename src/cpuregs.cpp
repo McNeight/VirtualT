@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.16 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.17 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -72,16 +72,20 @@ extern			Fl_Window*		gmew;				// Global Memory Edit Window
 extern "C"
 {
 extern volatile UINT64			cycles;
+void memory_monitor_cb(void);
 }
 
 // Menu item callback definitions
 static void cb_save_trace(Fl_Widget* w, void*);
 static void cb_clear_trace(Fl_Widget* w, void*);
-static void cb_menu_run(Fl_Widget* w, void*);
-static void cb_menu_stop(Fl_Widget* w, void*);
-static void cb_menu_step(Fl_Widget* w, void*);
-static void cb_menu_step_over(Fl_Widget* w, void*);
+void cb_menu_run(Fl_Widget* w, void*);
+void cb_menu_stop(Fl_Widget* w, void*);
+void cb_menu_step(Fl_Widget* w, void*);
+void cb_menu_step_over(Fl_Widget* w, void*);
 static void cb_setup_trace(Fl_Widget* w, void*);
+
+void cb_goto_next_marker(Fl_Widget* w, void*);
+void cb_goto_prev_marker(Fl_Widget* w, void*);
 
 // Other prototypes
 void debug_cpuregs_cb (int);
@@ -1086,7 +1090,7 @@ void debug_cpuregs_cb (int reason)
 	if (reason == DEBUG_CPU_STEP)
 	{
 		if (gmew != NULL)
-			gmew->redraw();
+			memory_monitor_cb();
 		return;
 	}
 
@@ -1112,7 +1116,7 @@ void debug_cpuregs_cb (int reason)
 
 				// Ensure the memory window is refreshed if it's open
 				if (gmew != NULL)
-					gmew->redraw();
+					memory_monitor_cb();
 			}
 		}
 	}
@@ -3313,6 +3317,17 @@ int VTCpuRegs::handle(int eventId)
 			m_pBreak4->take_focus();
 			m_pBreak4->position(0, m_pBreak4->size());
 		}
+		else if (key == FL_F + 7)
+		{
+			// Find next / prev marker in memory editor
+			if (gmew != NULL)
+			{
+				if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					cb_goto_prev_marker(NULL, NULL);
+				else
+					cb_goto_next_marker(NULL, NULL);
+			}
+		}
 
 		break;
 	
@@ -3531,9 +3546,9 @@ void cb_clear_trace(Fl_Widget* w, void* pOpaque)
 Menu callback for run
 ============================================================================
 */
-static void cb_menu_run(Fl_Widget* w, void* pOpaque)
+void cb_menu_run(Fl_Widget* w, void* pOpaque)
 {
-	if (gStopped)
+	if (gcpuw && gStopped)
 		cb_debug_run(w, gcpuw);
 }
 
@@ -3542,9 +3557,9 @@ static void cb_menu_run(Fl_Widget* w, void* pOpaque)
 Menu callback for stop
 ============================================================================
 */
-static void cb_menu_stop(Fl_Widget* w, void* pOpaque)
+void cb_menu_stop(Fl_Widget* w, void* pOpaque)
 {
-	if (!gStopped)
+	if (gcpuw && !gStopped)
 		cb_debug_stop(w, gcpuw);
 }
 
@@ -3553,9 +3568,9 @@ static void cb_menu_stop(Fl_Widget* w, void* pOpaque)
 Menu callback for step
 ============================================================================
 */
-static void cb_menu_step(Fl_Widget* w, void* pOpaque)
+void cb_menu_step(Fl_Widget* w, void* pOpaque)
 {
-	if (gStopped)
+	if (gcpuw && gStopped)
 		cb_debug_step(w, gcpuw);
 }
 
@@ -3564,9 +3579,9 @@ static void cb_menu_step(Fl_Widget* w, void* pOpaque)
 Menu callback for step over
 ============================================================================
 */
-static void cb_menu_step_over(Fl_Widget* w, void* pOpaque)
+void cb_menu_step_over(Fl_Widget* w, void* pOpaque)
 {
-	if (gStopped)
+	if (gcpuw && gStopped)
 		cb_debug_step_over(w, gcpuw);
 }
 

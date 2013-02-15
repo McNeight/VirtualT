@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.14 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.15 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -28,18 +28,7 @@
  */
 
 #include <FL/Fl.H>
-#include <FL/fl_draw.H>
-#include <FL/Fl_Window.H>
-#include <FL/Fl_Menu_Item.H>
 #include <FL/Fl_Menu_Bar.H>
-#include <FL/Fl_Box.H>
-#include <FL/Fl_Tabs.H>
-#include <FL/Fl_Scrollbar.H>
-#include <FL/Fl_Check_Button.H>
-#include <FL/Fl_Round_Button.H>
-#include <FL/Fl_Choice.H>
-#include <FL/Fl_Input.H>  
-#include <FL/Fl_File_Chooser.H>
 #include <FL/fl_show_colormap.H>
 
 #include "FLU/Flu_File_Chooser.h"
@@ -49,7 +38,6 @@
 #endif
 #include <stdio.h>
 #include <string.h>
-#include <time.h>
 
 #include "VirtualT.h"
 #include "m100emu.h"
@@ -59,6 +47,7 @@
 #include "cpu.h"
 #include "cpuregs.h"
 #include "fileview.h"
+#include "watchtable.h"
 
 extern "C"
 {
@@ -68,6 +57,10 @@ extern int		gRamBottom;
 }
 
 void cb_Ide(Fl_Widget* w, void*); 
+void cb_menu_run(Fl_Widget* w, void*);
+void cb_menu_stop(Fl_Widget* w, void*);
+void cb_menu_step(Fl_Widget* w, void*);
+void cb_menu_step_over(Fl_Widget* w, void*);
 
 /*
 ================================================================
@@ -78,7 +71,10 @@ typedef struct memedit_ctrl_struct
 {
 	Fl_Menu_Bar*		pMenu;
 
+	Fl_Double_Window*	pTopPane;
+	Fl_Double_Window*	pBottomPane;
 	T100_MemEditor*		pMemEdit;
+	VT_Watch_Table*		pWatchTable;
 	Fl_Scrollbar*		pScroll;
 	Fl_Input*			pMemRange;
 	Fl_Box*				pRegionText;
@@ -89,6 +85,12 @@ typedef struct memedit_ctrl_struct
 	int					sAddrStart;
 	int					sAddrEnd;
 	int					sAddrTop;
+	int					iSplitH;
+	int					iCol0W;
+	int					iCol1W;
+	int					iCol2W;
+	int					iCol3W;
+	int					iCol4W;
 } memedit_ctrl_t;
 
 typedef struct memedit_dialog
@@ -165,8 +167,8 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
 
 Fl_Menu_Item gAddMarkerMenu[] = {
 	{ "  Create marker  ",			0,		cb_add_marker, 0 },
-	{ "  Find next marker  ",		FL_F+2,	cb_goto_next_marker, 0 },
-	{ "  Find prev marker  ",		FL_SHIFT+FL_F+2,	cb_goto_prev_marker, 0, FL_MENU_DIVIDER },
+	{ "  Find next marker  ",		FL_F+7,	cb_goto_next_marker, 0 },
+	{ "  Find prev marker  ",		FL_SHIFT+FL_F+7,	cb_goto_prev_marker, 0, FL_MENU_DIVIDER },
 	{ "  Delete all markers  ",		0,		cb_delete_all_markers, 0, 0 },
 	{ 0,							0,		cb_undo_delete_all_markers, 0, 0 },
 	{ 0 }
@@ -174,8 +176,8 @@ Fl_Menu_Item gAddMarkerMenu[] = {
 
 Fl_Menu_Item gDeleteMarkerMenu[] = {
 	{ "  Delete Marker  ",			0,		cb_delete_marker, 0},
-	{ "  Find next marker  ",		FL_F+2,	cb_goto_next_marker, 0 },
-	{ "  Find prev marker  ",		FL_SHIFT+FL_F+2,	cb_goto_prev_marker, 0, FL_MENU_DIVIDER },
+	{ "  Find next marker  ",		FL_F+7,	cb_goto_next_marker, 0 },
+	{ "  Find prev marker  ",		FL_SHIFT+FL_F+7,	cb_goto_prev_marker, 0, FL_MENU_DIVIDER },
 	{ "  Delete All Markers  ",		0,		cb_delete_all_markers, 0, 0 },
 	{ 0,							0,		cb_undo_delete_all_markers, 0, 0 },
 	{ 0 }
@@ -183,7 +185,7 @@ Fl_Menu_Item gDeleteMarkerMenu[] = {
 
 /*
 ============================================================================
-Callback routine for the Peripherial Devices window
+Callback routine for the memory editor window
 ============================================================================
 */
 void cb_memeditwin (Fl_Widget* w, void*)
@@ -833,6 +835,9 @@ void memory_monitor_cb(void)
 {
 	// Test if any currently displayed memory changed from last time
 	memedit_ctrl.pMemEdit->UpdateDispMem();
+
+	// Update any visible watch variables too
+	memedit_ctrl.pWatchTable->UpdateTable();
 }
 }
 
@@ -860,24 +865,63 @@ void cb_MemEditScroll (Fl_Widget* w, void*)
 
 /*
 ============================================================================
+Callback routine to handle events from the WatchTable
+============================================================================
+*/
+void cb_watch_events (int event, void* pOpaque)
+{
+	switch (event)
+	{
+	case WATCH_EVENT_VAL_CHANGED:
+		memedit_ctrl.pMemEdit->UpdateDispMem();
+		break;
+
+	case FL_F + 2:
+	case FL_F + 7:
+		// Helper key to find next / prev marker
+		if (Fl::get_key(FL_Shift_R) || Fl::get_key(FL_Shift_L))
+			memedit_ctrl.pMemEdit->FindPrevMarker();
+		else
+			memedit_ctrl.pMemEdit->FindNextMarker();
+		break;
+
+	case FL_F + 10:
+		cb_menu_step_over(NULL, NULL);
+		break;
+	case FL_F + 8:
+		cb_menu_step(NULL, NULL);
+		break;
+	case FL_F + 5:
+		cb_menu_run(NULL, NULL);
+		break;
+	case FL_F + 6:
+		cb_menu_stop(NULL, NULL);
+		break;
+	}
+}
+
+/*
+============================================================================
 Routine to create the MemoryEditor Window
 ============================================================================
 */
-void cb_MemoryEditor (Fl_Widget* w, void*)
+void cb_MemoryEditor (Fl_Widget* pW, void*)
 {
 	Fl_Box*		o;
+	int			h = 400;
+	int			w = 585;
+	const int	wh = 50;
 
 	if (gmew != NULL)
 		return;
 
 	// Create Peripheral Setup window
 #ifdef WIN32
-	gmew = new T100_MemEditWin(0, 0, 585, 400, "Memory Editor");
-//	gmew = new Fl_Double_Window(585, 400, "Memory Editor");
+	gmew = new Fl_Double_Window(w, h+wh, "Memory Editor");
 	// Create a menu for the new window.
-	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 585, MENU_HEIGHT-2);
+	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, w, MENU_HEIGHT-2);
 #else
-	gmew = new Fl_Window(735, 400, "Memory Editor");
+	gmew = new Fl_Window(735, h+wh, "Memory Editor");
 	// Create a menu for the new window.
 	memedit_ctrl.pMenu = new Fl_Menu_Bar(0, 0, 735, MENU_HEIGHT-2);
 #endif
@@ -885,27 +929,40 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 	gmew->callback(cb_memeditwin);
 	memedit_ctrl.pMenu->menu(gMemEdit_menuitems);
 
+		// Create a tiled window to support Project, Edit, and debug regions
+	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT,w,h+wh-MENU_HEIGHT-3);
+
+	memedit_ctrl.pTopPane = new Fl_Double_Window(0, MENU_HEIGHT, w, h-MENU_HEIGHT, "");
+
+	Fl_Group* g = new Fl_Group(0, 10, w, 25, "");
+
 	// Create static text boxes
-	o = new Fl_Box(FL_NO_BOX, 10, 10+MENU_HEIGHT, 50, 15, "Region");
+	o = new Fl_Box(FL_NO_BOX, 10, 10/*+MENU_HEIGHT*/, 50, 15, "Region");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	o = new Fl_Box(FL_NO_BOX, 175, 10+MENU_HEIGHT, 50, 15, "Address");
+	o = new Fl_Box(FL_NO_BOX, 175, 10/*+MENU_HEIGHT*/, 50, 15, "Address");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	
 	// Create Region choice box
-	memedit_ctrl.pRegion = new Fl_Choice(70, 8+MENU_HEIGHT, 100, 20, "");
+	memedit_ctrl.pRegion = new Fl_Choice(70, 8/*+MENU_HEIGHT*/, 100, 20, "");
 	memedit_ctrl.pRegion->callback(cb_region);
 
 	// Create edit field for memory search / display field
-	memedit_ctrl.pMemRange = new Fl_Input(235, 8+MENU_HEIGHT, 80, 20, "");
+	memedit_ctrl.pMemRange = new Fl_Input(235, 8/*+MENU_HEIGHT*/, 80, 20, "");
 	memedit_ctrl.pMemRange->callback(cb_memory_range);
 	memedit_ctrl.pMemRange->when(FL_WHEN_ENTER_KEY|FL_WHEN_NOT_CHANGED);
 
+	// Create a resize box for the group and end the group
+	o = new Fl_Box(w-15, 10, 5, 5, "");
+	o->hide();
+	g->resizable(o);
+	g->end();
+
 #ifdef WIN32
-	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40+MENU_HEIGHT, 545, 350-MENU_HEIGHT);
-	memedit_ctrl.pScroll = new Fl_Scrollbar(555, 40+MENU_HEIGHT, 15, 350-MENU_HEIGHT, "");
+	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40/*+MENU_HEIGHT*/, 545, 350-MENU_HEIGHT+10);
+	memedit_ctrl.pScroll = new Fl_Scrollbar(555, 40/*+MENU_HEIGHT*/, 15, 350-MENU_HEIGHT+10, "");
 #else
-	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40+MENU_HEIGHT, 695, 350-MENU_HEIGHT);
-	memedit_ctrl.pScroll = new Fl_Scrollbar(705, 40+MENU_HEIGHT, 15, 350-MENU_HEIGHT, "");
+	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40/*+MENU_HEIGHT*/, 695, 350-MENU_HEIGHT);
+	memedit_ctrl.pScroll = new Fl_Scrollbar(705, 40/*+MENU_HEIGHT*/, 15, 350-MENU_HEIGHT, "");
 #endif
 
 	memedit_ctrl.pScroll->type(FL_VERTICAL);
@@ -914,10 +971,61 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 	memedit_ctrl.pScroll->callback(cb_MemEditScroll);
 	memedit_ctrl.pScroll->slider_size(1);
 
- 
-	// Make things resizeable
+	// Make the menu and edit widget resizeable with the top tile window
+	memedit_ctrl.pTopPane->resizable(memedit_ctrl.pMemEdit);
+	memedit_ctrl.pTopPane->end();
+
+	// Create a window for the watches
+	memedit_ctrl.pBottomPane = new Fl_Double_Window(0, h, w, wh, "");
+
+	g = new Fl_Group(0, 0, w, wh, "");
+	Fl_Box* b = new Fl_Box(FL_DOWN_FRAME, 9, 2, w-22, wh-5, "");
+
+	memedit_ctrl.pWatchTable = new VT_Watch_Table(12, 4, w-27, wh-9);
+	memedit_ctrl.pWatchTable->header_color(fl_rgb_color(253, 252, 251));
+	memedit_ctrl.pWatchTable->EventHandler(cb_watch_events);
+
+#if 0
+	MString name = "test_data0";
+	MString addr = "0x8003";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data1";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data2";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data3";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data4";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data5";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data6";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data7";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+	name = "test_data8";
+	memedit_ctrl.pWatchTable->AddWatch(name, addr, 0, REGION_RAM, FALSE);
+#endif
+	// make the window resizable
+	b = new Fl_Box(FL_NO_BOX, 12, wh-9, 5, 3, "");
+	b->hide();
+	g->resizable(b);
+	g->end();
+
+
+	memedit_ctrl.pBottomPane->resizable(g);
+	memedit_ctrl.pBottomPane->end();
+
+	// Make the tile resizable
+	b = new Fl_Box(10, 0, w-40, h,"");
+	b->hide();
+	tile->resizable(b);
+	tile->end();
+
+	// Make the window resizable
 	gmew->resizable(memedit_ctrl.pMenu);
-	gmew->resizable(memedit_ctrl.pMemEdit);
+	gmew->resizable(tile);
+	gmew->end();
 
 	memedit_ctrl.pMemEdit->SetScrollSize();
 
@@ -943,6 +1051,37 @@ void cb_MemoryEditor (Fl_Widget* w, void*)
 	}
 
 	gmew->show();
+
+	// Resize top pane if user preference has been set
+	if (memedit_ctrl.iSplitH != -1)
+	{
+		if (memedit_ctrl.iSplitH < 64)
+			memedit_ctrl.iSplitH = 64;
+		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), memedit_ctrl.pTopPane->y(),
+			memedit_ctrl.pTopPane->w(), memedit_ctrl.iSplitH);
+		memedit_ctrl.pBottomPane->resize(memedit_ctrl.pBottomPane->x(), 
+			memedit_ctrl.pTopPane->y()+memedit_ctrl.iSplitH, memedit_ctrl.pBottomPane->w(), 
+			tile->h()-memedit_ctrl.iSplitH );
+	}
+	else
+	{
+		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), 
+			memedit_ctrl.pTopPane->y(), memedit_ctrl.pTopPane->w(), 
+			memedit_ctrl.pTopPane->h()-20);
+		memedit_ctrl.pBottomPane->resize(memedit_ctrl.pBottomPane->x(), 
+			memedit_ctrl.pBottomPane->y()-20, memedit_ctrl.pBottomPane->w(), 
+			memedit_ctrl.pBottomPane->h()+20);
+	}
+
+	// Resize the column headers if user preferences have been set
+	if (memedit_ctrl.iCol0W != -1)
+	{
+		memedit_ctrl.pWatchTable->HeaderBoxWidth(0, memedit_ctrl.iCol0W);
+		memedit_ctrl.pWatchTable->HeaderBoxWidth(1, memedit_ctrl.iCol1W);
+		memedit_ctrl.pWatchTable->HeaderBoxWidth(2, memedit_ctrl.iCol2W);
+		memedit_ctrl.pWatchTable->HeaderBoxWidth(3, memedit_ctrl.iCol3W);
+		memedit_ctrl.pWatchTable->HeaderBoxWidth(4, memedit_ctrl.iCol4W);
+	}
 }
 
 /*
@@ -967,17 +1106,44 @@ void cb_MemoryEditorUpdate(void)
 	// Update Region ENUM
 	memedit_ctrl.pMemEdit->GetRegionEnum();
 
+	memedit_ctrl.pMemEdit->LoadRegionMarkers();
+
 	// Redraw the memory editor
 	memedit_ctrl.pMemEdit->redraw();
 }
 
 void cb_popup(Fl_Widget* w, void*)
 {
+	// Test if we need to cancel the selection
+	memedit_ctrl.pMemEdit->ClearSelection();
+	memedit_ctrl.pMemEdit->redraw();
 }
 
-T100_MemEditWin::T100_MemEditWin(int x, int y, int w, int h, const char *title) :
-	Fl_Double_Window(w,h, title)
+void T100_MemEditor::resize(int x, int y, int w, int h)
 {
+	int		size;
+
+	// Do the default resize stuff
+	Fl_Widget::resize(x, y, w, h);
+
+	// Now check if the cursor is out of bounds
+	size = h / (int) m_Height;
+	if (m_CursorRow >= size)
+	{
+		window()->make_current();
+		EraseCursor();
+		m_CursorRow = size-1;
+		DrawCursor();
+	}
+	if (memedit_ctrl.pScroll != NULL)
+	{
+		if (memedit_ctrl.pScroll->value() + size > m_Max)
+		{
+			memedit_ctrl.pScroll->value((int) (m_Max - size), 1, 0, (int) m_Max);
+			SetScrollSize();
+			redraw();
+		}
+	}
 }
 
 /*
@@ -1013,6 +1179,7 @@ T100_MemEditor::T100_MemEditor(int x, int y, int w, int h) :
 	m_ColorSyntaxHilight = 0;
 	m_Font = FL_COURIER;
 	m_PopupActive = FALSE;
+	m_Region = 0;
 #ifdef WIN32
 	m_FontSize = 12;
 #else
@@ -1333,8 +1500,12 @@ void T100_MemEditor::UpdateDispMem(void)
 	fl_font(m_Font, m_FontSize);
 	linesVisible = (int) (memedit_ctrl.pScroll->h() / m_Height);
 
+	// Clip any drawing
+	fl_push_clip(x(), y(), w(), h());
+
 	// Check for changes
 	for (c = 0; c < count; c++)
+	{
 		if (mem[c] != gDispMemory[c])
 		{
 			int addr = m_FirstAddress + c;
@@ -1367,9 +1538,15 @@ void T100_MemEditor::UpdateDispMem(void)
 					selWidth = 2;
 				if (!IsHilighted(addr+c+1))
 					selWidth = 2;
-			    fl_color(m_colors.hilight_background);
+				if (IsSelected(addr))
+					fl_color(m_colors.select_background);
+				else
+				    fl_color(m_colors.hilight_background);
 				fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width * selWidth, (int) m_Height);
-				fl_color(m_colors.hilight);
+				if (IsSelected(addr))
+					fl_color(m_colors.select);
+				else
+					fl_color(m_colors.hilight);
 				fl_draw(string, xpos, ypos-2);
 				fl_color(m_colors.number);
 			}
@@ -1395,7 +1572,12 @@ void T100_MemEditor::UpdateDispMem(void)
 			if (!(actualAddr+16 >= ROMSIZE && actualAddr+16 < gRamBottom))
 			{
 				if (IsHilighted(addr+16))
-				fl_color(m_colors.hilight_background);
+				{
+					if (IsSelected(addr+16))
+						fl_color(m_colors.select_background);
+					else
+						fl_color(m_colors.hilight_background);
+				}
 			}
 
 			// Draw spill over region only if not on bottom line
@@ -1412,9 +1594,15 @@ void T100_MemEditor::UpdateDispMem(void)
 			// Draw as marker / selection?
 			else if (IsHilighted(addr))
 			{
-			    fl_color(m_colors.hilight_background);
+				if (IsSelected(addr))
+					fl_color(m_colors.select_background);
+				else
+				    fl_color(m_colors.hilight_background);
 				fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width, (int) m_Height);
-				fl_color(m_colors.hilight);
+				if (IsSelected(addr))
+					fl_color(m_colors.select);
+				else
+					fl_color(m_colors.hilight);
 				fl_draw(string, xpos, ypos-2);
 				fl_color(m_colors.number);
 			}
@@ -1427,9 +1615,13 @@ void T100_MemEditor::UpdateDispMem(void)
 			// Set modified flag
 			modified = 1;
 		}
+	}
 
 	if (modified)
 		DrawCursor();
+
+	// Pop the clippping region
+	fl_pop_clip();
 }
 
 /*
@@ -1465,6 +1657,7 @@ void T100_MemEditor::draw()
 	// Draw white background
     fl_color(m_colors.background);
     fl_rectf(x(),y(),w(),h());
+	fl_push_clip(x(), y(), w(), h());
 
 	line = 0;
 	max = (int) m_Max * 16;		// Calc maximum address
@@ -1538,9 +1731,18 @@ void T100_MemEditor::draw()
 						selWidth = 2;
 					if (!IsHilighted(addr+c+1))
 						selWidth = 2;
-				    fl_color(m_colors.hilight_background);
-					fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width * selWidth, (int) m_Height);
-					fl_color(m_colors.hilight);
+					if (IsSelected(addr+c))
+					{
+						fl_color(m_colors.select_background);
+						fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width * selWidth, (int) m_Height);
+						fl_color(m_colors.select);
+					}
+					else
+					{
+					    fl_color(m_colors.hilight_background);
+						fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width * selWidth, (int) m_Height);
+						fl_color(m_colors.hilight);
+					}
 					fl_draw(string, xpos, ypos-2);
 					fl_color(m_colors.number);
 				}
@@ -1578,9 +1780,18 @@ void T100_MemEditor::draw()
 				// Draw selection box
 				else if (IsHilighted(addr + c))
 				{
-				    fl_color(m_colors.hilight_background);
-					fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width, (int) m_Height);
-					fl_color(m_colors.hilight);
+					if (IsSelected(addr+c))
+					{
+						fl_color(m_colors.select_background);
+						fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width, (int) m_Height);
+						fl_color(m_colors.select);
+					}
+					else
+					{
+					    fl_color(m_colors.hilight_background);
+						fl_rectf(xpos, ypos+2-(int) m_Height, (int) m_Width, (int) m_Height);
+						fl_color(m_colors.hilight);
+					}
 					fl_draw(string, xpos, ypos-2);
 					fl_color(m_colors.ascii);
 				}
@@ -1598,6 +1809,9 @@ void T100_MemEditor::draw()
 
 	if (m_MyFocus)
 		DrawCursor();
+
+	// Pop the clipping rect
+	fl_pop_clip();
 }
 
 /*
@@ -1614,7 +1828,7 @@ int T100_MemEditor::handle(int event)
 	int				height, size;
 	int				value;
 	unsigned int	key;
-	int				first, address;
+	int				first, address, prevAddress;
 	unsigned char	data;
 	int				xpos, ypos, actualAddr;
 	char			string[6];
@@ -1635,6 +1849,10 @@ int T100_MemEditor::handle(int event)
 		// Determine line & col of mouse click
 		col_click = (int) ((xp - x()) / m_Width);
 		line_click = (int) ((yp - y()) / m_Height);
+		height = memedit_ctrl.pScroll->h();
+		size = (int) (height / m_Height);
+		if (line_click >= size)
+			line_click--;
 
 		// Constrain Column base on geometry
 		if (col_click < 9)
@@ -1650,6 +1868,9 @@ int T100_MemEditor::handle(int event)
 		else if (col_click > 74)
 			col_click = 74;
 	}
+
+	// Save current cursor address in case the selection changes
+	prevAddress = m_CursorAddress;
 
 	switch (event)
 	{
@@ -1716,7 +1937,7 @@ int T100_MemEditor::handle(int event)
 			// Test for an active selection.  If no active selection, then 
 			// create one.
 			if (m_SelStartAddr == -1)
-				m_SelStartAddr = m_CursorAddr;
+				m_SelStartAddr = m_CursorAddress;
 
 			// Calculate the address of the new x,y location and set it as
 			// the selection end address.
@@ -1812,7 +2033,7 @@ int T100_MemEditor::handle(int event)
 			address += col;
 
 			// Save this address for future use
-			m_CursorAddr = address;
+			m_CursorAddress = address;
 
 			// Process as a double click if the coords are the same
 			if ((xp == m_DblclkX && yp == m_DblclkY) || shift)
@@ -1929,8 +2150,10 @@ int T100_MemEditor::handle(int event)
 			Fl_Widget *mb = m_pPopupMenu;
 			const Fl_Menu_Item* m;
 			Fl::watch_widget_pointer(mb);
-			m = m_pPopupMenu->menu()->popup(Fl::event_x(), Fl::event_y()+10, NULL, 0, m_pPopupMenu);
+			m = m_pPopupMenu->menu()->popup(Fl::event_x(), y()+(line_click+1)*(int)m_Height+3, NULL, 0, m_pPopupMenu);
 			m_pPopupMenu->picked(m);
+			if (m == NULL)
+				cb_popup(NULL, NULL);
 			Fl::release_widget_pointer(mb);
 		}
 		break;
@@ -1953,6 +2176,19 @@ int T100_MemEditor::handle(int event)
 
 		switch (key)
 		{
+		case FL_F + 10:
+			cb_menu_step_over(NULL, NULL);
+			break;
+		case FL_F + 8:
+			cb_menu_step(NULL, NULL);
+			break;
+		case FL_F + 5:
+			cb_menu_run(NULL, NULL);
+			break;
+		case FL_F + 6:
+			cb_menu_stop(NULL, NULL);
+			break;
+		case FL_F+7:
 		case FL_F+2:
 			// Calculate the address associated with the click
 			if (m_CursorCol >= 59)
@@ -2440,6 +2676,7 @@ int T100_MemEditor::handle(int event)
 					{
 						data = 0;
 						set_memory8_ext(m_Region, address, 1, &data);
+						gDispMemory[actualAddr] = data;
 					}
 
 					// Determine value of keystroke (convert from HEX)
@@ -2456,6 +2693,7 @@ int T100_MemEditor::handle(int event)
 
 					// Write new value to memory
 					set_memory8_ext(m_Region, address, 1, &data);
+					gDispMemory[actualAddr] = data;
 
 					// Display new text
 					// Select 12 point Courier font
@@ -2474,7 +2712,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(m_colors.background);
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight_background);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select_background);
+						else
+							fl_color(m_colors.hilight_background);
+					}
 					else
 						fl_color(m_colors.background);
 					fl_rectf(xpos, ypos+2 - (int) m_Height, (int) m_Width*2, (int) m_Height-2);
@@ -2483,7 +2726,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(fl_darker(FL_GRAY));
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select);
+						else
+							fl_color(m_colors.hilight);
+					}
 					else
 						fl_color(m_colors.number);
 					fl_draw(string, xpos, ypos-2);
@@ -2499,7 +2747,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(m_colors.background);
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight_background);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select_background);
+						else
+							fl_color(m_colors.hilight_background);
+					}
 					else
 						fl_color(m_colors.background);
 					fl_rectf(xpos, ypos+2 - (int) m_Height, (int) m_Width, (int) m_Height);
@@ -2508,7 +2761,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(fl_darker(FL_GRAY));
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select);
+						else
+							fl_color(m_colors.hilight);
+					}
 					else
 						fl_color(m_colors.ascii);
 					fl_draw(string, xpos, ypos-2);
@@ -2603,7 +2861,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(m_colors.background);
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight_background);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select_background);
+						else
+							fl_color(m_colors.hilight_background);
+					}
 					else
 						fl_color(m_colors.background);
 					fl_rectf(xpos, ypos+2 - (int) m_Height, (int) m_Width*2, (int) m_Height-2);
@@ -2613,7 +2876,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(fl_darker(FL_GRAY));
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select);
+						else
+							fl_color(m_colors.hilight);
+					}
 					else
 						fl_color(m_colors.number);
 					fl_draw(string, xpos, ypos-2);
@@ -2629,7 +2897,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(m_colors.background);
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight_background);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select_background);
+						else
+							fl_color(m_colors.hilight_background);
+					}
 					else
 						fl_color(m_colors.background);
 					fl_rectf(xpos, ypos+2 - (int) m_Height, (int) m_Width, (int) m_Height);
@@ -2638,7 +2911,12 @@ int T100_MemEditor::handle(int event)
 					if (actualAddr >= ROMSIZE && actualAddr < gRamBottom)
 						fl_color(fl_darker(FL_GRAY));
 					else if (IsHilighted(address))
-						fl_color(m_colors.hilight);
+					{
+						if (IsSelected(address))
+							fl_color(m_colors.select);
+						else
+							fl_color(m_colors.hilight);
+					}
 					else
 						fl_color(m_colors.ascii);
 					fl_draw(string, xpos, ypos-2);
@@ -2685,6 +2963,9 @@ int T100_MemEditor::handle(int event)
 				}
 			}
 
+			// Update the Watch window
+			memedit_ctrl.pWatchTable->UpdateTable();
+
 			break;
 			
 		}
@@ -2698,6 +2979,24 @@ int T100_MemEditor::handle(int event)
 		break;
 
 	}
+
+	// Calculate the address associated with the click
+	if (m_CursorCol >= 59)
+		col = m_CursorCol - 59;
+	else if (m_CursorCol > 8+8*3) 
+		col = (int) ((m_CursorCol-10) / 3);
+	else
+		col = (int) ((m_CursorCol-9) / 3);
+
+	m_CursorAddress = memedit_ctrl.pScroll->value() * 16;
+	m_CursorAddress += m_CursorRow * 16;
+	m_CursorAddress += col;
+
+	// Test if our a marker selection changed
+	memedit_marker_t*	pOldSel = GetMarker(prevAddress);
+	memedit_marker_t*	pNewSel = GetMarker(m_CursorAddress);
+	if (pOldSel != pNewSel)
+		redraw();
 
 	return 1;
 }
@@ -2754,7 +3053,7 @@ MoveTo:	This function moves to the specified line
 void T100_MemEditor::MoveTo(int address)
 {
 	int		height, size, value, col;
-	int		curVal;
+	int		curVal, moveToVal;
 
 	/* If the range selected is RAM, then we need to subtract 
 	   the ROM size from the address so we jump to the right
@@ -2778,12 +3077,13 @@ void T100_MemEditor::MoveTo(int address)
 	size = (int) (height / m_Height);
 
 	// Test if at bottom and scrolling down
+	moveToVal = value;
 	if (value > m_Max - size)
-		value = (int) (m_Max - size);
+		moveToVal = (int) (m_Max - size);
 
 	// Update new value base on scroll distance requested
-	if (value < 0)
-		value = 0;
+	if (moveToVal < 0)
+		moveToVal = 0;
 
 	// Selet the selection region to hilight this location
 	m_SelStartAddr = address;
@@ -2794,7 +3094,7 @@ void T100_MemEditor::MoveTo(int address)
 	if (!(value >= curVal && value < curVal+size))
 	{
 		// Update scroll bar
-		memedit_ctrl.pScroll->value(value, 1, 0, (int) m_Max);
+		memedit_ctrl.pScroll->value(moveToVal, 1, 0, (int) m_Max);
 		memedit_ctrl.pScroll->maximum(m_Max-size);
 		memedit_ctrl.pScroll->step(size / m_Max);
 		memedit_ctrl.pScroll->slider_size(size/m_Max);
@@ -2809,6 +3109,7 @@ void T100_MemEditor::MoveTo(int address)
 		m_CursorCol = 59 + col;
 	else
 		m_CursorCol = 9 + col * 3 + (col > 7 ? 1 : 0);
+	m_CursorAddress = address;
 
 	redraw();
 }
@@ -2880,6 +3181,10 @@ void T100_MemEditor::EraseCursor()
 {
 	int		x_pos, y_pos, address, col;
 
+	// Clip the drawing
+	window()->make_current();
+	fl_push_clip(x(), y(), w(), h());
+
 	// Erase current cursor
 	fl_color(m_colors.background);
 	if (m_CursorRow != -1)
@@ -2911,7 +3216,10 @@ void T100_MemEditor::EraseCursor()
 		if (IsHilighted(address))
 		{
 			// Select the hilight background color
-		    fl_color(m_colors.hilight_background);
+			if (IsSelected(address))
+				fl_color(m_colors.select_background);
+			else
+			    fl_color(m_colors.hilight_background);
 			fl_line(x_pos, y_pos+2, x_pos, y_pos + (int) m_Height);
 
 			// If we aren't on col zero, then test the next lower address too
@@ -2920,12 +3228,18 @@ void T100_MemEditor::EraseCursor()
 				if (IsHilighted(address-1))
 				{
 					// Select the hilight background color
-					fl_color(m_colors.hilight_background);
+					if (IsSelected(address-1))
+						fl_color(m_colors.select_background);
+					else
+						fl_color(m_colors.hilight_background);
 					fl_line(x_pos-1, y_pos+2, x_pos-1, y_pos+(int)m_Height);
 				}
 			}
 		}
 	}
+
+	// Pop the clipping rect
+	fl_pop_clip();
 }
 
 /*
@@ -2940,6 +3254,10 @@ void T100_MemEditor::DrawCursor()
 	if (!m_MyFocus)
 		return;
 
+	// Clip the drawing
+	window()->make_current();
+	fl_push_clip(x(), y(), w(), h());
+
 	// Draw new cursor
 	fl_color(m_colors.cursor);
 	if (m_CursorRow != -1)
@@ -2951,6 +3269,8 @@ void T100_MemEditor::DrawCursor()
 	}
 
 	UpdateAddressText();
+
+	fl_pop_clip();
 }
 
 /*
@@ -3014,31 +3334,107 @@ Load user preferences
 */
 void MemoryEditor_LoadPrefs(void)
 {
-	int		temp, bold;
+	int		temp, bold, size;
+	char	model[16];
+	char*	pVarText;
+	Fl_Preferences g(virtualt_prefs, "MemEdit_Group");
 
-	virtualt_prefs.get("MemEdit_x", memedit_ctrl.pMemEdit->m_x, -1);
-	virtualt_prefs.get("MemEdit_y", memedit_ctrl.pMemEdit->m_y, -1);
-	virtualt_prefs.get("MemEdit_w", memedit_ctrl.pMemEdit->m_w, -1);
-	virtualt_prefs.get("MemEdit_h", memedit_ctrl.pMemEdit->m_h, -1);
+	// Get main window geometry
+	g.get("x", memedit_ctrl.pMemEdit->m_x, -1);
+	g.get("y", memedit_ctrl.pMemEdit->m_y, -1);
+	g.get("w", memedit_ctrl.pMemEdit->m_w, -1);
+	g.get("h", memedit_ctrl.pMemEdit->m_h, -1);
 
-	// Get font settings
-	virtualt_prefs.get("MemEdit_FontSize", temp, -1);
-	virtualt_prefs.get("MemEdit_Bold", bold, 0);
-	if (temp != -1)
+	// Test for old style preferences
+	if (memedit_ctrl.pMemEdit->m_x == -1)
+	{
+		virtualt_prefs.get("MemEdit_x", memedit_ctrl.pMemEdit->m_x, -1);
+		virtualt_prefs.get("MemEdit_y", memedit_ctrl.pMemEdit->m_y, -1);
+		virtualt_prefs.get("MemEdit_w", memedit_ctrl.pMemEdit->m_w, -1);
+		virtualt_prefs.get("MemEdit_h", memedit_ctrl.pMemEdit->m_h, -1);
+	}
+
+	// Get watch window geometry
+	g.get("SplitH", memedit_ctrl.iSplitH, -1);
+	g.get("Col0_Width", memedit_ctrl.iCol0W, -1);
+	g.get("Col1_Width", memedit_ctrl.iCol1W, -1);
+	g.get("Col2_Width", memedit_ctrl.iCol2W, -1);
+	g.get("Col3_Width", memedit_ctrl.iCol3W, -1);
+	g.get("Col4_Width", memedit_ctrl.iCol4W, -1);
+
+	// Test if we have saved to the group yet
+	g.get("FontSize", temp, -1);
+	if (temp == -1)
+	{	
+		// We haven't saved to the group yet... use non-group entries
+
+		// Get font settings
+		virtualt_prefs.get("MemEdit_FontSize", temp, 12);
+		virtualt_prefs.get("MemEdit_Bold", bold, 0);
 		memedit_ctrl.pMemEdit->SetFontSize(temp, bold);
 
-	// Get color settings
-	virtualt_prefs.get("MemEdit_BlackBackground", temp, 1);
-	memedit_ctrl.pMemEdit->SetBlackBackground(temp);
-	virtualt_prefs.get("MemEdit_SyntaxHilight", temp, 1);
-	memedit_ctrl.pMemEdit->SetSyntaxHilight(temp);
-	virtualt_prefs.get("MemEdit_MarkerForegroundColor", temp, (int) FL_WHITE);
-	memedit_ctrl.pMemEdit->SetMarkerForegroundColor((Fl_Color) temp);
-	virtualt_prefs.get("MemEdit_MarkerBackgroundColor", temp, (int) fl_lighter(FL_RED));
-	memedit_ctrl.pMemEdit->SetMarkerBackgroundColor((Fl_Color) temp);
+		// Get color settings
+		virtualt_prefs.get("MemEdit_BlackBackground", temp, 1);
+		memedit_ctrl.pMemEdit->SetBlackBackground(temp);
+		virtualt_prefs.get("MemEdit_SyntaxHilight", temp, 1);
+		memedit_ctrl.pMemEdit->SetSyntaxHilight(temp);
+		virtualt_prefs.get("MemEdit_MarkerForegroundColor", temp, (int) FL_WHITE);
+		memedit_ctrl.pMemEdit->SetMarkerForegroundColor((Fl_Color) temp);
+		virtualt_prefs.get("MemEdit_MarkerBackgroundColor", temp, 226);
+		memedit_ctrl.pMemEdit->SetMarkerBackgroundColor((Fl_Color) temp);
+		virtualt_prefs.get("MemEdit_SelectedForegroundColor", temp, (int) FL_WHITE);
+		memedit_ctrl.pMemEdit->SetSelectedForegroundColor((Fl_Color) temp);
+		virtualt_prefs.get("MemEdit_SelectedBackgroundColor", temp, 81);
+		memedit_ctrl.pMemEdit->SetSelectedBackgroundColor((Fl_Color) temp);
+	}
+	else
+	{
+		// Get font settings
+		g.get("FontSize", temp, 12);
+		g.get("Bold", bold, 0);
+		memedit_ctrl.pMemEdit->SetFontSize(temp, bold);
+
+		// Get color settings
+		g.get("BlackBackground", temp, 1);
+		memedit_ctrl.pMemEdit->SetBlackBackground(temp);
+		g.get("SyntaxHilight", temp, 1);
+		memedit_ctrl.pMemEdit->SetSyntaxHilight(temp);
+		g.get("MarkerFgColor", temp, (int) FL_WHITE);
+		memedit_ctrl.pMemEdit->SetMarkerForegroundColor((Fl_Color) temp);
+		g.get("MarkerBgColor", temp, 226);
+		memedit_ctrl.pMemEdit->SetMarkerBackgroundColor((Fl_Color) temp);
+		g.get("SelectedFgColor", temp, (int) FL_WHITE);
+		memedit_ctrl.pMemEdit->SetSelectedForegroundColor((Fl_Color) temp);
+		g.get("SelectedBgColor", temp, 81);
+		memedit_ctrl.pMemEdit->SetSelectedBackgroundColor((Fl_Color) temp);
+	}
 
 	// Load the region markers
 	memedit_ctrl.pMemEdit->LoadRegionMarkers();
+
+	// Load the watch variables
+	memedit_ctrl.pWatchTable->ResetContent();
+	get_model_string(model, gModel);
+	size = g.size(Fl_Preferences::Name("%s_WatchVars", model));
+	if (size > 0)
+	{
+		// Allocate the buffer
+		pVarText = new char[size+1];
+		if (pVarText != NULL)
+		{
+			// Get the watch variables string
+			g.get(Fl_Preferences::Name("%s_WatchVars", model), pVarText, "", size+1);
+		
+			// And give it to the watch table
+			memedit_ctrl.pWatchTable->WatchVarsString(pVarText);
+
+			// Now delete the string
+			delete pVarText;
+		}
+	}
+
+	// Redraw the watch table
+	memedit_ctrl.pWatchTable->redraw();
 }
 
 /*
@@ -3048,19 +3444,57 @@ Save user preferences
 */
 void MemoryEditor_SavePrefs(void)
 {
-	virtualt_prefs.set("MemEdit_x", gmew->x());
-	virtualt_prefs.set("MemEdit_y", gmew->y());
-	virtualt_prefs.set("MemEdit_w", gmew->w());
-	virtualt_prefs.set("MemEdit_h", gmew->h());
-	virtualt_prefs.set("MemEdit_FontSize", memedit_ctrl.pMemEdit->GetFontSize());
-	virtualt_prefs.set("MemEdit_Bold", memedit_ctrl.pMemEdit->GetBold());
-	virtualt_prefs.set("MemEdit_BlackBackground", memedit_ctrl.pMemEdit->GetBlackBackground());
-	virtualt_prefs.set("MemEdit_SyntaxHilight", memedit_ctrl.pMemEdit->GetSyntaxHilight());
-	virtualt_prefs.set("MemEdit_MarkerForegroundColor", (int) memedit_ctrl.pMemEdit->GetMarkerForegroundColor());
-	virtualt_prefs.set("MemEdit_MarkerBackgroundColor", (int) memedit_ctrl.pMemEdit->GetMarkerBackgroundColor());
+	MString		watch_vars, key;
+	char		model[16];
+	Fl_Preferences g(virtualt_prefs, "MemEdit_Group");
+
+	g.set("x", gmew->x());
+	g.set("y", gmew->y());
+	g.set("w", gmew->w());
+	g.set("h", gmew->h());
+
+	// Save watch variable geometry
+	g.set("SplitH", memedit_ctrl.pTopPane->h());
+	g.set("Col0_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(0));
+	g.set("Col1_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(1));
+	g.set("Col2_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(2));
+	g.set("Col3_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(3));
+	g.set("Col4_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(4));
+
+	g.set("FontSize", memedit_ctrl.pMemEdit->GetFontSize());
+	g.set("Bold", memedit_ctrl.pMemEdit->GetBold());
+	g.set("BlackBackground", memedit_ctrl.pMemEdit->GetBlackBackground());
+	g.set("SyntaxHilight", memedit_ctrl.pMemEdit->GetSyntaxHilight());
+	g.set("MarkerFgColor", (int) memedit_ctrl.pMemEdit->GetMarkerForegroundColor());
+	g.set("MarkerBgColor", (int) memedit_ctrl.pMemEdit->GetMarkerBackgroundColor());
+	g.set("SelectedFgColor", (int) memedit_ctrl.pMemEdit->GetSelectedForegroundColor());
+	g.set("SelectedBgColor", (int) memedit_ctrl.pMemEdit->GetSelectedBackgroundColor());
 
 	// Save the region markers
 	memedit_ctrl.pMemEdit->SaveRegionMarkers();
+
+	// Save watch variables
+	get_model_string(model, gModel);
+	watch_vars = memedit_ctrl.pWatchTable->WatchVarsString();
+	g.set(Fl_Preferences::Name("%s_WatchVars", model), (const char *) watch_vars);
+
+	// Delete old keys from the file
+	virtualt_prefs.deleteEntry("MemEdit_x");
+	virtualt_prefs.deleteEntry("MemEdit_y");
+	virtualt_prefs.deleteEntry("MemEdit_w");
+	virtualt_prefs.deleteEntry("MemEdit_h");
+	virtualt_prefs.deleteEntry("MemEdit_FontSize");
+	virtualt_prefs.deleteEntry("MemEdit_Bold");
+	virtualt_prefs.deleteEntry("MemEdit_BlackBackground");
+	virtualt_prefs.deleteEntry("MemEdit_SyntaxHilight");
+	virtualt_prefs.deleteEntry("MemEdit_MarkerForegroundColor");
+	virtualt_prefs.deleteEntry("MemEdit_MarkerBackgroundColor");
+	virtualt_prefs.deleteEntry("MemEdit_SelectedForegroundColor");
+	virtualt_prefs.deleteEntry("MemEdit_SelectedBackgroundColor");
+
+	// Flush the preferences to disk in case we only closed the window
+	// or changed model, that way we are protected from a crash
+	virtualt_prefs.flush();
 }
 
 /*
@@ -3070,12 +3504,12 @@ Set's the memory editor's font size
 */
 void T100_MemEditor::SaveRegionMarkers()
 {
-	char				str[16], regStr[32];
+	char				str[16];
 	char				markerText[32];
-	char				pref[64];
 	MString				markers;
 	int					region;
 	memedit_marker_t*	pMarkers;
+	Fl_Preferences		g(virtualt_prefs, "MemEdit_Group");
 
 	// Get the model string to save stuff per model
 	get_model_string(str, gModel);
@@ -3083,11 +3517,6 @@ void T100_MemEditor::SaveRegionMarkers()
 	// Save region markers
 	for (region = 0; region < REGION_MAX; region++)
 	{
-		// Create region preference string
-		strcpy(pref, str);
-		sprintf(regStr, "_Region%d_Markers", region);
-		strcat(pref, regStr);
-
 		// Now build the region marker text
 		markers = "";
 
@@ -3112,7 +3541,15 @@ void T100_MemEditor::SaveRegionMarkers()
 			pMarkers = pMarkers->pNext;
 		}
 
-		virtualt_prefs.set(pref, (const char *) markers);
+		// Test if we even need the setting in the preferences file
+		if (m_pRegionMarkers[region] == NULL)
+			g.deleteEntry(Fl_Preferences::Name("%s_Region%d_Markers", str, region));
+		else
+			g.set(Fl_Preferences::Name("%s_Region%d_Markers", str, region),
+				(const char *) markers);
+
+		// Clean up old style entries
+		virtualt_prefs.deleteEntry(Fl_Preferences::Name("%s_Region%d_Markers", str, region));
 	}
 }
 
@@ -3123,10 +3560,11 @@ Set's the memory editor's font size
 */
 void T100_MemEditor::LoadRegionMarkers()
 {
-	char				str[16], regStr[32];
+	char				str[16];
 	char*				pMarkerText;
-	char				pref[64];
-	int					region, startAddr, endAddr, c;
+	int					region, startAddr, endAddr, c, bufSize;
+	int					size, which;
+	Fl_Preferences		g(virtualt_prefs, "MemEdit_Group");
 
 	// First reset any old markers
 	ResetMarkers();
@@ -3136,19 +3574,52 @@ void T100_MemEditor::LoadRegionMarkers()
 
 	// Allocate a big buffer to read in marker text
 	pMarkerText = new char[65536];
+	bufSize = 65536;
 
+	// Only if we could allocate the buffer...
 	if (pMarkerText != NULL)
 	{
-		// Save region markers
+		// Loop for each region
 		for (region = 0; region < REGION_MAX; region++)
 		{
-			// Create region preference string
-			strcpy(pref, str);
-			sprintf(regStr, "_Region%d_Markers", region);
-			strcat(pref, regStr);
+			// Determine the size buffer needed
+			which = 0;
+			size = g.size(Fl_Preferences::Name("%s_Region%d_Markers", str, region));
+			if (size == 0)
+			{
+				size = virtualt_prefs.size(Fl_Preferences::Name("%s_Region%d_Markers", 
+					str, region));
+				which = 1;
+			}
 
-			// Get the text from preferences
-			virtualt_prefs.get(pref, pMarkerText, "", 65536);
+			// If no markers defined, skip to next region
+			if (size == 0)
+				continue;
+
+			// Test if our buffer is big enough
+			if (size > bufSize)
+			{
+				// Allocate a bigger buffer
+				delete pMarkerText;
+				pMarkerText = new char[size];
+				bufSize = size;
+				if (pMarkerText == NULL)
+					return;
+			}
+
+			// Now get the text
+			if (which == 0)
+			{
+				// Get it from the group
+				g.get(Fl_Preferences::Name("%s_Region%d_Markers", 
+					str, region), pMarkerText, "", bufSize);
+			}
+			else
+			{
+				// Get the text from base preferences
+				virtualt_prefs.get(Fl_Preferences::Name("%s_Region%d_Markers", 
+				str, region), pMarkerText, "", bufSize);
+			}
 
 			// Check if any markers defined
 			if (pMarkerText[0] != '\0')
@@ -3309,10 +3780,14 @@ typedef struct memedit_setup_params
 	Fl_Check_Button*	pColorHilight;
 	Fl_Button*			pMarkerForeground;
 	Fl_Button*			pMarkerBackground;
+	Fl_Button*			pSelectedForeground;
+	Fl_Button*			pSelectedBackground;
 	Fl_Button*			pDefaults;
 	char				sFontSize[20];
 	Fl_Color			origMarkerForeground;
 	Fl_Color			origMarkerBackground;
+	Fl_Color			origSelectedForeground;
+	Fl_Color			origSelectedBackground;
 } memedit_setup_params_t;
 
 /*
@@ -3347,6 +3822,8 @@ static void cb_setupdlg_OK(Fl_Widget* w, void* pOpaque)
 	// Get Marker colors
 	memedit_ctrl.pMemEdit->SetMarkerForegroundColor((Fl_Color) p->pMarkerForeground->color());
 	memedit_ctrl.pMemEdit->SetMarkerBackgroundColor((Fl_Color) p->pMarkerBackground->color());
+	memedit_ctrl.pMemEdit->SetSelectedForegroundColor((Fl_Color) p->pSelectedForeground->color());
+	memedit_ctrl.pMemEdit->SetSelectedBackgroundColor((Fl_Color) p->pSelectedBackground->color());
 
 	// Redraw the window
 	gmew->redraw();
@@ -3370,6 +3847,8 @@ static void cb_setupdlg_cancel(Fl_Widget* w, void* pOpaque)
 	// Restore original marker colors and redraw
 	memedit_ctrl.pMemEdit->SetMarkerForegroundColor(p->origMarkerForeground);
 	memedit_ctrl.pMemEdit->SetMarkerBackgroundColor(p->origMarkerBackground);
+	memedit_ctrl.pMemEdit->SetSelectedForegroundColor(p->origSelectedForeground);
+	memedit_ctrl.pMemEdit->SetSelectedBackgroundColor(p->origSelectedBackground);
 	memedit_ctrl.pMemEdit->redraw();
 }
 
@@ -3382,12 +3861,18 @@ static void cb_default_colors(Fl_Button*, void* pOpaque)
 {
 	memedit_setup_params_t*	p = (memedit_setup_params_t *) pOpaque;
 
-	p->pMarkerBackground->color(fl_lighter(FL_RED));
+	p->pMarkerBackground->color((Fl_Color) 226);
 	p->pMarkerForeground->color(FL_WHITE);
+	p->pSelectedBackground->color((Fl_Color) 81);
+	p->pSelectedForeground->color(FL_WHITE);
 	p->pMarkerBackground->redraw();
 	p->pMarkerForeground->redraw();
+	p->pSelectedBackground->redraw();
+	p->pSelectedForeground->redraw();
 	memedit_ctrl.pMemEdit->SetMarkerForegroundColor(p->pMarkerForeground->color());
 	memedit_ctrl.pMemEdit->SetMarkerBackgroundColor(p->pMarkerBackground->color());
+	memedit_ctrl.pMemEdit->SetSelectedForegroundColor(p->pSelectedForeground->color());
+	memedit_ctrl.pMemEdit->SetSelectedBackgroundColor(p->pSelectedBackground->color());
 	memedit_ctrl.pMemEdit->redraw();
 }
 
@@ -3421,6 +3906,34 @@ static void cb_marker_background(Fl_Button*, void* pOpaque)
 
 /*
 ============================================================================
+Callback for Selected Marker Foreground color button
+============================================================================
+*/
+static void cb_selected_foreground(Fl_Button*, void* pOpaque) 
+{
+	memedit_setup_params_t*	p = (memedit_setup_params_t *) pOpaque;
+
+	p->pSelectedForeground->color(fl_show_colormap(p->pSelectedForeground->color()));
+	memedit_ctrl.pMemEdit->SetSelectedForegroundColor(p->pSelectedForeground->color());
+	memedit_ctrl.pMemEdit->redraw();
+}
+
+/*
+============================================================================
+Callback for Selected Marker Background color button
+============================================================================
+*/
+static void cb_selected_background(Fl_Button*, void* pOpaque) 
+{
+	memedit_setup_params_t*	p = (memedit_setup_params_t *) pOpaque;
+
+	p->pSelectedBackground->color(fl_show_colormap(p->pSelectedBackground->color()));
+	memedit_ctrl.pMemEdit->SetSelectedBackgroundColor(p->pSelectedBackground->color());
+	memedit_ctrl.pMemEdit->redraw();
+}
+
+/*
+============================================================================
 Menu callback for setup memory editor
 ============================================================================
 */
@@ -3433,9 +3946,11 @@ void cb_setup_memedit(Fl_Widget* w, void* pOpaque)
 	// Save current Marker colors
 	p.origMarkerForeground = memedit_ctrl.pMemEdit->GetMarkerForegroundColor();
 	p.origMarkerBackground = memedit_ctrl.pMemEdit->GetMarkerBackgroundColor();
+	p.origSelectedForeground = memedit_ctrl.pMemEdit->GetSelectedForegroundColor();
+	p.origSelectedBackground = memedit_ctrl.pMemEdit->GetSelectedBackgroundColor();
 
 	// Create new window for memory editor configuration
-	pWin = new Fl_Window(300, 200, "Memory Editor Configuration");
+	pWin = new Fl_Window(330, 240, "Memory Editor Configuration");
 
 	/* Create input field for font size */
 	b = new Fl_Box(20, 20, 100, 20, "Font Size");
@@ -3458,27 +3973,39 @@ void cb_setup_memedit(Fl_Widget* w, void* pOpaque)
 	p.pColorHilight->value(memedit_ctrl.pMemEdit->GetSyntaxHilight());
 
 	/* Create a button for the marker foreground color */
-	p.pMarkerForeground = new Fl_Button(20, 110, 15, 15, "Marker Forground Color");
+	p.pMarkerForeground = new Fl_Button(22, 110, 15, 15, "Marker Forground Color");
     p.pMarkerForeground->callback((Fl_Callback*) cb_marker_foreground, &p);
 	p.pMarkerForeground->align(FL_ALIGN_RIGHT);
 	p.pMarkerForeground->color(memedit_ctrl.pMemEdit->GetMarkerForegroundColor());
 
 	/* Create a button for the marker background color */
-	p.pMarkerBackground = new Fl_Button(20, 130, 15, 15, "Marker background Color");
+	p.pMarkerBackground = new Fl_Button(22, 130, 15, 15, "Marker Background Color");
     p.pMarkerBackground->callback((Fl_Callback*) cb_marker_background, &p);
 	p.pMarkerBackground->align(FL_ALIGN_RIGHT);
 	p.pMarkerBackground->color(memedit_ctrl.pMemEdit->GetMarkerBackgroundColor());
 
-	p.pDefaults = new Fl_Button(210, 115, 70, 30, "Default");
+	/* Create a button for the marker foreground color */
+	p.pSelectedForeground = new Fl_Button(22, 150, 15, 15, "Selected Marker Forground");
+    p.pSelectedForeground->callback((Fl_Callback*) cb_selected_foreground, &p);
+	p.pSelectedForeground->align(FL_ALIGN_RIGHT);
+	p.pSelectedForeground->color(memedit_ctrl.pMemEdit->GetSelectedForegroundColor());
+
+	/* Create a button for the marker background color */
+	p.pSelectedBackground = new Fl_Button(22, 170, 15, 15, "Selected Marker Background");
+    p.pSelectedBackground->callback((Fl_Callback*) cb_selected_background, &p);
+	p.pSelectedBackground->align(FL_ALIGN_RIGHT);
+	p.pSelectedBackground->color(memedit_ctrl.pMemEdit->GetSelectedBackgroundColor());
+
+	p.pDefaults = new Fl_Button(240, 135, 70, 30, "Defaults");
 	p.pDefaults->callback((Fl_Callback *) cb_default_colors, &p);
 
 	// Cancel button
-    { Fl_Button* o = new Fl_Button(80, 160, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(80, 200, 60, 30, "Cancel");
       o->callback((Fl_Callback*) cb_setupdlg_cancel, &p);
     }
 
 	// OK button
-    { Fl_Return_Button* o = new Fl_Return_Button(160, 160, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(160, 200, 60, 30, "OK");
       o->callback((Fl_Callback*) cb_setupdlg_OK, &p);
     }
 
@@ -3545,6 +4072,8 @@ void T100_MemEditor::AddMarker(int region)
 		// Insert the marker here
 		pMarkers->pNext = pNewMarker;
 	}
+
+	redraw();
 }
 
 /*
@@ -3745,6 +4274,83 @@ void T100_MemEditor::FindPrevMarker(void)
 
 /*
 ============================================================================
+Determines if address is a marker field in which the cursor is located
+============================================================================
+*/
+memedit_marker_t* T100_MemEditor::GetMarker(int address)
+{
+	int					region;
+	memedit_marker_t*	pMarker;
+
+	// Determine which region marker to use.  For RAM banks 1,2,3,
+	// we use the REGION_RAM marker so they all have the same
+	// set of markers
+	region = m_Region;
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+		region = REGION_RAM;
+
+	// Get pointer to start of marker list
+	pMarker = m_pRegionMarkers[region];
+
+	// Loop through all markers until we find one containing address
+	while (pMarker != NULL)
+	{
+		// Test if address is within this marker
+		if (address >= pMarker->startAddr && address <= pMarker->endAddr)
+		{
+			return pMarker;
+		}
+
+		// Get pointer to next marker
+		pMarker = pMarker->pNext;;
+	}
+
+	return NULL;
+}
+
+/*
+============================================================================
+Determines if address is a marker field in which the cursor is located
+============================================================================
+*/
+int T100_MemEditor::IsSelected(int address)
+{
+	int					region;
+	memedit_marker_t*	pMarker;
+
+	// Determine which region marker to use.  For RAM banks 1,2,3,
+	// we use the REGION_RAM marker so they all have the same
+	// set of markers
+	region = m_Region;
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+		region = REGION_RAM;
+
+	// Get pointer to start of marker list
+	pMarker = m_pRegionMarkers[region];
+
+	// Loop through all markers until we find one containing address
+	while (pMarker != NULL)
+	{
+		// Test if address is within this marker
+		if (address >= pMarker->startAddr && address <= pMarker->endAddr)
+		{
+			// Now test if the current cursor address is also in this marker
+			if (m_CursorAddress >= pMarker->startAddr && m_CursorAddress <= pMarker->endAddr)
+				return TRUE;
+			
+			// Nope, cursor not in this marker.  We're done
+			return FALSE;
+		}
+
+		// Point to next marker
+		pMarker = pMarker->pNext;
+	}
+
+	return FALSE;
+}
+
+/*
+============================================================================
 Deletes the marker identified by the Cursor.
 ============================================================================
 */
@@ -3920,5 +4526,9 @@ void T100_MemEditor::ResetMarkers(void)
 			delete pMarkers;
 			pMarkers = pNextMarker;
 		}
+
+		// NULL out the head pointers
+		m_pUndoDeleteMarkers[region] = NULL;
+		m_pRegionMarkers[region] = NULL;
 	}
 }

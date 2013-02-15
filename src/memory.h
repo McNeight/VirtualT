@@ -113,7 +113,7 @@ extern "C" {
 #define	REX_ROM_REPLACEMENT			0x01
 #define	REX2_RAM_MODE				0x02
 
-#include "gen_defs.h"
+//#include "gen_defs.h"
 
 typedef	struct {
 	int				iFlashState;

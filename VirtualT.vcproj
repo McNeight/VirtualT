@@ -216,10 +216,6 @@
 			Filter="cpp;c;cxx;rc;def;r;odl;idl;hpj;bat"
 			>
 			<File
-				RelativePath=".\Projects\Bob&apos;s\bob.hex"
-				>
-			</File>
-			<File
 				RelativePath=".\src\clock.cpp"
 				>
 			</File>
@@ -1094,6 +1090,10 @@
 					RelativePath=".\src\vtpaper.cpp"
 					>
 				</File>
+				<File
+					RelativePath=".\src\watchtable.cpp"
+					>
+				</File>
 			</Filter>
 		</Filter>
 		<Filter
@@ -1214,6 +1214,10 @@
 			</File>
 			<File
 				RelativePath="src\VirtualT.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\watchtable.h"
 				>
 			</File>
 			<File

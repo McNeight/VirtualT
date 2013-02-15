@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.18 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.19 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -29,20 +29,9 @@
 
 
 #include <FL/Fl.H>
-#include <FL/fl_draw.H>
-#include <FL/Fl_Window.H>
 #include <FL/Fl_Tabs.H>
-#include <FL/Fl_Input.H>
-#include <FL/Fl_Button.H>
 #include <FL/Fl_Round_Button.H>
-#include <FL/Fl_Check_Button.H>
-#include <FL/Fl_Choice.H>
-#include <FL/Fl_Box.H>
-#include <FL/Fl_Return_Button.H>
-#include <FL/Fl_Preferences.H>
-#include <FL/Fl_File_Chooser.H>
-#include <FL/Fl_Hold_Browser.H>
-#include <FL/Enumerations.H>
+
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
@@ -56,12 +45,11 @@
 #include "m100emu.h"
 #include "serial.h"
 #include "setup.h"
-#include "memory.h"
 #include "memedit.h"
 #include "io.h"
-#include "file.h"
 #include "lpt.h"
 #include "clock.h"
+#include "cpu.h"
 
 extern	Fl_Preferences virtualt_prefs;
 void init_menus(void);
@@ -634,9 +622,11 @@ void set_memory_base(void)
 	switch (gModel)
 	{
 	case MODEL_T200:
+		gRamBottom = ROMSIZE;
 		break;
 
 	case MODEL_PC8201:
+		gRamBottom = ROMSIZE;
 		break;
 
 	default:

@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.31 2013/02/06 17:09:38 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.32 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -29,13 +29,10 @@
 
 
 #include <FL/Fl.H>
-#include <FL/fl_draw.H>
-#include <FL/Fl_Window.H>
-#include <FL/Fl_Menu_Item.H>
 #include <FL/Fl_Menu_Bar.H>
-#include <FL/Fl_Box.H>
 #include <FL/Fl_Help_Dialog.H>
 #include <FL/Fl_Pixmap.H>
+
 //Added by J. VERNET for pref files
 // see also cb_xxxxxx
 #include <FL/Fl_Preferences.H>
@@ -43,6 +40,7 @@
 
 #include "FLU/Flu_Button.h"
 #include "FLU/Flu_Return_Button.h"
+#include "FLU/flu_pixmaps.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -87,6 +85,7 @@ extern int					gOsDelay;
 extern int					gInMsPlanROM;
 extern int					gDelayUpdateKeys;
 void	set_target_frequency(int freq);
+void	memory_monitor_cb(void);
 }
 
 void cb_Ide(Fl_Widget* w, void*) ;
@@ -130,6 +129,7 @@ extern Fl_Menu_Item	gPrintMenu[];
 extern void		Ide_SavePrefs(void);
 
 extern Fl_Pixmap		gPrinterIcon;
+extern Fl_Pixmap		littlehome, little_desktop, little_favorites, ram_drive;
 extern VTCpuRegs*		gcpuw;
 extern Fl_Window*		gmew;
 extern VT_Ide *			gpIde;
@@ -137,9 +137,6 @@ extern VT_Ide *			gpIde;
 void switch_model(int model);
 void key_delay(void);
 int remote_load_from_host(const char *filename);
-
-#include "FLU/flu_pixmaps.h"
-extern Fl_Pixmap littlehome, little_desktop, little_favorites, ram_drive;
 
 #ifndef	WIN32
 #define	min(a,b)	((a)<(b) ? (a):(b))
@@ -149,7 +146,6 @@ extern Fl_Pixmap littlehome, little_desktop, little_favorites, ram_drive;
 #define	VT_SPEED1_FREQ	8000000
 #define	VT_SPEED2_FREQ	20000000
 #define	VT_SPEED3_FREQ	50000000
-
 
 void setMonitorWindow(Fl_Window* pWin)
 {
@@ -226,7 +222,6 @@ const char *gSpKeyText[] = {
 	"UP",
 	"DOWN"
 };
-
 
 /*
 =======================================================
@@ -716,7 +711,7 @@ void cb_coldBoot (Fl_Widget* w, void*)
 
 		// Refresh the memory editor if it is opened
 		if (gmew != NULL)
-			gmew->redraw();
+			memory_monitor_cb();
 
 	}
 }
@@ -1369,8 +1364,14 @@ void switch_model(int model)
 	save_ram();
 	free_mem();
 
-	// Save time for current model
+	/* Save time for current model */
 	save_model_time();
+
+	/* Save memory editor region markers and watch variables */
+	if (gmew != NULL)
+	{
+		MemoryEditor_SavePrefs();
+	}
 
 	/* Switch to new model */
 	gModel = model;
@@ -1381,6 +1382,8 @@ void switch_model(int model)
 	/* Load Memory preferences */
 	load_memory_preferences();
 	init_mem();
+	if (gmew != NULL)
+		MemoryEditor_LoadPrefs();
 	get_model_time();
 
 	gRomSize = 32768;

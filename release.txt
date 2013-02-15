@@ -42,6 +42,15 @@ v1.6
 
 11. Updated REX emulation to support REX3 for PC8201 state machine changes.
 
+12. Created a Watch Variables Widget and added it to the Memory Editor Window.  This
+    will also be used in the IDE debugger.
+    
+13. Added options to Memory Editor Window to use black background with color coded text
+    and the ability to set the font size.
+
+14. Started converting the preferences file to use preference groups to help organize
+    the growing list of entries in the file.
+
 ====================
 v1.5  July 9th, 2011
 ====================

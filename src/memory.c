@@ -26,7 +26,7 @@ memory.c
 #include "filewrap.h"
 
 uchar			*gMemory[64];		/* CPU Memory space */
-int				gRamBottom = 0xa000;/* Defines the amount of RAM installed */
+int				gRamBottom = 0x8000;/* Defines the amount of RAM installed */
 uchar			gBaseMemory[65536];	/* System Memory */
 uchar			gSysROM[65536];		/* System ROM */
 uchar			gOptROM[32768];		/* Option ROM */
@@ -370,7 +370,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = address;
 		for (c = 0; c < count; c++)
 		{
-			if (gReMem)
+			if (gReMem && !gRex)
 				gMemory[addr>>10][addr&0x3FF] = data[c];
 			else
 				gBaseMemory[addr] = data[c];
