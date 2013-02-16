@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.33 2013/02/08 00:05:57 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.34 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1142,6 +1142,8 @@ void emulate(void)
 				}
 
 				/* Instruction emulation contained in header file */
+				#undef NO_REMEM
+				#include "cpu.h"
 				#include "do_instruct.h"
 
 				// Check if next inst is SIM
@@ -1182,6 +1184,12 @@ void emulate(void)
 						nxtmaint=gMaintCount;
 					lock_remote();
 				}
+#if 0
+				exec_remem_instruction();
+
+					if (gExitLoop) 
+						break;
+#endif
 			}
 
 		if (!gReMem)

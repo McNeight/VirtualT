@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.17 2013/02/15 15:05:13 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.18 2013/02/15 16:22:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -80,11 +80,13 @@ typedef struct memedit_ctrl_struct
 	Fl_Box*				pRegionText;
 	Fl_Box*				pAddressText;
 	Fl_Choice*			pRegion;
+	Fl_Tile*			pTile;
 
 	char				sFilename[256];
 	int					sAddrStart;
 	int					sAddrEnd;
 	int					sAddrTop;
+	int					watchHidden;
 	int					iSplitH;
 	int					iCol0W;
 	int					iCol1W;
@@ -121,6 +123,7 @@ void cb_goto_prev_marker(Fl_Widget* w, void*);
 void cb_delete_marker(Fl_Widget* w, void*);
 void cb_delete_all_markers(Fl_Widget* w, void*);
 void cb_undo_delete_all_markers(Fl_Widget* w, void*);
+void cb_show_hide_watch(Fl_Widget* w, void*);
 
 int str_to_i(const char *pStr);
 
@@ -151,6 +154,7 @@ Fl_Menu_Item gMemEdit_menuitems[] = {
   { "&File",              0, 0, 0, FL_SUBMENU },
 	{ "Load from File...",          0, cb_load, 0 },
 	{ "Save to File...",      0, cb_save_memory, 0, FL_MENU_DIVIDER },
+	{ "Hide Watch window",      0, cb_show_hide_watch, 0, FL_MENU_DIVIDER },
 	{ "Setup...",      0, cb_setup_memedit, 0},
 	{ 0 },
 
@@ -925,7 +929,7 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	memedit_ctrl.pMenu->menu(gMemEdit_menuitems);
 
 	// Create a tiled window to support Project, Edit, and debug regions
-	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT,w,h+wh-MENU_HEIGHT-3);
+	memedit_ctrl.pTile = new Fl_Tile(0,MENU_HEIGHT,w,h+wh-MENU_HEIGHT-3);
 
 	// Create a top pane window in the tile for the memory editor controls
 	memedit_ctrl.pTopPane = new Fl_Double_Window(0, MENU_HEIGHT, w, h-MENU_HEIGHT, "");
@@ -934,17 +938,17 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	Fl_Group* g = new Fl_Group(0, 10, w, 25, "");
 
 	// Create static text boxes
-	o = new Fl_Box(FL_NO_BOX, 10, 10/*+MENU_HEIGHT*/, 50, 15, "Region");
+	o = new Fl_Box(FL_NO_BOX, 10, 10, 50, 15, "Region");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
-	o = new Fl_Box(FL_NO_BOX, 175, 10/*+MENU_HEIGHT*/, 50, 15, "Address");
+	o = new Fl_Box(FL_NO_BOX, 175, 10, 50, 15, "Address");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	
 	// Create Region choice box
-	memedit_ctrl.pRegion = new Fl_Choice(70, 8/*+MENU_HEIGHT*/, 100, 20, "");
+	memedit_ctrl.pRegion = new Fl_Choice(70, 8, 100, 20, "");
 	memedit_ctrl.pRegion->callback(cb_region);
 
 	// Create edit field for memory search / display field
-	memedit_ctrl.pMemRange = new Fl_Input(235, 8/*+MENU_HEIGHT*/, 80, 20, "");
+	memedit_ctrl.pMemRange = new Fl_Input(240, 8, 80, 20, "");
 	memedit_ctrl.pMemRange->callback(cb_memory_range);
 	memedit_ctrl.pMemRange->when(FL_WHEN_ENTER_KEY|FL_WHEN_NOT_CHANGED);
 
@@ -957,8 +961,8 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	g->end();
 
 	// Create the memory editor widget and scrollbar
-	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40/*+MENU_HEIGHT*/, 545, 350-MENU_HEIGHT+10);
-	memedit_ctrl.pScroll = new Fl_Scrollbar(555, 40/*+MENU_HEIGHT*/, 15, 350-MENU_HEIGHT+10, "");
+	memedit_ctrl.pMemEdit = new T100_MemEditor(10, 40, w-20-15/*545*/, 350-MENU_HEIGHT+10);
+	memedit_ctrl.pScroll = new Fl_Scrollbar(w-10-15/*555*/, 40, 15, 350-MENU_HEIGHT+10, "");
 
 	// Set initial values for scrollbar
 	memedit_ctrl.pScroll->type(FL_VERTICAL);
@@ -976,10 +980,10 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 
 	// Create a group to hold the framing box and the actual watch table widget
 	g = new Fl_Group(0, 0, w, wh, "");
-	Fl_Box* b = new Fl_Box(FL_DOWN_FRAME, 9, 2, w-22, wh-5, "");
+	Fl_Box* b = new Fl_Box(FL_DOWN_FRAME, 9, 2, w-17/*22*/, wh-5, "");
 
 	// Create the Watch Table widget
-	memedit_ctrl.pWatchTable = new VT_Watch_Table(12, 4, w-27, wh-9);
+	memedit_ctrl.pWatchTable = new VT_Watch_Table(12, 4, w-22, wh-9);
 	memedit_ctrl.pWatchTable->header_color(fl_rgb_color(253, 252, 251));
 	memedit_ctrl.pWatchTable->EventHandler(cb_watch_events);
 
@@ -996,12 +1000,12 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 	// Make the tile resizable
 	b = new Fl_Box(10, 0, w-40, h,"");
 	b->hide();
-	tile->resizable(b);
-	tile->end();
+	memedit_ctrl.pTile->resizable(b);
+	memedit_ctrl.pTile->end();
 
 	// Make the top level window resizable
 	gmew->resizable(memedit_ctrl.pMenu);
-	gmew->resizable(tile);
+	gmew->resizable(memedit_ctrl.pTile);
 	gmew->end();
 
 	// Update the scroll size controls for the editor window
@@ -1042,7 +1046,7 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 			memedit_ctrl.pTopPane->w(), memedit_ctrl.iSplitH);
 		memedit_ctrl.pBottomPane->resize(memedit_ctrl.pBottomPane->x(), 
 			memedit_ctrl.pTopPane->y()+memedit_ctrl.iSplitH, memedit_ctrl.pBottomPane->w(), 
-			tile->h()-memedit_ctrl.iSplitH );
+			memedit_ctrl.pTile->h()-memedit_ctrl.iSplitH );
 	}
 	else
 	{
@@ -1056,9 +1060,17 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 			memedit_ctrl.pBottomPane->h()+20);
 	}
 
-	// Finally resize the column headers if user preferences have been set
+	// Resize the column headers if user preferences have been set
 	if (memedit_ctrl.iCol0W != -1)
 	{
+		int remaining = memedit_ctrl.pWatchTable->w() - 15;
+
+		remaining -= memedit_ctrl.iCol4W;
+		remaining -= memedit_ctrl.iCol3W;
+		remaining -= memedit_ctrl.iCol2W;
+		remaining -= memedit_ctrl.iCol1W;
+		memedit_ctrl.iCol0W = remaining;
+
 		// Set the location of all 5 column.  NOTE: we are not doing any
 		// sanity checks here.  If the column widths don't add up to
 		// match the tile width, then there will be problems.  Not an
@@ -1069,6 +1081,16 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(2, memedit_ctrl.iCol2W);
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(3, memedit_ctrl.iCol3W);
 		memedit_ctrl.pWatchTable->HeaderBoxWidth(4, memedit_ctrl.iCol4W);
+	}
+
+	Fl::wait(0.02);
+
+	// Finally test if the watch window should be hidden
+	if (memedit_ctrl.watchHidden)
+	{
+		// Mark it not hidden because the callback will toggle
+		memedit_ctrl.watchHidden = FALSE;
+		cb_show_hide_watch(NULL, NULL);
 	}
 }
 
@@ -3351,6 +3373,7 @@ void MemoryEditor_LoadPrefs(void)
 	}
 
 	// Get watch window geometry
+	g.get("WatchHidden", memedit_ctrl.watchHidden, 0);
 	g.get("SplitH", memedit_ctrl.iSplitH, -1);
 	g.get("Col0_Width", memedit_ctrl.iCol0W, -1);
 	g.get("Col1_Width", memedit_ctrl.iCol1W, -1);
@@ -3450,7 +3473,14 @@ void MemoryEditor_SavePrefs(void)
 	g.set("h", gmew->h());
 
 	// Save watch variable geometry
-	g.set("SplitH", memedit_ctrl.pTopPane->h());
+	g.set("WatchHidden", memedit_ctrl.watchHidden);
+	// If watch window is hidden, then update SplitH in case the window
+	// was resized
+	memedit_ctrl.iSplitH = gmew->h() - MENU_HEIGHT - 3 -
+		memedit_ctrl.pBottomPane->h();
+	if (memedit_ctrl.iSplitH < 128)
+		memedit_ctrl.iSplitH = gmew->h() >> 1;
+	g.set("SplitH", memedit_ctrl.iSplitH);
 	g.set("Col0_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(0));
 	g.set("Col1_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(1));
 	g.set("Col2_Width", memedit_ctrl.pWatchTable->HeaderBoxWidth(2));
@@ -4526,5 +4556,54 @@ void T100_MemEditor::ResetMarkers(void)
 		// NULL out the head pointers
 		m_pUndoDeleteMarkers[region] = NULL;
 		m_pRegionMarkers[region] = NULL;
+	}
+}
+
+void cb_show_hide_watch(Fl_Widget* w, void*)
+{
+	int sh = memedit_ctrl.pTile->h();
+
+	if (memedit_ctrl.watchHidden)
+	{
+		// Mark the watch pane visible
+		memedit_ctrl.watchHidden = 0;
+
+		// Update iSplitH in case the window was resized while
+		// the bottom pane was hidden
+		memedit_ctrl.iSplitH = memedit_ctrl.pTile->h() -
+			memedit_ctrl.pBottomPane->h();
+		if (memedit_ctrl.pBottomPane->h() < 50)
+			memedit_ctrl.iSplitH = gmew->h() - MENU_HEIGHT - 96;
+
+		// Resize the top pane to occupy the entire window
+		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), 
+			memedit_ctrl.pTopPane->y(), memedit_ctrl.pTopPane->w(), 
+			memedit_ctrl.iSplitH);
+
+		// Restore the position of the bottom pane
+		memedit_ctrl.pBottomPane->resize(memedit_ctrl.pTopPane->x(), 
+			memedit_ctrl.pTopPane->y() + memedit_ctrl.iSplitH, 
+			memedit_ctrl.pTile->w(),
+			memedit_ctrl.pTile->h()-memedit_ctrl.iSplitH);
+
+		gMemEdit_menuitems[3].text = "Hide Watch Window";
+	}
+	else
+	{
+		// Mark the watch window hidden
+		memedit_ctrl.watchHidden = 1;
+
+		// Read current positon of the pane
+		memedit_ctrl.iSplitH = memedit_ctrl.pTopPane->h();
+
+		// Move the bottom pane out of view
+		memedit_ctrl.pBottomPane->position(-2000, 0);
+
+		// Resize the top pane to occupy the entire window
+		memedit_ctrl.pTopPane->resize(memedit_ctrl.pTopPane->x(), 
+			memedit_ctrl.pTopPane->y(), memedit_ctrl.pTopPane->w(), 
+			sh-10);
+
+		gMemEdit_menuitems[3].text = "Show Watch Window";
 	}
 }

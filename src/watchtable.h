@@ -1,6 +1,6 @@
 /* watchtable.h */
 
-/* $Id: watchtable.h,v 1.6 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: watchtable.h,v 1.1 2013/02/15 13:03:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -178,6 +178,7 @@ protected:
 	double					m_WidthPercentage[VT_WATCH_TABLE_COL_COUNT];
 	int						m_SelLine;
 	int						m_DblclkX, m_DblclkY;
+	int						m_MoveStartX, m_MoveStartY;
 	int						m_Height;				// Font height
 	int						m_PopupSelSave;
 	int						m_PopupInputField;

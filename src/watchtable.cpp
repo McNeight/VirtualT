@@ -1,6 +1,6 @@
 /* watchtable.cpp */
 
-/* $Id: watchtable.cpp,v 1.2 2013/02/15 15:05:13 kpettit1 Exp $ */
+/* $Id: watchtable.cpp,v 1.3 2013/02/15 16:22:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -132,6 +132,7 @@ VT_Watch_Table::VT_Watch_Table(int x, int y, int w, int h) :
 	m_FontSize = 14;
 	m_SelLine = -1;
 	m_DblclkX = m_DblclkY = -1;
+	m_MoveStartX = m_MoveStartY = -1;
 	m_PopupSelSave = -1;
 	m_PopupInputField = 0;
 	m_pEventHandler = NULL;
@@ -669,8 +670,6 @@ void VT_Watch_Table::draw(void)
 	int			lines, topItem;
 	CWatchDef*	pVar;
 
-	//window()->make_current();
-
 	// Do our custom draw stuff
 	fl_font(FL_COURIER, m_FontSize);
 	fontHeight = fl_height();
@@ -732,9 +731,10 @@ Handle events that occur within the variable window.
 */
 int VT_Watch_Table::handle_variable_events(int event)
 {
-	int		line_click, fontHeight;
-	int		xp, yp, topItem;
-	int		button, x, key;
+	int			line_click, fontHeight, lines;
+	int			xp, yp, topItem;
+	int			button, x, key;
+	CWatchDef*	pVar;
 
 	// Get some common variables
 	fl_font(FL_COURIER, m_FontSize);
@@ -833,6 +833,7 @@ int VT_Watch_Table::handle_variable_events(int event)
 		}
 		else if (key >= FL_F + 1 && key <= FL_F + 12)
 		{
+			// Pass function keys to the registerd event handler
 			if (m_pEventHandler != NULL)
 				m_pEventHandler(key, NULL);
 		}
@@ -840,11 +841,16 @@ int VT_Watch_Table::handle_variable_events(int event)
 		return 1;
 
 	case FL_PUSH:
+		// Take the focus for ourselves
 		take_focus();
 
+		// Calculate the line the mouse was clicked on
 		line_click = (yp-VT_WATCH_TABLE_HDR_HEIGHT) / fontHeight;
 		if (line_click < 0)
 			line_click = 0;
+		lines = this->m_pVarWindow->h() / m_Height;
+		if (line_click >= lines)
+			line_click = lines - 1;
 
 		// Get the mouse button that was pressed
 		button = Fl::event_button();
@@ -947,12 +953,17 @@ int VT_Watch_Table::handle_variable_events(int event)
 		{
 			CWatchDef* pVar = (CWatchDef *) m_WatchVars[line_click + topItem - 1];
 			DrawWatch(pVar, m_SelLine);
+			Fl::grab();
+			m_MoveStartX = xp;
+			m_MoveStartY = yp;
 		}
 		fl_pop_clip();
 
 		return 1;
 
 	case FL_RELEASE:
+		window()->cursor(FL_CURSOR_DEFAULT);
+		Fl::release();
 		return 1;
 
 	case FL_FOCUS:
@@ -999,11 +1010,51 @@ int VT_Watch_Table::handle_variable_events(int event)
 
 	case FL_MOVE:
 	case FL_DRAG:
+		// Clear any active double-click location
 		if (xp != m_DblclkX || yp != m_DblclkY)
 		{
 			m_DblclkX = -1;
 			m_DblclkY = -1;
 		}
+		if (event == FL_MOVE)
+			return 1;
+
+		// Test if we are moving the selected item up or down
+		if (m_SelLine != -1)
+		{
+			if (m_SelLine < m_WatchVars.GetSize())
+			{
+				if (abs(yp - m_MoveStartY) > 4)
+					window()->cursor(FL_CURSOR_MOVE);
+
+				// Calculate the new line the cursor is on
+				line_click = (yp-VT_WATCH_TABLE_HDR_HEIGHT) / fontHeight;
+				if (line_click < 0)
+					line_click = 0;
+				
+				// Constrain line_click based on number of variables defined
+				if (line_click + topItem - 1 >= m_WatchVars.GetSize())
+				{
+					line_click = m_WatchVars.GetSize() - topItem;
+				}
+
+				// Test if moving to a different line
+				if (m_SelLine != line_click)
+				{
+					// Get pointer to the variable
+					pVar = (CWatchDef *) m_WatchVars[m_SelLine];
+					m_WatchVars.RemoveAt(m_SelLine, 1);
+
+					// Reinsert at new location
+					m_WatchVars.InsertAt(line_click, pVar);
+
+					// Set the new SelLine value
+					m_SelLine = line_click;
+					redraw();
+				}
+			}
+		}
+
 		return 1;
 
 	default:
