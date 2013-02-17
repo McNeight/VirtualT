@@ -51,6 +51,9 @@ v1.6
 14. Started converting the preferences file to use preference groups to help organize
     the growing list of entries in the file.
 
+15. Completed the "-nogui" option under Linux and added console interface control.  This
+    provides an identical interface to the existing socket / telnet control interface.
+
 ====================
 v1.5  July 9th, 2011
 ====================

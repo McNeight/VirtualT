@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.18 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.19 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -32,7 +32,11 @@
 #include <FL/Fl_Preferences.H>
 #include <string.h>
 #include <stdio.h>
+#include <cstdarg>
 #include <string>
+#include <sstream>
+#include <iostream>
+#include <iomanip>
 
 using namespace std;
 
@@ -64,6 +68,8 @@ HANDLE				gRemoteLock;		// Lock to access emulation
 #else
 pthread_t			gRemoteThread;		// The remote control thread
 pthread_mutex_t		gRemoteLock;		// Lock to access emulation
+pthread_t			gConsoleThread;		// The console control thread
+//pthread_mutex_t		gConsoleLock;		// Lock to access emulation
 #endif
 
 int					gRadix = 10;		// Radix used for reporting values
@@ -96,6 +102,8 @@ std::string			gLineTerm = "\n";
 std::string			gOk = "Ok";
 std::string			gParamError = "Parameter Error\nOk";
 std::string			gTelnetCmd;
+
+ConsoleSocket		gConsole;
 
 // Socket interface management structure
 typedef struct  
@@ -167,6 +175,7 @@ std::string cmd_help(ServerSocket& sock)
 	sock << "  halt" << gLineTerm;
 	sock << "  in port" << gLineTerm;
 	sock << "  key(k) [enter cr f1 esc ctrl+c shift+code+a \"Text\" ...]" << gLineTerm;
+	sock << "  kill filename" << gLineTerm;
 	sock << "  lcd_ignore(li) [none (row,col)-(row,col)]" << gLineTerm;
 	sock << "  lcd_mon(lm) [on off]" << gLineTerm;
 	sock << "  list_break(lb)" << gLineTerm;
@@ -1989,6 +1998,83 @@ std::string cmd_model(ServerSocket& sock, std::string& args)
 	return gOk;
 }
 
+//=============================================================================
+void DoFormatting(std::string& sF, const char* sformat, va_list marker)
+{
+    char *s, ch=0;
+    int n, i=0, m;
+    long l;
+    double d;
+    std::string sf = sformat;
+    std::stringstream ss;
+
+    m = sf.length();
+    while (i<m)
+    {
+        ch = sf.at(i);
+        if (ch == '%')
+        {
+            i++;
+            if (i<m)
+            {
+                ch = sf.at(i);
+                switch(ch)
+                {
+                    case 's': { s = va_arg(marker, char*);  ss << s;         } break;
+                    case 'c': { n = va_arg(marker, int);    ss << (char)n;   } break;
+                    case 'd': { n = va_arg(marker, int);    ss << (int)n;    } break;
+                    case 'l': { l = va_arg(marker, long);   ss << (long)l;   } break;
+                    case 'f': { d = va_arg(marker, double); ss << (float)d;  } break;
+                    case 'e': { d = va_arg(marker, double); ss << (double)d; } break;
+                    case 'X':
+                    case 'x':
+                        {
+                            if (++i<m)
+                            {
+                                ss << std::hex << std::setiosflags (std::ios_base::showbase);
+                                if (ch == 'X') ss << std::setiosflags (std::ios_base::uppercase);
+                                char ch2 = sf.at(i);
+                                if (ch2 == 'c') { n = va_arg(marker, int);  ss << std::hex << (char)n; }
+                                else if (ch2 == 'd') { n = va_arg(marker, int); ss << std::hex << (int)n; }
+                                else if (ch2 == 'l') { l = va_arg(marker, long);    ss << std::hex << (long)l; }
+                                else ss << '%' << ch << ch2;
+                                ss << std::resetiosflags (std::ios_base::showbase | std::ios_base::uppercase) << std::dec;
+                            }
+                        } break;
+                    case '%': { ss << '%'; } break;
+                    default:
+                    {
+                        ss << "%" << ch;
+                        //i = m; //get out of loop
+                    }
+                }
+            }
+        }
+        else ss << ch;
+        i++;
+    }
+    va_end(marker);
+    sF = ss.str();
+}
+
+//=============================================================================
+void stringf(string& stgt,const char *sformat, ... )
+{
+    va_list marker;
+    va_start(marker, sformat);
+    DoFormatting(stgt, sformat, marker);
+}
+
+//=============================================================================
+void stringfappend(string& stgt,const char *sformat, ... )
+{
+    string sF = "";
+    va_list marker;
+    va_start(marker, sformat);
+    DoFormatting(sF, sformat, marker);
+    stgt += sF;
+}
+
 /*
 =======================================================
 Speed command:  Sets the emulation speed
@@ -2011,7 +2097,8 @@ std::string cmd_speed(ServerSocket& sock, std::string& args)
 			ret = "friendly" + gLineTerm + gOk;
 			return ret;
 		case SPEED_FULL: 
-			ret = "max" + gLineTerm + gOk;
+			stringf(ret, "max (%f Mhz)", cpu_speed);
+			ret = ret + gLineTerm + gOk;
 			return ret;
 		}
 	}
@@ -2814,9 +2901,12 @@ int telnet_command_ready(ServerSocket& sock, std::string &cmd, char* sockData, i
 Routine to process remote commands
 =======================================================
 */
-void send_telnet_greeting(ServerSocket& sock)
+void send_telnet_greeting(ServerSocket& sock, int console = FALSE)
 {
-	sock << gLineTerm << "Welcome to the VirtualT v" << VERSION << " TELNET interface." << gLineTerm;
+	if (console)
+		sock << gLineTerm << "Welcome to the VirtualT v" << VERSION << " console interface." << gLineTerm;
+	else
+		sock << gLineTerm << "Welcome to the VirtualT v" << VERSION << " TELNET interface." << gLineTerm;
 	sock << "Use decimal, C hex (0x2a) or Asm hex (14h) for input." << gLineTerm;
 	sock << "Return data reported according to specified radix." << gLineTerm;
 	sock << "Type 'help' for a list of supported comands." << gLineTerm;
@@ -2828,7 +2918,8 @@ void send_telnet_greeting(ServerSocket& sock)
 Routine to process remote commands
 =======================================================
 */
-std::string process_command(ServerSocket& sock, char *sockdata, int len)
+std::string process_command(ServerSocket& sock, char *sockdata, int len,
+		int console=FALSE)
 {
 	std::string ret = "Syntax error";
 	std::string cmd_word;
@@ -2836,7 +2927,7 @@ std::string process_command(ServerSocket& sock, char *sockdata, int len)
 	std::string cmd = sockdata;
 
 	// Test for telnet protocol bytes
-	if (gSocket.telnet)
+	if (!console && gSocket.telnet)
 	{
 		ret = ret + gLineTerm + gOk;
 		if (!telnet_command_ready(sock, cmd, sockdata, len))
@@ -2874,7 +2965,7 @@ std::string process_command(ServerSocket& sock, char *sockdata, int len)
 	else if (cmd == "terminate")	// Check for terminate
 		ret = cmd_terminate(sock);
 
-	else if ((cmd == "exit") || (cmd == "bye"))	// Check for terminate
+	else if ((cmd == "exit") || (cmd == "bye") || (cmd == "quit"))	// Check for terminate
     {
 	    sock << "Thank you for contacting VirtualT v" << VERSION << ".  Bye." << gLineTerm;
         ret = "";
@@ -3153,6 +3244,75 @@ void* remote_control(void* arg)
 
 /*
 =======================================================
+Handles user input at the console
+=======================================================
+*/
+void* console_control(void* pArg)
+{
+	int				ch;
+	static	char	cmdLine[256];
+	static	char	cmdLen = 0;
+	std::string  	ret;
+
+	// Check if no-GUI mode enabled
+	send_telnet_greeting(gConsole, TRUE);
+	
+	// Get the character from the console
+	while (!gExitApp && !gSocket.socketShutdown && !gSocket.closeSocket)
+	{
+		// Get next character
+		ch = fgetc(stdin);
+
+		// Validate command length
+		if (cmdLen < sizeof(cmdLine)-1)
+		{
+			// Append the character to the command line
+			cmdLine[cmdLen++] = ch;
+
+			// Test for enter
+			if (ch == '\n')
+			{
+				// Remove the \n from the command
+				cmdLen--;
+				cmdLine[cmdLen] = '\0';
+
+				// Process the command line
+				if (cmdLen > 0)
+					ret = process_command(gConsole, cmdLine, cmdLen, TRUE);
+				else
+				{
+					gConsole << "Ok> ";
+				}
+
+				// Reset the command length
+				cmdLen = 0;
+
+				// Test for "bye" command
+				if (gSocket.closeSocket)
+				{
+					gExitLoop = TRUE;
+					gExitApp = TRUE;
+				}
+
+				// Display the result on the console`
+				gConsole << ret;
+
+				if (ret == "Syntax error")
+					gConsole << "\nOk> ";
+			}
+		}
+		else
+		{
+			printf("Command line too long.  Terminated\n");
+			cmdLen = 0;
+		}
+	}
+
+	return NULL;
+}
+
+/*
+=======================================================
 Tears down the remote control socket inerface.
 =======================================================
 */
@@ -3289,6 +3449,7 @@ void init_remote(void)
 		} 
 	}
 
+	// Create a thread for remote socket control
 	gRemoteThread = CreateThread( NULL, 0,
 			(LPTHREAD_START_ROUTINE) remote_control,
 			NULL, 0, &id);
@@ -3300,7 +3461,11 @@ void init_remote(void)
 		pthread_mutex_init(&gRemoteLock, NULL);
 	}
 
+	// Create a thread for socket control
 	pthread_create(&gRemoteThread, NULL, remote_control, NULL);
+
+	// Create a thread for console control
+	pthread_create(&gConsoleThread, NULL, console_control, NULL);
 #endif
 
 	// Set Init flag so we only init once
@@ -3486,3 +3651,73 @@ void load_remote_preferences()
 	gSocket.enabled = enabled;
 	gSocket.telnet = telnet;
 }
+
+/*
+=======================================================
+Handles user input at the console
+=======================================================
+*/
+void remote_process_console_input(void)
+{
+	int				ch;
+	static	char	cmdLine[256];
+	static	char	cmdLen = 0;
+	std::string  	ret;
+
+	// Get the character from the console
+	while (1)
+	{
+		// Get next character
+		ch = fgetc(stdin);
+
+		// Validate command length
+		if (cmdLen < sizeof(cmdLine)-1)
+		{
+			// Append the character to the command line
+			cmdLine[cmdLen++] = ch;
+
+			// Test for enter
+			if (ch == '\n')
+			{
+				// Remove the \n from the command
+				cmdLen--;
+				cmdLine[cmdLen] = '\0';
+
+				// Process the command line
+				if (cmdLen > 0)
+					ret = process_command(gConsole, cmdLine, cmdLen, TRUE);
+				else
+				{
+					gConsole << "Ok> ";
+					return;
+				}
+
+				// Reset the command length
+				cmdLen = 0;
+
+				// Test for "bye" command
+				if (gSocket.closeSocket)
+				{
+					gExitLoop = TRUE;
+					gExitApp = TRUE;
+				}
+
+				// Display the result on the console`
+				gConsole << ret;
+
+				if (ret == "Syntax error")
+					gConsole << "\nOk> ";
+
+				return;
+			}
+		}
+		else
+		{
+			printf("Command line too long.  Terminated\n");
+			cmdLen = 0;
+			return;
+		}
+
+	}
+}
+

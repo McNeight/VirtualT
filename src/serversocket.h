@@ -14,8 +14,8 @@ class ServerSocket : private Socket
   ServerSocket (){};
   virtual ~ServerSocket();
 
-  const ServerSocket& operator << ( const std::string& ) const;
-  const ServerSocket& operator >> ( std::string& ) const;
+  virtual const ServerSocket& operator << ( const std::string& ) const;
+  virtual const ServerSocket& operator >> ( std::string& ) const;
   
 
   void accept ( ServerSocket& );
@@ -24,5 +24,13 @@ class ServerSocket : private Socket
 
 };
 
+class ConsoleSocket : public ServerSocket
+{
+public:
+	ConsoleSocket() {}
+
+	virtual const ConsoleSocket& operator << ( const std::string& ) const;
+	virtual const ConsoleSocket& operator >> ( std::string& ) const;
+};
 
 #endif

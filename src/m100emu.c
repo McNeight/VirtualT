@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.34 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.35 2013/02/16 20:41:36 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -43,6 +43,7 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <termios.h>
 #endif
 
 #include "VirtualT.h"
@@ -151,6 +152,8 @@ char					gLastWasSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
 void					periph_mon_update_lpt_log(void);
 
+#define		NB_ENABLE	1
+#define		NB_DISABLE	2
 
 #ifdef WIN32
 void CALLBACK ThrottleProc(UINT uID, UINT uMsg, DWORD dwUser, DWORD dw1, DWORD dw2)
@@ -363,6 +366,38 @@ void throttle(int cy)
 }
 
 /*
+========================================================================
+nonblock:	Set / disable non-blocking terminal mode
+========================================================================
+*/
+#ifdef __unix__
+void nonblock(int state)
+{
+	struct	termios	ttystate;
+
+	return;
+	/* Get the terminal state */
+	tcgetattr(STDIN_FILENO, &ttystate);
+
+	if (state == NB_ENABLE)
+	{
+		/* Turn off canonical mode */
+		ttystate.c_lflag &= ~ICANON;
+
+		/* Minimum input read size */
+		ttystate.c_cc[VMIN] = 1;
+	}
+	else if (state == NB_DISABLE)
+	{
+		ttystate.c_lflag |= ICANON;
+	}
+
+	/* Set the terminal attributes */
+	tcsetattr(STDIN_FILENO, TCSANOW, &ttystate);
+}
+#endif
+
+/*
 =============================================================================
 This routine bails from the app in case of a panic.
 =============================================================================
@@ -373,10 +408,12 @@ void bail(char *msg)
 
 	endtime=msclock();
 	puts(msg);
-	printf("%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
+	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
 	printf("Start: %d  End: %d\n",starttime,endtime);
 	printf("Time: %f\n",((double)(endtime-starttime))/1000);
 	printf("MHz: %f\n",((UINT64)cycles/(((double)(endtime-starttime))/1000))/1000000);
+
+	nonblock(NB_DISABLE);
 	exit(1);
 }
 
@@ -1069,7 +1106,6 @@ void maint(void)
 		gInMsPlanROM--;
 }
 
-
 /*
 ========================================================================
 This routine checks if there are any active debug monitors and calls
@@ -1237,7 +1273,10 @@ void emulate(void)
 				if(!(--nxtmaint & 0x3FF)) 
 #endif
 				{
+					/* Perform maintenance with remote interface unlocked */
 					unlock_remote();
+
+					/* Do normal maintenance stuff */
 					gOsDelay = nxtmaint == 0;
 					throttle(cycle_delta);
 					maint();
@@ -1333,6 +1372,9 @@ void setup_unix_signals(void)
 	signal(SIGHUP,handle_sig);
 	signal(SIGQUIT,handle_sig);
 	signal(SIGINT,handle_sig);
+
+	/* Enable non-blocking terminal mode */
+	nonblock(NB_ENABLE);
 #endif
 }
 
@@ -1496,6 +1538,10 @@ int main(int argc, char **argv)
 	deinit_throttle_timer();	/* Deinitialize the throttle timer */
 	deinit_display();			/* Deinitialze and free the main window */
 	free_mem();					/* Free memory used by ReMem and/or Rampac */
+
+#ifdef __unix__
+	nonblock(NB_DISABLE);
+#endif
 
 	return 0;
 }

@@ -1,6 +1,6 @@
 /* lpt.cpp */
 
-/* $Id: lpt.cpp,v 1.15 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: lpt.cpp,v 1.17 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -49,6 +49,7 @@
 #include <time.h>
 
 #include "VirtualT.h"
+#include "m100emu.h"
 #include "lpt.h"
 #include "printer.h"
 #include "fileprint.h"
@@ -404,6 +405,10 @@ Initialize the printer subsystem
 */
 void init_lpt(void)
 {
+	// Test if we are in No-GUI mode
+	if (gNoGUI)
+		return;
+
 	// If the LPT object doesn't exist, create it
 	if (gLpt == NULL)
 	{

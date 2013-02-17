@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.32 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.33 2013/02/15 13:03:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -2218,7 +2218,9 @@ void init_display(void)
 
 	/* End the Window and show it */
 	MainWin->end();
-	MainWin->show();
+
+	if (!gNoGUI)
+		MainWin->show();
 
 #ifdef WIN32
 	// On Win32 platforms, the show() routine causes the window to shrink. Reset it if fullscreen.
@@ -2297,6 +2299,11 @@ static char mapStr[40];
 
 void display_cpu_speed(void)
 {
+	// Test if we are in no GUI mode
+	if (gNoGUI)
+		return;
+
+	// If speed is less than 10 Mhz, then show 2 decimal places, else 1
 	if (cpu_speed + 0.5 < 10.0)
 		sprintf(label, "%4.2f Mhz", cpu_speed);
 	else
@@ -2307,7 +2314,7 @@ void display_cpu_speed(void)
 
 void display_map_mode(char *str)
 {
-	if (gpMap == NULL)
+	if (gpMap == NULL || gNoGUI)
 		return;
 
 	strcpy(mapStr, str);
@@ -2317,17 +2324,20 @@ void display_map_mode(char *str)
 
 void drawbyte(int driver, int column, int value)
 {
+	if (gNoGUI)
+		return;
 	if (gpDisp != NULL)
 		gpDisp->SetByte(driver, column, value);
 	if (gpDebugMonitor != 0)
 		gpDebugMonitor->SetByte(driver, column, value);
-
 
 	return;
 }
 
 void lcdcommand(int driver, int value)
 {
+	if (gNoGUI)
+		return;
 	if (gpDisp != NULL)
 		gpDisp->Command(driver, value);
 	if (gpDebugMonitor != 0)
@@ -2338,6 +2348,8 @@ void lcdcommand(int driver, int value)
 
 void power_down()
 {
+	if (gNoGUI)
+		return;
 	if (gpDisp != NULL)
 		gpDisp->PowerDown();
 	if (gpDebugMonitor != 0)
@@ -3452,7 +3464,8 @@ int T100_Disp::handle(int event)
 			gSpecialKeys |= MT_ESC;
 			break;
 		case FL_Delete:
-			if ((Fl::get_key(FL_Shift_L) | Fl::get_key(FL_Shift_R)) == 0)
+			if ((get_key(FL_Shift_L) | get_key(FL_Shift_R)) == 0)
+			//if ((Fl::get_key(FL_Shift_L) | Fl::get_key(FL_Shift_R)) == 0)
 				gSpecialKeys |= MT_SHIFT;
 		case FL_BackSpace:
 			gSpecialKeys |= MT_BKSP;
@@ -3506,27 +3519,27 @@ int T100_Disp::handle(int event)
 			break;
 		case FL_Insert:
 		case FL_Home:
-			if ((Fl::get_key(FL_Control_L) | Fl::get_key(FL_Control_R)) == 0)
+			if ((get_key(FL_Control_L) | get_key(FL_Control_R)) == 0)
 				gSpecialKeys |= MT_CTRL;
-			if (Fl::get_key(FL_Left) == 0)
+			if (get_key(FL_Left) == 0)
 				gSpecialKeys |= MT_LEFT;
 			break;
 		case FL_End:
-			if ((Fl::get_key(FL_Control_L) | Fl::get_key(FL_Control_R)) == 0)
+			if ((get_key(FL_Control_L) | get_key(FL_Control_R)) == 0)
 				gSpecialKeys |= MT_CTRL;
-			if (Fl::get_key(FL_Right) == 0)
+			if (get_key(FL_Right) == 0)
 				gSpecialKeys |= MT_RIGHT;
 			break;
 		case FL_Page_Up:
-			if ((Fl::get_key(FL_Shift_L) | Fl::get_key(FL_Shift_R)) == 0)
+			if ((get_key(FL_Shift_L) | get_key(FL_Shift_R)) == 0)
 				gSpecialKeys |= MT_SHIFT;
-			if (Fl::get_key(FL_Up) == 0)
+			if (get_key(FL_Up) == 0)
 				gSpecialKeys |= MT_UP;
 			break;
 		case FL_Page_Down:
-			if ((Fl::get_key(FL_Shift_L) | Fl::get_key(FL_Shift_R)) == 0)
+			if ((get_key(FL_Shift_L) | get_key(FL_Shift_R)) == 0)
 				gSpecialKeys |= MT_SHIFT;
-			if (Fl::get_key(FL_Down) == 0)
+			if (get_key(FL_Down) == 0)
 				gSpecialKeys |= MT_DOWN;
 			break;
 		case FL_F+1:
@@ -3579,7 +3592,7 @@ int T100_Disp::handle(int event)
 				// Handle the '^' key (Shift 6)
 				if (key == '6')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['6'] = 0;
@@ -3594,7 +3607,7 @@ int T100_Disp::handle(int event)
 				// Handle the '"' key (shift ')
 				if (key == '\'')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['\''] = 0;
@@ -3611,7 +3624,7 @@ int T100_Disp::handle(int event)
 				// Handle the '+' and '=' keys
 				if (key == '=')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates[';'] = 0;
@@ -3629,7 +3642,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['8'] = 0;
 					gKeyStates['9'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3639,7 +3652,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['9'] = 0;
 					gKeyStates['0'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3649,7 +3662,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['-'] = 0;
 					gKeyStates['0'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3659,7 +3672,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates[';'] = 0;
 					gKeyStates[':'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3669,7 +3682,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['8'] = 0;
 					gKeyStates[':'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3679,7 +3692,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['7'] = 0;
 					gKeyStates['6'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3689,7 +3702,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['2'] = 0;
 					gKeyStates['@'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3713,7 +3726,7 @@ int T100_Disp::handle(int event)
 				// Handle the '^' key (Shift 6)
 				if (key == '6')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['6'] = 0;
@@ -3735,7 +3748,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['7'] = 0;
 					gKeyStates['6'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3745,7 +3758,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['8'] = 0;
 					gKeyStates['9'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3755,7 +3768,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['9'] = 0;
 					gKeyStates['0'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3765,7 +3778,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates['8'] = 0;
 					gKeyStates[':'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3773,7 +3786,7 @@ int T100_Disp::handle(int event)
 				// Handle the '_' key
 				if (key == '-')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['-'] = 0;
 						gKeyStates['0'] = 0;
@@ -3791,7 +3804,7 @@ int T100_Disp::handle(int event)
 				{
 					gKeyStates[';'] = 0;
 					gKeyStates[':'] = 0;
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 						gSpecialKeys &= ~MT_SHIFT;
 					else
 						gSpecialKeys |= MT_SHIFT;
@@ -3799,7 +3812,7 @@ int T100_Disp::handle(int event)
 				// Handle the '"' key (shift ')
 				if (key == '\'')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['\''] = 0;
@@ -3818,7 +3831,7 @@ int T100_Disp::handle(int event)
 			{
 				if (key == ']')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys |= MT_GRAPH;
 						gSpecialKeys &= ~MT_SHIFT;
@@ -3833,7 +3846,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '[')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys |= MT_GRAPH;
 						gSpecialKeys &= ~MT_SHIFT;
@@ -3848,7 +3861,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '\\')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys |= MT_GRAPH;
 						gKeyStates[';'] = 0;
@@ -4001,7 +4014,7 @@ int T100_Disp::handle(int event)
 				// Handle the '^' key  (Shift 6)
 				if (key == '6')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['6'] = 0;
 						gKeyStates['@'] = 1;
@@ -4015,7 +4028,7 @@ int T100_Disp::handle(int event)
 				// Handle the '"' key  (Shift ')
 				if (key == '\'')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['\''] = 0;
 						gKeyStates['2'] = 1;
@@ -4030,7 +4043,7 @@ int T100_Disp::handle(int event)
 				// Handle the '+' and '=' keys
 				if (key == '=')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['='] = 0;
 						gKeyStates[';'] = 1;
@@ -4045,7 +4058,7 @@ int T100_Disp::handle(int event)
 				// Handle the '(' key
 				if (key == '9')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['9'] = 0;
 						gKeyStates['8'] = 1;
@@ -4054,7 +4067,7 @@ int T100_Disp::handle(int event)
 				// Handle the '(' key
 				if (key == '0')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['0'] = 0;
 						gKeyStates['9'] = 1;
@@ -4063,7 +4076,7 @@ int T100_Disp::handle(int event)
 				// Handle the '_' key
 				if (key == '-')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['-'] = 0;
 						gKeyStates['0'] = 1;
@@ -4072,7 +4085,7 @@ int T100_Disp::handle(int event)
 				// Handle the ':' key
 				if (key == ';')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates[';'] = 0;
@@ -4082,7 +4095,7 @@ int T100_Disp::handle(int event)
 				// Handle the '*' key
 				if (key == '8')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gKeyStates['8'] = 0;
 						gKeyStates[':'] = 1;
@@ -4091,7 +4104,7 @@ int T100_Disp::handle(int event)
 				// Handle the '&' key
 				if (key == '7')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gKeyStates['7'] = 0;
 						gKeyStates['6'] = 1;
@@ -4100,7 +4113,7 @@ int T100_Disp::handle(int event)
 				// Handle the '@' key
 				if (key == '2')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates['2'] = 0;
@@ -4113,7 +4126,7 @@ int T100_Disp::handle(int event)
 				// Handle the '@' key
 				if (key == '2')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates['2'] = 0;
@@ -4123,7 +4136,7 @@ int T100_Disp::handle(int event)
 				// Handle the '#' key
 				if (key == '3')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gSpecialKeys &= ~MT_GRAPH;
 						gKeyStates['3'] = 0;
@@ -4133,7 +4146,7 @@ int T100_Disp::handle(int event)
 				// Handle the '^' key  (Shift 6)
 				if (key == '6')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates['6'] = 0;
@@ -4146,7 +4159,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '`')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['`'] = 0;
@@ -4162,7 +4175,7 @@ int T100_Disp::handle(int event)
 				// Handle the '&' key
 				if (key == '7')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gKeyStates['7'] = 0;
 						gKeyStates['6'] = 1;
@@ -4171,7 +4184,7 @@ int T100_Disp::handle(int event)
 				// Handle the '(' key
 				if (key == '9')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['9'] = 0;
 						gKeyStates['8'] = 1;
@@ -4180,7 +4193,7 @@ int T100_Disp::handle(int event)
 				// Handle the '(' key
 				if (key == '0')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['0'] = 0;
 						gKeyStates['9'] = 1;
@@ -4189,7 +4202,7 @@ int T100_Disp::handle(int event)
 				// Handle the '*' key
 				if (key == '8')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gKeyStates['8'] = 0;
 						gKeyStates[':'] = 1;
@@ -4198,7 +4211,7 @@ int T100_Disp::handle(int event)
 				// Handle the '_' key
 				if (key == '-')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['-'] = 0;
 						gKeyStates['0'] = 1;
@@ -4206,7 +4219,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '=')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_SHIFT;
 						gKeyStates['='] = 0;
@@ -4222,7 +4235,7 @@ int T100_Disp::handle(int event)
 				// Handle the ':' key
 				if (key == ';')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{				 
 						gSpecialKeys |= MT_SHIFT;
 						gKeyStates[';'] = 0;
@@ -4232,7 +4245,7 @@ int T100_Disp::handle(int event)
 				// Handle the '"' key  (Shift ')
 				if (key == '\'')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gKeyStates['\''] = 0;
 						gKeyStates['2'] = 1;
@@ -4249,7 +4262,7 @@ int T100_Disp::handle(int event)
 			{
 				if (key == ']')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_GRAPH;
 						gSpecialKeys |= MT_SHIFT;
@@ -4265,7 +4278,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '[')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_GRAPH;
 						gSpecialKeys |= MT_SHIFT;
@@ -4275,7 +4288,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '`')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_GRAPH;
 						gSpecialKeys &= ~MT_SHIFT;
@@ -4291,7 +4304,7 @@ int T100_Disp::handle(int event)
 				}
 				if (key == '\\')
 				{
-					if (Fl::get_key(FL_Shift_L) || Fl::get_key(FL_Shift_R))
+					if (get_key(FL_Shift_L) || get_key(FL_Shift_R))
 					{
 						gSpecialKeys &= ~MT_GRAPH;
 						gSpecialKeys &= ~MT_SHIFT;
@@ -4809,6 +4822,10 @@ last time the application closed.
 void init_other_windows(void)
 {
 	int		memedit_was_open, cpuregs_was_open, ide_was_open;
+
+	// Test if we are in no GUI mode or not
+	if (gNoGUI)
+		return;
 
 	/* Load the open state of various windows */
 	virtualt_prefs.get("WindowState_MemEdit", memedit_was_open, 0);

@@ -1,8 +1,11 @@
 // Implementation of the ServerSocket class
 
+#include <iostream>
+#include <stdio.h>
 #include "serversocket.h"
 #include "socketexception.h"
 
+using namespace std;
 
 ServerSocket::ServerSocket ( int port )
 {
@@ -70,3 +73,27 @@ int ServerSocket::recv ( char* rxBuf, int rxLen ) const
 	}
 	return ret;
 }
+
+/*
+==============================================================================
+ConsoleSocket print function
+==============================================================================
+*/
+const ConsoleSocket& ConsoleSocket::operator << ( const std::string& s ) const
+{
+	// Print to stdout
+	printf("%s", s.c_str());
+	fflush(stdout);
+	//cout << s;
+
+	return *this;
+
+}
+
+
+const ConsoleSocket& ConsoleSocket::operator >> ( std::string& s ) const
+{
+	cin >> s;
+	return *this;
+}
+
