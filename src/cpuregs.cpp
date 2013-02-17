@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.17 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.18 2013/02/15 13:03:26 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -1459,7 +1459,7 @@ int remote_cpureg_stop(void)
 {
 	if (gcpuw != NULL)
 	{
-		cb_debug_stop(NULL, NULL);
+		cb_debug_stop(NULL, gcpuw);
 		return 1;
 	}
 	return 0;
@@ -1468,7 +1468,7 @@ int remote_cpureg_run(void)
 {
 	if (gcpuw != NULL)
 	{
-		cb_debug_run(NULL, NULL);
+		cb_debug_run(NULL, gcpuw);
 		return 1;
 	}
 	return 0;
@@ -1477,7 +1477,7 @@ int remote_cpureg_step(void)
 {
 	if (gcpuw != NULL)
 	{
-		cb_debug_step(NULL, NULL);
+		cb_debug_step(NULL, gcpuw);
 		return 1;
 	}
 	return 0;
@@ -3196,6 +3196,22 @@ void VTCpuRegs::LoadPrefs(void)
 	virtualt_prefs.get("CpuRegs_inverseHilight", m_inverseHilight, 1);
 	virtualt_prefs.get("CpuRegs_showAs16Bit", m_showAs16Bit, 0);
 	virtualt_prefs.get("CpuRegs_colorSyntaxHilight", m_colorSyntaxHilight, 1);
+
+	// Validate the x,y coords
+	int screenX, screenY, screenW, screenH;
+	Fl::screen_xywh(screenX, screenY, screenW, screenH);
+	if (m_x < 5)
+		m_x = 30;
+	if (m_y < 5)
+		m_y = 30;
+	if (m_x > screenW)
+		m_x = screenW - 200;
+	if (m_y > screenH)
+		m_y = screenH - 200;
+	if (m_w > screenW)
+		m_w = screenW - 100;
+	if (m_h > screenH)
+		m_h = screenH - 100;
 
 	if (m_saveBreakpoints)
 	{

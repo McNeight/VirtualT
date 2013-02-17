@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.36 2013/02/17 01:26:50 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.34 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -43,7 +43,6 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <semaphore.h>
-#include <termios.h>
 #endif
 
 #include "VirtualT.h"
@@ -152,8 +151,6 @@ char					gLastWasSingleStep = 0;
 debug_monitor_callback	gpDebugMonitors[3] = { NULL, NULL, NULL };
 void					periph_mon_update_lpt_log(void);
 
-#define		NB_ENABLE	1
-#define		NB_DISABLE	2
 
 #ifdef WIN32
 void CALLBACK ThrottleProc(UINT uID, UINT uMsg, DWORD dwUser, DWORD dw1, DWORD dw2)
@@ -376,7 +373,7 @@ void bail(char *msg)
 
 	endtime=msclock();
 	puts(msg);
-	printf("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
+	printf("%-22s A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X PC:%04X SP:%04X IM:%02X *SP:%04X\n",op,A,F,B,C,D,E,H,L,PC,SP,IM,MEM16(SP));
 	printf("Start: %d  End: %d\n",starttime,endtime);
 	printf("Time: %f\n",((double)(endtime-starttime))/1000);
 	printf("MHz: %f\n",((UINT64)cycles/(((double)(endtime-starttime))/1000))/1000000);
@@ -1073,6 +1070,7 @@ void maint(void)
 		gInMsPlanROM--;
 }
 
+
 /*
 ========================================================================
 This routine checks if there are any active debug monitors and calls
@@ -1240,10 +1238,7 @@ void emulate(void)
 				if(!(--nxtmaint & 0x3FF)) 
 #endif
 				{
-					/* Perform maintenance with remote interface unlocked */
 					unlock_remote();
-
-					/* Do normal maintenance stuff */
 					gOsDelay = nxtmaint == 0;
 					throttle(cycle_delta);
 					maint();
@@ -1339,7 +1334,6 @@ void setup_unix_signals(void)
 	signal(SIGHUP,handle_sig);
 	signal(SIGQUIT,handle_sig);
 	signal(SIGINT,handle_sig);
-
 #endif
 }
 
@@ -1466,7 +1460,7 @@ int main(int argc, char **argv)
 {
 	if (process_args(argc, argv))	/* Parse command line args */
 		return 1;
-	
+
 	setup_working_path(argv);	/* Create a working dir path */
 	setup_unix_signals();		/* Setup Unix signal handling */
 

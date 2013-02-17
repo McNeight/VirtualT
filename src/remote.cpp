@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.19 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.20 2013/02/17 01:26:50 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -43,7 +43,9 @@ using namespace std;
 #include <algorithm>
 
 #ifdef WIN32
+#include <Windows.h>
 #include <cctype>
+#include <conio.h>
 #else
 #include <pthread.h>
 #endif
@@ -64,6 +66,7 @@ using namespace std;
 
 #ifdef WIN32
 HANDLE				gRemoteThread;		// The remote control thread
+HANDLE				gConsoleThread = NULL;// The console control thread
 HANDLE				gRemoteLock;		// Lock to access emulation
 #else
 pthread_t			gRemoteThread;		// The remote control thread
@@ -3249,9 +3252,9 @@ Handles user input at the console
 */
 void* console_control(void* pArg)
 {
-	int				ch;
 	static	char	cmdLine[256];
-	static	char	cmdLen = 0;
+	static	int		cmdLen = 0;
+	static	int		cmdReady = 0;
 	std::string  	ret;
 
 	// Check if no-GUI mode enabled
@@ -3260,8 +3263,33 @@ void* console_control(void* pArg)
 	// Get the character from the console
 	while (!gExitApp && !gSocket.socketShutdown && !gSocket.closeSocket)
 	{
+#ifdef WIN32
+		int kbdlen;
+
+		// Test for input from console
+		kbdlen = _kbhit();
+
+		// If no input, sleep
+		if (!kbdlen)
+			Sleep(20);
+		else
+		{
+			// Read characters into cmdLine
+			cin.getline(cmdLine, sizeof(cmdLine));
+			cmdReady = TRUE;
+			cmdLen = strlen(cmdLine);
+		}
+
+		// Test for enter
+		if (cmdLine[cmdLen-1] == '\n')
+		{
+			// Remove enter from the command line
+			cmdLine[cmdLen-1] = '\0';
+			cmdReady = TRUE;
+		}
+#else
 		// Get next character
-		ch = fgetc(stdin);
+		int ch = fgetc(stdin);
 
 		// Validate command length
 		if (cmdLen < sizeof(cmdLine)-1)
@@ -3275,36 +3303,46 @@ void* console_control(void* pArg)
 				// Remove the \n from the command
 				cmdLen--;
 				cmdLine[cmdLen] = '\0';
-
-				// Process the command line
-				if (cmdLen > 0)
-					ret = process_command(gConsole, cmdLine, cmdLen, TRUE);
-				else
-				{
-					gConsole << "Ok> ";
-				}
-
-				// Reset the command length
-				cmdLen = 0;
-
-				// Test for "bye" command
-				if (gSocket.closeSocket)
-				{
-					gExitLoop = TRUE;
-					gExitApp = TRUE;
-				}
-
-				// Display the result on the console`
-				gConsole << ret;
-
-				if (ret == "Syntax error")
-					gConsole << "\nOk> ";
+				cmdReady = TRUE;
 			}
 		}
 		else
 		{
 			printf("Command line too long.  Terminated\n");
 			cmdLen = 0;
+		}
+#endif
+		if (cmdReady)
+		{
+			// Process the command line
+			if (cmdLen > 0)
+			{
+				// Process the command
+				ret = process_command(gConsole, cmdLine, cmdLen, TRUE);
+
+				// Display the result on the console`
+				gConsole << ret;
+			}
+			else
+			{
+				gConsole << "Ok> ";
+			}
+
+			// Reset the command length
+			cmdLen = 0;
+			cmdReady = FALSE;
+
+			// Test for "bye" command
+			if (gSocket.closeSocket)
+			{
+				gExitLoop = TRUE;
+				gExitApp = TRUE;
+			}
+
+			fflush(stdout);
+
+			if (ret == "Syntax error")
+				gConsole << "\nOk> ";
 		}
 	}
 
@@ -3349,6 +3387,12 @@ void deinit_remote(void)
 		gSocket.socketOpened = FALSE;
 	}
 
+	// Kill the console thread
+#if WIN32
+	if (gConsoleThread != NULL)
+		remote_kill_console_thread();
+#endif
+
 	// Wait for the thread to report shutdown
 	int retry = 0;
 	while (retry < 200)
@@ -3358,6 +3402,23 @@ void deinit_remote(void)
 		Fl::wait(.01);
 	}
 }
+
+#ifdef WIN32
+void remote_start_console_thread(void)
+{
+	DWORD id;
+
+	// Create a thread for console control
+	gConsoleThread = CreateThread( NULL, 0,
+			(LPTHREAD_START_ROUTINE) console_control,
+			NULL, 0, &id);
+}
+
+void remote_kill_console_thread(void)
+{
+	TerminateThread(gConsoleThread, 0);
+}
+#endif
 
 /*
 =======================================================

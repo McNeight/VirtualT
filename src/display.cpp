@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.33 2013/02/15 13:03:26 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.34 2013/02/17 01:26:50 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -66,6 +66,7 @@
 #include "clock.h"
 #include "fileview.h"
 #include "romstrings.h"
+#include "remote.h"
 //#include "tpddclient.h"
 
 
@@ -114,6 +115,7 @@ int				gDetailColor = FL_WHITE;
 int				gBackgroundColor = FL_GRAY;
 int				gPixelColor = FL_BLACK;
 int				gLabelColor = FL_WHITE;
+int				gConsoleDebug = FALSE;
 
 Fl_Double_Window*	gDisplayColors;
 Fl_Button*			gLcdBkButton;
@@ -1037,6 +1039,28 @@ void cb_display_colors (Fl_Widget* w, void*)
 	gDisplayColors = NULL;
 }
 
+#ifdef WIN32
+void cb_ConsoleDebug(Fl_Widget* w, void* pOpaque)
+{
+	if (!gConsoleDebug)
+	{
+#ifndef _DEBUG
+		// Allocate a console
+		AllocConsole();
+		freopen("conin$", "r", stdin);
+		freopen("conout$", "w", stdout);
+		freopen("conout$", "w", stderr);
+#endif
+
+		// Start the console control thread
+		remote_start_console_thread();
+
+		// Indicate we have console debugging active
+		gConsoleDebug = TRUE;
+	}
+}
+#endif
+
 /*
 =======================================================
 cb_help:	This routine displays the Help Subsystem
@@ -1253,6 +1277,9 @@ Fl_Menu_Item menuitems[] = {
 	{ "Assembler / IDE",       0, cb_Ide},
 	{ "Disassembler",          0, disassembler_cb },
 	{ "Memory Editor",         0, cb_MemoryEditor },
+#ifdef WIN32
+	{ "Enable Console Debug",  0, cb_ConsoleDebug },
+#endif
 	{ "ReMem Configuration",   0, cb_RememCfg, 0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Model T File Viewer",   0, cb_FileView },

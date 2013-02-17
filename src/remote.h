@@ -1,6 +1,6 @@
 /* remote.h */
 
-/* $Id: remote.h,v 1.3 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: remote.h,v 1.4 2013/02/17 01:26:50 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -54,7 +54,8 @@ int		get_remote_enabled(void);
 void	set_remote_port(int port);
 void	set_remote_telnet(int telnet);
 void	load_remote_preferences();
-void	remote_process_console_input(void);
+void	remote_start_console_thread(void);
+void	remote_kill_console_thread(void);
 
 #ifdef __cplusplus
 }
