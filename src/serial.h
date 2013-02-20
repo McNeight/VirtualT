@@ -1,6 +1,6 @@
 /* serial.h */
 
-/* $Id: serial.h,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: serial.h,v 1.9 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -72,6 +72,13 @@ enum {
 #define	SER_SIGNAL_DSR		0x02
 #define	SER_SIGNAL_DTR		0x04
 #define	SER_SIGNAL_RTS		0x08
+
+#ifndef WIN32
+#define	DTR_CONTROL_ENABLE	1
+#define	DTR_CONTROL_DISABLE	0
+#define	RTS_CONTROL_ENABLE	1
+#define RTS_CONTROL_DISABLE	0
+#endif
 
 #ifdef __cplusplus
 extern "C" {

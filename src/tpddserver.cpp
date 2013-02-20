@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.1 2012/02/20 08:16:21 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.1 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -34,6 +34,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <direct.h>
+#else
+#include <sys/stat.h>
 #endif
 
 #include <FL/Fl.H>
@@ -661,10 +663,12 @@ int VTTpddServer::SerReadByte(char *data)
 	if (m_txOut >= sizeof(m_txBuffer))
 		m_txOut = 0;
 
+#if 0
 	if (m_lastWasRx)
 		printf("\nTX:  ");
 	m_lastWasRx = FALSE;
 	printf("%02X ", (unsigned char) *data);
+#endif
 
 	// Decrement the count
 	m_txCount--;
@@ -927,7 +931,7 @@ int VTTpddServer::CmdlineDir(int background)
 
 		// Terminate the message line
 		m_rxIn = m_rxCount = 0;
-		SendToHost("\r\n");
+		SendToHost("\r                                      \r");
 	}
 	else
 	{
@@ -1005,7 +1009,7 @@ int VTTpddServer::CmdlineDir(int background)
 			// Not in wide display format
 			if (!isDir)
 			{
-				fmt.Format("%-20s%6d\r\n", name, len);
+				fmt.Format("%-20s%8d\r\n", name, len);
 				fmt.MakeUpper();
 			}
 			else
@@ -1297,7 +1301,7 @@ void VTTpddServer::ExecuteCmdline(void)
 		{
 			// This command matches the rxBuffer.  Call the command handler
 			if ((this->*m_Cmds[c].pFunc)(FALSE))
-				m_backgroundCmd = this->m_Cmds[c].pFunc;
+				m_backgroundCmd = m_Cmds[c].pFunc;
 			break;
 		}
 	}
@@ -1313,7 +1317,7 @@ void VTTpddServer::ExecuteCmdline(void)
 			{
 				// This command matches the rxBuffer.  Call the command handler
 				if ((this->*m_LinuxCmds[c].pFunc)(FALSE))
-					m_backgroundCmd = m_Cmds[c].pFunc;
+					m_backgroundCmd = m_LinuxCmds[c].pFunc;
 				break;
 			}
 		}
@@ -1381,10 +1385,13 @@ int VTTpddServer::SerWriteByte(char data)
 	// Record the time of this byte so we can perform timeout 
 	// operations in the state machine
 
+#if 0
 	if (!m_lastWasRx)
 		printf("\nRX:  ");
 	m_lastWasRx = TRUE;
 	printf("%02X ", (unsigned char) data);
+#endif
+
 	// Switch based on state. This is the main state machine
 	switch (m_state)
 	{
@@ -2291,7 +2298,8 @@ Change directory to the directory specified
 */
 int VTTpddServer::ChangeDirectory(const char *pDir)
 {
-	int ret;
+	int ret = 0;
+	MString	find_name;
 
 	// Test if changing to parent directory
 	if (strcmp(pDir, "..") == 0)
@@ -2310,19 +2318,57 @@ int VTTpddServer::ChangeDirectory(const char *pDir)
 		else
 			ret = 0;
 	}
+	else if (strcmp(pDir, ".") == 0)
+		return 1;
 	else
 	{
+		MString file_path = m_sRootDir + m_curDir;
+		dirent** e;
+		int num = fl_filename_list((const char *) file_path, &e );
+		int i;
+
+		// For directories, append the '/' for the search
+		find_name = pDir;
+		find_name += '/';
+
+		// If any files found
+		if (num > 0)
+		{
+			// Loop through all files in the list and perform a 
+			// case insensitive compare
+			for ( i = 0; i < num; i++ )
+			{
+				const char* name = e[i]->d_name;
+
+				// Compare this file with the requested filename
+				if (strcasecmp(name, find_name) == 0)
+				{				
+					// Directory found!  Append directory to current directory
+					m_curDir += name;
+					ret = 1;
+					break;
+				}
+			}
+		}
+
+		// Free the directory entries
+		for (i = 0; i < num; i++)
+			free((void*) (e[i]));
+		free((void*) e);
+
+#if 0
 		// Test if the directory actually exists
 		MString testDir = m_sRootDir + m_curDir + pDir;
 		if (fl_filename_isdir((const char *) testDir))
 		{
 			// Append directory to current directory
 			m_curDir += pDir;
-			m_curDir += "/";
+			m_curDir += (char *) "/";
 			ret = 1;
 		}
 		else
 			ret = 0;
+#endif
 	}
 
 	// Delete existing dirent structure
