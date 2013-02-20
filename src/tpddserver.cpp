@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.1 2013/02/20 20:47:47 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.2 2013/02/20 21:26:52 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -2251,7 +2251,7 @@ void VTTpddServer::SendDmeResponse(void)
 
 		// Now copy up to 6 bytes of the dir name
 		while (dir.GetLength() < 6 && c < len)
-			dir += m_curDir[c++];
+			dir += (char) toupper(m_curDir[c++]);
 		// Space pad to 6 characters
 		while (dir.GetLength() < 6)
 			dir += ' ';
