@@ -1,6 +1,6 @@
 /* m100emu.h */
 
-/* $Id: m100emu.h,v 1.10 2009/04/05 05:34:42 kpettit1 Exp $ */
+/* $Id: m100emu.h,v 1.11 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -34,41 +34,52 @@
 #include "gen_defs.h"
 #include "roms.h"
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern char  op[26];
-extern int trace;
-extern int fullspeed;
-extern volatile int gExitApp;
-extern volatile int gExitLoop;
-extern float cpu_speed;
-extern uchar *gMemory[64];
-extern RomDescription_t	 *gStdRomDesc;
-extern int   gModel;
-extern char gsOptRomFile[256];
-double hirestimer(void);
-typedef void (*mem_monitor_cb)(void);
-typedef void (*debug_monitor_callback)(int reason);
-void	mem_set_monitor_callback(mem_monitor_cb cb);
-void	mem_clear_monitor_callback(mem_monitor_cb cb);
-int		debug_set_monitor_callback(debug_monitor_callback pCallback);
-void	debug_clear_monitor_callback(debug_monitor_callback pCallback);
-void	debug_step(void);
-void	debug_halt(void);
-void	debug_run(void);
-void	remote_switch_model(int model);
-extern	char	gDebugActive;
-extern	char	gIntActive;
-extern	char	gDebugInts;
-extern	char	gStopped;
-extern	char	gSingleStep;
-extern	int		gDebugMonitorFreq;
-extern	int		gSocketPort;
-extern	int		gTelnet;
-extern	int		gNoGUI;
+/* Define global variables */
+extern char				op[26];
+extern int				trace;
+extern int				fullspeed;
+extern volatile int		gExitApp;
+extern volatile int		gExitLoop;
+extern float			cpu_speed;
+extern uchar *			gMemory[64];
+extern RomDescription_t	*gStdRomDesc;
+extern int				gModel;
+extern char				gsOptRomFile[256];
+extern	char			gDebugActive;
+extern	char			gIntActive;
+extern	char			gDebugInts;
+extern	char			gStopped;
+extern	char			gSingleStep;
+extern	int				gDebugMonitorFreq;
+extern	int				gSocketPort;
+extern	int				gTelnet;
+extern	int				gNoGUI;
+extern	char			path[512];
+
+/* Define global function prototypes */
+double			hirestimer(void);
+typedef void	(*mem_monitor_cb)(void);
+typedef void	(*debug_monitor_callback)(int reason);
+void			mem_set_monitor_callback(mem_monitor_cb cb);
+void			mem_clear_monitor_callback(mem_monitor_cb cb);
+int				debug_set_monitor_callback(debug_monitor_callback pCallback);
+void			debug_clear_monitor_callback(debug_monitor_callback pCallback);
+void			debug_step(void);
+void			debug_halt(void);
+void			debug_run(void);
+void			remote_switch_model(int model);
+int				check_model_support(int model);
+void			get_emulation_path(char* emu, int model);
+void			get_model_string(char* str, int model);
+int				get_model_from_string(char* str);
+void			get_rom_path(char* file, int model);
+void			init_cpu(void);
+void			resetcpu(void);
+void			cb_int65(int pinLevel);
 
 #define	DEBUG_PC_CHANGED	1
 #define	DEBUG_CPU_HALTED	2
@@ -81,16 +92,6 @@ extern	int		gNoGUI;
 #define	SPEED_FRIENDLY2		2
 #define	SPEED_FULL			3
 	
-int		check_model_support(int model);
-void	get_emulation_path(char* emu, int model);
-void	get_model_string(char* str, int model);
-int		get_model_from_string(char* str);
-void	get_rom_path(char* file, int model);
-void	init_cpu(void);
-//void	cpu_delay(int cy);
-void	resetcpu(void);
-void	cb_int65(int pinLevel);
-
 #ifdef __cplusplus
 }
 #endif

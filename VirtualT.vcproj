@@ -678,6 +678,18 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\src\strcase.c"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tpddclient.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tpddserver.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\VirtualT.rc"
 				>
 			</File>
@@ -1210,6 +1222,10 @@
 			</File>
 			<File
 				RelativePath=".\src\tpddclient.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tpddserver.h"
 				>
 			</File>
 			<File

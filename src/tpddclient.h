@@ -1,6 +1,6 @@
 /* tpddclient.h */
 
-/* $Id: tpddclient.h,v 1.4 2008/12/23 00:06:13 kpettit1 Exp $ */
+/* $Id: tpddclient.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
 * Copyright 2008 Ken Pettit
@@ -30,40 +30,15 @@
 #ifndef TPDDCLIENT_H
 #define TPDDCLIENT_H
 
-void cb_TpddClient(Fl_Widget* w, void*);
+/*
+===============================================================
+This file is just a placeholder.  It used to incorrectly have
+the TpddServer code in it, but that code has been moved to
+the tpddserver.cpp file instead.  Perhaps someday VirtualT
+will include a TPDD Client that can talk with a physical TPDD
+device on the serial port...
+===============================================================
+*/
 
-#ifdef	TPDD_CLIENT_MAIN
-
-typedef struct {
-	char	name[12];
-	unsigned short	address;
-	unsigned short	dir_address;
-	unsigned short	size;
-	unsigned char	type;
-} tpdd_client_files_t;
-
-typedef struct tpddclient_ctrl_struct
-{
-	Fl_Menu_Bar*			pMenu;				// Pointer to Menu bar
-
-	Fl_Box*					pDirAddress;		// Pointer to Dir star taddress
-	char					sDirAddr[20];
-	Fl_Box*					pDirEntry;			// DirEntry information box
-	char					sDirEntry[100];		// Text for directory entry
-	Fl_Box*					pAddress;			// Address information box
-	char					sAddress[100];		// Text for Address entry
-	Fl_Hold_Browser*		pFileSelect;		// Pointer to Directory Table files
-	Fl_Hold_Browser*		pView;				// Pointer to Browser for file contents
-	tpdd_client_files_t		tFiles[512];		// Storage for up to 512 files
-	int						tCount;
-	Fl_Button*				pTpddDir;			// Create TPDD directory listing
-
-	int						selectIndex;		// Index of active selection
-	Fl_Group*			g;
-
-} tpddclient_ctrl_t;
-
-#endif
-
-#endif
+#endif	/* TPDDCLIENT_H */
 

@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.19 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.20 2013/02/15 13:03:27 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -50,6 +50,7 @@
 #include "lpt.h"
 #include "clock.h"
 #include "cpu.h"
+#include "tpddserver.h"
 
 extern	Fl_Preferences virtualt_prefs;
 void init_menus(void);
@@ -64,6 +65,7 @@ typedef struct setup_ctrl_struct
 		Fl_Round_Button*	pNone;
 		Fl_Round_Button*	pSim;
 		Fl_Input*			pCmd;
+		Fl_Button*			pTpddConfig;
 		Fl_Round_Button*	pHost;
 		Fl_Choice*			pPort;
 		Fl_Round_Button*	pOther;
@@ -157,6 +159,8 @@ void save_setup_preferences(void)
 	virtualt_prefs.set("ComPort", setup.com_port);
 	virtualt_prefs.set("ComOther", setup.com_other);
 	virtualt_prefs.set("ComIgnoreFlow", setup.com_ignore_flow);
+	if (setup.com_mode == SETUP_COM_SIM_TPDD)
+		tpdd_save_prefs(ser_get_tpdd_context());
 
 	// Save LPT emulation settings
 	save_lpt_preferences(&virtualt_prefs);
@@ -306,7 +310,10 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// ===========================
 	// Get COM options
 	// ===========================
-	strcpy(setup.com_cmd, setup_ctrl.com.pCmd->value());
+	if (setup_ctrl.com.pCmd != NULL)
+		strcpy(setup.com_cmd, setup_ctrl.com.pCmd->value());
+	else
+		setup.com_cmd[0] = '\0';
 	if (setup_ctrl.com.pPort->text() != NULL)
 		strcpy(setup.com_port, setup_ctrl.com.pPort->text());
 	else
@@ -321,8 +328,9 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	else if (setup_ctrl.com.pSim->value() == 1)
 	{
 		// Open the Script file
-		ser_set_port(setup.com_cmd);
-		setup.com_mode = SETUP_COM_SIMULATED;
+//		ser_set_port(setup.com_cmd);
+		ser_set_port(tpdd_get_port_name(ser_get_tpdd_context()));
+		setup.com_mode = SETUP_COM_SIM_TPDD;
 		ser_open_port();
 	}
 	else if (setup_ctrl.com.pHost->value() == 1)
@@ -410,30 +418,43 @@ Callback routines for the COM Tab
 */
 void cb_com_radio_none (Fl_Widget* w, void*)
 {
-	setup_ctrl.com.pCmd->deactivate();
+	setup_ctrl.com.pTpddConfig->deactivate();
 	setup_ctrl.com.pPort->deactivate();
 	setup_ctrl.com.pOtherName->deactivate();
 }
 
 void cb_com_radio_sim (Fl_Widget* w, void*)
 {
-	setup_ctrl.com.pCmd->activate();
+	setup_ctrl.com.pTpddConfig->activate();
+	setup_ctrl.com.pPort->deactivate();
+	setup_ctrl.com.pOtherName->deactivate();
+}
+
+void cb_com_radio_sim_tpdd (Fl_Widget* w, void*)
+{
+	setup_ctrl.com.pTpddConfig->activate();
 	setup_ctrl.com.pPort->deactivate();
 	setup_ctrl.com.pOtherName->deactivate();
 }
 
 void cb_com_radio_host (Fl_Widget* w, void*)
 {
-	setup_ctrl.com.pCmd->deactivate();
+	setup_ctrl.com.pTpddConfig->deactivate();
 	setup_ctrl.com.pPort->activate();
 	setup_ctrl.com.pOtherName->deactivate();
 }
 
 void cb_com_radio_other (Fl_Widget* w, void*)
 {
-	setup_ctrl.com.pCmd->deactivate();
+	setup_ctrl.com.pTpddConfig->deactivate();
 	setup_ctrl.com.pPort->deactivate();
 	setup_ctrl.com.pOtherName->activate();
+}
+
+void cb_com_sim_tpdd_config(Fl_Widget* w, void*)
+{
+	// Call the TPDD server's configure routine
+	tpdd_server_config();
 }
 
 /*
@@ -465,6 +486,20 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 			setup_ctrl.com.pNone->type(FL_RADIO_BUTTON);
 			setup_ctrl.com.pNone->callback(cb_com_radio_none);
 
+			// Create controls to select simulated TPDD client connection
+			setup_ctrl.com.pSim = new Fl_Round_Button(20, 65, 220, 20, "Connect to simulated NADSBox");
+			setup_ctrl.com.pSim->type(FL_RADIO_BUTTON);
+			setup_ctrl.com.pSim->callback(cb_com_radio_sim_tpdd);
+
+			setup_ctrl.com.pTpddConfig = new Fl_Button(50, 90, 80, 20, "Configure");
+			if (setup.com_mode != SETUP_COM_SIM_TPDD)
+				setup_ctrl.com.pTpddConfig->deactivate();
+			setup_ctrl.com.pTpddConfig->callback(cb_com_sim_tpdd_config);
+
+			setup_ctrl.com.pCmd = NULL;
+
+#if 0
+			// Old simulation file controls...
 			setup_ctrl.com.pSim = new Fl_Round_Button(20, 65, 180, 20, "Use Simulated Port (not supported yet)");
 			setup_ctrl.com.pSim->type(FL_RADIO_BUTTON);
 			setup_ctrl.com.pSim->callback(cb_com_radio_sim);
@@ -473,7 +508,7 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 			if (setup.com_mode != SETUP_COM_SIMULATED)
 				setup_ctrl.com.pCmd->deactivate();
 			setup_ctrl.com.pCmd->value(setup.com_cmd);
-
+#endif
 			setup_ctrl.com.pHost = new Fl_Round_Button(20, 115, 180, 20, "Use Host Port");
 			setup_ctrl.com.pHost->type(FL_RADIO_BUTTON);
 			setup_ctrl.com.pHost->callback(cb_com_radio_host);
@@ -514,7 +549,7 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 				setup_ctrl.com.pNone->value(1);
 			else if (setup.com_mode == SETUP_COM_HOST)
 				setup_ctrl.com.pHost->value(1);
-			else if (setup.com_mode == SETUP_COM_SIMULATED)
+			else if (setup.com_mode == SETUP_COM_SIM_TPDD)
 				setup_ctrl.com.pSim->value(1);
 			else if (setup.com_mode == SETUP_COM_OTHER)
 				setup_ctrl.com.pOther->value(1);

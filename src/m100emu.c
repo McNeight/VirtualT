@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.34 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.38 2013/02/17 22:13:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -121,10 +121,10 @@ int						gNoGUI = 0;
 int						gRemoteSwitchModel = -1;
 
 //Added J. VERNET
-char path[512];
-char file[512];
+char					path[512];
+char					file[512];
 #ifdef __APPLE__
-char gOsxBundlePath[512];
+char					gOsxBundlePath[512];
 #endif
 
 extern RomDescription_t		gM100_Desc;

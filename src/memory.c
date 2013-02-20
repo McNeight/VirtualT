@@ -31,7 +31,7 @@ uchar			gBaseMemory[65536];	/* System Memory */
 uchar			gSysROM[65536];		/* System ROM */
 uchar			gOptROM[32768];		/* Option ROM */
 uchar			gMsplanROM[32768];	/* MSPLAN ROM T200 Only */
-extern char		path[255];
+//extern char		path[255];
 extern char		file[255];
 
 int				gOptRomRW = 0;		/* Flag to make OptROM R/W */
@@ -860,6 +860,10 @@ void cold_boot_mem(void)
 {
 	int		x;
 
+	// Reload the system ROM just in case it got over-written
+	load_sys_rom();
+
+	// Now zero out the RAM
 	if (gReMem && (gRex == 0))
 	{
 	}

@@ -376,6 +376,34 @@ private:
 
 };
 
+/*
+===========================================================================
+CFileString:	Class to do special File and Directory manipulation things
+				with strings (because I'm tired of doing it over and over).
+===========================================================================
+*/
+class CFileString
+{
+public:
+	CFileString() { m_SubDirIndex = 0; }
+	CFileString(MString string) { m_String = string; m_SubDirIndex = 0; };
+
+	MString		Filename();		// C:\DATA\SUBDIR\FILE.TXT    -> FILE.TXT
+	MString		Drive();		// C:\DATA\SUBDIR\FILE.TXT    -> C:
+	MString		Title();		// C:\DATA\SUBDIR\FILE.TXT    -> FILE
+	MString		Directory();	// C:\DATA\SUBDIR\FILE.TXT    -> \\DATA\\SUBDIR\\  //
+	MString		Ext();			// C:\DATA\SUBDIR\FILE.TXT    -> .TXT
+	MString		FirstSubDir();	// C:\DATA\SUBDIR\FILE.TXT    -> DATA
+	MString		NextSubDir();	// C:\DATA\SUBDIR\FILE.TXT    -> SUBDIR  ...
+
+	MString&	operator->() { return m_String; };
+	CFileString&	operator=(const MString& string) { m_String = string; return *this; };
+
+protected:
+	int m_SubDirIndex;
+	MString		m_String;
+};
+
 #endif // __cplusplus
 
 #endif

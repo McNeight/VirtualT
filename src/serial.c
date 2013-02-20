@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.18 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.20 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,6 +54,7 @@
 #include "serial.h"
 #include "setup.h"
 #include "display.h"
+#include "tpddserver.h"
 
 ser_params_t	sp;
 extern int   gModel;
@@ -105,6 +106,10 @@ int ser_init(void)
 	sp.pMonCallback = NULL;		// No monitor callback function
 	sp.stop_bits = 1;		// Initialize to 1 stop bit
 	sp.pCmdFile = NULL;		// No open command file
+
+	// Initialize a TPDD client context
+	sp.pTpddContext = tpdd_alloc_context();
+	tpdd_load_prefs(sp.pTpddContext);
 
 #ifdef WIN32
 	sp.tx_empty = TRUE;		// Indicate no active TX
@@ -202,6 +207,9 @@ int ser_deinit(void)
 	ser_close_port();
 
 #endif
+
+	// Free the tpdd context
+	tpdd_free_context(sp.pTpddContext);
 
 	return SER_NO_ERROR;
 }
@@ -799,6 +807,11 @@ int ser_set_baud(int baud)
 
 		#endif
 	}
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		// Pass the simulated baud rate to the tpdd client interface
+		return tpdd_ser_set_baud(sp.pTpddContext, baud);
+	}
 
 	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
@@ -852,6 +865,13 @@ int ser_close_port(void)
 		if (sp.pCmdFile != NULL)
 			fclose(sp.pCmdFile);
 		sp.pCmdFile = NULL;
+	}
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		// ======================
+		// Close the TPDD simulation
+		// ======================
+		tpdd_close_serial(sp.pTpddContext);
 	}
 
 	// Set flag indicating port not open
@@ -976,6 +996,14 @@ int ser_open_port(void)
 		// Update flag indicating port open
 		sp.open_flag = TRUE;
 	}
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		// Pass the open to the TPDD client interface
+		int ret = tpdd_open_serial(sp.pTpddContext);
+		if (ret == SER_NO_ERROR)
+			sp.open_flag = TRUE;
+		return ret;
+	}
 
 	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
@@ -993,7 +1021,7 @@ ser_set_port:	Set the active serial port for subsequent calls
 		host serial port where all traffic will be directed.
 ===========================================================================
 */
-int ser_set_port(char* port)
+int ser_set_port(const char* port)
 {
 
 	// Save name of port for later use
@@ -1315,6 +1343,22 @@ int ser_set_signals(unsigned char flags)
 	#endif
 
 	}
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		if (flags & SER_SIGNAL_DTR)
+			sp.dtrState = DTR_CONTROL_ENABLE;
+		else
+			sp.dtrState = DTR_CONTROL_DISABLE;
+
+		// Update RTS flag
+		if (flags & SER_SIGNAL_RTS)
+			sp.rtsState = RTS_CONTROL_ENABLE;
+		else
+			sp.rtsState = RTS_CONTROL_DISABLE;
+
+		return tpdd_ser_set_signals(sp.pTpddContext, flags);
+	}
+
 
 	// Check for a monitor window and report change
 	if (sp.pMonCallback != NULL)
@@ -1396,6 +1440,12 @@ int ser_get_flags(unsigned char *flags)
 	}
 	else if (setup.com_mode == SETUP_COM_NONE)
 		return SER_PORT_NOT_OPEN;
+
+	// Test for TPDD client simulation
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		return tpdd_ser_get_flags(sp.pTpddContext, flags);
+	}
 
 	return SER_NO_ERROR;
 }
@@ -1484,6 +1534,24 @@ int ser_get_signals(unsigned char *flags)
 		#endif
 	}
 
+	// Test for TPDD Client simulation
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		int ret;
+		if (sp.open_flag == 0)
+		{
+			*flags = 0;
+			return SER_NO_ERROR;
+		}
+		*flags = 0;
+		ret = tpdd_ser_get_signals(sp.pTpddContext, flags);
+		if (sp.rtsState == RTS_CONTROL_ENABLE)
+			*flags |= SER_SIGNAL_CTS;
+		if (sp.dtrState == DTR_CONTROL_ENABLE)
+			*flags |= SER_SIGNAL_DSR;
+		return ret;
+	}
+
 	return SER_NO_ERROR;
 }
 
@@ -1557,6 +1625,20 @@ int ser_read_byte(char* data)
 	#endif
 	}
 
+	// Test for TPDD client simulation
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		int ret = tpdd_ser_read_byte(sp.pTpddContext, data);
+
+		// Test if this is the last byte
+		if (ret == SER_LAST_BYTE)
+		{
+			sp.pCallback(0);
+			return SER_NO_ERROR;
+		}
+		return ret;
+	}
+
 	// Check if there is a monitor window open and report the write
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_READ, *data);
@@ -1601,6 +1683,12 @@ int ser_write_byte(char data)
 		#endif
 	}
 
+	// Test for TPDD client simulation
+	else if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		return tpdd_ser_write_byte(sp.pTpddContext, data);
+	}
+
 	// Check if there is a monitor window open and report the write
 	if (sp.pMonCallback != NULL)
 		sp.pMonCallback(SER_MON_COM_WRITE, data);
@@ -1617,8 +1705,23 @@ ser_poll: opportunity to invoke INT6.5 callback
 
 int ser_poll ()
 {
+	// Test if in TPDD Client simulation mode
+	if (setup.com_mode == SETUP_COM_SIM_TPDD)
+	{
+		int ret = tpdd_ser_poll(sp.pTpddContext);
 
-	if (setup.com_mode != SETUP_COM_HOST
+		// Test if any data available
+		if (ret == SER_NO_DATA)
+			// Clear the RS-232 interrupt line
+			sp.pCallback(0);
+		else
+			// Set the RS-232 interrupt line
+			sp.pCallback(1);
+
+		return SER_NO_ERROR;
+	}
+
+	else if (setup.com_mode != SETUP_COM_HOST
 		&& setup.com_mode != SETUP_COM_OTHER) 
 			return 0;
 
@@ -1640,6 +1743,16 @@ int ser_poll ()
 	return 0;
 
 #endif
+}
 
+/*
+===========================================================================
+ser_get_tpdd_context: Returns the allocated TPDD Client context
+
+===========================================================================
+*/
+void* ser_get_tpdd_context(void)
+{
+	return sp.pTpddContext;
 }
 

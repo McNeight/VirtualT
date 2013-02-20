@@ -1,5 +1,5 @@
 /*  
-  $Id: MString.cpp,v 1.1 2007/03/31 22:09:17 kpettit1 Exp $
+  $Id: MString.cpp,v 1.2 2013/02/06 17:10:33 kpettit1 Exp $
 
   MString - Dynamic string data type library
   Copyright (C) 2001-2005 Jesse L. Lovelace (jesse at aslogicsys dot com)
@@ -20,6 +20,10 @@
 
   -----
     $Log: MString.cpp,v $
+    Revision 1.2  2013/02/06 17:10:33  kpettit1
+    Added method to MString to extract the filename portion of the string.  This
+    will cause a search for '/' or '\' and return only the filename segment.
+
     Revision 1.1  2007/03/31 22:09:17  kpettit1
     Fixed issue with Read from HD in normal memory mode.  Added many files for IDE & Assember.  This is a work in progress and not complete yet.
 
@@ -50,8 +54,14 @@
 
 //#include <fstream>
 //#include <iostream>
+#ifdef WINDOWS
+#include <direct.h>
+#endif
+
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
+#include <string.h>
 #include "MString.h"
 
 #define MIN(a,b) ((a)<(b) ? (a) : (b))
@@ -2256,6 +2266,204 @@ void MString::UnlockBuffer() {
 }
 	
 	// End of BR additions
+
+/*
+==========================================================================
+Linux doesn't have _splitpath, so we have to write one.
+==========================================================================
+*/
+#ifndef WIN32
+#define		_MAX_DRIVE		4
+#define		_MAX_DIR		512
+#define		_MAX_FNAME		256
+#define		_MAX_EXT		32
+
+void _splitpath(char *path, char* pDrive, char* pDir, char* pFname, char* pExt)
+{
+	char*	ext_ptr;
+	char*	fname_ptr;
+	int		fname_len, dir_len;
+
+	// No drive letter on Linux
+	pDrive[0] = '\0';
+
+	// Get the filename
+	fname_ptr = strrchr(path, '\\');
+	if (fname_ptr == NULL)
+		fname_ptr = path;
+	else
+		fname_ptr++;
+	ext_ptr = strrchr(fname_ptr, '.');
+	if (ext_ptr != NULL)
+	{
+		fname_len = (int) (ext_ptr - fname_ptr);
+		strncpy(pFname, fname_ptr, fname_len);
+		pFname[fname_len] = '\0';
+	}
+	else
+		strcpy(pFname, fname_ptr);
+
+	// Get the extension
+	if (ext_ptr != NULL)
+	{
+		ext_ptr++;
+		strcpy(pExt, ext_ptr);
+	}
+	else
+	{
+		pExt[0] = '\0';
+	}
+	
+	// Get the directory
+	if (fname_ptr == path)
+		pDir[0] = '\0';
+	else
+	{
+		dir_len = (int) (fname_ptr - path);
+		strncpy(pDir, path, dir_len);
+		pDir[dir_len] = '\0';
+	}
+}
+#endif /* WIN32 */
+
+/*
+==========================================================================
+CFileString:  Class to deal with file paths in strings
+==========================================================================
+*/
+MString CFileString::Filename()
+{
+	MString		filename;
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+	m_String.ReleaseBuffer();
+
+	filename = fname;
+	filename += ext;
+	return filename;
+}
+
+MString CFileString::Title()
+{
+	MString		filename;
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+	m_String.ReleaseBuffer();
+
+	filename = fname;
+	return filename;
+}
+
+MString CFileString::Ext()
+{
+	MString		filename;
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+	m_String.ReleaseBuffer();
+
+	filename = ext;
+	return filename;
+}
+
+MString CFileString::Drive()
+{
+	MString		filename;
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+	m_String.ReleaseBuffer();
+
+	filename = drive;
+	return filename;
+}
+
+MString CFileString::Directory()
+{
+	MString		filename;
+
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+	m_String.ReleaseBuffer();
+
+	filename = dir;
+	return filename;
+}
+
+MString CFileString::FirstSubDir()
+{
+	MString		dir = Directory();
+	m_SubDirIndex = 0;
+
+	char* ptr = dir.GetBuffer(dir.GetLength() + 1);
+	char* token;
+
+	// Now find the m_SubDirIndex'th item in the path
+	for (int c = 0; c <= m_SubDirIndex; c++)
+	{
+		token = strtok(ptr, "\\");
+		ptr = NULL;
+		if (token == NULL)
+			break;
+	}
+	MString subDir;
+	if (token != NULL)
+	{
+		subDir = token;
+		m_SubDirIndex++;
+	}
+	dir.ReleaseBuffer();
+
+	return subDir;
+}
+
+MString CFileString::NextSubDir()
+{
+	MString		dir = Directory();
+
+	char* ptr = dir.GetBuffer(dir.GetLength() + 1);
+	char* token;
+
+	// Now find the m_SubDirIndex'th item in the path
+	for (int c = 0; c <= m_SubDirIndex; c++)
+	{
+		token = strtok(ptr, "\\");
+		ptr = NULL;
+		if (token == NULL)
+			break;
+	}
+	MString subDir;
+	if (token != NULL)
+	{
+		subDir = token;
+		m_SubDirIndex++;
+	}
+	dir.ReleaseBuffer();
+
+	return subDir;
+}
 
 //End Buffer Access ---------------------------------------
 

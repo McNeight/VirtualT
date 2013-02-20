@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.9 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.10 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -38,6 +38,7 @@
 #include <FL/Fl_Input.H>
 #include <FL/Fl_Scrollbar.H>
 #include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Menu_Bar.H>
 
 #include "MString.h"
 

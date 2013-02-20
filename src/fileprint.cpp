@@ -1,6 +1,6 @@
 /* fileprint.cpp */
 
-/* $Id: fileprint.cpp,v 1.10 2010/10/31 05:37:24 kpettit1 Exp $ */
+/* $Id: fileprint.cpp,v 1.11 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -55,7 +55,7 @@
 #include "MStringArray.h"
 
 extern "C" struct tm* mytime;
-extern "C" char path[255];
+
 /*
 ================================================================================
 VTFilePrint:	This is the class constructor for the FilePrint Printer.

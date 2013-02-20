@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.34 2013/02/17 01:26:50 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.35 2013/02/17 22:13:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -67,7 +67,6 @@
 #include "fileview.h"
 #include "romstrings.h"
 #include "remote.h"
-//#include "tpddclient.h"
 
 
 extern "C" {

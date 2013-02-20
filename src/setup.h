@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.8 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -84,7 +84,8 @@ enum {
 	SETUP_COM_NONE,
 	SETUP_COM_SIMULATED,
 	SETUP_COM_HOST,
-	SETUP_COM_OTHER
+	SETUP_COM_OTHER, 
+	SETUP_COM_SIM_TPDD
 };
 
 enum {

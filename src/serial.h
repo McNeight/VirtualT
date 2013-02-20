@@ -1,6 +1,6 @@
 /* serial.h */
 
-/* $Id: serial.h,v 1.7 2008/09/23 00:03:46 kpettit1 Exp $ */
+/* $Id: serial.h,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -39,7 +39,8 @@ enum {
 	SER_PORT_NOT_SELECTED,
 	SER_TIMEOUT,
 	SER_NO_DATA,
-	SER_PORT_NOT_OPEN
+	SER_PORT_NOT_OPEN,
+	SER_LAST_BYTE
 };
 
 enum {
@@ -89,7 +90,7 @@ int ser_set_bit_size(int bit_size);
 int ser_set_stop_bits(int stop_bits);
 int ser_set_callback(ser_callback pCallback);
 int ser_set_monitor_callback(ser_monitor_cb pCallback);
-int ser_set_port(char* port);
+int ser_set_port(const char* port);
 int ser_get_port_settings(char* port, int* open_state, int* baud, int* size, 
 						  int* stop_bits, char* parity);
 int ser_poll();
@@ -103,6 +104,9 @@ int ser_set_signals(unsigned char flags);
 int ser_get_signals(unsigned char *signals);
 int ser_read_byte(char* data);
 int ser_write_byte(char data);
+
+/* Tpdd Client interface functions */
+void* ser_get_tpdd_context(void);
 
 #ifdef __cplusplus
 }
@@ -122,6 +126,7 @@ typedef struct ser_params
 	ser_monitor_cb	pMonCallback;
 
 	FILE*			pCmdFile;			// Command file for Simulated I/O
+	void*			pTpddContext;		// The TPDD client context
 
 	// Host COM port control structures
 
