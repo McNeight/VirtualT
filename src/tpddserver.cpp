@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.2 2013/02/20 21:26:52 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.3 2013/02/20 21:52:32 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -1715,7 +1715,13 @@ void VTTpddServer::DirFindFile(const char* pFilename)
 	{
 		// Just save the reference and exit
 		m_dirRef = pFilename;
+#ifdef WIN32
 		dirent* pParent = (dirent *) "PARENT.<>";
+#else
+		dirent parent;
+		dirent* pParent = &parent;
+		strcpy(parent.d_name, "PARENT.<>");
+#endif
 		SendDirEntReturn(pParent, TRUE);
 		return;
 	}
@@ -1830,8 +1836,13 @@ void VTTpddServer::DirFindFirst(void)
 	if (m_curDir != "/")
 	{
 		// Send the "PARENT.<>" directory entry
-		dirent*	pParent;
-		pParent = (dirent *) "PARENT/";
+#ifdef WIN32
+		dirent* pParent = (dirent *) "PARENT.<>";
+#else
+		dirent parent;
+		dirent* pParent = &parent;
+		strcpy(parent.d_name, "PARENT.<>");
+#endif
 		SendDirEntReturn(pParent, TRUE);
 	}
 	else
