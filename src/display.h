@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: display.h,v 1.8 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -37,25 +37,26 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern int gDelayUpdateKeys;
-void init_pref(void);
-void init_display(void);
-void deinit_display(void);
-void drawbyte(int driver, int column, int value);
-void lcdcommand(int driver, int value);
-void power_down();
-void process_windows_event();
-void display_cpu_speed(void);
-void display_map_mode(char *str);
-void show_error(const char*);
-void t200_command(unsigned char ir, unsigned char data);
-unsigned char t200_readport(unsigned char port);
-void handle_simkey(void);
-void switch_model(int);
-void init_other_windows(void);
+extern int		gDelayUpdateKeys;
+void			init_pref(void);
+void			init_display(void);
+void			deinit_display(void);
+void			drawbyte(int driver, int column, int value);
+void			lcdcommand(int driver, int value);
+void			power_down();
+void			process_windows_event();
+void			display_cpu_speed(void);
+void			display_map_mode(char *str);
+void			show_error(const char*);
+void			t200_command(unsigned char ir, unsigned char data);
+unsigned char	t200_readport(unsigned char port);
+void			handle_simkey(void);
+void			switch_model(int);
+void			init_other_windows(void);
+void			enable_tpdd_log_menu(int bEnabled);
 
-typedef int (*get_key_t)(int);
-typedef int (*event_key_t)(void);
+typedef int 	(*get_key_t)(int);
+typedef int 	(*event_key_t)(void);
 
 #ifdef __cplusplus
 

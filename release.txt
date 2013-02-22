@@ -57,6 +57,8 @@ v1.6
 16. Added emulated NADSBox (minimal implementation so far) and controls in Peripheral
     Setup to connect it to the serial port.
 
+17. Added TPDD Server (NADSBox) packet log viewer window to Tools menu.
+
 ====================
 v1.5  July 9th, 2011
 ====================

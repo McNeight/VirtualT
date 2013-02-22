@@ -1,6 +1,6 @@
 /* tpddserver.h */
 
-/* $Id: tpddserver.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: tpddserver.h,v 1.1 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
 * Copyright 2008 Ken Pettit
@@ -71,6 +71,7 @@ const char*		tpdd_get_port_name(void* pContext);
 void			tpdd_server_config(void);
 
 class VTTpddServer;
+class VTTpddServerLog;
 
 // Typedef for command line and opcode handler
 typedef int (VTTpddServer::*VTNADSCmdlineFunc)(int background);
@@ -80,6 +81,7 @@ typedef struct VT_NADSCmd
 {
 	const char*			pCmd;
 	VTNADSCmdlineFunc	pFunc;
+	const char*			pHelp;
 } VT_NADSCmd_t;
 
 // Define offsets within m_rxBuffer of various TPDD fields
@@ -101,6 +103,14 @@ typedef struct VT_NADSCmd
 #define		TPDD_REQ_ID					0x08
 #define		TPDD_REQ_DRIVE_CONDITION	0x0C
 #define		TPDD_REQ_RENAME_FILE		0x0D
+
+// Extended requests for potential future Model "T" DOS usage
+#define		TPDD_REQ_SEEK				0x09
+#define		TPDD_REQ_TELL				0x0A
+#define		TPDD_REQ_SET_EXTENDED		0x0B
+#define		TPDD_REQ_QUERY_EXTENDED		0x0E
+#define		TPDD_REQ_CONDENSED_LIST		0x0F
+#define		TPDD_REQ_LAST_OPCODE		0x0F
 
 #define		TPDD_REQ_TSDOS_MYSTERY23	0x23
 #define		TPDD_REQ_TSDOS_MYSTERY31	0x31
@@ -155,9 +165,18 @@ typedef struct VT_NADSCmd
 #define		TPDD_ERR_NO_DISK			0x70
 #define		TPDD_ERR_DISK_CHANGE_ERR	0x71
 
+// Define Seek codes
+#define		TPDD_SEEK_SET				1
+#define		TPDD_SEEK_CUR				2
+#define		TPDD_SEEK_END				3
+
 // Define CMdline flags
 #define		CMD_DIR_FLAG_WIDE			0x0001
 #define		CMD_DIR_FLAG_DIR			0x0002
+
+// Logging defines
+#define		TPDD_LOG_RX					0
+#define		TPDD_LOG_TX					1
 
 /*
 =====================================================================
@@ -189,12 +208,22 @@ public:
 	int				ChangeDirectory(const char *pDir);
 	int				ChangeDirectory(MString& sDir);
 
+	void			RegisterServerLog(VTTpddServerLog* pServerLog) { m_pServerLog = pServerLog;
+																	 m_logEnabled = TRUE; }
+	void			UnregisterServerLog(VTTpddServerLog* pServerLog) { m_logEnabled = FALSE;
+																	   m_pServerLog = NULL; }
+	int				IsCmdlineState(void);
+
 private:
 	void			StateCmdline(char data);// Process data while in Cmdline state
 	void			ExecuteCmdline(void);	// Executes the command in m_rxBuffer
-	void			ExecuteTpddOpcode(void);// Executes teh opcode in m_rxBuffer (buffer has full packet 'ZZ'+opcode+len+data
+	void			ExecuteTpddOpcode(void);// Executes the opcode in m_rxBuffer 
+											//   (buffer has full packet 'ZZ'+opcode+len+data
 
+	// General functions
 	void			ResetDirent(void);		// Delete all entries in m_activeDir
+	int				ParseOptions(MString& args, const char* pOptions, int& flags);
+	void			LogData(char data, int rxTx);
 
 	// Routines to return data to the server
 	void			SendToHost(char data);	// Send a single byte to the host TX buffer
@@ -218,6 +247,7 @@ private:
 	FILE*			m_refFd[TPDD_MAX_FDS];	// Referenced FD
 	int				m_mode[TPDD_MAX_FDS];	// Open mode for each of the FDs
 	int				m_activeFd;				// Index of active FD
+	MString			m_cmd;					// The command that is executing
 	MStringArray	m_args;					// Cmdline arguments
 	VTNADSCmdlineFunc	m_backgroundCmd;	// Cmdline command executing in the "background"
 	int				m_backgroundFlags;		// Argument flags for background command
@@ -229,15 +259,16 @@ private:
 	int				m_dirDirNext;			// Next entry in m_dirDir to send to client
 	int				m_tsdosDmeStart;		// Indicates start of TS-DOS DME request
 	int				m_tsdosDmeReq;			// Indicates 2nd packet of DME request received
-	int				m_lastWasRx;
+	int				m_lastWasRx;			// Indicates if last logged byte was RX
+	int				m_logEnabled;			// Set TRUE when logging enabled
 	int				m_lastOpenWasDir;		// Indicates if last open was a directory change
+	VTTpddServerLog*	m_pServerLog;		// Server log object for logging data
 
 	int				m_rxCount;				// Number of bytes in RX buffer (received from Model T)
 	int				m_txCount;				// Number of bytes in TX buffer (to be sent to Model T)
-	char			m_rxBuffer[4096];		// Rx Buffer (received from Model T)
+	char			m_rxBuffer[1024];		// Rx Buffer (received from Model T)
 	char			m_txBuffer[4096];		// Tx BUffer (to be sent to Model T)
 	int				m_rxIn;
-	int				m_rxOut;				// RX & TX buffer management indices
 	int				m_txIn;
 	int				m_txOut;
 	int				m_txOverflow;			// Set true if TX buffer overflows
@@ -261,7 +292,7 @@ private:
 	static	int		m_linuxCmdCount;		// Count of linux aliases
 
 	// Array of TPDD opcode handler functions (prototype looks like Cmdline func)
-	static VTTpddOpcodeFunc	m_tpddOpcodeHandlers[9/*16*/];
+	static VTTpddOpcodeFunc	m_tpddOpcodeHandlers[16];
 	static int		m_tpddOpcodeCount;		// Countof opcode handlers
 
 	// Our command line handler functions
@@ -289,8 +320,19 @@ private:
 	virtual void	OpcodeWrite(void);		// Handler for Write opcode
 	virtual void	OpcodeDelete(void);		// Handler for Delete opcode
 	virtual void	OpcodeFormat(void);		// Handler for Format opcode
-	virtual void	OpcodeDriveStatus(void);// Handler for Drive Status opcode
 	virtual void	OpcodeId(void);			// Handler for ID opcode
+	virtual void	OpcodeDriveStatus(void);// Handler for Drive Status opcode
+	virtual void	OpcodeDriveCond(void);	// Handler for Drive Condition opcode
+	virtual void	OpcodeRename(void);		// Handler for Rename opcode
+
+	// Extended opcodes
+	virtual void	OpcodeSeek(void);		// Handler for Seek opcode
+	virtual void	OpcodeTell(void);		// Handler for Tell opcode
+	virtual void	OpcodeSetExtended(void);// Handler for SetExtended opcode
+	virtual void	OpcodeQueryExtended(void);// Handler for QueryExtended opcode
+	virtual void	OpcodeCondensedList(void);// Handler for CondensedList opcode
+
+	// Mystery opcodes
 	virtual void	OpcodeMystery23(void);	// Handler for the mystery 0x23 opcode
 	virtual void	OpcodeMystery31(void);	// Handler for the mystery 0x31 opcode
 

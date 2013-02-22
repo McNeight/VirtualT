@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.35 2013/02/17 22:13:25 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.36 2013/02/20 20:47:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -67,6 +67,7 @@
 #include "fileview.h"
 #include "romstrings.h"
 #include "remote.h"
+#include "tpddserverlog.h"
 
 
 extern "C" {
@@ -88,7 +89,9 @@ void	set_target_frequency(int freq);
 void	memory_monitor_cb(void);
 }
 
-void cb_Ide(Fl_Widget* w, void*) ;
+// Callback routines to display windows from other modules
+void 			cb_Ide(Fl_Widget* w, void*);
+void 			cb_TpddServerLog(Fl_Widget* w, void*);
 
 Fl_Window		*MainWin = NULL;
 T100_Disp		*gpDisp;
@@ -125,15 +128,16 @@ Fl_Button*			gFkeyLabelsButton;
 
 class VT_Ide;
 
-extern char*	print_xpm[];
-extern Fl_Menu_Item	gPrintMenu[];
-extern void		Ide_SavePrefs(void);
+extern char*			print_xpm[];
+extern Fl_Menu_Item		gPrintMenu[];
+extern void				Ide_SavePrefs(void);
 
 extern Fl_Pixmap		gPrinterIcon;
 extern Fl_Pixmap		littlehome, little_desktop, little_favorites, ram_drive;
 extern VTCpuRegs*		gcpuw;
 extern Fl_Window*		gmew;
 extern VT_Ide *			gpIde;
+extern VTTpddServerLog*	gpLog;
 
 void switch_model(int model);
 void key_delay(void);
@@ -314,6 +318,10 @@ void close_disp_cb(Fl_Widget* w, void*)
 			Ide_SavePrefs();
 			ide_was_open = TRUE;
 		}
+
+		// Save preferences for TPDD Server Log window
+		if (gpLog != NULL)
+			gpLog->SavePreferences();
 
 		// Save open status
 		virtualt_prefs.set("WindowState_MemEdit", memedit_was_open);
@@ -1282,6 +1290,7 @@ Fl_Menu_Item menuitems[] = {
 	{ "ReMem Configuration",   0, cb_RememCfg, 0, 0 },
 	{ "Peripheral Devices",    0, cb_PeripheralDevices },
 	{ "Model T File Viewer",   0, cb_FileView },
+	{ "TPDD Server Log",       0, cb_TpddServerLog, 0, FL_MENU_INVISIBLE },
 	{ "Socket Configuration",  0, cb_SocketSetup },
 //	{ "TPDD Client",           0, cb_TpddClient },
 	{ 0 },
@@ -1374,6 +1383,28 @@ void init_menus(void)
 	while (menuitems[mIndex].callback_ != cb_RememCfg)
 		mIndex++;
 	menuitems[mIndex].flags= remem_menu_flag;
+}
+
+/*
+============================================================================
+Enables or disables the TPDD Packet Log menu item.
+============================================================================
+*/
+void enable_tpdd_log_menu(int bEnabled)
+{
+	int 	tpdd_menu_flag = FL_MENU_INVISIBLE;
+	int		mIndex;
+
+	if (bEnabled)
+	{
+		tpdd_menu_flag = 0;
+	}
+
+	// Locate the ReMem Configuration menu item
+	mIndex = 0;
+	while (menuitems[mIndex].callback_ != cb_TpddServerLog)
+		mIndex++;
+	menuitems[mIndex].flags= tpdd_menu_flag;
 }
 
 /*
@@ -1969,7 +2000,9 @@ void deinit_display(void)
 	if (MainWin != NULL)
 	{
 		MainWin->hide();
+		delete gpDisp;
 		delete MainWin;
+		gpDisp = NULL;
 		MainWin = NULL;
 	}
 }

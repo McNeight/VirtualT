@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.20 2013/02/15 13:03:27 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.21 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -53,7 +53,12 @@
 #include "tpddserver.h"
 
 extern	Fl_Preferences virtualt_prefs;
-void init_menus(void);
+void 	init_menus(void);
+
+extern "C"
+{
+void	enable_tpdd_log_menu(int bEnabled);
+}
 
 typedef struct setup_ctrl_struct	
 {
@@ -320,6 +325,8 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		strcpy(setup.com_port, "");
 	strcpy(setup.com_other, setup_ctrl.com.pOtherName->value());
 
+	// Get the com mode
+	enable_tpdd_log_menu(FALSE);
 	if (setup_ctrl.com.pNone->value() == 1)
 	{
 		ser_set_port((char *) "No Emulation");
@@ -332,6 +339,7 @@ void cb_setup_OK(Fl_Widget* w, void*)
 		ser_set_port(tpdd_get_port_name(ser_get_tpdd_context()));
 		setup.com_mode = SETUP_COM_SIM_TPDD;
 		ser_open_port();
+		enable_tpdd_log_menu(TRUE);
 	}
 	else if (setup_ctrl.com.pHost->value() == 1)
 	{
@@ -731,6 +739,11 @@ void save_memory_preferences(void)
 	set_memory_base();
 }
 
+/*
+============================================================================
+Routine to laod the memory preferences from the preferences file.
+============================================================================
+*/
 void load_memory_preferences(void)
 {
 	char	str[16];

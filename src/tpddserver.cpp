@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.3 2013/02/20 21:52:32 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.4 2013/02/20 22:19:45 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -36,6 +36,7 @@
 #include <direct.h>
 #else
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 #include <FL/Fl.H>
@@ -50,6 +51,7 @@
 #include "VirtualT.h"
 #include "m100emu.h"
 #include "tpddserver.h"
+#include "tpddserverlog.h"
 #include "serial.h"
 #include "display.h"
 #include "cpuregs.h"
@@ -105,47 +107,54 @@ tpddserver_ctrl_t		gTsCtrl;
 
 // Define the array of NADSBox commands
 VT_NADSCmd_t VTTpddServer::m_Cmds[] = {
-	{ "cd",		&VTTpddServer::CmdlineCd },
+	{ "cd",		&VTTpddServer::CmdlineCd,			"cd path - Change Directory" },
 //	{ "copy",	&VTTpddServer::CmdlineCopy },
 //	{ "date",	&VTTpddServer::CmdlineDate },
 //	{ "del",	&VTTpddServer::CmdlineDel },
-	{ "dir",	&VTTpddServer::CmdlineDir },
-	{ "help",	&VTTpddServer::CmdlineHelp },
+	{ "dir",	&VTTpddServer::CmdlineDir,			"dir [-dw] [file] - Directory" },
+	{ "help",	&VTTpddServer::CmdlineHelp, 		"help [command] - Display help" },
 //	{ "info",	&VTTpddServer::CmdlineInfo },
 //	{ "mkdir",	&VTTpddServer::CmdlineMkdir },
-	{ "pwd",	&VTTpddServer::CmdlinePwd },
+	{ "pwd",	&VTTpddServer::CmdlinePwd,			"pwd - Show working directory" },
 //	{ "ren",	&VTTpddServer::CmdlineRen },
 //	{ "rmdir",	&VTTpddServer::CmdlineRmdir },
 //	{ "time",	&VTTpddServer::CmdlineTime },
 //	{ "trace",	&VTTpddServer::CmdlineTrace },
 //	{ "type",	&VTTpddServer::CmdlineType },
-	{ "ver",	&VTTpddServer::CmdlineVer },
+	{ "ver",	&VTTpddServer::CmdlineVer,			"ver - Show emulation version" },
 };
 int VTTpddServer::m_cmdCount = sizeof(VTTpddServer::m_Cmds) / sizeof(VT_NADSCmd_t);
 
 // Define the array of Linux alias commands
 VT_NADSCmd_t VTTpddServer::m_LinuxCmds[] = {
-	{ "cat",	&VTTpddServer::CmdlineType },
-	{ "cp",		&VTTpddServer::CmdlineCopy },
-	{ "ls",		&VTTpddServer::CmdlineDir },
-	{ "ll",		&VTTpddServer::CmdlineDir },
-	{ "more",	&VTTpddServer::CmdlineType },
-	{ "mv",		&VTTpddServer::CmdlineRen },
-	{ "rm",		&VTTpddServer::CmdlineDel },
+	{ "cat",	&VTTpddServer::CmdlineType, "cat - Alias for 'type'" },
+	{ "cp",		&VTTpddServer::CmdlineCopy, "cp - Alias for 'copy'" },
+	{ "ls",		&VTTpddServer::CmdlineDir, "ls - Alias for 'dir -w'" },
+	{ "ll",		&VTTpddServer::CmdlineDir, "ll - Alias for 'dir'" },
+	{ "more",	&VTTpddServer::CmdlineType, "more - Alias for 'type'" },
+	{ "mv",		&VTTpddServer::CmdlineRen, "mv - Alias for 'ren'" },
+	{ "rm",		&VTTpddServer::CmdlineDel, "rm - Alias for 'del'" },
 };
 int VTTpddServer::m_linuxCmdCount = sizeof(VTTpddServer::m_LinuxCmds) / sizeof(VT_NADSCmd_t);
 
 // Define the array of Linux alias commands
 VTTpddOpcodeFunc VTTpddServer::m_tpddOpcodeHandlers[] = {
-	&VTTpddServer::OpcodeDir,
-	&VTTpddServer::OpcodeOpen,
-	&VTTpddServer::OpcodeClose,
-	&VTTpddServer::OpcodeRead,
-	&VTTpddServer::OpcodeWrite,
-	&VTTpddServer::OpcodeDelete,
-	&VTTpddServer::OpcodeFormat,
-	&VTTpddServer::OpcodeDriveStatus,
-	&VTTpddServer::OpcodeId,
+	&VTTpddServer::OpcodeDir,			// 0x00
+	&VTTpddServer::OpcodeOpen,			// 0x01
+	&VTTpddServer::OpcodeClose,			// 0x02
+	&VTTpddServer::OpcodeRead,			// 0x03
+	&VTTpddServer::OpcodeWrite,			// 0x04
+	&VTTpddServer::OpcodeDelete,		// 0x05
+	&VTTpddServer::OpcodeFormat,		// 0x06
+	&VTTpddServer::OpcodeDriveStatus,	// 0x07
+	&VTTpddServer::OpcodeId,			// 0x08
+	&VTTpddServer::OpcodeSeek,			// 0x09
+	&VTTpddServer::OpcodeTell,			// 0x0A
+	&VTTpddServer::OpcodeSetExtended,	// 0x0B
+	&VTTpddServer::OpcodeDriveCond,		// 0x0C
+	&VTTpddServer::OpcodeRename,		// 0x0D
+	&VTTpddServer::OpcodeQueryExtended,	// 0x0E
+	&VTTpddServer::OpcodeCondensedList,	// 0x0F
 };
 
 int VTTpddServer::m_tpddOpcodeCount = sizeof(VTTpddServer::m_tpddOpcodeHandlers) / sizeof(VTNADSCmdlineFunc);
@@ -248,7 +257,7 @@ static void cb_tpdd_ok(Fl_Widget* w, void* pOpaque)
 
 /*
 ============================================================================
-Routine to create the TPDD Server window
+Routine to create the TPDD Server configuration window
 ============================================================================
 */
 void tpdd_server_config(void)
@@ -493,7 +502,7 @@ VTTpddServer::VTTpddServer(void)
 
 	// Clear out the rx and tx buffers
 	m_rxCount = m_txCount = 0;
-	m_rxIn = m_rxOut = 0;
+	m_rxIn = 0;
 	m_txIn = m_txOut = 0;
 	for (c = 0; c < TPDD_MAX_FDS; c++)
 	{
@@ -507,6 +516,7 @@ VTTpddServer::VTTpddServer(void)
 	m_backgroundCmd = NULL;
 	m_activeDir = NULL;
 	m_dirDir = NULL;
+	m_logEnabled = FALSE;
 	m_dirCount = m_dirNext = 0;
 	m_tsdosDmeReq = m_tsdosDmeStart = FALSE;
 
@@ -663,12 +673,7 @@ int VTTpddServer::SerReadByte(char *data)
 	if (m_txOut >= sizeof(m_txBuffer))
 		m_txOut = 0;
 
-#if 0
-	if (m_lastWasRx)
-		printf("\nTX:  ");
-	m_lastWasRx = FALSE;
-	printf("%02X ", (unsigned char) *data);
-#endif
+	LogData(*data, TPDD_LOG_TX);
 
 	// Decrement the count
 	m_txCount--;
@@ -774,7 +779,7 @@ void VTTpddServer::StateCmdline(char data)
 		}
 
 		// Now reset the rxBuffer and go to idle
-		m_rxIn = m_rxOut = m_rxCount = 0;
+		m_rxIn = m_rxCount = 0;
 		m_state = TPDD_STATE_IDLE;
 		return;
 	}
@@ -788,6 +793,10 @@ void VTTpddServer::StateCmdline(char data)
 			SendToHost("\x08 \x08");
 			m_rxCount--;
 			m_rxIn--;
+
+			// If we backspaced to zero, then go to IDLE state
+			if (m_rxCount == 0)
+				m_state = TPDD_STATE_IDLE;
 		}
 
 		return;
@@ -798,7 +807,7 @@ void VTTpddServer::StateCmdline(char data)
 	if (m_rxCount + 1 >= sizeof(m_rxBuffer))
 	{
 		// Buffer overflow!!!  Go to idle state
-		m_rxIn = m_rxOut = m_rxCount = 0;
+		m_rxIn = m_rxCount = 0;
 		m_state = TPDD_STATE_IDLE;
 		m_rxOverflow = TRUE;
 		return;
@@ -891,12 +900,56 @@ int VTTpddServer::CmdlineCd(int background)
 
 /*
 ===========================================================================
+Parses command line option arguments and creates a bitfield based on the
+given option string.
+===========================================================================
+*/
+int VTTpddServer::ParseOptions(MString& arg, const char* pOptions, int& flags)
+{
+	int		c, x;
+	int		len;
+
+	// Initialize flags to zero
+	flags = 0;
+
+	// Validate the 1st byte of arg is '-'
+	if (arg.GetLength() < 2 || arg[0] != '-')
+		return -1;
+
+	// Start at byte just past '-'
+	x = 1;
+	len = strlen(pOptions);
+	while (x < arg.GetLength())
+	{
+		// Loop through all options 
+		for (c = 0; c < len; c++)
+		{
+			if (arg[x] == pOptions[c])
+			{
+				flags |= 1 << c;
+				break;
+			}
+		}
+
+		// Test if an invalid option was given
+		if (c == len)
+			return x;
+
+		// Advance to next supplied option
+		x++;
+	}
+
+	return -1;
+}
+
+/*
+===========================================================================
 Handles the "dir" command
 ===========================================================================
 */
 int VTTpddServer::CmdlineDir(int background)
 {
-	int			i, printed;
+	int			i, printed, col;
 	MString		file_path;
 	int			wide = FALSE;
 	MString		fmt;
@@ -946,7 +999,35 @@ int VTTpddServer::CmdlineDir(int background)
 
 		// Test if any args given
 		m_backgroundFlags = 0;
-		if (m_args.GetSize() == 0)
+		int options = 0;
+		int errOption;
+		if (m_args.GetSize() > 0)
+		{
+			// Test if 1st arg is options
+			if (m_args[0][0] == '-')
+			{
+				// Parse the options
+				if ((errOption = ParseOptions(m_args[0], "wd", m_backgroundFlags)) != -1)
+				{
+					// Unknown option given
+					MString fmt;
+					fmt.Format("unknown option '%c'\r\n", m_args[0][errOption]);
+					SendToHost((const char *) fmt);
+					m_rxIn = m_rxCount = 0;
+					return FALSE;
+				}
+			
+				// Indicate we used arg0
+				options = 1;
+			}
+		}
+		
+		// Test if this is the 'ls' command and automatically select wide
+		if (m_cmd == "ls")
+			m_backgroundFlags |= CMD_DIR_FLAG_WIDE;
+
+		// Test if argument other than options given
+		if (m_args.GetSize() - options == 0)
 		{
 			Fl_File_Sort_F *sort = fl_casealphasort;
 
@@ -956,7 +1037,7 @@ int VTTpddServer::CmdlineDir(int background)
 		}
 		else
 		{
-			SendToHost("Arguments not supported yet\r\n");
+			SendToHost("arguments not supported yet\r\n");
 			m_rxIn = m_rxCount = 0;
 			return FALSE;
 		}
@@ -967,7 +1048,9 @@ int VTTpddServer::CmdlineDir(int background)
 
 	// Display a page of entries
 	printed = 0;
+	col = 0;
 
+	// Loop for all directory entries and send the next screen to client
 	for (i = m_dirDirNext; i < m_dirDirCount; i++)
 	{
 		const char* name = m_dirDir[i]->d_name;
@@ -985,6 +1068,10 @@ int VTTpddServer::CmdlineDir(int background)
 		isDir = FALSE;
 		if (name[strlen(name)-1] == '/')
 			isDir = TRUE;
+
+		// Test if only directories requested
+		if ((m_backgroundFlags & CMD_DIR_FLAG_DIR) && !isDir)
+			continue;
 
 		// Get length of file
 		if (!isDir)
@@ -1022,6 +1109,43 @@ int VTTpddServer::CmdlineDir(int background)
 			SendToHost((const char *) fmt);
 			printed++;
 		}
+		else
+		{
+			// Printing in wide format... 2 entries per line
+
+			if (!isDir)
+			{
+				// Truncate name to 12 places
+				char temp[13];
+				strncpy(temp, name, 12);
+				temp[12] = '\0';
+				if (strlen(name) < 12)
+					temp[strlen(name)] = '\0';
+
+				// Max display size is 99999
+				if (len < 100000)
+					fmt.Format("%-13s%6d", temp, len);
+				else
+					fmt.Format("%-13>99999", temp);
+				fmt.MakeUpper();
+			}
+			else
+			{
+				MString temp = name;
+				temp = temp.Left(temp.GetLength()-1);
+				temp.MakeUpper();
+				fmt.Format("%-13s <dir>", (const char *) temp);
+			}
+
+			SendToHost((const char *) fmt);
+			if (col++ == 1)
+			{
+				col = 0;
+				printed++;
+			}
+			else
+				SendToHost("  ");
+		}
 
 		// Test if a page printed
 		if (gModel == MODEL_T200)
@@ -1038,6 +1162,10 @@ int VTTpddServer::CmdlineDir(int background)
 			break;
 		}
 	}
+
+	// Test if we ended on col 1 in a wide format
+	if ((m_backgroundFlags & CMD_DIR_FLAG_WIDE) && col == 1)
+		SendToHost("\r\n");
 
 	// Save index for next listing
 	m_dirDirNext = i;
@@ -1184,28 +1312,78 @@ int VTTpddServer::CmdlineHelp(int background)
 	// Counts the number of commands printed on this line
 	cmdsThisLine = 0;
 
+	m_cycleDelay = rst7cycles * 70 ;
+	if (m_cycleDelay > 1000000)
+		m_cycleDelay = 1000000;
+
 	if (!background)
 	{
-		// Loop for all commands
-		for (c = 0; c < m_cmdCount; c++)
+		// Test if an argument given
+		if (m_args.GetSize() == 0)
 		{
-			SendToHost(m_Cmds[c].pCmd);
-			if (++cmdsThisLine == 4)
+			// Loop for all commands
+			for (c = 0; c < m_cmdCount; c++)
 			{
-				// Terminate this line
-				cmdsThisLine = 0;
-				SendToHost("\r\n");
+				SendToHost(m_Cmds[c].pCmd);
+				if (++cmdsThisLine == 4)
+				{
+					// Terminate this line
+					cmdsThisLine = 0;
+					SendToHost("\r\n");
+				}
+				else
+				{
+					// Send a tab between commands
+					SendToHost("\t");
+				}
 			}
-			else
-			{
-				// Send a tab between commands
-				SendToHost("\t");
-			}
-		}
 
-		// Test if we need a final CRLF
-		if (cmdsThisLine != 0)
-			SendToHost("\r\n");
+			// Test if we need a final CRLF
+			if (cmdsThisLine != 0)
+				SendToHost("\r\n");
+		}
+		else
+		{
+			// Show help for a specific command
+			for (c = 0; c < m_cmdCount; c++)
+			{
+				// Test if this item matches
+				if (m_args[0] == m_Cmds[c].pCmd)
+				{
+					// Display help for this command
+					SendToHost(m_Cmds[c].pHelp);
+					SendToHost("\r\n");
+					return FALSE;
+				}
+				else if (c < m_linuxCmdCount)
+				{
+					if (m_args[0] == m_LinuxCmds[c].pCmd)
+					{
+						// Display help for this command
+						SendToHost(m_LinuxCmds[c].pHelp);
+						SendToHost("\r\n");
+						return FALSE;
+					}
+				}
+
+				// Test if all commands requested
+				if (m_args[0] == "all")
+				{
+					// Display help for this command
+					SendToHost(m_Cmds[c].pHelp);
+					SendToHost("\r\n");
+				}
+			}
+
+			// If all commands requested, then return
+			if (m_args[0] == "all")
+				return FALSE;
+
+			// Command not found
+			MString fmt;
+			fmt.Format("unknown command '%s'\r\n", (const char *) m_args[0]);
+			SendToHost((const char *) fmt);
+		}
 	}
 
 	// Don't need to execute in the background
@@ -1300,6 +1478,7 @@ void VTTpddServer::ExecuteCmdline(void)
 		if (strcmp(m_Cmds[c].pCmd, (const char *) cmd) == 0)
 		{
 			// This command matches the rxBuffer.  Call the command handler
+			m_cmd = m_Cmds[c].pCmd;
 			if ((this->*m_Cmds[c].pFunc)(FALSE))
 				m_backgroundCmd = m_Cmds[c].pFunc;
 			break;
@@ -1316,6 +1495,7 @@ void VTTpddServer::ExecuteCmdline(void)
 			if (strcmp(m_LinuxCmds[c].pCmd, (const char *) cmd) == 0)
 			{
 				// This command matches the rxBuffer.  Call the command handler
+				m_cmd = m_LinuxCmds[c].pCmd;
 				if ((this->*m_LinuxCmds[c].pFunc)(FALSE))
 					m_backgroundCmd = m_LinuxCmds[c].pFunc;
 				break;
@@ -1354,10 +1534,9 @@ void VTTpddServer::ExecuteTpddOpcode(void)
 		OpcodeMystery31();
 
 	// Normal TPDD protocol opcodes
-	else if (m_opcode <= TPDD_REQ_ID)
+	else if (m_opcode <= TPDD_REQ_LAST_OPCODE)
 	{
 		// Call the handler routine for this opcode
-//		printf("Executing opcode %d\n", m_opcode);
 		(this->*m_tpddOpcodeHandlers[m_opcode])();
 	}
 
@@ -1375,6 +1554,20 @@ void VTTpddServer::ExecuteTpddOpcode(void)
 
 /*
 ===========================================================================
+Logs data to the packet log, either RX or TX data
+===========================================================================
+*/
+void VTTpddServer::LogData(char data, int rxTx)
+{
+	// Log data only if the log is enabled
+	if (m_logEnabled && m_pServerLog != NULL)
+	{
+		m_pServerLog->LogData(data, rxTx);
+	}
+}
+
+/*
+===========================================================================
 Writes a byte to the TPDD Server
 ===========================================================================
 */
@@ -1385,12 +1578,8 @@ int VTTpddServer::SerWriteByte(char data)
 	// Record the time of this byte so we can perform timeout 
 	// operations in the state machine
 
-#if 0
-	if (!m_lastWasRx)
-		printf("\nRX:  ");
-	m_lastWasRx = TRUE;
-	printf("%02X ", (unsigned char) data);
-#endif
+	// Log the byte
+	LogData(data, TPDD_LOG_RX);
 
 	// Switch based on state. This is the main state machine
 	switch (m_state)
@@ -1597,7 +1786,7 @@ int VTTpddServer::SerWriteByte(char data)
 		m_state = TPDD_STATE_IDLE;
 
 		// Reset the RX buffer
-		m_rxIn = m_rxOut = m_rxCount = 0;
+		m_rxIn = m_rxCount = 0;
 		break;
 	}
 	return SER_NO_ERROR;
@@ -2127,6 +2316,64 @@ Handles the Delete opcode
 */
 void VTTpddServer::OpcodeDelete(void)
 {
+	MString		delFile;
+	int			ret;
+
+	// Test if last reference was a directory
+	if (m_refIsDirectory)
+	{
+		// Request to remove a directory.  Test if "PARENT.<>"
+		if (m_dirRef == "PARENT.<>")
+		{
+			// Just send normal return
+			SendNormalReturn(TPDD_ERR_NONE);
+			return;
+		}
+
+		// Construct the path of the file to delete
+		delFile = m_sRootDir + m_curDir + m_dirRef;
+
+#ifdef WIN32
+#else
+		ret = rmdir((const char *) delFile);
+		if (ret == 0)
+			SendNormalReturn(TPDD_ERR_NONE);
+		else
+		{
+			// Send error based on errno
+		}
+#endif
+	}
+	else
+	{
+		// Request to delete a file. Construct the path of the file to delete
+		delFile = m_sRootDir + m_curDir + m_dirRef;
+#ifdef WIN32
+		ret = DeleteFile((const char *) delFile);
+		if (ret)
+			SendNormalReturn(TPDD_ERR_NONE);
+		else
+		{
+			// Send error based on GetLastError()
+			if (GetLastError() == ERROR_FILE_NOT_FOUND)
+				SendNormalReturn(TPDD_ERR_NONEXISTANT_FILE);
+			else
+				SendNormalReturn(TPDD_ERR_DISK_WRITE_PROT);
+		}
+#else
+		ret = unlink((const char *) delFile);
+		if (ret == 0)
+			SendNormalReturn(TPDD_ERR_NONE);
+		else
+		{
+			// Send error based on errno
+			if (errno == ENOENT)
+				SendNormalReturn(TPDD_ERR_NONEXISTANT_FILE);
+			else
+				SendNormalReturn(TPDD_ERR_DISK_WRITE_PROT);
+		}
+#endif
+	}
 }
 
 /*
@@ -2170,6 +2417,206 @@ void VTTpddServer::OpcodeId(void)
 		// Send the drive ID
 		SendToHost("NADSBox");
 	}
+}
+
+/*
+===========================================================================
+Handles the Rename opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeRename(void)
+{
+	MString		old_filename, new_filename;
+	MString		temp;
+	int			ret, idx;
+
+	// Test if last reference was a directory
+	if (m_refIsDirectory)
+	{
+		// Request to rename a directory.  Test if "PARENT.<>"
+		if (m_dirRef == "PARENT.<>")
+		{
+			// Just send normal return
+			SendNormalReturn(TPDD_ERR_NONE);
+			return;
+		}
+	}
+
+	// Validate the length
+	if (m_length != 25)
+	{
+		SendNormalReturn(TPDD_ERR_PARAM_ERR);
+		return;
+	}
+
+	// Get the new filename
+	new_filename = m_sRootDir + m_curDir;
+	idx = TPDD_PKT_DATA_INDEX;
+	const int end = TPDD_PKT_DATA_INDEX + 24;		// Max filename len
+	while (m_rxBuffer[idx] != ' ' && m_rxBuffer[idx] != '\0' && idx < end)
+		new_filename += (char) m_rxBuffer[idx++];
+
+	// Skip spaces
+	while (m_rxBuffer[idx] == ' ' && idx < end)
+		idx++;
+
+	// Now append the extension if not a directory
+	if (idx < end && m_rxBuffer[idx] == '.')
+	{
+		// Test if this is a directory reference or not
+		if (m_rxBuffer[idx+1] != '<')
+		{
+			// Not a directory reference.  Append the file extension
+			new_filename += (char) m_rxBuffer[idx++];
+			while (idx != ' ' && idx != '\0' && idx < end)
+				new_filename += (char) m_rxBuffer[idx++];
+		}
+	}
+
+	// Construct the path of the old filename
+	old_filename = m_sRootDir + m_curDir + m_dirRef;
+
+#ifdef WIN32
+	ret = Rename((const char *) old_filename, (const char *) new_filename);
+	if (ret)
+		SendNormalReturn(TPDD_ERR_NONE);
+	else
+	{
+		// Send error based on GetLastError()
+		if (GetLastError() == ERROR_FILE_NOT_FOUND)
+			SendNormalReturn(TPDD_ERR_NONEXISTANT_FILE);
+		else
+			SendNormalReturn(TPDD_ERR_DISK_WRITE_PROT);
+	}
+#else
+	ret = rename((const char *) old_filename, (const char *) new_filename);
+	if (ret == 0)
+		SendNormalReturn(TPDD_ERR_NONE);
+	else
+	{
+		// Send error based on errno
+		if (errno == ENOENT)
+			SendNormalReturn(TPDD_ERR_NONEXISTANT_FILE);
+		else
+			SendNormalReturn(TPDD_ERR_DISK_WRITE_PROT);
+	}
+#endif
+}
+
+/*
+===========================================================================
+Handles the Drive Condition opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeDriveCond(void)
+{
+	// Clear the TX checksum
+	m_txChecksum = 0;
+	TpddSendByte(TPDD_RET_CONDITION);
+	TpddSendByte(1);				// Length is 1
+	TpddSendByte(0);				// Condition - all ok
+	TpddSendChecksum();
+}
+
+/*
+===========================================================================
+Handles the Seek opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeSeek(void)
+{
+	int		seek_mode, seek_offset;
+
+	// Validate the length and seek mode
+	if (m_length != 5 || m_rxBuffer[TPDD_PKT_DATA_INDEX] > TPDD_SEEK_END)
+	{
+		// Send error condition
+		SendNormalReturn(TPDD_ERR_PARAM_ERR);
+		return;
+	}
+
+	// Validate the file is open and in the right mode
+	if (m_refFd[m_activeFd] == NULL)
+	{
+		// Send error code
+		SendNormalReturn(TPDD_ERR_OPEN_FMT_MISMATCH);
+		return;
+	}
+
+	// Get the seek mode and length
+	switch (m_rxBuffer[TPDD_PKT_DATA_INDEX])
+	{
+	case TPDD_SEEK_SET:		seek_mode = SEEK_SET; break;
+	case TPDD_SEEK_CUR:		seek_mode = SEEK_CUR; break;
+	case TPDD_SEEK_END:		seek_mode = SEEK_END; break;
+	default:				seek_mode = SEEK_SET; break;
+	}
+	seek_offset = ((unsigned char) m_rxBuffer[TPDD_PKT_DATA_INDEX+1]) |
+				  ((unsigned char) m_rxBuffer[TPDD_PKT_DATA_INDEX+2] << 8) |
+				  ((unsigned char) m_rxBuffer[TPDD_PKT_DATA_INDEX+3] << 16) |
+				  ((unsigned char) m_rxBuffer[TPDD_PKT_DATA_INDEX+4] << 24);
+
+	// Perform the seek
+	fseek(m_refFd[m_activeFd], seek_mode, seek_offset);
+	SendNormalReturn(TPDD_ERR_NONE);
+}
+
+/*
+===========================================================================
+Handles the Tell opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeTell(void)
+{
+	int		pos;
+
+	// Validate the file is open and in the right mode
+	if (m_refFd[m_activeFd] == NULL)
+	{
+		// Send error code
+		SendNormalReturn(TPDD_ERR_OPEN_FMT_MISMATCH);
+		return;
+	}
+
+	// Get the current file position
+	pos = ftell(m_refFd[m_activeFd]);
+
+	// Clear the txChecksum and start the packet
+	m_txChecksum = 0;
+	TpddSendByte(TPDD_RET_TELL);
+	TpddSendByte(4);					// Length is 4 bytes offset data
+	TpddSendByte(pos & 0xFF);			// Send LSB
+	TpddSendByte((pos >> 8) & 0xFF);
+	TpddSendByte((pos >> 16) & 0xFF);
+	TpddSendByte((pos >> 24) & 0xFF);	// Send MSB
+	TpddSendChecksum();
+}
+
+/*
+===========================================================================
+Handles the SetExtended opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeSetExtended(void)
+{
+}
+
+/*
+===========================================================================
+Handles the QueryExtended opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeQueryExtended(void)
+{
+}
+
+/*
+===========================================================================
+Handles the CondensedList opcode
+===========================================================================
+*/
+void VTTpddServer::OpcodeCondensedList(void)
+{
 }
 
 /*
@@ -2366,20 +2813,6 @@ int VTTpddServer::ChangeDirectory(const char *pDir)
 		for (i = 0; i < num; i++)
 			free((void*) (e[i]));
 		free((void*) e);
-
-#if 0
-		// Test if the directory actually exists
-		MString testDir = m_sRootDir + m_curDir + pDir;
-		if (fl_filename_isdir((const char *) testDir))
-		{
-			// Append directory to current directory
-			m_curDir += pDir;
-			m_curDir += (char *) "/";
-			ret = 1;
-		}
-		else
-			ret = 0;
-#endif
 	}
 
 	// Delete existing dirent structure
@@ -2406,3 +2839,14 @@ void VTTpddServer::ResetDirent(void)
 	m_activeDir = NULL;
 	m_dirCount = 0;
 }
+
+/*
+===========================================================================
+Delete all entries in m_activeDir
+===========================================================================
+*/
+int VTTpddServer::IsCmdlineState(void)
+{
+	return m_state == TPDD_STATE_CMDLINE;
+}
+

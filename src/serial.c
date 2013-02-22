@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.20 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.21 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -110,6 +110,8 @@ int ser_init(void)
 	// Initialize a TPDD client context
 	sp.pTpddContext = tpdd_alloc_context();
 	tpdd_load_prefs(sp.pTpddContext);
+	if (setup.com_mode == SETUP_COM_SIM_TPDD)
+		enable_tpdd_log_menu(TRUE);
 
 #ifdef WIN32
 	sp.tx_empty = TRUE;		// Indicate no active TX
