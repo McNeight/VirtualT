@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.21 2013/02/20 20:47:47 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.22 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -58,6 +58,8 @@ void 	init_menus(void);
 extern "C"
 {
 void	enable_tpdd_log_menu(int bEnabled);
+void	sound_set_tone_control(double tone);
+double	sound_get_tone_control(void);
 }
 
 typedef struct setup_ctrl_struct	
@@ -101,6 +103,8 @@ typedef struct setup_ctrl_struct
 	{
 		Fl_Group*			g;
 		Fl_Box*				pText;
+		Fl_Check_Button*	pEnable;
+		Fl_Slider*			pTone;
 	} sound;
 	struct 
 	{
@@ -177,7 +181,9 @@ void save_setup_preferences(void)
 	// Save BCR emulation settings
 
 	// Save Sound emulation settings
-	virtualt_prefs.set("SoundEnable", setup.sound_enable);
+	Fl_Preferences g(virtualt_prefs, "SoundGroup");
+	g.set("SoundEnable", setup.sound_enable);
+	g.set("ToneControl", setup.sound_tone);
 
 	// Save Clock preference settings
 	save_clock_preferences(&virtualt_prefs);
@@ -209,7 +215,13 @@ void load_setup_preferences(void)
 	// Load BCR emulation settings
 
 	// Load Sound emulation settings
-	virtualt_prefs.get("SoundEnable", setup.sound_enable, 0);
+	Fl_Preferences g(virtualt_prefs, "SoundGroup");
+	g.get("SoundEnable", setup.sound_enable, 0);
+	g.get("ToneControl", setup.sound_tone, 1.0);
+	
+	// Now configure the sound system with the values
+	sound_enable = setup.sound_enable;
+	sound_set_tone_control(setup.sound_tone);
 
 	// Load Clock emulation settings
 	load_clock_preferences(&virtualt_prefs);
@@ -390,7 +402,10 @@ void cb_setup_OK(Fl_Widget* w, void*)
 	// ===========================
 	// Get Sound options
 	// ===========================
-//	get_sound_options();
+	setup.sound_enable = setup_ctrl.sound.pEnable->value();
+	setup.sound_tone = setup_ctrl.sound.pTone->value();
+	sound_set_tone_control(setup.sound_tone);
+	sound_enable = setup.sound_enable;
 
 	// ===========================
 	// Get Clock options
@@ -615,13 +630,31 @@ void cb_PeripheralSetup (Fl_Widget* w, void*)
 //			setup_ctrl.bcr.g->end();
 		}
 
-		// Speaker Port Tab
+		// Sound Port Tab
 		{ 
 			// Create the Group item (the "Tab")
 			setup_ctrl.sound.g = new Fl_Group(10, 30, 300, 260, " Sound ");
 
 			// Create controls
-			setup_ctrl.sound.pText = new Fl_Box(120, 60, 60, 80, "Sound not supported yet");
+			setup_ctrl.sound.pEnable = new Fl_Check_Button(20, 40, 180, 20, "Enable Sound");
+			setup_ctrl.sound.pEnable->value(setup.sound_enable);
+
+			// Create a tone control slider
+			//Fl_Box* b = new Fl_Box(20, 80, 100, 20, "Tone Control");
+			setup_ctrl.sound.pTone = new Fl_Slider(140, 80, 180, 20, "");
+			setup_ctrl.sound.pTone->type(FL_HOR_NICE_SLIDER);
+			setup_ctrl.sound.pTone->slider(FL_NO_BOX);
+			setup_ctrl.sound.pTone->align(FL_ALIGN_LEFT);
+			setup_ctrl.sound.pTone->minimum(1);
+			setup_ctrl.sound.pTone->maximum(5);
+			double tone = sound_get_tone_control();
+			setup_ctrl.sound.pTone->value(tone);
+			setup_ctrl.sound.pTone->hide();
+//			setup_ctrl.sound.pTone->step(1);
+
+			// Create text to describe tone control
+			//b = new Fl_Box(130, 100, 50, 20, "Agressive");
+			//b = new Fl_Box(280, 100, 50, 20, "Soft");
 
 			// End of control for this tab
 			setup_ctrl.sound.g->end();

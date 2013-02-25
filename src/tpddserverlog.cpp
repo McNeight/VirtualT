@@ -1,6 +1,6 @@
 /* tpddserverlog.cpp */
 
-/* $Id: tpddserverlog.cpp,v 1.4 2013/02/20 22:19:45 kpettit1 Exp $ */
+/* $Id: tpddserverlog.cpp,v 1.1 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -123,7 +123,19 @@ static void cb_disable_log(Fl_Widget* w, void* pOpaque)
 {
 	VTTpddServerLog* pLog = (VTTpddServerLog *) pOpaque;
 
-	pLog->CheckboxCallback();
+	pLog->DisableCallback();
+}
+
+/*
+============================================================================
+Callback for auto scroll checkbox
+============================================================================
+*/
+static void cb_autoscroll(Fl_Widget* w, void* pOpaque)
+{
+	VTTpddServerLog* pLog = (VTTpddServerLog *) pOpaque;
+
+	pLog->AutoscrollCallback();
 }
 
 /*
@@ -346,21 +358,22 @@ VTTpddServerLog::VTTpddServerLog(int w, int h, const char* title) :
 	m_maxLogEntries = 8192;
 	m_nextRef = 1;
 	m_callbackActive = FALSE;
+	m_autoScroll = TRUE;
 
 	// Define our default colors
 	m_colors.background = FL_BLACK;
 	m_colors.ref = FL_WHITE;
 	m_colors.rxLabel = FL_YELLOW;
 	m_colors.txLabel = (Fl_Color) 221;
-	m_colors.rxHex = fl_color_average(FL_DARK_GREEN, FL_WHITE, 0.8);
-	m_colors.txHex = fl_color_average((Fl_Color) 221, FL_WHITE, 0.5);
+	m_colors.rxHex = fl_color_average(FL_DARK_GREEN, FL_WHITE, (float) 0.8);
+	m_colors.txHex = fl_color_average((Fl_Color) 221, FL_WHITE, (float) 0.5);
 	m_colors.rxAscii = FL_GREEN;
 	m_colors.txAscii = (Fl_Color) 221;
 	m_fontSize = 14;
 
 	fl_font(FL_COURIER, m_fontSize);
 	m_height = fl_height();
-	m_width = fl_width("W");
+	m_width = (int) fl_width("W");
 
 	// ===============================
 	// Now create the controls we need
@@ -383,8 +396,12 @@ VTTpddServerLog::VTTpddServerLog(int w, int h, const char* title) :
 	// Create a resizing group
 	g = new Fl_Group(0, h-35, w, 35, "");
 
+	// Create an auto scroll checkbox
+	m_pAutoScroll = new Fl_Check_Button(20, h-37, 110, 20, "Auto scroll");
+	m_pAutoScroll->callback(cb_autoscroll, this);
+
 	// Create a disable log checkbox
-	m_pDisable = new Fl_Check_Button(20, h-30, 110, 20, "Disable log");
+	m_pDisable = new Fl_Check_Button(20, h-21, 110, 20, "Disable log");
 	m_pDisable->callback(cb_disable_log, this);
 
 	// Create a Save button
@@ -739,7 +756,8 @@ Sets the scrollbar settings based on current geometry and item count.
 void VTTpddServerLog::SetScrollSizes(void)
 {
 	int				size, height, count, max;
-	int				lines, c;
+	int				lines, c, curVal, linesPastCur;
+	int				linesThisEntry;
 	VTTpddLogEntry*	pEntry;
 
 	// Select 12 point Courier font
@@ -749,39 +767,63 @@ void VTTpddServerLog::SetScrollSizes(void)
 	height = m_pLog->h();
 	size = (int) (height / m_height);
 	count = m_log.GetSize();
+	curVal = m_pScroll->value();
 
 	// Count the number of lines that will be disiplayed
 	if (m_bytesPerLine == 0)
 		m_bytesPerLine = 1;
 	lines = 0;
+	linesPastCur = 0;
 	for (c = 0; c < count; c++)
 	{
 		// Get next entry
 		pEntry = (VTTpddLogEntry *) m_log[c];
-		lines += (pEntry->m_count+m_bytesPerLine-1) / m_bytesPerLine;
+		linesThisEntry = (pEntry->m_count+m_bytesPerLine-1) / m_bytesPerLine;
+		lines += linesThisEntry;
+		if (c >= curVal)
+			linesPastCur += linesThisEntry;
 	}
 	lines += (m_rxCount+m_bytesPerLine-1) / m_bytesPerLine;
 	lines += (m_txCount+m_bytesPerLine-1) / m_bytesPerLine;
 
 	// Set maximum value of scroll 
-	if (m_pScroll->value()+size-1 > count )
+	if (curVal+size-1 > lines )
 	{
-		int newValue = count-size+1;
+		int newValue = count-3;
 		if (newValue < 0)
 			newValue = 0;
 		m_pScroll->value(newValue, 0, 0, count-2);
+		curVal = newValue;
 	}
 	max = count + 1 - size;
 	if (max < 1)
 		max = 1;
 	m_pScroll->maximum(count-2);
 	m_pScroll->minimum(0);
+
 	if (lines > 1)
 	{
 		m_pScroll->step((double) size/(double)(lines-1));
 		m_pScroll->slider_size((double) size/(double)(lines-1));
 	}
 	m_pScroll->linesize(1);
+
+	// Set the value
+	if (m_autoScroll)
+	{
+		// Test if last entry is on the screen.  If not, then put it there
+		if (linesPastCur >= size)
+		{
+			int newValue = count - 3;
+			if (newValue < 0)
+				newValue = 0;
+
+			// Set the value
+			m_pScroll->value(newValue, 0, 0, count-2);
+		}
+	}
+	else
+		m_pScroll->value(curVal, 0, 0, count-2);
 
 	redraw();
 }
@@ -820,9 +862,19 @@ void VTTpddServerLog::ResetContent(void)
 Called when the disable log checkbox is modified
 ============================================================================
 */
-void VTTpddServerLog::CheckboxCallback(void)
+void VTTpddServerLog::DisableCallback(void)
 {
 	m_enabled = !m_pDisable->value();
+}
+
+/*
+============================================================================
+Called when the disable log checkbox is modified
+============================================================================
+*/
+void VTTpddServerLog::AutoscrollCallback(void)
+{
+	m_autoScroll = m_pAutoScroll->value();
 }
 
 /*
@@ -1108,6 +1160,9 @@ void VTTpddServerLog::LoadPreferences(void)
 
 	// Load selected font size
 	g.get("FontSize", m_fontSize, 14);
+	g.get("AutoScroll", m_autoScroll, TRUE);
+
+	m_pAutoScroll->value(m_autoScroll);
 }
 
 /*
@@ -1127,6 +1182,7 @@ void VTTpddServerLog::SavePreferences(void)
 
 	// Save selected font size
 	g.set("FontSize", m_fontSize);
+	g.set("AutoScroll", m_autoScroll);
 
 }
 

@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.8 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.9 2013/02/20 20:47:47 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -62,6 +62,7 @@ typedef struct peripheral_setup
 
 	// Sound emulation settings
 	int		sound_enable;				// Set TRUE when sound is enabled
+	double	sound_tone;					// Set the tone control for sound
 
 } peripheral_setup_t;
 

@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.8 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.9 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -53,48 +53,50 @@
 
 #pragma comment(lib, "winmm.lib")
 
-//#define				BLOCK_SIZE		2048
-//#define				BLOCK_COUNT		4
-#define				BLOCK_SIZE		1024
-#define				BLOCK_COUNT		8
-#define				SAMPLING_RATE	22050
-#define				NUM_CHANNELS	2
-#define				BITS_PER_SAMPLE	16
+#define				BLOCK_SIZE				1024
+#define				BLOCK_COUNT				10
+#define				SAMPLING_RATE			22050
+#define				NUM_CHANNELS			2
+#define				BITS_PER_SAMPLE			16
+#define				MAX_TONE_CYCLES			5000000
+#define				TONE_TRANSITION_SAMPLES	16
+#define				DECAY_MAX_LEVEL			4.5
 
 #define				TONE_STOPPED	0
 #define				TONE_START		1
 #define				TONE_PLAYING	2
 #define				TONE_STOP		3
 
+/* Extern data */
+extern	UINT64			cycles;
+extern	int				cycle_delta;
+
 /*
  * module static data
  */
-static int			gReqFreq[16];
-static int			gReqIn = 0;
-static int			gReqLastFreq = 0;
+static int				gReqFreq[16];
+static int				gReqIn = 0;
+static int				gReqLastFreq = 0;
 
 #ifdef _WIN32
-static int			gReqOut = 0;
-static int			gDecaySample = 0;
+static int				gReqOut = 0;
 #endif
 
-unsigned short			readbuf [BLOCK_SIZE >> 1] ;          /* input buffer */
+unsigned short			gToneBuf[BLOCK_SIZE >> 1] ;          /* input buffer */
 unsigned short			gpOneHertz[SAMPLING_RATE];
-//unsigned short			*gpOneHertz = NULL;
-
-int						gPlayTone = TONE_STOPPED;
-int						gToneFreq = 0;
-volatile int			gNewToneFreq = 0;
-int						gFlushBuffers = 0;
-int						gExit = 0;
-int						gBeepOn = 0;
-int						gOneHzPtr = 0;
-extern	UINT64			cycles;
-extern	int				cycle_delta;
+static int				gPlayTone = TONE_STOPPED;
+static int				gToneFreq = 0;
+static int				gExit = 0;
+static int				gBeepOn = 0;
+static int				gOneHzPtr = 0;
+static double			gToneDivisor = 1.0;
+static double			gDecayLevel = DECAY_MAX_LEVEL;
+static double			gDecayStep = 0.008;
+static int				gLastToneFreq = 0;
 static	UINT64			spkr_cycle = 0;
+static	UINT64			gPlayCycle = 0;
 int						sound_enable = 1;
 
-FILE*					gFd;
 #ifdef _WIN32
 
 static HANDLE			g_hEquThread;
@@ -145,14 +147,9 @@ static void CALLBACK sound_waveout_proc(HWAVEOUT hWaveOut, UINT uMsg,
     if((uMsg != WOM_DONE) || (dwInstance == 0))
 		return;
 
-	/* Get pointer to the block processed */
-//    current = &waveBlocks[waveLastProcBlock++];
-//	if (waveLastProcBlock > BLOCK_COUNT)
-//		waveLastProcBlock = 0;
-
+	/* Keep track of the last block processed by the audio system */
     EnterCriticalSection(&waveCriticalSection);
     (*freeBlockCounter)++;
-//	current->dwUser = -1;
     LeaveCriticalSection(&waveCriticalSection);
 }
 
@@ -217,16 +214,15 @@ void sound_write_audio(HWAVEOUT hWaveOut, LPSTR data, int size)
         /* 
         * first make sure the header we're going to use is unprepared
         */
-        if(current->dwFlags & WHDR_PREPARED) 
+        if (current->dwFlags & WHDR_PREPARED)
 			waveOutUnprepareHeader(hWaveOut, current, sizeof(WAVEHDR));
 
 		remain = size < BLOCK_SIZE ? size : BLOCK_SIZE;
-		current->dwUser = size;
 		memcpy(current->lpData, data, BLOCK_SIZE);
         current->dwBufferLength = BLOCK_SIZE;
         size -= remain;
         data += remain;
-        waveOutPrepareHeader(hWaveOut, current, sizeof(WAVEHDR));
+		waveOutPrepareHeader(hWaveOut, current, sizeof(WAVEHDR));	
         waveOutWrite(hWaveOut, current, sizeof(WAVEHDR));
         EnterCriticalSection(&waveCriticalSection);
         waveFreeBlockCount--;
@@ -235,6 +231,9 @@ void sound_write_audio(HWAVEOUT hWaveOut, LPSTR data, int size)
 		/* wait for a block to become free */
         while(!waveFreeBlockCount)
 			Sleep(3);
+
+        EnterCriticalSection(&waveCriticalSection);
+        LeaveCriticalSection(&waveCriticalSection);
 
         /* point to the next block */
 		waveLastQueueBlock = waveCurrentBlock;
@@ -251,11 +250,11 @@ sound_open_output:	Open the output sound device
 */
 BOOL sound_open_output(void)
 {
-//	gFd = fopen("beep.txt", "w+");
 	/* Calculate buffer size */
 	waveBlocks = sound_allocate_blocks(BLOCK_SIZE, BLOCK_COUNT);
     waveFreeBlockCount = BLOCK_COUNT;
     waveCurrentBlock = 0;
+	waveLastProcBlock = 0;
     InitializeCriticalSection(&waveCriticalSection);
     InitializeCriticalSection(&reqCriticalSection);
 
@@ -287,12 +286,8 @@ BOOL sound_close_output (void)
 	if (hOutput == NULL) 
 		return FALSE ;
 
-//	fclose(gFd);
 	/* Wait for all buffers to finish playing */
 	sound_flush_buffers();
-
-	/* Pulse the sound thread thread so it will release */
-//	PulseEvent(gSoundEvent);
 
 	/* Now reset and close the output device and free buffers */
 	waveOutReset (hOutput);
@@ -312,26 +307,13 @@ void sound_reset_output(void)
 	   clicks on the output
     */
 	waveOutGetVolume(hOutput,&volume);
-
 	waveOutSetVolume(hOutput, 0);
-/*	newVol = ((volume >> 1) & 0xFFFF0000) | ((volume & 0xFFFF) >> 1);
-	while (newVol > 0)
-	{
-		waveOutSetVolume(hOutput, newVol);
-//		Sleep(3);
-		newVol = ((newVol >> 1) & 0xFFFF0000) | ((newVol & 0xFFFF) >> 1);
-	}
-*/
 	if (hOutput != NULL)
 		waveOutReset (hOutput);
 	gOneHzPtr = 0;
 
-	/* Wait for all buffers to be complete */
-//	sound_flush_buffers();
-
 	/* Restore the original volume */
 	waveOutSetVolume(hOutput, volume);
-//	waveFreeBlockCount = BLOCK_COUNT;
 }
 
 /*
@@ -352,76 +334,155 @@ sound_play_tome:	Creates and plays a tone of the frequency specified
 					in the global variable gToneFreq.
 ========================================================================
 */
-void sound_play_tone()
+void sound_play_tone(int tone, int toneFreq)
 {
-    int		i;
-//	int		zero_cross, zero_cross_point;
-	int		samples = BLOCK_SIZE >> 1;
-	int		tone = gPlayTone;
-	int		toneFreq = gToneFreq;
-//	int		decay_samples = samples;
-	int		decay_time = samples;
-	double	divisor = (double) decay_time / 7;
+    int			i;
+	const int	samples = BLOCK_SIZE >> 1;
+	const int	decay_time = samples;
+	double		divisor = (double) decay_time / (gToneDivisor);
+	double		toneStep = (double) (gToneFreq - gLastToneFreq) / (double) TONE_TRANSITION_SAMPLES;
+	int			stepCount = 0;
 	
-	/* Create a buffer with the specified frequency */
-//	zero_cross = 0;
-	for (i = 0; i < samples; i += 2)
+	/* Test for runaway tones */
+	if (cycles - gPlayCycle > MAX_TONE_CYCLES)
 	{
-		if (tone == TONE_START)
-		{
-			unsigned short val = (unsigned short) (((double) (signed short) gpOneHertz[gOneHzPtr]) *
-				exp(- (double) (decay_time*2 - gDecaySample++) / divisor));
-			readbuf[i] = val;
-			readbuf[i + 1] = val;
-		}
-		else if (tone == TONE_PLAYING)
-		{
-			readbuf[i] = gpOneHertz[gOneHzPtr];
-			readbuf[i + 1] = gpOneHertz[gOneHzPtr];
-		}
-		else if (tone == TONE_STOP)
-		{
-			unsigned short val = (unsigned short) (((double) (signed short) gpOneHertz[gOneHzPtr]) *
-				exp(- (double) i / (divisor) ));
-			readbuf[i] = val;
-			readbuf[i + 1] = val;
-		}
-
-		/* Update pointer in the 1 Hz waveform based on frequency */
-		gOneHzPtr += gToneFreq;
-		if (gOneHzPtr >= SAMPLING_RATE)
-		{
-			// Zero crossing occurred
-//			zero_cross = i + 1;
-			gOneHzPtr -= SAMPLING_RATE;
-//			zero_cross_point = gOneHzPtr;
-		}
-
-//				readbuf[i] = 200;
-//				readbuf[i + 1] = 200;
-//		fprintf(gFd, "%d\n", (int) (signed short) readbuf[i]);
+		/* Shut it down */
+		tone = TONE_STOP;
 	}
 
+	/* If we are playing, then play a buffer of size 1024 (512 samples) */
+	if (tone == TONE_PLAYING)
+	{
+		// Loop for all samples and create the buffer
+		for (i = 0; i < samples; i += 2)
+		{
+			// Create next sample in buffer
+			gToneBuf[i] = gpOneHertz[gOneHzPtr];
+			gToneBuf[i + 1] = gpOneHertz[gOneHzPtr];
+
+			/* Update pointer in the 1 Hz waveform based on frequency */
+			if (gToneFreq != gLastToneFreq && gLastToneFreq != 0)
+			{
+				if (++stepCount >= TONE_TRANSITION_SAMPLES)
+				{
+					// Set the last tone frequency now that transition is complete
+					if (gToneFreq != 0)
+						gLastToneFreq = gToneFreq;
+					gOneHzPtr += gToneFreq;
+				}
+				else
+				{
+					gOneHzPtr += gLastToneFreq + (int) (toneStep * (double) stepCount);
+				}
+			}
+			else
+			{
+				gOneHzPtr += gToneFreq;
+				gLastToneFreq = gToneFreq;
+			}
+			if (gOneHzPtr >= SAMPLING_RATE)
+			{
+				// We wrapped the end of the sample buffer
+				gOneHzPtr -= SAMPLING_RATE;
+			}
+		}
+	}
+
+	/* Create a buffer with the specified frequency */
+	else
+	{
+		// Loop for all entries in the buffer
+		for (i = 0; i < samples; i += 2)
+		{
+			// Set the tone value
+			unsigned short val = (unsigned short) (((double) (signed short) gpOneHertz[gOneHzPtr]) *
+				exp(-gDecayLevel));
+			gToneBuf[i] = val;
+			gToneBuf[i + 1] = val;
+
+			// Test if we are starting a tone.  We ramp-up the volume to prevent ticking
+			if (tone == TONE_START)
+			{
+				// Ramping up means decreasing the DecayLevel to zero
+				gDecayLevel -= gDecayStep;
+				if (gDecayLevel <= 0.0)
+				{
+					// Once we reach level zero, we are done "Decaying" and switch to playing
+					gDecayLevel = 0.0;
+				}
+			}
+
+			// Test if we are stopping a tone and ramp it down in volume to prevent ticking
+			else if (tone == TONE_STOP)
+			{
+				// Ramp the tone down.  This mean increasing the decay level until
+				// it reaches our defined max value
+				gDecayLevel += gDecayStep * 1.75;
+			}
+
+			/* Update pointer in the 1 Hz waveform based on frequency */
+			if (gToneFreq != gLastToneFreq && gLastToneFreq != 0)
+			{
+				/* There was a frequency change.  Filter to new frequency */
+				if (++stepCount >= TONE_TRANSITION_SAMPLES)
+				{
+					// Set the last tone frequency now that transition is complete
+					if (gToneFreq != 0)
+						gLastToneFreq = gToneFreq;
+					gOneHzPtr += gToneFreq;
+				}
+				else
+				{
+					/* Change to new frequency in steps */
+					gOneHzPtr += gLastToneFreq + (int) (toneStep * (double) stepCount);
+				}
+			}
+			else
+			{
+				// No frequency smoothing needed
+				gOneHzPtr += gToneFreq;
+				gLastToneFreq = gToneFreq;
+			}
+			if (gOneHzPtr >= SAMPLING_RATE)
+			{
+				// We wrapped the end of the sample buffer
+				gOneHzPtr -= SAMPLING_RATE;
+			}
+		}
+	}
+
+	// If we are stopping the tone, then mark it as stopped
 	if (tone == TONE_STOP)
 	{
-		gPlayTone = TONE_STOPPED;
-		gOneHzPtr = 0;
+		// We only transition to STOPPED if we have decayed enough
+		if (gDecayLevel >= DECAY_MAX_LEVEL)
+		{
+			// Change to STOPPED state
+			gPlayTone = TONE_STOPPED;
+			gDecayLevel = DECAY_MAX_LEVEL;
+		}
 	}
-	else if ((tone == TONE_START) && (gDecaySample >= BLOCK_SIZE))
+
+	// Else if we are starting the tone, mark it as PLAYING
+	else if (tone == TONE_START)
 	{
-		gDecaySample = 0;
-		gPlayTone = TONE_PLAYING;
+		// We only transition to PLAYING once we have ramped up to full volume
+		if (gDecayLevel <= 0.0)
+		{
+			gDecayLevel = 0.0;
+			gPlayTone = TONE_PLAYING;
+		}
 	}
 
 	/* Write the buffer to the output device */
-	sound_write_audio(hOutput, (LPSTR) readbuf, BLOCK_SIZE);
-
+	sound_write_audio(hOutput, (LPSTR) gToneBuf, BLOCK_SIZE);
     return;
 
 }
 
 DWORD WINAPI EquProc(LPVOID lpParam)
 {
+	// Loop forever, or til time to quit.  This is the audio driver thread.
 	while (1)
 	{
 		// If no active tone being played, wait for event so we don't
@@ -435,41 +496,42 @@ DWORD WINAPI EquProc(LPVOID lpParam)
 		if (gExit)
 			break;
 
-		/* Test for new tone frequency changes only if stopped or playing */
-		if ((gPlayTone == TONE_STOPPED) || (gPlayTone == TONE_PLAYING))
+		/* Test for new request */
+		if (gReqIn != gReqOut)
 		{
-			/* Test for new request */
-			if (gReqIn != gReqOut)
+			int newFreq = gReqFreq[gReqOut++];
+			if (gReqOut >= 16)
+				gReqOut = 0;
+
+			if ((newFreq == 0))// && (gPlayTone == TONE_PLAYING))
 			{
-				int newFreq = gReqFreq[gReqOut++];
-				if (gReqOut >= 16)
-					gReqOut = 0;
+				/* Stop the currently playing tone */
+				if (gReqIn == gReqOut)
+				{
+					gPlayTone = TONE_STOP;
+				}
+			}
+			else if ((newFreq > 0) && (gPlayTone != TONE_PLAYING))
+			{
+				/* Start new tone */
+				gToneFreq = newFreq;
+				gPlayTone = TONE_START;
 
-				if ((newFreq == 0) && (gPlayTone == TONE_PLAYING))
-				{
-					/* Stop the currently playing tone */
-					if (gReqIn == gReqOut)
-						gPlayTone = TONE_STOP;
-				}
-				else if ((newFreq > 0) && (gPlayTone == TONE_STOPPED))
-				{
-					/* Start new tone */
-					gToneFreq = newFreq;
-					gPlayTone = TONE_START;
-				}
-				else
-				{
-					/* Change the tone frequency */
-					gToneFreq = newFreq;
-
-					/* Probably need to change the unplayed buffers here */
-				}
+				/* Keep track of how long a tone is playing
+				   and shut it down if it's too long */
+				gPlayCycle = cycles;
+			}
+			else
+			{
+				/* Change the tone frequency.  The play_tone routine will 
+				   filter the change from the old frequency to the new. */
+				gToneFreq = newFreq;
 			}
 		}
 
 		/* Check if tone being generated */
-		if (gPlayTone)// && (gToneFreq = gNewToneFreq))
-			sound_play_tone();	
+		if (gPlayTone)
+			sound_play_tone(gPlayTone, gToneFreq);
 
 		/* Test if the "beep" command is active */
 		if (gBeepOn)
@@ -505,7 +567,7 @@ void init_sound(void)
 	int		x;
 	double	w;
 
-	// Create sin table
+	// Create sin table for 1Hz
 	w = 2.0 * 3.1415926536 / (double) SAMPLING_RATE;
 	for (x = 0; x < SAMPLING_RATE; x++)
 	{
@@ -594,27 +656,6 @@ void sound_stop_tone(void)
 
 	/* Issue a request for a frequency of zero */
 	sound_start_tone(0);
-
-	/*
-    WAVEHDR*		current;
-	unsigned short	*sData;
-	int				c;
-
-	EnterCriticalSection(&reqCriticalSection);
-	gReqFreq[gReqFreqIn++] = 0;
-	if (gReqFreqIn > 16)
-		gReqFreqIn = 0;
-	LeaveCriticalSection(&reqCriticalSection);
-*/
-	/* Go to the last queued block and clear the data past the zero-crossing */
-/*    current = &waveBlocks[waveLastQueueBlock];
-	if (current->dwUser != -1)
-	{
-		sData = (unsigned short *) current->lpData;
-		c = ((int) current->lpData) >> 1;
-		for (; c < BLOCK_SIZE >> 1; c++)
-			sData[c] = 0;
-	} */\
 }
 
 /*
@@ -644,4 +685,30 @@ void sound_toggle_speaker(int bitVal)
 		gBeepOn = 1;
 		sound_start_tone((int) (2400000.0 / delta / 2));
 	}
+}
+
+/*
+==================================================================
+This routine sets the tone control divisor
+==================================================================
+*/
+void sound_set_tone_control(double tone)
+{
+	// Don't allow tone divisor of zero
+	if (tone == 0.0)
+		tone = 1.0;
+
+	// Set the tone divisor
+	gToneDivisor = tone;
+	gDecayStep = tone / (double) (BLOCK_SIZE>>3);
+}
+
+/*
+==================================================================
+This routine gets the tone control divisor
+==================================================================
+*/
+double sound_get_tone_control(void)
+{
+	return gToneDivisor;
 }

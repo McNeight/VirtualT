@@ -1,6 +1,6 @@
 /* sound.h */
 
-/* $Id: sound.h,v 1.0 2004/08/05 06:46:12 kpettit1 Exp $ */
+/* $Id: sound.h,v 1.2 2007/03/31 22:09:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -36,5 +36,7 @@ void	deinit_sound			(void);
 void	sound_start_tone		(int freq);
 void	sound_stop_tone			(void);
 void	sound_toggle_speaker	(int bitVal);
+void	sound_set_tone_control	(double tone);
+double	sound_get_tone_control	(void);
 
 #endif

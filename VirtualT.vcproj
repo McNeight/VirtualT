@@ -690,6 +690,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\tpddserverlog.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\VirtualT.rc"
 				>
 			</File>
@@ -1226,6 +1230,10 @@
 			</File>
 			<File
 				RelativePath=".\src\tpddserver.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tpddserverlog.h"
 				>
 			</File>
 			<File

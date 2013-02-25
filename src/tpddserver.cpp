@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.4 2013/02/20 22:19:45 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.5 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -2477,8 +2477,8 @@ void VTTpddServer::OpcodeRename(void)
 	old_filename = m_sRootDir + m_curDir + m_dirRef;
 
 #ifdef WIN32
-	ret = Rename((const char *) old_filename, (const char *) new_filename);
-	if (ret)
+	ret = rename((const char *) old_filename, (const char *) new_filename);
+	if (ret == 0)
 		SendNormalReturn(TPDD_ERR_NONE);
 	else
 	{
