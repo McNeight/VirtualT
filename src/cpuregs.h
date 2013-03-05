@@ -1,6 +1,6 @@
 /* cpuregs.h */
 
-/* $Id: cpuregs.h,v 1.10 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: cpuregs.h,v 1.11 2013/02/20 20:47:46 kpettit1 Exp $ */
 
 /*
 * Copyright 2004 Ken Pettit
@@ -109,10 +109,8 @@ public:
 	virtual int			handle(int event);
 
 	Fl_Menu_Bar*		m_pMenu;
-	Fl_Check_Button*	m_pEnable;
 
 	Fl_Input*			m_pRegA;
-	Fl_Input*			m_pRegF;
 	Fl_Input*			m_pRegB;
 	Fl_Input*			m_pRegC;
 	Fl_Input*			m_pRegD;
@@ -175,8 +173,6 @@ public:
 	Fl_Round_Button*	m_pHLDec;
 	Fl_Round_Button*	m_pMHex;
 	Fl_Round_Button*	m_pMDec;
-	Fl_Round_Button*	m_pBreakHex;
-	Fl_Round_Button*	m_pBreakDec;
 
 	Fl_Box*				m_pTraceBox;
 	Fl_Box*				m_pStackBox;
@@ -241,6 +237,8 @@ public:
 	int					m_selStart;
 	int					m_selEnd;
 	int					m_haveMouse;
+
+	char				m_pad[4096];
 };
 
 #endif

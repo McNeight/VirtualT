@@ -1,6 +1,6 @@
 /* romstrings.c */
 
-/* $Id: romstrings.h,v 1.2 2007/03/31 22:09:16 kpettit1 Exp $ */
+/* $Id: romstrings.h,v 1.3 2008/03/26 09:38:33 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -211,6 +211,7 @@ enum {
 	R_KEY_BUF_CNT,
 	R_KEY_TYPEAHEAD_BUF,
 	R_CURSOR_BIT_PAT_BUF,
+	R_CUR_PROG_LOAD_ADDR,
 
 	/* ROM Functions */
 
@@ -869,7 +870,20 @@ enum {
 	R_RST0_HOOK,
 	R_EXEC_2ND_ROM,
 	R_TELCOM_FKEY_VCTR,
-	R_UNUSED
+	R_UNUSED,
+	R_UPDATE_SYS_PTRS,
+	R_SAVE_TO_CATALOG,
+	R_PROC_SAVEM_ARGS,
+	R_CLOAD_ONERR,
+	R_LOAD_CO_HEADER,
+	R_MEMCPY_CALL_ARGS,
+	R_RST_1,
+	R_RST_2,
+	R_RST_3,
+	R_RST_4,
+	R_RST_5,
+	R_RST_6,
+	R_RST_7
 };
 
 #ifdef __cplusplus

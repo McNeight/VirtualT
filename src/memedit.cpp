@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.18 2013/02/15 16:22:27 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.19 2013/02/16 20:41:36 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -194,9 +194,11 @@ Callback routine for the memory editor window
 */
 void cb_memeditwin (Fl_Widget* w, void*)
 {
-	gmew->hide();
 	mem_clear_monitor_callback(memory_monitor_cb);
 	MemoryEditor_SavePrefs();
+
+	// Colapse the window
+	collapse_window(gmew);
 
 	delete gmew;
 	gmew = NULL;
@@ -1029,7 +1031,7 @@ void cb_MemoryEditor (Fl_Widget* pW, void*)
 		neww = memedit_ctrl.pMemEdit->m_w;
 		newh = memedit_ctrl.pMemEdit->m_h;
 
-		gmew->resize(newx, newy, neww, newh);
+		expand_window(gmew, newx, newy, neww, newh);
 	}
 
 	// Show the window
@@ -1243,7 +1245,7 @@ void T100_MemEditor::SetRegionOptions(void)
 	{
 		if (gRex)
 		{
-			if (gModel == MODEL_T200 || gModel == MODEL_PC8201)
+			if (gModel == MODEL_T200 || gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 			{
 				memedit_ctrl.pRegion->add("RAM 1");
 				memedit_ctrl.pRegion->add("RAM 2");
@@ -1256,6 +1258,12 @@ void T100_MemEditor::SetRegionOptions(void)
 			memedit_ctrl.pRegion->add("ROM");
 			if (gModel == MODEL_T200)
 				memedit_ctrl.pRegion->add("ROM 2");
+			if (gModel == MODEL_PC8300)
+			{
+				memedit_ctrl.pRegion->add("ROM 2");
+				memedit_ctrl.pRegion->add("ROM 3");
+				memedit_ctrl.pRegion->add("ROM 4");
+			}
 			memedit_ctrl.pRegion->add("Flash");
 			if (gRex == REX2)
 				memedit_ctrl.pRegion->add("128K SRAM");
@@ -1301,6 +1309,18 @@ void T100_MemEditor::SetRegionOptions(void)
 			memedit_ctrl.pRegion->add("Opt ROM");
 			memedit_ctrl.pRegion->value(0);
 			break;
+
+		case MODEL_PC8300:
+			memedit_ctrl.pRegion->add("RAM 1");
+			memedit_ctrl.pRegion->add("RAM 2");
+			memedit_ctrl.pRegion->add("RAM 3");
+			memedit_ctrl.pRegion->add("ROM A");
+			memedit_ctrl.pRegion->add("ROM B");
+			memedit_ctrl.pRegion->add("ROM C");
+			memedit_ctrl.pRegion->add("ROM D");
+			memedit_ctrl.pRegion->add("Opt ROM");
+			memedit_ctrl.pRegion->value(0);
+			break;
 		}
 	}
 	if (gRampac)
@@ -1325,7 +1345,7 @@ void T100_MemEditor::SetScrollSize(void)
 		if (gRex)
 		{
 			region = memedit_ctrl.pRegion->value();
-			if (gModel == MODEL_T200 || gModel == MODEL_PC8201)
+			if (gModel == MODEL_T200 || gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 			{
 				switch (region)
 				{
@@ -1348,6 +1368,9 @@ void T100_MemEditor::SetScrollSize(void)
 					break;
 				case 6:
 					m_Max = 128 * 1024 / 16;			
+					break;
+				default:
+					m_Max = ROMSIZE / 16;
 					break;
 				}
 			}
@@ -1380,6 +1403,7 @@ void T100_MemEditor::SetScrollSize(void)
 		case MODEL_M10:
 		case MODEL_M102:
 		case MODEL_PC8201:
+		case MODEL_PC8300:
 			if (region == 0)
 				m_Max = RAMSIZE / 16;
 			else
@@ -1452,6 +1476,10 @@ int T100_MemEditor::GetRegionEnum(void)
 	if (strcmp(reg_text, "ROM") == 0)
 		m_Region = REGION_ROM;
 
+	// Test if ROM region is selected
+	if (strcmp(reg_text, "ROM A") == 0)
+		m_Region = REGION_ROM;
+
 	// Test if OptROM region is selected
 	if (strcmp(reg_text, "Opt ROM") == 0)
 		m_Region = REGION_OPTROM;
@@ -1459,6 +1487,18 @@ int T100_MemEditor::GetRegionEnum(void)
 	// Test if ROM2 region is selected
 	if (strcmp(reg_text, "ROM 2") == 0)
 		m_Region = REGION_ROM2;
+
+	// Test if ROM2 region is selected
+	if (strcmp(reg_text, "ROM B") == 0)
+		m_Region = REGION_ROM2;
+
+	// Test if ROM2 region is selected
+	if (strcmp(reg_text, "ROM C") == 0)
+		m_Region = REGION_ROM3;
+
+	// Test if ROM2 region is selected
+	if (strcmp(reg_text, "ROM D") == 0)
+		m_Region = REGION_ROM4;
 
 	// Test if RAMPAC region is selected
 	if (strcmp(reg_text, "RamPac") == 0)

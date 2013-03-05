@@ -28,7 +28,7 @@ memory.c
 uchar			*gMemory[64];		/* CPU Memory space */
 int				gRamBottom = 0x8000;/* Defines the amount of RAM installed */
 uchar			gBaseMemory[65536];	/* System Memory */
-uchar			gSysROM[65536];		/* System ROM */
+uchar			gSysROM[4*32768];	/* System ROM */
 uchar			gOptROM[32768];		/* Option ROM */
 uchar			gMsplanROM[32768];	/* MSPLAN ROM T200 Only */
 //extern char		path[255];
@@ -38,6 +38,7 @@ int				gOptRomRW = 0;		/* Flag to make OptROM R/W */
 unsigned char	rambanks[3*32768];	/* Model T200 & NEC RAM banks */
 uchar			gRamBank = 0;		/* Currently enabled bank */
 int				gRomBank = 0;		/* Current ROM Bank selection */
+static int		gRom0Bank = 0;		/* Current ROM #0 Bank for PC-8300 */
 int				gRomSize = 32768;   /* Current ROM Size for R/O calculation */
 
 uchar			gReMem = 0;			/* Flag indicating if ReMem emulation enabled */
@@ -83,6 +84,7 @@ int				gIndex[65536];
 extern RomDescription_t		gM100_Desc;
 extern RomDescription_t		gM200_Desc;
 extern RomDescription_t		gN8201_Desc;
+extern RomDescription_t		gN8300_Desc;
 extern RomDescription_t		gM10_Desc;
 //JV
 extern RomDescription_t		gKC85_Desc;
@@ -188,8 +190,18 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 
 	case REGION_ROM2:
 		addr = address;
-		for (c = 0; c < count; c++)
-			data[c] = gMsplanROM[addr++];
+		if (gModel == MODEL_T200)
+		{
+			// Copy from the MsPlan ROM
+			for (c = 0; c < count; c++)
+				data[c] = gMsplanROM[addr++];
+		}
+		else if (gModel = MODEL_PC8300)
+		{
+			// Copy from ROM Bank B
+			for (c = 0; c < count; c++)
+				data[c] = gSysROM[32768 + addr++];
+		}
 		break;
 
 	case REGION_OPTROM:
@@ -333,6 +345,26 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		addr = address;
 		for (;(cp_ptr < count); cp_ptr++)
 			data[cp_ptr] = ptr[addr++];
+		break;
+
+	case REGION_ROM3:
+		addr = address;
+		if (gModel = MODEL_PC8300)
+		{
+			// Copy from ROM Bank B
+			for (c = 0; c < count; c++)
+				data[c] = gSysROM[2*32768 + addr++];
+		}
+		break;
+
+	case REGION_ROM4:
+		addr = address;
+		if (gModel = MODEL_PC8300)
+		{
+			// Copy from ROM Bank B
+			for (c = 0; c < count; c++)
+				data[c] = gSysROM[3*32768 + addr++];
+		}
 		break;
 	}
 }
@@ -1534,7 +1566,7 @@ void patch_vt_version(char* pMem, int size)
 	/* Test if VirtulalT version should replace (C) Micro***t text */
 	if (gShowVersion)
 	{
-		if (gModel == MODEL_PC8201)
+		if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 		{
 			sprintf(newString, " VirtualT %s ", VERSION);
 			newString[14] = 0;
@@ -1610,8 +1642,8 @@ void load_sys_rom(void)
 		gStdRomDesc = &gM10_Desc;
 	else if (gModel == MODEL_KC85)
 		gStdRomDesc = &gKC85_Desc;
-//	else if (gModel == MODEL_PC8300)
-//		gStdRomDesc = &gN8300_Desc;
+	else if (gModel == MODEL_PC8300)
+		gStdRomDesc = &gN8300_Desc;
 	else 
 		gStdRomDesc = &gM100_Desc;
 
@@ -1638,12 +1670,18 @@ void load_sys_rom(void)
 	/* If Model = T200 then read the 2nd ROM (MSPLAN) */
 	if (gModel == MODEL_T200)
 		readlen = fread(gMsplanROM, 1, 32768, fd);
+
+	/* If Model is PC-8300, then read the rest of the 128K ROM */
+	if (gModel == MODEL_PC8300)
+		readlen = fread(&gSysROM[32768], 1, 3 * 32768, fd);
 	
 	/* Close the ROM file */
 	fclose(fd);
 
 	/* Patch the ROM with VirtualT version if requested */
 	patch_vt_version((char *) gSysROM, ROMSIZE);
+	if (gModel == MODEL_PC8300)
+		patch_vt_version((char *) &gSysROM[2*32768], ROMSIZE);
 
 	/* Copy ROM into system memory */
 	memcpy(gBaseMemory, gSysROM, ROMSIZE);
@@ -1789,6 +1827,22 @@ unsigned char get_rom_bank(void)
 
 /*
 =============================================================================
+set_rom0_bank:	This function sets the current ROM #0 bank for the PC-8300s. 
+				The 8300 has a 128K rom with 4 selectable banks.
+=============================================================================
+*/
+void set_rom0_bank(unsigned char bank)
+{
+	// Save the bank
+	gRom0Bank = bank;
+
+	// Now update the bank if needed
+	if (gRomBank == 0)
+		set_rom_bank(gRomBank);
+}
+
+/*
+=============================================================================
 set_rom_bank:	This function sets the current ROM bank for all models.  It 
 				checks for ReMem emulation and properly swaps out the memory 
 				space to one of the 2Meg FLASH Memory spaces.
@@ -1864,7 +1918,10 @@ void set_rom_bank(unsigned char bank)
 			switch (bank)
 			{
 			case 0:			/* System ROM bank */
-				memcpy(gBaseMemory,gSysROM,ROMSIZE);
+				if (gModel == MODEL_PC8201)
+					memcpy(gBaseMemory, gSysROM, ROMSIZE);
+				else
+					memcpy(gBaseMemory, &gSysROM[gRom0Bank*32768], ROMSIZE);
 				break;
 
 			case 1:			/* Option ROM bank */

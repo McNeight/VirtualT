@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.4 2013/01/26 03:51:20 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -1820,7 +1820,7 @@ int My_Text_Display::position_style( int lineStartPos,
     style = ( unsigned char ) styleBuf->character( pos );
     if (style == mUnfinishedStyle) {
         /* encountered "unfinished" style, trigger parsing */
-        (mUnfinishedHighlightCB)( pos, mHighlightCBArg);
+        if (mUnfinishedHighlightCB) (mUnfinishedHighlightCB)( pos, mHighlightCBArg);
         style = (unsigned char) styleBuf->character( pos);
     }
   }
@@ -3208,5 +3208,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.4 2013/01/26 03:51:20 kpettit1 Exp $".
 //

@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.38 2013/02/17 22:13:25 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.39 2013/02/20 20:47:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -768,7 +768,7 @@ void init_cpu(void)
 		horrible kludge, but it fixes the problem.
 	*/
 #ifdef WIN32
-	if (gModel == MODEL_PC8201)
+	if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 	{
 		lock_remote();
 		debug_set_monitor_callback(model_8201_bug_workaround);
@@ -823,7 +823,7 @@ void resetcpu(void)
 		horrible kludge, but it fixes the problem.
 	*/
 #ifdef WIN32
-	if (gModel == MODEL_PC8201)
+	if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 	{
 		lock_remote();
 		debug_set_monitor_callback(model_8201_bug_workaround);

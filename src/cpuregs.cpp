@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.18 2013/02/15 13:03:26 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.19 2013/02/17 22:13:25 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -68,6 +68,7 @@ VTDis			cpu_dis;
 
 extern			Fl_Preferences	virtualt_prefs;
 extern			Fl_Window*		gmew;				// Global Memory Edit Window
+extern			Fl_Window		*MainWin;
 
 extern "C"
 {
@@ -119,6 +120,12 @@ Callback routine for the CPU Regs window
 */
 void cb_cpuregswin (Fl_Widget* w, void* pOpaque)
 {
+	// Save the user preferences
+	gcpuw->SavePrefs();
+
+	// Collapse the window
+	collapse_window(gcpuw);
+
 	// Hide the window
 	gcpuw->hide();
 
@@ -133,9 +140,6 @@ void cb_cpuregswin (Fl_Widget* w, void* pOpaque)
 
 	// Remove ourselves as a debug monitor
 	debug_clear_monitor_callback(debug_cpuregs_cb);
-
-	// Save the user preferences
-	gcpuw->SavePrefs();
 
 	// Delete the window and set to NULL
 	delete gcpuw;
@@ -2446,9 +2450,10 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	if (gcpuw != NULL)
 		return;
 
-	// Create Peripheral Setup window
+	// Create a CPU Registers window
 	gcpuw = new VTCpuRegs(640, 480, "CPU Registers");
 	gcpuw->callback(cb_cpuregswin, gcpuw);
+	gcpuw->end();
 
 	// Show the new window
 	gcpuw->show();
@@ -2456,14 +2461,8 @@ void cb_CpuRegs (Fl_Widget* w, void*)
 	// Resize if user preferences have been set
 	if (gcpuw->m_x != -1 && gcpuw->m_y != -1 && gcpuw->m_w != -1 && gcpuw->m_h != -1)
 	{
-		int newx, newy, neww, newh;
-
-		newx = gcpuw->m_x;
-		newy = gcpuw->m_y;
-		neww = gcpuw->m_w;
-		newh = gcpuw->m_h;
-
-		gcpuw->resize(newx, newy, neww, newh);
+		// Expand the window
+		expand_window(gcpuw, gcpuw->m_x, gcpuw->m_y, gcpuw->m_w, gcpuw->m_h);
 	}
 
 	// Check if VirtualT has had time to initialize yet.  If not, we set a
@@ -2523,6 +2522,8 @@ VTCpuRegs::VTCpuRegs(int x, int y, const char *title) :
 	/* Load the user preferences for window size, etc. */
 	LoadPrefs();
 	SetTraceColors();
+	for (c = 0; c < sizeof(m_pad); c++)
+		m_pad[c] = '1';
 
 	// Allocate the trace buffer
 	m_pTraceData = new cpu_trace_data_t[m_traceCount];
@@ -3114,7 +3115,7 @@ VTCpuRegs::~VTCpuRegs()
 	// Delete the trace data buffer
 	if (m_pTraceData != NULL)
 	{
-		delete m_pTraceData;
+		delete[] m_pTraceData;
 		m_pTraceData = NULL;
 	}
 }
@@ -3124,7 +3125,7 @@ void VTCpuRegs::draw(void)
 	make_current();
 
 #ifdef WIN32
-	Fl_Double_Window::draw();
+	Fl_Window::draw();
 #else
 	Fl_Window::draw();
 #endif

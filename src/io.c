@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.22 2013/01/30 18:04:18 kpettit1 Exp $ */
+/* $Id: io.c,v 1.23 2013/02/02 15:29:02 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,6 +56,7 @@ uchar io21;			/* Real-time milisecond countdown */
 double gPort21Time;	/* Starting time for io21 from previous out */
 uchar io90;
 uchar ioA1;
+static uchar ioA3;
 uchar ioBA;
 uchar ioB9;
 uchar ioE8;
@@ -218,7 +219,7 @@ void update_keys(void)
 				  	(gKeyStates['5'] << 4) | (gKeyStates['6'] << 5) |
 				  	(gKeyStates['7'] << 6) | (gKeyStates['8'] << 7));
 
-		if (gModel != MODEL_PC8201)
+		if (gModel != MODEL_PC8201 && gModel != MODEL_PC8300)
 		{
 			keyscan[3] = ~(gKeyStates['o']       | (gKeyStates['p'] << 1) |
 					  	(gKeyStates['['] << 2) | (gKeyStates[';'] << 3) |
@@ -416,7 +417,7 @@ void out(uchar port, uchar val)
 			6 & 7 - Active Serial Port
 			*/
 		case 0x90:	/* T200 Clock/Timer chip */
-			if (gModel == MODEL_PC8201)
+			if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 			{
 				if ((val & 0x10) && !(io90 & 0x10))
 				{
@@ -485,6 +486,11 @@ void out(uchar port, uchar val)
 			}
 
 			ioA1 = val & 0x0F;
+			break;
+
+		case 0xA3:	/* PC-8300 ROM Bank #0 Select */
+			ioA3 = val & 0x03;
+			set_rom0_bank(ioA3);
 			break;
 
 		case 0xB0:	/* PIO Command/Status Register */
@@ -954,6 +960,9 @@ int inport(uchar port)
 
 		case 0xA1:	/* Bank control port on NEC laptops */
 			return ioA1;
+
+		case 0xA3:	/* ROM #0 Bank select for PC-8300 */
+			return ioA3;
 
 		case 0xB0:	/* PIO Command/Status Register */
 		case 0xB8:

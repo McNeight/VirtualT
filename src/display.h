@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.8 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: display.h,v 1.9 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -54,6 +54,10 @@ void			handle_simkey(void);
 void			switch_model(int);
 void			init_other_windows(void);
 void			enable_tpdd_log_menu(int bEnabled);
+#ifdef __cplusplus
+void			collapse_window(Fl_Window* pWin);
+void			expand_window(Fl_Window* pWin, int newx, int newy, int neww, int newh);
+#endif
 
 typedef int 	(*get_key_t)(int);
 typedef int 	(*event_key_t)(void);

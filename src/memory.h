@@ -107,7 +107,9 @@ extern "C" {
 #define	REGION_RAMPAC				10
 #define	REGION_REX_FLASH			11
 #define	REGION_REX2_RAM				12
-#define	REGION_MAX					13
+#define	REGION_ROM3					13
+#define	REGION_ROM4					14
+#define	REGION_MAX					15
 
 #define	REX							1
 #define	REX2						2
@@ -136,7 +138,7 @@ typedef	struct {
 #define		AMD_FLASH_TYPE_REX		2
 
 extern unsigned char	*gMemory[64];
-extern unsigned char	gSysROM[65536];
+extern unsigned char	gSysROM[4*32768];
 extern unsigned char	gOptROM[32768];
 extern unsigned char	gBaseMemory[65536];
 extern unsigned char	gReMem;
@@ -188,6 +190,7 @@ void			load_sys_rom(void);
 void			load_opt_rom(void);
 void			set_ram_bank(unsigned char page);
 void			set_rom_bank(unsigned char bank);
+void			set_rom0_bank(unsigned char bank);
 unsigned char	get_ram_bank(void);
 unsigned char	get_rom_bank(void);
 

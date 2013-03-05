@@ -17,6 +17,7 @@ Written:	11/13/09  Kenneth D. Pettit
 #include		<string.h>
 #include		<stdio.h>
 #include		<stdlib.h>
+#include		<FL/filename.H>
 
 extern "C"
 {
@@ -25,17 +26,23 @@ char			path[512];
 }
 
 static const char *gLoaderCode[] = {
-	"89GOTO96\n",
-	"90V=VARPTR(A$):P=PEEK(V+1)+PEEK(V+2)*M\n",
-	"91C=PEEK(P):IFC=34THENRETURN\n",
-	"92V=0:FORX=0TO4:T=PEEK(P):V=V*85+T-35:K=K+T:P=P+1:NEXT\n",
-	"93H=INT(V/M/M):L=V-H*M*M:POKES,H/M:POKES+1,H-INT(H/M)*M:POKES+2,L/M:POKES+3,L-INT(L/M)*M:S=S+4\n",
-	"94L=D:D=D+I:IFD>184THEND=184\n",
-	"95FORX=L+1TOD:PSET(X,27):NEXT:PSET(D,27):PSET(D-1,26):PSET(D-2,25):PSET(D-1,28):PSET(D-2,29):PRESET(L-1,26):PRESET(L-2,25):PRESET(L-1,28):PRESET(L-2,29):GOTO 91\n",
-	"96CLS:PRINT@56,\"Loading\":PRINT@129,CHR$(245);:PRINT@151,CHR$(245);:D=59:I=%.3f:S=%d:M=256:FORJ%=1TO%d:READA$:GOSUB90:NEXT\n",
-	"97IFK<>%dTHEN99ELSE PRINT@200,\"Success! Issue command: clear 256,%d\"\n",
-	"98SAVEM\"%s\",%d,%d,%d:END\n",
-	"99PRINT@200,\"Chksum error! Need %d, got\";S:END\n"
+	"89GOTO96\r\n",
+	"90P=1\x0D\x0A",
+	"91C$=MID$(A$,P,5):IFC$=\"\"THENRETURN\x0D\x0A",
+	"92V=0:FORX=1TO5:T=ASC(MID$(C$,X,1)):V=V*85+T-35:K=K+T:NEXT:P=P+5\x0D\x0A",
+	"93H=INT(V/M/M):L=V-H*M*M:POKES,H/M:POKES+1,H-INT(H/M)*M:POKES+2,L/M:POKES+3,L-INT(L/M)*M:S=S+4\x0D\x0A",
+	"94L=D:D=D+I:IFD>184THEND=184\x0D\x0A",
+	"95FORX=L+1TOD:PSET(X,27):NEXT:PSET(D,27):PSET(D-1,26):PSET(D-2,25):PSET(D-1,28):PSET(D-2,29):PRESET(L-1,26):PRESET(L-2,25):PRESET(L-1,28):PRESET(L-2,29):GOTO 91\x0D\x0A",
+	"96CLS:DEFDBLV:PRINT@50,\"Creating %s\":PRINT@129,CHR$(245);:PRINT@151,CHR$(245);:D=59:I=%.3f:S=%d:M=256:FORJ%%=1TO%d:READA$:GOSUB90:NEXT\x0D\x0A",
+	"97IFK<>%dTHEN99ELSE PRINT@200,\"Success! Issue command: clear 256,%d\"\x0D\x0A",
+	"98SAVEM\"%s\",%d,%d,%d:END\x0D\x0A",
+	"99PRINT@200,\"Chksum error! Need %d, got\";K:END\x0D\x0A",
+
+	// These are used for PC-8201 and PC-8300 links
+	"96CLS:DEFDBLV:LOCATE10,1:PRINT\"Creating %s\":LOCATE9,3:PRINT\"|\"SPACE$(21)\"|\";:D=59:I=%.3f:S=%d:M=256:FORJ%%=1TO%d:READA$:GOSUB90:NEXT\x0D\x0A",
+	"97IFK<>%dTHEN99ELSE LOCATE0,5:PRINT\"Success! Issue command: clear 256,%d\"\x0D\x0A",
+	"98BSAVE\"%s\",%d,%d,%d:END\x0D\x0A",
+	"99LOCATE0,5:PRINT\"Chksum error! Need %d, got\";K:END\x0D\x0A"
 };
 
 static const char *gsEdl = "Error during linking:  ";
@@ -2433,7 +2440,7 @@ int VTLinker::CreateQuintuple(FILE* fd, unsigned long& ascii85, int& lineNo,
 	if (lineCount >= MAX_LOADER_LINE_LEN)
 	{
 		// Terminate the current data statement
-		fprintf(fd, "\"\n");
+		fprintf(fd, "\"\x0D\x0A");
 		lineCount = 0;
 
 		// Start a new data line.  First grab the file position
@@ -2490,7 +2497,6 @@ int VTLinker::GenerateLoaderFile(int startAddr, int endAddr, int entryAddr)
 		{
 			// Munge next byte into ascii85 calculation
 			ascii85 = ascii85 * 256 + (unsigned char) pSect->m_pProgBytes[x];
-			printf("%02X\t", (unsigned char) pSect->m_pProgBytes[x]);
 			
 			// Check if time to output a quintuple from our quadtuple
 			if (++quadtuple == 4)
@@ -2544,7 +2550,7 @@ int VTLinker::GenerateLoaderFile(int startAddr, int endAddr, int entryAddr)
 	else
 	{
 		// Terminate the last DATA statement
-		fprintf(fd, "\"\n");
+		fputs("\"\x0D\x0A", fd);
 	}
 
 	// Now write the rest of the program to the file
@@ -2557,16 +2563,38 @@ int VTLinker::GenerateLoaderFile(int startAddr, int endAddr, int entryAddr)
 		inc = (double) 128 / (double) quintupleCount;
 
 	// Print next line with increment, start address, and data count
-	fprintf(fd, gLoaderCode[7], (float) inc, ((int) startAddr)-65536, dataCount);
+	char	coname[32];
+	m_LoaderFilename.MakeUpper();
+	strcpy(coname, (const char *) m_LoaderFilename);
+	fl_filename_setext(coname, sizeof(coname), ".CO");
 
-	// Print line with checksum validation and CLEAR statement
-	fprintf(fd, gLoaderCode[8], checksum, startAddr);
+	// The PC-8201 and PC-8300 use LOCATE and BSAVE instead of PRINT@ and SAVEM
+	if (m_TargetModel == MODEL_PC8201 || m_TargetModel == MODEL_PC8300)
+	{
+		fprintf(fd, gLoaderCode[7+4], (const char *) coname, (float) inc, ((int) startAddr)-65536, dataCount);
 
-	// Print the line with the SAVEM filename command
-	fprintf(fd, gLoaderCode[9], (const char *) m_LoaderFilename, startAddr, endAddr, entryAddr);
+		// Print line with checksum validation and CLEAR statement
+		fprintf(fd, gLoaderCode[8+4], checksum, startAddr);
 
-	// Finally print the line reporting the checksum error
-	fprintf(fd, gLoaderCode[10], checksum);
+		// Print the line with the SAVEM filename command
+		fprintf(fd, gLoaderCode[9+4], (const char *) coname, startAddr, endAddr-startAddr+1, entryAddr);
+
+		// Finally print the line reporting the checksum error
+		fprintf(fd, gLoaderCode[10+4], checksum);
+	}
+	else
+	{
+		fprintf(fd, gLoaderCode[7], (const char *) coname, (float) inc, ((int) startAddr)-65536, dataCount);
+
+		// Print line with checksum validation and CLEAR statement
+		fprintf(fd, gLoaderCode[8], checksum, startAddr);
+
+		// Print the line with the SAVEM filename command
+		fprintf(fd, gLoaderCode[9], (const char *) coname, startAddr, endAddr, entryAddr);
+
+		// Finally print the line reporting the checksum error
+		fprintf(fd, gLoaderCode[10], checksum);
+	}
 
 	// Now close the file and we're all done
 	fclose(fd);

@@ -1,6 +1,6 @@
 /* remote.cpp */
 
-/* $Id: remote.cpp,v 1.20 2013/02/17 01:26:50 kpettit1 Exp $ */
+/* $Id: remote.cpp,v 1.21 2013/02/17 22:13:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -56,13 +56,13 @@ using namespace std;
 #include "socket.h"
 #include "serversocket.h"
 #include "socketexception.h"
-#include "cpu.h"
 #include "memory.h"
 #include "io.h"
 #include "roms.h"
 #include "romstrings.h"
 #include "disassemble.h"
 #include "file.h"
+#include "cpu.h"
 
 #ifdef WIN32
 HANDLE				gRemoteThread;		// The remote control thread

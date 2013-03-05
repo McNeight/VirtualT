@@ -1,6 +1,6 @@
 /* file.h */
 
-/* $Id: file.h,v 1.8 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: file.h,v 1.9 2013/02/08 00:07:52 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -46,6 +46,13 @@ void	cb_LoadFromHost(Fl_Widget* w, void*);
 void	cb_SaveToHost(Fl_Widget* w, void*);
 int  	load_optrom_file(const char* filename);
 int		delete_file(const char* filename, unsigned short addr = 0);
+
+typedef struct model_t_files {
+	char	name[10];
+	unsigned short	address;
+	unsigned short	dir_address;
+	unsigned short	size;
+} model_t_files_t;
 
 #define	FILE_ERROR_INVALID_HEX			1
 #define FILE_ERROR_FILE_NOT_FOUND		2

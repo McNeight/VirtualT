@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.36 2013/02/20 20:47:46 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.37 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -228,6 +228,66 @@ const char *gSpKeyText[] = {
 	"DOWN"
 };
 
+/*
+=======================================================
+Collapse window: Causes the given window to appear to
+"collapse" into the main window by resizing it smaller
+and smaller in steps.
+=======================================================
+*/
+void collapse_window(Fl_Window* pWin)
+{
+	int		newx, newy, neww, newh;
+	int		dx, dy, dw, dh;
+	int		steps = 10, c;
+
+	// Shrink the window to nothingness...
+	newx = MainWin->x() + MainWin->w()/4;
+	newy = MainWin->y() + MainWin->h()/4;
+	neww = 50;
+	newh = 50;
+
+	dx = (newx - pWin->x()) / steps;
+	dy = (newy - pWin->y()) / steps;
+	dw = (neww - pWin->w()) / steps;
+	dh = (newh - pWin->h()) / steps;
+	for (c = 0; c < steps-1; c++)
+	{
+		pWin->resize(pWin->x()+dx, pWin->y()+dy, pWin->w()+dw, pWin->h()+dh);
+		Fl::check();
+	}
+
+	// Finally, hide the window altogether
+	pWin->hide();
+}
+/*
+=======================================================
+Expande window: Causes the given window to appear to
+"expand" to it's final size and location by resizing it 
+larger and larger in steps.
+=======================================================
+*/
+void expand_window(Fl_Window* pWin, int newx, int newy, int neww, int newh)
+{
+	int dx, dy, dw, dh;
+	int	c, steps = 9;
+
+	pWin->hide();
+	pWin->resize(MainWin->x(), MainWin->y(), 50, 150);
+	pWin->show();
+
+	dx = (newx - pWin->x()) / steps;
+	dy = (newy - pWin->y()) / steps;
+	dw = (neww - pWin->w()) / steps;
+	dh = (newh - pWin->h()) / steps;
+	for (c = 0; c < steps-1; c++)
+	{
+		pWin->resize(pWin->x()+dx, pWin->y()+dy, pWin->w()+dw, pWin->h()+dh);
+		Fl::check();
+	}
+
+	pWin->resize(newx, newy, neww, newh);
+}
 /*
 =======================================================
 External Menu Item Callbacks
@@ -1246,9 +1306,9 @@ Fl_Menu_Item menuitems[] = {
 		{ "M102",   0, cb_M102,   (void *) 2, FL_MENU_RADIO },
 		{ "T200",   0, cb_M200,   (void *) 3, FL_MENU_RADIO },
 		{ "PC-8201",  0, cb_PC8201, (void *) 4, FL_MENU_RADIO },
-//		{ "PC-8300",  0, cb_PC8300, (void *) 5, FL_MENU_RADIO },
 		{ "M10",    0, cb_M10, (void *) 5, FL_MENU_RADIO },
 		{ "KC85",    0, cb_KC85, (void *) 6, FL_MENU_RADIO },
+		{ "PC-8300",  0, cb_PC8300, (void *) 7, FL_MENU_RADIO },
 		{ 0 },
 	{ "Speed", 0, 0, 0, FL_SUBMENU },
 		{ "2.4 MHz",     0, rspeed, (void *) 1, FL_MENU_RADIO | FL_MENU_VALUE },
@@ -2149,13 +2209,9 @@ void init_display(void)
     for(i=MODEL_M100;i<=MODEL_PC8300;i++)
     {
         if(i==gModel) 
-            if(i==MODEL_PC8300) 
-                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE | FL_MENU_DIVIDER;
-            else menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE;  
+			menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_VALUE;  
         else
-            if(i==MODEL_PC8300) 
-                menuitems[i+mIndex].flags=FL_MENU_RADIO | FL_MENU_DIVIDER;
-            else menuitems[i+mIndex].flags=FL_MENU_RADIO;  
+			menuitems[i+mIndex].flags=FL_MENU_RADIO;  
     }
 
 	//==================================================
@@ -3389,6 +3445,9 @@ int T100_Disp::handle(int event)
 	case FL_LEAVE:
 		return 1;
 
+	case FL_MOVE:
+		return 1;
+
 	case FL_DRAG:
 		if (m_HaveMouse)
 		{
@@ -3646,7 +3705,7 @@ int T100_Disp::handle(int event)
 			=========================================
 			=========================================
 			*/
-			if (gModel == MODEL_PC8201)
+			if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 			{
 				// Handle the '^' key (Shift 6)
 				if (key == '6')
@@ -4066,7 +4125,7 @@ int T100_Disp::handle(int event)
 			{
 				gSpecialKeys &= ~MT_SPACE;
 			}
-			if (gModel == MODEL_PC8201)
+			if (gModel == MODEL_PC8201 || gModel == MODEL_PC8300)
 			{
 				// Deal with special keys for the PC-8201
 

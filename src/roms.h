@@ -1,6 +1,6 @@
 /* roms.h */
 
-/* $Id: roms.h,v 1.5 2008/03/01 15:41:11 kpettit1 Exp $ */
+/* $Id: roms.h,v 1.6 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -48,9 +48,12 @@ typedef struct Std_ROM_Table {
 /* Define structure for storing addresses and descriptions for */
 /* known subroutine calls and variable locations within the ROM	*/
 typedef struct Std_ROM_Strings {
+	const char*	pLabel;
 	int	        addr;
 	char*		desc;
 } Std_ROM_Strings_t;
+
+#define MTRM(x)  #x, x
 
 /* Define a structure to contain all information regarding a ROM */
 typedef struct RomDescription {

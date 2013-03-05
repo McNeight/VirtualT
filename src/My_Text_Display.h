@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $"
+// "$Id: My_Text_Display.h,v 1.3 2013/01/26 03:51:20 kpettit1 Exp $"
 //
 // Header file for My_Text_Display class.
 //
@@ -77,7 +77,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     ~My_Text_Display();
 
     virtual int handle(int e);
-    void buffer(Fl_Text_Buffer* buf);
+    virtual void buffer(Fl_Text_Buffer* buf);
     void buffer(Fl_Text_Buffer& buf) { buffer(&buf); }
     Fl_Text_Buffer* buffer() { return mBuffer; }
     void redisplay_range(int start, int end);
@@ -318,5 +318,5 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 #endif
 
 //
-// End of "$Id: My_Text_Display.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.h,v 1.3 2013/01/26 03:51:20 kpettit1 Exp $".
 //

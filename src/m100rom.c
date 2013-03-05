@@ -1,6 +1,6 @@
 /* m100rom.c */
 
-/* $Id: m100rom.c,v 1.6 2008/03/26 09:38:33 kpettit1 Exp $ */
+/* $Id: m100rom.c,v 1.7 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -231,6 +231,7 @@ Std_ROM_Addresses_t gM100_Vars[] = {
 	{ 0xFABE, R_SP_SAVE_BUF },          	
 	{ 0xFAC0, R_LOWEST_RAM },           	
 	{ 0xFAC9, R_RST_38H_OFFSET },       	
+	{ 0xFACE, R_CUR_PROG_LOAD_ADDR },
 	{ 0xFAD0, R_LAST_PGRM_LEN },        	
 	{ 0xFADA, R_RST_38H_VCTR_TBL },     	
 	{ 0xFAE2, R_LCD_OUTPUT_HOOK },      	
@@ -538,18 +539,23 @@ Std_ROM_Addresses_t gM100_Funs[] = {
 	{ 0x1FBE, R_KILL_TEXT_FILE },          
 	{ 0x2037, R_NAME_STMT },               
 	{ 0x20FE, R_NEW_STMT },                
+	{ 0x2146, R_UPDATE_SYS_PTRS },
 	{ 0x21FA, R_STRLEN },                  
 	{ 0x2206, R_GET_FIND_DO_FILE },        
 	{ 0x220F, R_OPEN_TEXT_FILE },          
+	{ 0x2239, R_SAVE_TO_CATALOG },
 	{ 0x2280, R_CSAVE_STMT },              
 	{ 0x22B9, R_CAS_WRITE_BUF },           
 	{ 0x22CC, R_SAVEM_STMT },              
-	{ 0x22DD, R_CSAVEM_STMT },             
+	{ 0x22DD, R_CSAVEM_STMT },  
+	{ 0x2346, R_PROC_SAVEM_ARGS },
 	{ 0x2377, R_CLOAD_STMT },              
-	{ 0x2413, R_CAS_READ_REC },            
+	{ 0x2413, R_CAS_READ_REC }, 
+	{ 0x2426, R_CLOAD_ONERR },
 	{ 0x2478, R_GEN_VERIFY_FAIL_ERR },     
 	{ 0x2491, R_LOADM_STMT },           
 	{ 0x24A7, R_CLOADM_STMT },          
+	{ 0x253D, R_LOAD_CO_HEADER },
 	{ 0x2542, R_MOVE_B_BYTES },         
 	{ 0x254B, R_EXEC_CO_FILE },         
 	{ 0x260B, R_CAS_OPEN_OUT_BA },      
@@ -559,7 +565,8 @@ Std_ROM_Addresses_t gM100_Funs[] = {
 	{ 0x2653, R_CAS_OPEN_IN_DO },       
 	{ 0x2656, R_CAS_OPEN_IN_CO },       
 	{ 0x273A, R_STR_FUN },              
-	{ 0x27B1, R_PRINT_STRING },         
+	{ 0x27B1, R_PRINT_STRING },  
+	{ 0x2904, R_MEMCPY_CALL_ARGS },
 	{ 0x290F, R_MOVE_L_BYTES },         
 	{ 0x2943, R_LEN_FUN },              
 	{ 0x294F, R_ASC_FUN },              

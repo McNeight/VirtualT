@@ -548,6 +548,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\src\n8300rom.c"
+				>
+			</File>
+			<File
 				RelativePath="src\periph.cpp"
 				>
 				<FileConfiguration

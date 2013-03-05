@@ -112,6 +112,7 @@ const char         *asm_code_keywords[] = {
 			 "cmp",
 			 "cnc",
 			 "cnz",
+			 "cp",
 			 "cpe",
 			 "cpi",
 			 "cpo",
@@ -365,7 +366,7 @@ void style_parse(const char *text, char *style, int length)
 //				!(isalnum(*(text-1)) || *(text-1)=='_')) 
 			{
         		// Might be a keyword...
-				for (temp = text, bufptr = buf; (isalnum(*temp) || *temp=='_') && 
+				for (temp = text, bufptr = buf; ((*temp > 0) && (isalnum(*temp) || *temp=='_')) && 
 					bufptr < (buf + sizeof(buf) - 1); *bufptr++ = tolower(*temp++));
 				{
 					//if (!islower(*temp)) 
@@ -503,7 +504,7 @@ void style_parse(const char *text, char *style, int length)
    		}
    		else *style++ = current;
 
-   		last = isalnum(*text) ||  *text == '_';
+   		last = (*text > 0) && (isalnum(*text) ||  *text == '_');
 		if (*text != 0x0a)
 			col++;
 

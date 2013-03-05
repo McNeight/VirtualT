@@ -1,6 +1,6 @@
 /* tpddserverlog.cpp */
 
-/* $Id: tpddserverlog.cpp,v 1.1 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: tpddserverlog.cpp,v 1.2 2013/02/25 00:52:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -96,12 +96,13 @@ void cb_server_log (Fl_Widget* w, void* pOpaque)
 {
 	VTTpddServerLog* pLog = (VTTpddServerLog *) pOpaque;
 
-	// Hide the window
-	pLog->hide();
-
 	// If we are closing the root window, then save preferences
 	if (pLog == gpLog)
 		pLog->SavePreferences();
+
+	// Hide the window
+	collapse_window(pLog);
+	pLog->hide();
 
 	// Delete the window and set to NULL
 	delete pLog;
@@ -885,7 +886,7 @@ Called to resize the window and position to user preference settings
 void VTTpddServerLog::ResizeToPref(void)
 {
 	if (m_x != -1 && m_y != -1 && m_w != -1 && m_h != -1)
-		resize(m_x, m_y, m_w, m_h);
+		expand_window(this, m_x, m_y, m_w, m_h);
 }
 
 /*

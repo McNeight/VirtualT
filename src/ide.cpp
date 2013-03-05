@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.16 2013/02/11 08:37:17 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.17 2013/02/15 13:03:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -234,6 +234,37 @@ Fl_Menu_Item gRootMenu[] = {
 };
 
 Fl_Pixmap gTextDoc( textdoc_xpm ), gComputer( computer_xpm );
+
+/*
+=======================================================
+Save the user's preferences for IDE window size.
+=======================================================
+*/
+void get_hilight_color_prefs(void)
+{
+	int		pc;
+
+	virtualt_prefs.get("Ide_ColorText", pc, FL_BLACK);
+	hl_plain = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorLineComment", pc, 95);
+	hl_linecomment = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorBlockComment", pc, 93);
+	hl_blockcomment = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorString", pc, 219);
+	hl_string = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorDirective", pc, 219);
+	hl_directive = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorKeyword", pc, 74);
+	hl_type = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorInstruction", pc, 220);
+	hl_keyword = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorCharacter", pc, 75);
+	hl_character = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorLabel", pc, 116);
+	hl_label = (Fl_Color) pc;
+	virtualt_prefs.get("Ide_ColorBackground", pc, FL_BLACK);
+	background_color = (Fl_Color) pc;
+}
 
 /*
 =======================================================
@@ -927,7 +958,7 @@ Routine to load the IDE preferences
 */
 void VT_Ide::LoadPrefs(void)
 {
-	int		pc, c;
+	int		c;
 	char	sRecentFile[32];
 
 	// Get the initial window size from the user preferences
@@ -962,26 +993,8 @@ void VT_Ide::LoadPrefs(void)
 		}
 	}
 
-	virtualt_prefs.get("Ide_ColorText", pc, FL_BLACK);
-	hl_plain = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorLineComment", pc, 95);
-	hl_linecomment = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorBlockComment", pc, 93);
-	hl_blockcomment = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorString", pc, 219);
-	hl_string = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorDirective", pc, 219);
-	hl_directive = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorKeyword", pc, 74);
-	hl_type = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorInstruction", pc, 220);
-	hl_keyword = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorCharacter", pc, 75);
-	hl_character = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorLabel", pc, 116);
-	hl_label = (Fl_Color) pc;
-	virtualt_prefs.get("Ide_ColorBackground", pc, FL_BLACK);
-	background_color = (Fl_Color) pc;
+	get_hilight_color_prefs();
+
 	virtualt_prefs.get("Ide_SmartIndent", gSmartIndent, 1);
 	virtualt_prefs.get("Ide_ReloadProject", gReloadProject, 1);
 	virtualt_prefs.get("Ide_AutoBrace", auto_brace_mode, 1);
@@ -3683,6 +3696,7 @@ void VT_Ide::BuildProject(void)
 		linker.SetObjDirs(m_ActivePrj->m_LinkPath);
 		linker.SetProjectType(m_ActivePrj->m_ProjectType);
 		linker.SetOutputFile(m_ActivePrj->m_OutputName);
+		linker.SetTargetModel(m_ActivePrj->m_TargetModel);
 		if (linkerScriptFound)
 			linker.SetLinkerScript(linkerScript);
 		else

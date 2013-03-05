@@ -59,6 +59,13 @@ v1.6
 
 17. Added TPDD Server (NADSBox) packet log viewer window to Tools menu.
 
+18. Added support for NEC PC-8300 emulation.
+
+19. Started adding support to Disassembler window to disassemble things other than the
+    main ROM.
+    
+20. Added color syntax hilighting, Load and Save, and Find operations to Disassembler window.
+
 ====================
 v1.5  July 9th, 2011
 ====================

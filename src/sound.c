@@ -1,6 +1,6 @@
 /* sound.c */
 
-/* $Id: sound.c,v 1.9 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: sound.c,v 1.10 2013/02/25 00:52:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2005 Ken Pettit
@@ -482,6 +482,8 @@ void sound_play_tone(int tone, int toneFreq)
 
 DWORD WINAPI EquProc(LPVOID lpParam)
 {
+	int		stopCount = 0;
+
 	// Loop forever, or til time to quit.  This is the audio driver thread.
 	while (1)
 	{
@@ -503,10 +505,11 @@ DWORD WINAPI EquProc(LPVOID lpParam)
 			if (gReqOut >= 16)
 				gReqOut = 0;
 
+			// Start, stop or continue playing based on new frequency and current state
 			if ((newFreq == 0))// && (gPlayTone == TONE_PLAYING))
 			{
 				/* Stop the currently playing tone */
-				if (gReqIn == gReqOut)
+				if (gReqIn == gReqOut && waveFreeBlockCount < (BLOCK_COUNT >> 1))
 				{
 					gPlayTone = TONE_STOP;
 				}

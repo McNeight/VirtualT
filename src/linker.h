@@ -220,6 +220,7 @@ private:
 	int					m_Command;			// Script command during file parsing
 	int					m_TotalCodeSpace;	// Total space used by code
 	int					m_TotalDataSpace;	// Total space used for data
+	int					m_TargetModel;		// Target model we are linking for
 	unsigned short		m_StartAddress;		// Start address of generated code
 	unsigned short		m_EntryAddress;		// Entry address of generated code
 	MString				m_OutputName;		// Name of output file
@@ -295,6 +296,7 @@ public:
 	void				SetLoaderFilename(const MString& loaderFilename);
 	void				SetProjectType(int type);
 	void				SetStdoutFunction(void *pContext, stdOutFunc_t pFunc);
+	void				SetTargetModel(int targetModel) { m_TargetModel = targetModel; }
 	const MStringArray&		GetErrors() { return m_Errors; };
 	void				SetOutputFile(const MString& outFile );
 	int					TotalCodeSpace(void) { return m_TotalCodeSpace; }
