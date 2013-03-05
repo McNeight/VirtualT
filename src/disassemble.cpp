@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.13 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.14 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1521,7 +1521,7 @@ void VTDis::Disassemble()
 
 			// Determine length of this opcode
 			op_len = gLenTable[opcode] & 0x03;
-			tricked_out = FALSE;
+			tricked_out = 0;
 
 			// Print the address and opcode value to the temporary line buffer
 			if (oldSchool)
