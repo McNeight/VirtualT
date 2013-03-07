@@ -119,7 +119,8 @@
 			ConfigurationType="1"
 			InheritedPropertySheets="$(VCInstallDir)VCProjectDefaults\UpgradeFromVC60.vsprops"
 			UseOfMFC="0"
-			ATLMinimizesCRunTimeLibraryUsage="false"
+			UseOfATL="1"
+			ATLMinimizesCRunTimeLibraryUsage="true"
 			CharacterSet="2"
 			>
 			<Tool
@@ -148,7 +149,7 @@
 				Optimization="2"
 				AdditionalIncludeDirectories="$(FLTKDIR)"
 				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE"
-				RuntimeLibrary="2"
+				RuntimeLibrary="0"
 				PrecompiledHeaderFile=".\Release/VirtualT.pch"
 				AssemblerListingLocation=".\Release/"
 				ObjectFile=".\Release/"

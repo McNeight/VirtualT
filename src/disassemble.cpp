@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.14 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.15 2013/03/05 20:48:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -56,6 +56,7 @@
 #include "cpuregs.h"
 #include "memory.h"
 #include "fileview.h"
+#include "vtobj.h"
 
 // Define extern variables
 extern	Fl_Preferences virtualt_prefs;
@@ -958,6 +959,8 @@ void VTDis::Disassemble()
 
 	// Assign the RomDescription table for the model being emulated
 	gpDis->m_pRom = gStdRomDesc;
+
+	printf("sizeof VTObject = %d\n", sizeof(VTObject));
 
 	// Allocate a disassembly type array
 	m_pDisType = new DisType_t[65536];

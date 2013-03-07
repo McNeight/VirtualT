@@ -878,7 +878,7 @@ void reinit_mem(void)
 //	for (x = ROMSIZE; x < 65536; x++)
 //		set_memory8(x, 0);
 
-	gRamBank = 0;
+//	gRamBank = 0;
 	gRomBank = 0;
 
 }

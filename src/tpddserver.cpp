@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.5 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.6 2013/02/25 00:52:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -631,6 +631,8 @@ int VTTpddServer::SerGetFlags(unsigned char *flags)
 		*flags = SER_FLAG_TX_EMPTY;
 	else
 		*flags &= ~SER_FLAG_TX_EMPTY;
+
+	*flags |= SER_FLAG_CTS | SER_FLAG_DSR;
 
 	return SER_NO_ERROR;
 }
