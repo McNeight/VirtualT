@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.19 2013/02/16 20:41:36 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.20 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -317,6 +317,10 @@ void update_length_field(const char *filename)
 	char				buffer[65536];
 	unsigned short		start_addr;
 
+	// If the pBytes control is not created, just return
+	if (gDialog.pBytes == NULL)
+		return;
+
 	// Check for hex file
 	len = strlen(filename);
 	if (((filename[len-1] | 0x20) == 'x') &&
@@ -329,6 +333,7 @@ void update_length_field(const char *filename)
 		if (len == 0)
 		{
 			strcpy(gDialog.sBytes, "Error in HEX");
+			gDialog.pBytes->label(gDialog.sBytes);
 			gDialog.pBytes->redraw_label();
 			return;
 		}
@@ -336,6 +341,7 @@ void update_length_field(const char *filename)
 		{
 			// Update Length field and End address fields
 			sprintf(gDialog.sBytes, "%d", len);
+			gDialog.pBytes->label(gDialog.sBytes);
 			gDialog.pBytes->redraw_label();
 		}
 	}
@@ -346,6 +352,7 @@ void update_length_field(const char *filename)
 		if ((fd = fopen(filename, "r")) == NULL)
 		{
 			strcpy(gDialog.sBytes, "Error opening file");
+			gDialog.pBytes->label(gDialog.sBytes);
 			gDialog.pBytes->redraw_label();
 		}
 		else
@@ -355,6 +362,7 @@ void update_length_field(const char *filename)
 			len = ftell(fd);
 			fclose(fd);
 			sprintf(gDialog.sBytes, "%d", len);
+			gDialog.pBytes->label(gDialog.sBytes);
 			gDialog.pBytes->redraw_label();
 		}
 		
@@ -780,6 +788,9 @@ void cb_save_memory(Fl_Widget* w, void*)
 	o = new Fl_Box(FL_NO_BOX, 10, 150, 110, 15, "Length");
 	o->align(FL_ALIGN_LEFT|FL_ALIGN_INSIDE);
 	gDialog.pSaveLen = new Fl_Input(120, 150, 90, 20, "");
+
+	// We aren't using pBytes for save
+	gDialog.pBytes = NULL;
 
 	// Create OK and Cancel buttons
 	rb = new Fl_Return_Button(90, 190, 75, 25, "OK");
