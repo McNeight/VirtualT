@@ -732,6 +732,10 @@ void init_mem(void)
 	{
 		gRexModel = REX | gRex;		
 		gReMem = 1;
+		gRexState = 7;
+		gRexFlash.iFlashState = FLASH_STATE_RO;
+		gRexSector = 0;
+		gRexKeyState = 0;
 	}
 	gRampacEmulation = 0;
 	gRampacSectPtr = NULL;
@@ -3087,9 +3091,9 @@ unsigned char rex_read(unsigned short address)
 
 	case 1:		/* Set Sector state */
 		/* Test if RAM mode is enabled and set sector based on result */
-		if (gModel && REX2_RAM_MODE)
-			gRexSector = (address & 0x3F) << 15;
-		else
+//		if (gModel && REX2_RAM_MODE)
+//			gRexSector = (address & 0x3F) << 15;
+//		else
 			gRexSector = (address & 0x1F) << 15;
 
 		/* Save Flash Select bit */
