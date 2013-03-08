@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.23 2013/02/25 00:52:28 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.24 2013/03/08 00:33:37 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -63,7 +63,7 @@ double	sound_get_tone_control(void);
 
 extern	const unsigned char gRex148Image[16384];
 extern	const unsigned char gRex248Image[16384];
-extern	const unsigned char gRexDirectories[16*8];
+extern	const unsigned char gRexDirectories[1152];
 
 extern	const unsigned char gTsDos100Image[21352];
 extern	const unsigned char gTsDos200Image[21346];
@@ -1436,6 +1436,16 @@ void cb_create_flash (Fl_Widget* w, void*)
 		return;
 	}
 
+	// Check if the file already exists
+	if ((fd = fopen(mem_ctrl.pRexFlashFile->value(), "r")) != NULL)
+	{
+		// Close the file 
+		fclose(fd);
+		int ret = fl_choice("Overwrite existing file?", "Yes", "No", NULL);
+		if (ret == 1)
+			return;
+	}
+
 	// Validate the file can be opened for write mode
 	if ((fd = fopen(mem_ctrl.pRexFlashFile->value(), "wb")) == NULL)
 	{
@@ -1454,9 +1464,9 @@ void cb_create_flash (Fl_Widget* w, void*)
 	{
 		// Copy in REX MGR
 		memcpy(pData, gRex248Image, sizeof(gRex248Image));
-		memcpy(&pData[0x4400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0x4000], gRexDirectories, sizeof(gRexDirectories));
 		memcpy(&pData[0x8000], gRex248Image, sizeof(gRex248Image));
-		memcpy(&pData[0xC400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0xC000], gRexDirectories, sizeof(gRexDirectories));
 
 		// Copy in TS-DOS
 		memcpy(&pData[0x040000], gTsDos200Image, sizeof(gTsDos200Image));
@@ -1465,9 +1475,9 @@ void cb_create_flash (Fl_Widget* w, void*)
 	{
 		// Copy in REX MGR
 		memcpy(pData, gRex148Image, sizeof(gRex148Image));
-		memcpy(&pData[0x4400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0x4000], gRexDirectories, sizeof(gRexDirectories));
 		memcpy(&pData[0x8000], gRex148Image, sizeof(gRex148Image));
-		memcpy(&pData[0xC400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0xC000], gRexDirectories, sizeof(gRexDirectories));
 
 		// Copy in TS-DOS
 		memcpy(&pData[0x040000], gTsDos100Image, sizeof(gTsDos100Image));
