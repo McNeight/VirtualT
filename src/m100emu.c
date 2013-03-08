@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.39 2013/02/20 20:47:46 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.40 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -640,7 +640,7 @@ void check_installation(void)
 	errors[0] = 0;
 
 	/* Check each model */
-	for (model = MODEL_M100; model < MODEL_PC8300; model++)
+	for (model = MODEL_M100; model <= MODEL_PC8300; model++)
 	{
 		/* Check if ROM file exists for this model */
 		if (check_model_support(model))
