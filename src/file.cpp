@@ -1,6 +1,6 @@
 /* file.cpp */
 
-/* $Id: file.cpp,v 1.18 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: file.cpp,v 1.19 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1430,7 +1430,7 @@ void save_file(model_t_files_t *pFile)
 		}
 
 		// Write end of file marker (0x1a) to file
-		fwrite(&ch, 1, 1, fd);
+		//fwrite(&ch, 1, 1, fd);
 		break;
 
 	case TYPE_CO:
