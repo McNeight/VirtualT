@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.22 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.23 2013/02/25 00:52:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -60,6 +60,14 @@ extern "C"
 void	enable_tpdd_log_menu(int bEnabled);
 void	sound_set_tone_control(double tone);
 double	sound_get_tone_control(void);
+
+extern	const unsigned char gRex148Image[16384];
+extern	const unsigned char gRex248Image[16384];
+extern	const unsigned char gRexDirectories[16*8];
+
+extern	const unsigned char gTsDos100Image[21352];
+extern	const unsigned char gTsDos200Image[21346];
+extern	const unsigned char gTsDosNecImage[21344];
 }
 
 typedef struct setup_ctrl_struct	
@@ -126,6 +134,7 @@ typedef struct memory_ctrl_struct
 	Fl_Input*			pRampacFile;
 	Fl_Input*			pRexFlashFile;
 	Fl_Input*			pRex2RamFile;
+	Fl_Button*			pRexCreateFlash;
 	Fl_Button*			pReMemBrowse;
 	Fl_Button*			pRampacBrowse;
 	Fl_Button*			pRexFlashBrowse;
@@ -1264,6 +1273,7 @@ void cb_radio_base_memory (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->deactivate();
 	mem_ctrl.pRex2RamFile->deactivate();
 	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->deactivate();
 }
 
 void cb_radio_remem (Fl_Widget* w, void*)
@@ -1278,6 +1288,7 @@ void cb_radio_remem (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->deactivate();
 	mem_ctrl.pRex2RamFile->deactivate();
 	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->deactivate();
 }
 
 void cb_radio_rampac (Fl_Widget* w, void*)
@@ -1292,6 +1303,7 @@ void cb_radio_rampac (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->deactivate();
 	mem_ctrl.pRex2RamFile->deactivate();
 	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->deactivate();
 }
 
 void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
@@ -1306,6 +1318,7 @@ void cb_radio_remem_and_rampac (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->deactivate();
 	mem_ctrl.pRex2RamFile->deactivate();
 	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->deactivate();
 }
 
 void cb_radio_rex (Fl_Widget* w, void*)
@@ -1320,6 +1333,7 @@ void cb_radio_rex (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->activate();
 	mem_ctrl.pRex2RamFile->deactivate();
 	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->activate();
 }
 
 void cb_radio_rex2 (Fl_Widget* w, void*)
@@ -1334,6 +1348,7 @@ void cb_radio_rex2 (Fl_Widget* w, void*)
 	mem_ctrl.pRexFlashBrowse->activate();
 	mem_ctrl.pRex2RamFile->activate();
 	mem_ctrl.pRex2RamBrowse->activate();
+	mem_ctrl.pRexCreateFlash->activate();
 }
 
 void cb_memory_cancel (Fl_Widget* w, void*)
@@ -1403,13 +1418,82 @@ void cb_rampac_browse (Fl_Widget* w, void*)
 
 /*
 ============================================================================
+Callback routine to create default REX Flash
+============================================================================
+*/
+void cb_create_flash (Fl_Widget* w, void*)
+{
+	unsigned char	*pData;
+	FILE*			fd;
+	int				x;
+
+	// Allocate a 1M buffer
+	pData = new unsigned char[1024 * 1024];
+	if (pData == NULL)
+	{
+		// Report error
+		fl_alert("Unable to allocate a 1M buffer!");
+		return;
+	}
+
+	// Validate the file can be opened for write mode
+	if ((fd = fopen(mem_ctrl.pRexFlashFile->value(), "wb")) == NULL)
+	{
+		// Report failure ot open file
+		fl_alert("Unable to open file %s", mem_ctrl.pRexFlashFile->value());
+		delete[] pData;
+		return;
+	}
+
+	// Fill the buffer with 0xFF
+	for (x = 0; x < 1024 * 1024; x++)
+		pData[x] = 0xFF;
+
+	// Now copy in the data
+	if (gModel == MODEL_T200)
+	{
+		// Copy in REX MGR
+		memcpy(pData, gRex248Image, sizeof(gRex248Image));
+		memcpy(&pData[0x4400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0x8000], gRex248Image, sizeof(gRex248Image));
+		memcpy(&pData[0xC400], gRexDirectories, sizeof(gRexDirectories));
+
+		// Copy in TS-DOS
+		memcpy(&pData[0x040000], gTsDos200Image, sizeof(gTsDos200Image));
+	}
+	else if (gModel == MODEL_M100 || gModel == MODEL_M102)
+	{
+		// Copy in REX MGR
+		memcpy(pData, gRex148Image, sizeof(gRex148Image));
+		memcpy(&pData[0x4400], gRexDirectories, sizeof(gRexDirectories));
+		memcpy(&pData[0x8000], gRex148Image, sizeof(gRex148Image));
+		memcpy(&pData[0xC400], gRexDirectories, sizeof(gRexDirectories));
+
+		// Copy in TS-DOS
+		memcpy(&pData[0x040000], gTsDos100Image, sizeof(gTsDos100Image));
+	}
+
+	// Write data to the file
+	fwrite(pData, 1, 1024 * 1024, fd);
+	fclose(fd);
+
+	// Read the new flash
+	if ((mem_setup.mem_mode == SETUP_MEM_REX) || (mem_setup.mem_mode == SETUP_MEM_REX2))
+		load_rex_flash();
+
+	// Free the buffer 
+	delete[] pData;
+}
+
+/*
+============================================================================
 Routine to create the PeripheralSetup Window and tabs
 ============================================================================
 */
 void cb_MemorySetup (Fl_Widget* w, void*)
 {
 	// Create Peripheral Setup window
-	gmsw = new Fl_Window(420, 415, "Memory Emulation Options");
+	gmsw = new Fl_Window(520, 415, "Memory Emulation Options");
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
@@ -1470,10 +1554,10 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	// ===============================================
 	// Setup Rampac File Edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRampacFile = new Fl_Input(105, 130, 210, 20, "RamPac File");
+	mem_ctrl.pRampacFile = new Fl_Input(105, 130, 310, 20, "RamPac File");
 	mem_ctrl.pRampacFile->value(mem_setup.rampac_file);
 
-	mem_ctrl.pRampacBrowse =	new Fl_Button(330, 125, 60, 30, "Browse");
+	mem_ctrl.pRampacBrowse =	new Fl_Button(430, 125, 60, 30, "Browse");
     mem_ctrl.pRampacBrowse->callback((Fl_Callback*)cb_rampac_browse);
 
 	if ((mem_setup.mem_mode != SETUP_MEM_RAMPAC) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
@@ -1485,12 +1569,12 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	// ===============================================
 	// Setup ReMem File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pReMemFile = new Fl_Input(105, 170, 210, 20, "ReMem  File");
+	mem_ctrl.pReMemFile = new Fl_Input(105, 170, 310, 20, "ReMem  File");
 	mem_ctrl.pReMemFile->value(mem_setup.remem_file);
     mem_ctrl.pReMemText = new Fl_Box(45, 190, 325, 20, "(Use Memory Editor to load FLASH)");
     mem_ctrl.pReMemText->labelsize(12);
 
-	mem_ctrl.pReMemBrowse = new Fl_Button(330, 165, 60, 30, "Browse");
+	mem_ctrl.pReMemBrowse = new Fl_Button(430, 165, 60, 30, "Browse");
     mem_ctrl.pReMemBrowse->callback((Fl_Callback*)cb_remem_browse);
 
 	if ((mem_setup.mem_mode != SETUP_MEM_REMEM) && (mem_setup.mem_mode != SETUP_MEM_REMEM_RAMPAC))
@@ -1514,12 +1598,17 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	if (mem_setup.mem_mode == SETUP_MEM_REX2)
 		mem_ctrl.pRex2->value(1);
 
+	mem_ctrl.pRexCreateFlash = new Fl_Button(300, 220, 170, 20, "Create Default Flash");
+	if (mem_setup.mem_mode != SETUP_MEM_REX && mem_setup.mem_mode != SETUP_MEM_REX2)
+		mem_ctrl.pRexCreateFlash->deactivate();
+	mem_ctrl.pRexCreateFlash->callback(cb_create_flash, &mem_ctrl);
+
 	// ===============================================
 	// Setup Rex Flash File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRexFlashFile = new Fl_Input(105, 260, 210, 20, "Flash File");
+	mem_ctrl.pRexFlashFile = new Fl_Input(105, 260, 310, 20, "Flash File");
 	mem_ctrl.pRexFlashFile->value(mem_setup.rex_flash_file);
-	mem_ctrl.pRexFlashBrowse = new Fl_Button(330, 257, 60, 30, "Browse");
+	mem_ctrl.pRexFlashBrowse = new Fl_Button(430, 257, 60, 30, "Browse");
     mem_ctrl.pRexFlashBrowse->callback((Fl_Callback*)cb_rex_browse);
 
 	if ((mem_setup.mem_mode != SETUP_MEM_REX) && (mem_setup.mem_mode != SETUP_MEM_REX2))
@@ -1531,9 +1620,9 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	// ===============================================
 	// Setup Rex Flash File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRex2RamFile = new Fl_Input(105, 295, 210, 20, "RAM File");
+	mem_ctrl.pRex2RamFile = new Fl_Input(105, 295, 310, 20, "RAM File");
 	mem_ctrl.pRex2RamFile->value(mem_setup.rex2_ram_file);
-	mem_ctrl.pRex2RamBrowse = new Fl_Button(330, 292, 60, 30, "Browse");
+	mem_ctrl.pRex2RamBrowse = new Fl_Button(430, 292, 60, 30, "Browse");
     mem_ctrl.pRex2RamBrowse->callback((Fl_Callback*)cb_rex2_browse);
 
 	if (mem_setup.mem_mode != SETUP_MEM_REX2)

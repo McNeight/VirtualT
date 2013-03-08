@@ -583,6 +583,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\reximages.c"
+				>
+			</File>
+			<File
 				RelativePath="src\romstrings.c"
 				>
 				<FileConfiguration
@@ -696,6 +700,10 @@
 			</File>
 			<File
 				RelativePath=".\src\tpddserverlog.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tsdosimages.c"
 				>
 			</File>
 			<File
