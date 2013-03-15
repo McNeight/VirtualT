@@ -1,6 +1,6 @@
 /* disassemble.h */
 
-/* $Id: disassemble.h,v 1.8 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: disassemble.h,v 1.9 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -100,6 +100,7 @@ public:
 	int						m_colorHilight;				// Set TRUE for color hilighting
 	int						m_disassemblyDepth;			// Depth (in instructions) to simulate for disassembly
 	int						m_opcodesLowercase;			// Creates disassembly with lower-case opcodes
+	int						m_includeOpcodes;			// Include opcode values in disassembly
 
 	void 					Disassemble();
 	void 					SetTextViewer(class My_Text_Editor* pTextViewer);
@@ -126,6 +127,7 @@ protected:
 	void					TestForStringArg(int address);
 	void					ScanForCodeBlocks(void);
 	void					ScanForStrings(void);
+	virtual void			draw(void);
 
 	char* 					m_StrTable[256];
 	unsigned char			m_LenTable[256];
