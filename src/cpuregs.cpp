@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.19 2013/02/17 22:13:25 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.20 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -3142,6 +3142,8 @@ void VTCpuRegs::draw(void)
 
 		int current_val = m_pScroll->value();
 		int size = (int) (m_pScroll->h() / m_fontHeight);
+		if (size == 0)
+			size = 1;
 		if (current_val + size + 4 > m_traceAvail)
 			current_val = m_traceAvail - size + 4;
 		int max_size =  m_traceAvail-size+4;
