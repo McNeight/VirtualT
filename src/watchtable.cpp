@@ -1,6 +1,6 @@
 /* watchtable.cpp */
 
-/* $Id: watchtable.cpp,v 1.3 2013/02/15 16:22:27 kpettit1 Exp $ */
+/* $Id: watchtable.cpp,v 1.4 2013/02/16 20:41:36 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -1130,6 +1130,9 @@ void VT_Watch_Table::resize(int x, int y, int w, int h)
 		m_ColStart[c] = m_ColStart[c+1] - m_ColWidth[c];
 		remaining -= m_ColWidth[c];
 	}
+
+	if (remaining < 10)
+		return;
 
 	// Now adjust cols 0 & 1 based on their percentage and remaining pixels
 	m_ColWidth[1] = (int) (m_WidthPercentage[1] * (double) remaining);

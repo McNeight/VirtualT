@@ -1,6 +1,6 @@
 /* cpuregs.cpp */
 
-/* $Id: cpuregs.cpp,v 1.20 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: cpuregs.cpp,v 1.21 2013/03/15 00:35:54 kpettit1 Exp $ */
 
 /*
 * Copyright 2006 Ken Pettit
@@ -421,19 +421,21 @@ void VTCpuRegs::get_reg_edits(void)
 	// Finally get updates to the flags
 	flags = 0;
 	if (m_pSFlag->value())
-		flags |= 0x80;
+		flags |= SF_BIT;
 	if (m_pZFlag->value())
-		flags |= 0x40;
-	if (m_pTSFlag->value())
-		flags |= 0x20;
+		flags |= ZF_BIT;
+	if (m_pXFlag->value())
+		flags |= XF_BIT;
 	if (m_pACFlag->value())
-		flags |= 0x10;
+		flags |= AC_BIT;
+	if (m_pTSFlag->value())
+		flags |= TS_BIT;
 	if (m_pPFlag->value())
-		flags |= 0x04;
+		flags |= PF_BIT;
 	if (m_pOVFlag->value())
-		flags |= 0x02;
+		flags |= OV_BIT;
 	if (m_pCFlag->value())
-		flags |= 0x01;
+		flags |= CF_BIT;
 
 	F = flags;
 
