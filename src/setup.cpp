@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.24 2013/03/08 00:33:37 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.25 2013/03/08 02:32:58 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -51,6 +51,7 @@
 #include "clock.h"
 #include "cpu.h"
 #include "tpddserver.h"
+#include "file.h"
 
 extern	Fl_Preferences virtualt_prefs;
 void 	init_menus(void);

@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.4 2013/01/26 03:51:20 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.5 2013/03/05 20:43:46 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -33,6 +33,7 @@
 #include <FL/Fl_Text_Buffer.H>
 #include "My_Text_Display.h"
 #include <FL/Fl_Window.H>
+//#include <QuickdrawAPI.h>
 #include <FL/x.H>
 
 #undef min
@@ -3208,5 +3209,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.4 2013/01/26 03:51:20 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.5 2013/03/05 20:43:46 kpettit1 Exp $".
 //

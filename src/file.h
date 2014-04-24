@@ -1,6 +1,6 @@
 /* file.h */
 
-/* $Id: file.h,v 1.9 2013/02/08 00:07:52 kpettit1 Exp $ */
+/* $Id: file.h,v 1.10 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -67,7 +67,7 @@ const char* ChooseWorkDir();
 #ifdef __cplusplus
 extern "C" {
 #endif
-extern char path[255];
+extern char path[512];
 #ifdef __cplusplus
 }
 #endif

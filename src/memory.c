@@ -196,7 +196,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 			for (c = 0; c < count; c++)
 				data[c] = gMsplanROM[addr++];
 		}
-		else if (gModel = MODEL_PC8300)
+		else if (gModel == MODEL_PC8300)
 		{
 			// Copy from ROM Bank B
 			for (c = 0; c < count; c++)
@@ -349,7 +349,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 
 	case REGION_ROM3:
 		addr = address;
-		if (gModel = MODEL_PC8300)
+		if (gModel == MODEL_PC8300)
 		{
 			// Copy from ROM Bank B
 			for (c = 0; c < count; c++)
@@ -359,7 +359,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 
 	case REGION_ROM4:
 		addr = address;
-		if (gModel = MODEL_PC8300)
+		if (gModel == MODEL_PC8300)
 		{
 			// Copy from ROM Bank B
 			for (c = 0; c < count; c++)
@@ -1088,7 +1088,7 @@ void save_rex2_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 128;		/* Copy 256K of RAM 
+		size = 1024 * 128;		/* Copy 256K of RAM */
 
 		/* Write ReMem RAM first */
 		fwrite(gRex2Ram, 1, size, fd);
@@ -1124,7 +1124,7 @@ void save_rex_flash(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 1024;		/* Copy 1 Meg of flash 
+		size = 1024 * 1024;		/* Copy 1 Meg of flash */
 
 		/* Write ReMem RAM first */
 		fwrite(gRexFlash.pFlash, 1, size, fd);
@@ -1373,7 +1373,7 @@ void load_rex_flash(void)
 	/* Check if file opened successfully */
 	if ((fd != 0) && (gRexFlash.pFlash != NULL))
 	{
-		size = 1024 * 1024;		/* Copy 1 meg of FLASH 
+		size = 1024 * 1024;		/* Copy 1 meg of FLASH */
 
 		/* Read Rex Flash first */
 		readlen = fread(gRexFlash.pFlash, 1, size, fd);
@@ -1413,7 +1413,7 @@ void load_rex2_ram(void)
 	/* Check if file opened successfully */
 	if (fd != 0)
 	{
-		size = 1024 * 128;		/* Copy 128K of RAM 
+		size = 1024 * 128;		/* Copy 128K of RAM */
 
 		/* Read Rex2 RAM */
 		readlen = fread(gRex2Ram, 1, size, fd);
