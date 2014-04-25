@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.21 2013/02/20 20:47:47 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.22 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -43,6 +43,7 @@
 #include <termios.h>
 #include <stdio.h>
 #include <errno.h>   /* Error number definitions */
+#include <linux/serial.h>
 
 #endif
 
@@ -785,8 +786,9 @@ int ser_set_baud(int baud)
 			unsigned baud_flag;
 
 			switch (sp.baud_rate) {
-			case 75   : baud_flag = B75   ; break;
-			case 110  : baud_flag = B110  ; break;
+			/* Steal 75 baud to make it 57600 and 110 to make it 115200 */
+			case 75   : baud_flag = B57600   ; break;
+			case 110  : baud_flag = B115200  ; break;
 			case 150  : baud_flag = B150  ; break;
 			case 200  : baud_flag = B200  ; break;
 			case 300  : baud_flag = B300  ; break;
@@ -797,6 +799,8 @@ int ser_set_baud(int baud)
 			case 4800 : baud_flag = B4800 ; break;
 			case 9600 : baud_flag = B9600 ; break;
 			case 19200: baud_flag = B19200; break;
+			case 38400: baud_flag = B38400; break;
+			case 76800: baud_flag = B38400; break;
 			default: return SER_IO_ERROR;
 			}
 
@@ -805,6 +809,28 @@ int ser_set_baud(int baud)
 			cfsetospeed (&options, baud_flag);
 			options.c_cflag |= (CLOCAL | CREAD);
 			tcsetattr(sp.fd, TCSANOW, &options);
+
+			/* For 76800 Baud, we have to try to use ioctl and
+			   and TIOCGSERIAL / TIOCSSERIAL to set a custom baud
+			   rate divisor and hope it's an FTDI USB device */
+			if (sp.baud_rate == 76800) {
+				struct serial_struct ser;
+
+				/* Get current structure values */
+				if (ioctl(sp.fd, TIOCGSERIAL, &ser) < 0) {
+					printf("Error calling TIOCGSERIAL\n");
+				}
+				else
+				{
+					// Calculate custom_divisor based on baud_base
+					ser.custom_divisor = ser.baud_base / 76800;
+					ser.flags |= ASYNC_SPD_CUST;
+					printf("Baud base = %d,  Custom divisor = %d\n", ser.baud_base, ser.custom_divisor);
+					if (ioctl(sp.fd, TIOCSSERIAL, &ser) < 0)
+						printf("Error setting custom baud rate\n");
+				}
+			}
+			
 		}
 
 		#endif

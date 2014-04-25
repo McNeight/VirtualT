@@ -1,6 +1,6 @@
 /* tpddserver.cpp */
 
-/* $Id: tpddserver.cpp,v 1.7 2013/03/07 19:35:22 kpettit1 Exp $ */
+/* $Id: tpddserver.cpp,v 1.8 2013/03/08 00:33:37 kpettit1 Exp $ */
 
 /*
  * Copyright 2013 Ken Pettit
@@ -2602,15 +2602,82 @@ Handles the SetExtended opcode
 */
 void VTTpddServer::OpcodeSetExtended(void)
 {
+	SendNormalReturn(TPDD_ERR_NONE);
 }
 
 /*
 ===========================================================================
 Handles the QueryExtended opcode
+
+The QueryExtended opcode parameter will be a NULL terminated string with
+a space seperated list of extended options being queried, such as:
+
+    NM  BR  CL       Which is requesting Name (of server), Baud Rate and
+	                 Condensed List support
+
+The proper response is a RET_QUERY_EXTENDED packet that looks like:
+
+	0:  0x14
+    1:  Length byte
+	2-n: NM=NADSBox BR=9600,19200,38400,57600,76800,115200,230400 CL:Y \0
+	N+1: Checksum
+   
 ===========================================================================
 */
 void VTTpddServer::OpcodeQueryExtended(void)
 {
+	MString		resp;
+	const char *ptr;
+	int			len, c;
+
+	// TPDD_RET_QUERY_EXTENDED
+	ptr = strtok(&m_rxBuffer[TPDD_PKT_DATA_INDEX], " ");
+
+	// Loop for all entries in in opcode parameter list
+	while (ptr != NULL)
+	{
+		// Add this extended parameter to the response
+		resp += ptr;
+
+		if (strcmp(ptr, "NM") == 0)
+			// Provide the our Server Name
+			resp += (char *) "=VTNADS";
+		else if (strcmp(ptr, "BR") == 0)
+			// Provide list of virtual baud rates we support
+			resp += (char *) "=38400,57600,76800,115200,230400";
+		else if (strcmp(ptr, "CL") == 0)
+			// Indicate Condensed List API supported
+			resp += (char *) ":Y";
+		else
+			// Anything else we don't support so respond "N"ot supported
+			resp += (char *) ":N";
+		
+		// Get pointer to next extended parameter in list
+		ptr = strtok(NULL, " ");
+
+		// Add a space separator if there are more parameters in the list
+		if (ptr != NULL)
+			resp += (char *) " ";
+	}
+
+	// Okay now send out the response
+	m_txChecksum = 0;
+	len = resp.GetLength() + 1;
+	
+	// Send API code
+	TpddSendByte(TPDD_RET_QUERY_EXTENDED);
+	TpddSendByte(len);
+
+	// Send out the response dat
+	ptr = (const char *) resp;
+	for (c = 0; c < len; c++)
+	{
+		// Send to host and calc checksum
+		TpddSendByte(*ptr++);
+	}
+
+	// Now send the checksum
+	TpddSendChecksum();
 }
 
 /*

@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.17 2013/02/15 13:03:26 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.18 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -244,7 +244,7 @@ void get_hilight_color_prefs(void)
 {
 	int		pc;
 
-	virtualt_prefs.get("Ide_ColorText", pc, FL_BLACK);
+	virtualt_prefs.get("Ide_ColorText", pc, FL_WHITE);
 	hl_plain = (Fl_Color) pc;
 	virtualt_prefs.get("Ide_ColorLineComment", pc, 95);
 	hl_linecomment = (Fl_Color) pc;

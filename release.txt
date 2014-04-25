@@ -66,6 +66,8 @@ v1.6
     
 20. Added color syntax hilighting, Load and Save, and Find operations to Disassembler window.
 
+21. Modified serial.c to map 75 baud = 57600 and 110 baud = 115200.
+
 ====================
 v1.5  July 9th, 2011
 ====================
