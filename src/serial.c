@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.23 2014/04/25 01:15:57 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.24 2014/04/25 01:25:42 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -815,6 +815,7 @@ int ser_set_baud(int baud)
 			/* For 76800 Baud, we have to try to use ioctl and
 			   and TIOCGSERIAL / TIOCSSERIAL to set a custom baud
 			   rate divisor and hope it's an FTDI USB device */
+#if __linux
 			if (sp.baud_rate == 76800) {
 				struct serial_struct ser;
 
@@ -832,6 +833,7 @@ int ser_set_baud(int baud)
 						printf("Error setting custom baud rate\n");
 				}
 			}
+#endif
 			
 		}
 
