@@ -1,6 +1,6 @@
 /* chargen.cpp */
 
-/* $Id: chargen.cpp,v 1.9 2011/07/11 06:17:23 kpettit1 Exp $ */
+/* $Id: chargen.cpp,v 1.10 2013/01/23 01:00:08 kpettit1 Exp $ */
 
 /*
  * Copyright 2008 Ken Pettit
@@ -78,7 +78,7 @@ void cb_CloseCharGen(Fl_Widget* w, void *)
 
 	// Okay to close
 	gpCharGen->hide();
-	delete gpCharGen;
+//	delete gpCharGen;
 	gpCharGen = NULL;
 }
 
