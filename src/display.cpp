@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.38 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.39 2014/04/25 01:44:57 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -290,9 +290,9 @@ void expand_window(Fl_Window* pWin, int newx, int newy, int neww, int newh)
 		pWin->resize(pWin->x()+dx, pWin->y()+dy, pWin->w()+dw, pWin->h()+dh);
 		Fl::check();
 	}
+#endif
 
 	pWin->resize(newx, newy, neww, newh);
-#endif
 }
 /*
 =======================================================
