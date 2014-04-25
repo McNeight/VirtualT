@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.37 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.38 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -241,6 +241,7 @@ void collapse_window(Fl_Window* pWin)
 	int		dx, dy, dw, dh;
 	int		steps = 10, c;
 
+#if !defined(__APPLE__)
 	// Shrink the window to nothingness...
 	newx = MainWin->x() + MainWin->w()/4;
 	newy = MainWin->y() + MainWin->h()/4;
@@ -256,6 +257,7 @@ void collapse_window(Fl_Window* pWin)
 		pWin->resize(pWin->x()+dx, pWin->y()+dy, pWin->w()+dw, pWin->h()+dh);
 		Fl::check();
 	}
+#endif
 
 	// Finally, hide the window altogether
 	pWin->hide();
@@ -272,10 +274,13 @@ void expand_window(Fl_Window* pWin, int newx, int newy, int neww, int newh)
 	int dx, dy, dw, dh;
 	int	c, steps = 9;
 
+#if !defined(__APPLE__)
 	pWin->hide();
 	pWin->resize(MainWin->x(), MainWin->y(), 50, 150);
+#endif
 	pWin->show();
 
+#if !defined(__APPLE__)
 	dx = (newx - pWin->x()) / steps;
 	dy = (newy - pWin->y()) / steps;
 	dw = (neww - pWin->w()) / steps;
@@ -287,6 +292,7 @@ void expand_window(Fl_Window* pWin, int newx, int newy, int neww, int newh)
 	}
 
 	pWin->resize(newx, newy, neww, newh);
+#endif
 }
 /*
 =======================================================
