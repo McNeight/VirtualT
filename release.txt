@@ -6,7 +6,7 @@ VirtualT Release.txt
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
 ====================
-v1.6  
+v1.6 April 24, 2014
 ====================
 
 1.  Fixed issue with remote interface simulated keystokes where the keys wouldn't

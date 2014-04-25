@@ -1,6 +1,6 @@
 /* serial.c */
 
-/* $Id: serial.c,v 1.22 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: serial.c,v 1.23 2014/04/25 01:15:57 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -43,7 +43,9 @@
 #include <termios.h>
 #include <stdio.h>
 #include <errno.h>   /* Error number definitions */
+#if !defined(__APPLE__)
 #include <linux/serial.h>
+#endif
 
 #endif
 
