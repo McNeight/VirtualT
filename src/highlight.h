@@ -25,9 +25,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct _HighlightCtrl 
 {
-	Fl_Text_Buffer		*textbuf;
-	Fl_Text_Buffer		*stylebuf;
-	Fl_Text_Buffer		*op_stylebuf;
+	My_Text_Buffer		*textbuf;
+	My_Text_Buffer		*stylebuf;
+	My_Text_Buffer		*op_stylebuf;
 	My_Text_Editor		*te;
 	int					cppfile;
 } HighlightCtrl_t;

@@ -19,7 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <string.h>
 #include <ctype.h>
 #include "highlight.h"
-
+#include "multieditwin.h"
 
 //Editor colors
 #if 0
@@ -538,7 +538,7 @@ void style_init(HighlightCtrl_t *pHlCtrl)
   style[pHlCtrl->textbuf->length()] = '\0';
 
   if (!pHlCtrl->stylebuf) 
-	  pHlCtrl->stylebuf = new Fl_Text_Buffer(pHlCtrl->textbuf->length());
+	  pHlCtrl->stylebuf = new My_Text_Buffer(pHlCtrl->textbuf->length());
 
   if (pHlCtrl->cppfile) 
 	  style_parse(text, style, pHlCtrl->textbuf->length());

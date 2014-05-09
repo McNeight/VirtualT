@@ -1,4 +1,4 @@
-// $Id: Flu_Tree_Browser.h,v 1.3 2011/07/09 21:11:51 kpettit1 Exp $
+// $Id: Flu_Tree_Browser.h,v 1.4 2013/02/15 13:03:26 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -487,6 +487,10 @@ class FLU_EXPORT Flu_Tree_Browser : public Fl_Double_Window
   inline void shaded_entry_colors( Fl_Color even, Fl_Color odd )
     { rdata.shadedColors[0] = even; rdata.shadedColors[1] = odd; }
 
+  //! Override show to ensure Fl_Widget::show is called
+  void show(void)
+    { Fl_Double_Window::show(); Fl_Widget::show(); }
+    
   //! Set whether branch entries are visible. Default is \c true
   inline void show_branches( bool b )
     { rdata.showBranches = b; rdata.forceResize = true; }

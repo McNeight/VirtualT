@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.3 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.4 2013/03/05 20:48:26 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -79,7 +79,6 @@ My_Text_Display::Style_Table_Entry
 
 
 IMPLEMENT_DYNCREATE(Fl_Multi_Edit_Window, VTObject)
-//IMPLEMENT_DYNCREATE(Fl_Multi_Edit_Window, Fl_Multi_Window)
 
 void multiEditModCB(int pos, int nInserted, int nDeleted, int nRestyled, 
 	const char* deletedText, void* cbArg)
@@ -115,7 +114,7 @@ void cb_multieditwin(Fl_Widget* w, void *args)
 //	delete mw;
 }
 
-void Fl_Multi_Edit_Window::buffer(Fl_Text_Buffer* buf)
+void Fl_Multi_Edit_Window::buffer(My_Text_Buffer* buf)
 {
 	DisableHl();
 	if (m_pHlCtrl != NULL)
@@ -132,7 +131,7 @@ Fl_Multi_Edit_Window::Fl_Multi_Edit_Window(int x, int y, int w, int h, const cha
     /* Create window */
 	m_pHlCtrl = NULL;
 
-    m_tb = new Fl_Text_Buffer();
+    m_tb = new My_Text_Buffer();
 	buffer(m_tb);
 	m_tb->add_modify_callback(multiEditModCB, this);
 
@@ -452,8 +451,10 @@ int Fl_Multi_Edit_Window::ForwardSearch(const char *pFind, int caseSensitive)
 	return TRUE;
 }
 
+#if 0
 void Fl_Multi_Edit_Window::show(void)
 {
 	My_Text_Display::show();
 	redraw();
 }
+#endif

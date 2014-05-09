@@ -1,6 +1,6 @@
 /* multiwin.cpp */
 
-/* $Id: idetabs.cpp,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: idetabs.cpp,v 1.3 2013/01/26 03:51:20 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -43,6 +43,7 @@
 #include "m100emu.h"
 #include "multiwin_icons.h"
 #include "idetabs.h"
+#include "multieditwin.h"
 
 #define BORDER 3
 #define EXTRASPACE 16
@@ -57,19 +58,40 @@ IMPLEMENT_DYNCREATE(Fl_Ide_Tabs, VTObject)
 void cb_idetabs(Fl_Widget* w, void *args)
 {
 	Fl_Ide_Tabs*	pTabs;
+    int             x, count, newvalue;
 
 	// Test for closure event
 	if (args == (void *) FL_IDE_TABS_CLOSE)
 	{
 		// Find the widget being closed and remove it from the group
 		pTabs = (Fl_Ide_Tabs *) w->parent();
-		if (pTabs->children() == 1)
-			pTabs->hide();
-		
+        count = pTabs->children();
+		if (count == 1)
+        {
+            // Hide the tab control if no more tabs left
+//			pTabs->hide();
+            
+            // Hide the no-blink box in the parent window also
+            for (x = 0; x < pTabs->parent()->children(); x++)
+                pTabs->parent()->child(x)->hide();
+		}
+        
+        // Find the index of this entry
+        for (x = 0; x < count; x++)
+            if (w == pTabs->child(x))
+            {
+                newvalue = x;
+                if (newvalue == count - 1)
+                    newvalue--;
+                break;
+            }
+        
 		pTabs->remove(w);
+        pTabs->last_visible_ = 0;
 		Fl::delete_widget(w);
 		if (pTabs->children() != 0)
 		{
+            pTabs->value(pTabs->child(newvalue));
 			pTabs->parent()->redraw();
 			pTabs->redraw();
 			int count = pTabs->children();
@@ -87,6 +109,7 @@ Fl_Ide_Tabs::Fl_Ide_Tabs(int x, int y, int w, int h, const char* title)
 	m_hasCloseButton = FALSE;
 	box(FL_THIN_UP_BOX);
 	push_ = 0;
+    last_visible_ = 0;
 
 	callback(cb_idetabs);
 }
@@ -104,12 +127,11 @@ void Fl_Ide_Tabs::draw() {
   Fl_Widget *v = value();
   int H = tab_height();
 
-#if 0
   if (damage() & FL_DAMAGE_ALL) { // redraw the entire thing:
     Fl_Color c = v ? v->color() : color();
-
+      
+#if 0
     draw_box(box(), x(), y()+(H>=0?H:0), w(), h()-(H>=0?H:-H), c);
-
     if (selection_color() != c) {
       // Draw the top 5 lines of the tab pane in the selection color so
       // that the user knows which tab is selected...
@@ -121,18 +143,20 @@ void Fl_Ide_Tabs::draw() {
 
       fl_pop_clip();
     }
+#endif
     if (v) draw_child(*v);
   } else { // redraw the child
     if (v) update_child(*v);
   }
-#endif
 
 	int H2 = H < 0 ? -H : H;
 
+#if 0
 	// Draw the background rectangle
-	fl_clip(x(), y(), w(), h()+2);
+	fl_push_clip(x(), y(), w(), h()+2);
 	draw_box(box(), x(), y(), w(), h()+2, fl_rgb_color(228,226,213));
-	fl_pop_clip();
+    fl_pop_clip();
+#endif
 
 	// Draw the close box
 	if (m_hasCloseButton)
@@ -142,36 +166,33 @@ void Fl_Ide_Tabs::draw() {
 		else 
 			m_closeRect = VT_Rect(x() + w() - H2, y() + h() - H2, H2, H2);
 		draw_box(box(), x() + w() - H2, 0, H2, H2, selection_color());
+        // Draw the 'X' in the close box
+        fl_color(FL_BLACK);
+            
+        int rx1 = m_closeRect.x() + 8;
+        int ry1 = m_closeRect.y();
+        int rx2 = m_closeRect.x1() - 8;
+        int ry2 = m_closeRect.y1();
+            
+        fl_line(rx1, ry1 + 7, rx2, ry2 - 9);
+        fl_line(rx1, ry1 + 8, rx2, ry2 - 8);
+        fl_line(rx1, ry1 + 9, rx2, ry2 - 7);
+        fl_line(rx1, ry2 - 7, rx2, ry1 + 9);
+        fl_line(rx1, ry2 - 8, rx2, ry1 + 8);
+        fl_line(rx1, ry2 - 9, rx2, ry1 + 7);
 	}
 
 	// Draw the bottom border line for the "TAB"
 	if (H >= 0)
-		draw_box(box(), x()+1, H2-3, w(), H2, selection_color());
+		draw_box(box(), x()+1, H2-5, w(), 7, selection_color());
 	else
 		draw_box(box(), x()+1, h()-H2-4, w(), 5, selection_color());
 	fl_color(fl_rgb_color(127,157,184));
 	if (H<0)
 		fl_line(x()+1, h()-H2, w(), h()-H2);
 	else
-		fl_line(x()+1, H-4, w()-H-1, H-4);
-
-	// Draw the 'X' in the close box
-	if (m_hasCloseButton)
-	{
-		fl_color(FL_BLACK);
-
-		int rx1 = m_closeRect.x() + 8;
-		int ry1 = m_closeRect.y();
-		int rx2 = m_closeRect.x1() - 8;
-		int ry2 = m_closeRect.y1();
-
-		fl_line(rx1, ry1 + 7, rx2, ry2 - 9);
-		fl_line(rx1, ry1 + 8, rx2, ry2 - 8);
-		fl_line(rx1, ry1 + 9, rx2, ry2 - 7);
-		fl_line(rx1, ry2 - 7, rx2, ry1 + 9);
-		fl_line(rx1, ry2 - 8, rx2, ry1 + 8);
-		fl_line(rx1, ry2 - 9, rx2, ry1 + 7);
-	}
+		fl_line(x()+1, H-6, w()-H-1, H-6);
+        
 	// Draw the tabs
 	if (damage() & (FL_DAMAGE_SCROLL|FL_DAMAGE_ALL)) 
 	{
@@ -322,7 +343,7 @@ void Fl_Ide_Tabs::draw_tab(int x1, int x2, int W, int H, Fl_Widget* o, int what)
     Fl_Color oc = o->labelcolor();
 
     fl_pop_clip();
-	fl_clip(x1-H-10, y()-2, W+H+5, H+2);
+	fl_push_clip(x1-H-10, y()-2, W+H+5, H+2);
 
 	// Draw TAB left curved portion
 	fl_color(c);
@@ -351,7 +372,6 @@ void Fl_Ide_Tabs::draw_tab(int x1, int x2, int W, int H, Fl_Widget* o, int what)
     o->labelcolor(oc);
 
 	// Draw TAB Border
-//	fl_color(FL_BLACK);
 	if (sel)
 		fl_color(fl_rgb_color(127,157,184));
 	else
@@ -376,7 +396,7 @@ void Fl_Ide_Tabs::draw_tab(int x1, int x2, int W, int H, Fl_Widget* o, int what)
     // Save the previous label color
 	Fl_Color c = sel ? fl_lighter(selection_color()) : selection_color();
     Fl_Color oc = o->labelcolor();
-	fl_clip(x(), y(), w()+5, h());
+	fl_push_clip(x(), y(), w()+5, h());
 
 	// Draw TAB left curved portion
 	fl_color(c);
@@ -575,12 +595,12 @@ int Fl_Ide_Tabs::orig_handle(int event) {
   case FL_RELEASE:
     o = which(Fl::event_x(), Fl::event_y());
     if (event == FL_RELEASE) {
-      push(0);
+      //push(0);
       if (o && Fl::visible_focus() && Fl::focus()!=this) { 
         Fl::focus(this);
         redraw_tabs();
       }
-      if (o && value(o)) {
+      if (o) {// && value(o)) {
         set_changed();
 	    do_callback();
       }
@@ -588,7 +608,8 @@ int Fl_Ide_Tabs::orig_handle(int event) {
 		Fl::focus(o);
       Fl_Tooltip::current(o);
     } else {
-      push(o);
+        if (o)
+            push(o);
     }
     return 1;
   case FL_MOVE: {
@@ -664,16 +685,21 @@ int Fl_Ide_Tabs::orig_handle(int event) {
 }
 
 int Fl_Ide_Tabs::push(Fl_Widget *o) {
-  if (push_ == o) return 0;
-  if (push_ && !push_->visible() || o && !o->visible())
+   
+  if (last_visible_ == o) return 0;
+//  if ((push_ && push_->visible()) || (o && !o->visible()))
   {
-    if (push_)
-		push_->hide();
-	if (o)
-		o->show();
+    if (o)
+    {
+        o->show();
+    }
+    if (last_visible_)
+    {
+        last_visible_->hide();
+    }
     redraw_tabs();
   }
-  push_ = o;
+  last_visible_ = o;
   return 1;
 }
 
@@ -685,11 +711,24 @@ Fl_Widget* Fl_Ide_Tabs::value() {
   Fl_Widget* v = 0;
   Fl_Widget*const* a = array();
   for (int i=children(); i--;) {
-    Fl_Widget* o = *a++;
-    if (v) o->hide();
-    else if (o->visible()) v = o;
-    else if (!i) {o->show(); v = o;}
-  }
+      Fl_Widget* o = *a++;
+      if (v)
+      {
+          o->hide();
+      }
+      else if (o->visible())
+      {
+          v = o;
+      }
+#if 0
+      else if (!i)
+      {
+          o->show();
+          last_visible_ = o;
+          v = o;
+      }
+#endif
+    }
   return v;
 }
 
@@ -702,9 +741,10 @@ int Fl_Ide_Tabs::value(Fl_Widget *newvalue) {
     Fl_Widget* o = *a++;
     if (o == newvalue) {
       if (!o->visible()) ret = 1;
-      o->show();
+        o->show();
+        last_visible_ = o;
     } else {
-      o->hide();
+        o->hide();
     }
   }
   return ret;

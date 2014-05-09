@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.h,v 1.3 2013/01/26 03:51:20 kpettit1 Exp $"
+// "$Id: My_Text_Display.h,v 1.4 2013/03/05 20:43:46 kpettit1 Exp $"
 //
 // Header file for My_Text_Display class.
 //
@@ -33,8 +33,10 @@
 #include <FL/Fl_Double_Window.H>
 #include <FL/Fl_Widget.H>
 #include <FL/Fl_Scrollbar.H>
+//#include <FL/Fl_Text_Buffer.H>
 
-#include <FL/Fl_Text_Buffer.H>
+#include "My_Text_Buffer.H"
+class My_Text_Buffer;
 
 typedef void (*MyTextDisplay_ReportError_t)(int lineNo, char* file, void* opaque);
 
@@ -77,9 +79,9 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     ~My_Text_Display();
 
     virtual int handle(int e);
-    virtual void buffer(Fl_Text_Buffer* buf);
-    void buffer(Fl_Text_Buffer& buf) { buffer(&buf); }
-    Fl_Text_Buffer* buffer() { return mBuffer; }
+    virtual void buffer(My_Text_Buffer* buf);
+    void buffer(My_Text_Buffer& buf) { buffer(&buf); }
+    My_Text_Buffer* buffer() { return mBuffer; }
     void redisplay_range(int start, int end);
     void scroll(int topLineNum, int horizOffset);
     void insert(const char* text);
@@ -112,7 +114,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 	void register_error_report(MyTextDisplay_ReportError_t pFunc, void* pOpaque)
 						{ m_pErrorFunc = pFunc, m_pErrorOpaque = pOpaque; }
     
-    void highlight_data(Fl_Text_Buffer *styleBuffer,
+    void highlight_data(My_Text_Buffer *styleBuffer,
                         const Style_Table_Entry *styleTable,
                         int nStyles, char unfinishedStyle,
                         Unfinished_Style_Cb unfinishedHighlightCB,
@@ -143,7 +145,6 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 	void utility_margin_color(int margin_size, Fl_Color c) 
 		{ bHasUtilityMargin = 1; mLeftMargin = margin_size, mUtilityMarginColor = c;
 			resize(x(), y(), w(), h()); }
-		  //text_area.x += margin_size; text_area.w -= margin_size; }
     
     Fl_Color mCursor_color;
 
@@ -214,7 +215,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
                            int nDeleted, int *modRangeStart, int *modRangeEnd,
                            int *linesInserted, int *linesDeleted);
     void measure_deleted_lines(int pos, int nDeleted);
-    void wrapped_line_counter(Fl_Text_Buffer *buf, int startPos, int maxPos,
+    void wrapped_line_counter(My_Text_Buffer *buf, int startPos, int maxPos,
                                int maxLines, bool startPosIsLineStart,
                                int styleBufOffset, int *retPos, int *retLines,
                                int *retLineStart, int *retLineEnd,
@@ -223,7 +224,7 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
                          int *nextLineStart);
     int measure_proportional_character(char c, int colNum, int pos);
     int wrap_uses_character(int lineEndPos);
-    int range_touches_selection(Fl_Text_Selection *sel, int rangeStart,
+    int range_touches_selection(My_Text_Selection *sel, int rangeStart,
                                  int rangeEnd);
 
     int damage_range1_start, damage_range1_end;
@@ -242,8 +243,8 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
     int mCursorPreferredCol;    /* Column for vert. cursor movement */
     int mNVisibleLines;         /* # of visible (displayed) lines */
     int mNBufferLines;          /* # of newlines in the buffer */
-    Fl_Text_Buffer* mBuffer;    /* Contains text to be displayed */
-    Fl_Text_Buffer* mStyleBuffer; /* Optional parallel buffer containing
+    My_Text_Buffer* mBuffer;    /* Contains text to be displayed */
+    My_Text_Buffer* mStyleBuffer; /* Optional parallel buffer containing
                                      color and font information */
     int mFirstChar, mLastChar;  /* Buffer positions of first and last
                                    displayed character (lastChar points
@@ -318,5 +319,5 @@ class FL_EXPORT My_Text_Display: public Fl_Double_Window {
 #endif
 
 //
-// End of "$Id: My_Text_Display.h,v 1.3 2013/01/26 03:51:20 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.h,v 1.4 2013/03/05 20:43:46 kpettit1 Exp $".
 //

@@ -1,6 +1,6 @@
 /* m100emu.c */
 
-/* $Id: m100emu.c,v 1.40 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: m100emu.c,v 1.41 2013/03/08 00:41:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -42,6 +42,10 @@
 #include <signal.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <semaphore.h>
+#endif
+
+#ifdef __APPLE__
 #include <semaphore.h>
 #endif
 
@@ -322,6 +326,7 @@ count.  This is used for 2.4 Mhz emulation speed.
 */
 void throttle(int cy)
 {
+    int     sleepUs = 1000 / gThrottlePeriod * 1000;
 
 	/* Update cycles counter */
 	cycles+=cy;
@@ -338,6 +343,10 @@ void throttle(int cy)
 #else
 		while (cycles >= gThrottleCycles)
 		{
+            if(fullspeed != 3)
+                usleep(sleepUs);
+            else
+                usleep(sleepUs * 2);
 			sem_wait(&gThrottleEvent);
 		}
 #if 0
@@ -1367,7 +1376,7 @@ void setup_working_path(char **argv)
 	found = FALSE;
 		
 	/* Search for the /VirtualT.app/Contents directory */
-	pContents = strstr(argv[0], "/VirtualT.app/Contents");
+	pContents = strstr(argv[0], "/Contents/MacOS");
 
 	// First search for "/VT Emulation" folder in the same directory as the VirtualT.app
 	if (pContents != NULL)
@@ -1379,7 +1388,7 @@ void setup_working_path(char **argv)
 
 		/* Save a copy of the bundle path */
 		strcpy(gOsxBundlePath, path);
-		strcat(gOsxBundlePath, "/VirtualT.app/Contents");
+		strcat(gOsxBundlePath, "/Contents");
 
 		strcat(path, "/VT Emulation");
 		if (stat(path, &romStat) == 0)

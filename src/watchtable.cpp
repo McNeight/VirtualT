@@ -1,6 +1,6 @@
 /* watchtable.cpp */
 
-/* $Id: watchtable.cpp,v 1.4 2013/02/16 20:41:36 kpettit1 Exp $ */
+/* $Id: watchtable.cpp,v 1.5 2013/03/27 04:24:53 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -47,8 +47,8 @@
 
 #include "VirtualT.h"
 #include "memory.h"
-#include "cpu.h"
 #include "watchtable.h"
+#include "cpu.h"
 
 int str_to_i(const char *pStr);
 

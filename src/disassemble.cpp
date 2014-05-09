@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.17 2013/03/07 19:39:01 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.18 2013/03/15 00:30:37 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -49,9 +49,9 @@
 #include "disassemble.h"
 #include "file.h"
 #include "io.h"
-#include "cpu.h"
 #include "periph.h"
 #include "memedit.h"
+#include "cpu.h"
 #include "romstrings.h"
 #include "cpuregs.h"
 #include "memory.h"
@@ -727,7 +727,7 @@ void disassembler_cb(Fl_Widget* w, void*)
 		set_text_size(gpDis->m_fontSize);
 
 		// Create a Text Buffer for the Text Editor to work with
-		Fl_Text_Buffer* tb = new Fl_Text_Buffer();
+		My_Text_Buffer* tb = new My_Text_Buffer();
 		td->buffer(tb);
 
 		// Show the Disassembling text to indicate activity
@@ -960,7 +960,7 @@ void VTDis::Disassemble()
 	unsigned long	sig;
 	unsigned char opcode;
 	unsigned char op_len;
-	Fl_Text_Buffer*	tb;
+	My_Text_Buffer*	tb;
 
 	// Assign the RomDescription table for the model being emulated
 	gpDis->m_pRom = gStdRomDesc;
@@ -1008,7 +1008,7 @@ void VTDis::Disassemble()
 	for (generate = 0; generate < 2; generate++)
 	{
 		// Create a new text buffer
-		tb = new Fl_Text_Buffer;
+		tb = new My_Text_Buffer;
 
 		for (c = m_StartAddress; c <= m_EndAddress; c++)
 		{
@@ -1661,7 +1661,7 @@ void VTDis::Disassemble()
 	}
 
 	// Display the text buffer in the text editor
-	Fl_Text_Buffer* old_tb = m_pTextViewer->buffer();
+	My_Text_Buffer* old_tb = m_pTextViewer->buffer();
 	m_pTextViewer->buffer(tb);
 
 	ResetHilight();
@@ -1783,7 +1783,7 @@ void VTDis::ScanForStrings(void)
 Adds a label to the disassembly
 ============================================================================
 */
-void VTDis::DisassembleAddLabel(Fl_Text_Buffer*	tb, int addr)
+void VTDis::DisassembleAddLabel(My_Text_Buffer*	tb, int addr)
 {
 	char	line[200];
 	char	arg[60];
@@ -1816,7 +1816,7 @@ void VTDis::DisassembleAddLabel(Fl_Text_Buffer*	tb, int addr)
 Disassembles the specified memory memory region as a string
 ============================================================================
 */
-void VTDis::DisassembleAsString(Fl_Text_Buffer*	tb, int startAddr, int len)
+void VTDis::DisassembleAsString(My_Text_Buffer*	tb, int startAddr, int len)
 {
 	int		next;
 	int		last = startAddr + len;

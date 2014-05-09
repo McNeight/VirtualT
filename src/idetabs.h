@@ -1,6 +1,6 @@
 /* idetabs.h */
 
-/* $Id: idetabs.h,v 1.1 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: idetabs.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2009 Ken Pettit
@@ -31,6 +31,7 @@
 #define _IDETABS_H_
 
 #include <FL/Fl_Tabs.H>
+#include <FL/Fl_Double_Window.H>
 #include "vtobj.h"
 
 #define	FL_IDE_TABS_CLOSE	(0xDEADD00D)
@@ -45,10 +46,11 @@ public:
 
 	Fl_Widget *value();
 	int value(Fl_Widget *);
-	Fl_Widget *push() const {return push_;}
+	Fl_Widget *push()  {return last_visible_;}
 	int push(Fl_Widget *);
 	Fl_Widget *which(int event_x, int event_y);
 	void has_close_button(int bHasCloseButton) { m_hasCloseButton = bHasCloseButton; }
+    Fl_Widget *last_visible_;
 
 protected:
 	VT_Rect	m_closeRect;

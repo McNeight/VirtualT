@@ -52,8 +52,8 @@ endif
 # ================================
 # Define our linker flags and libs
 # ================================
-LDFLAGS		+=	-L/usr/X11R6/lib
-LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -lX11 -lpthread
+LDFLAGS		+=	$(shell $(FLTKCONFIG) --ldflags) -L/usr/X11R6/lib
+LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -ldl -lX11 -lpthread -lXft -lXinerama -lfontconfig -lXext
 
 # =============================
 # Defines for MacOSX builds

@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.18 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.19 2014/04/25 01:15:57 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -30,7 +30,7 @@
 #include <FL/Fl.H>
 #include <FL/Fl_Menu_Bar.H>
 #include <FL/Fl_Text_Editor.H>
-#include <FL/Fl_Text_Buffer.H>
+//#include <FL/Fl_Text_Buffer.H>
 #include "FLU/Flu_Tree_Browser.h"
 #include "FLU/flu_pixmaps.h"
 #include "FLU/Flu_File_Chooser.h"
@@ -549,6 +549,7 @@ void VT_Ide::SetColors(int fg, int bg)
 {
 	// Set all editor background colors
 	int children = m_EditTabs->children();
+    m_TabNoBlinkBox->color(background_color);
 	for (int c = 0; c < children; c++)
 	{
 		Fl_Multi_Edit_Window* te = (Fl_Multi_Edit_Window *) m_EditTabs->child(c);
@@ -565,6 +566,7 @@ void VT_Ide::SetColors(int fg, int bg)
 	}
 
 	// Set Browser Tree colors
+    m_ProjWindow->color(background_color);
 	m_ProjTree->connector_style(hl_plain, FL_SOLID);
 	m_ProjTree->leaf_text(hl_plain, m_ProjTree->leaf_font(), m_ProjTree->leaf_size());
 	m_ProjTree->branch_text(hl_plain, m_ProjTree->branch_font(), m_ProjTree->branch_size());
@@ -797,7 +799,10 @@ void cb_lcd_display(Fl_Widget* w, void*)
 		TAB_HEIGHT);
 	gpIde->m_EditTabs->insert(*gpLcd, gpIde->m_EditTabs->children());
 	if (gpIde->m_EditTabs->children() == 1)
+    {
 		gpIde->m_EditTabs->show();
+        m_TabNoBlinkBox->show();
+    }
 	gpLcd->show();
 	gpLcd->show();
 	gpLcd->take_focus();
@@ -1271,10 +1276,10 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region for Project tree
 	============================================
 	*/
-	m_ProjWindow = new Fl_Window(2,MENU_HEIGHT-2,ideTreeWidth,h-75,"");
+	m_ProjWindow = new Fl_Double_Window(0,MENU_HEIGHT-2,ideTreeWidth,h-75,"");
 	m_ProjWindow->box(FL_DOWN_BOX);
 	m_ProjWindow->color(background_color);
-
+    
 	// Create Tree control
 	m_ProjTree = new Flu_Tree_Browser( 0, 0, ideTreeWidth, h-75 );
 	m_ProjTree->box( FL_DOWN_FRAME );
@@ -1283,6 +1288,8 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	m_ProjTree->animate(TRUE);
 	m_ProjTree->leaf_text(hl_plain, m_ProjTree->leaf_font(), text_size);
 	m_ProjTree->branch_text(hl_plain, m_ProjTree->branch_font(), text_size);
+    m_ProjTree->end();
+
 	Fl_Window* b = new Fl_Window(40, 20, 10, 10, "");
 	b->hide();
 	gPopup = new Fl_Menu_Button(0,0,100,400,"Popup");
@@ -1292,7 +1299,8 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	gPopup->color(fl_rgb_color(240,239,228));
 	gPopup->hide();
 	b->end();
-	m_ProjTree->hide();
+
+    m_ProjTree->hide();
 	
 	m_ProjWindow->resizable(m_ProjTree);
 	m_ProjWindow->end();
@@ -1302,16 +1310,24 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region and Child Window for editing files
 	=================================================
 	*/
-	m_EditWindow = new Fl_Window(ideTreeWidth+2,MENU_HEIGHT-2,w-(ideTreeWidth+2),h - 75,"Edit");
+	m_EditWindow = new Fl_Double_Window(ideTreeWidth,MENU_HEIGHT-2,w-(ideTreeWidth),h - 75,"Edit");
 	m_EditWindow->box(FL_DOWN_BOX);
-	m_EditTabs = new Fl_Ide_Tabs(0, 0, m_EditWindow->w(), m_EditWindow->h()-1);
+    m_TabNoBlinkBox = new Fl_Box(20, TAB_HEIGHT, m_EditWindow->w()-22, m_EditWindow->h() - TAB_HEIGHT-1);
+    m_TabNoBlinkBox->box(FL_FLAT_BOX);
+    m_TabNoBlinkBox->color(background_color);
+    m_TabNoBlinkBox->hide();
+    m_EditWindow->resizable(m_TabNoBlinkBox);
+
+	m_EditTabs = new Fl_Ide_Tabs(0, 0, m_EditWindow->w(), m_EditWindow->h());
 	m_EditTabs->hide();
 	m_EditTabs->selection_color(fl_rgb_color(253, 252, 251));
 	m_EditTabs->has_close_button(TRUE);
+    m_EditTabs->color(FL_LIGHT1);
+    m_EditTabs->box(FL_FLAT_BOX);
 	m_EditTabs->end();
 	m_EditWindow->resizable(m_EditTabs);
-	m_EditWindow->end();
-
+    m_EditWindow->end();
+    
 	/*
 	=================================================
 	Create region for Debug and output tabs
@@ -1321,7 +1337,6 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	m_TabWindow->box(FL_DOWN_BOX);
 
 	// Create a tab control
-//	m_Tabs = new Fl_Tabs(0, 1, w, 75-MENU_HEIGHT);
 	m_Tabs = new Fl_Ide_Tabs(0, 1, w, 75-MENU_HEIGHT+3);
 	m_Tabs->selection_color(fl_rgb_color(253, 252, 251));
 
@@ -1344,7 +1359,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	m_BuildTextDisp->blink_enable(0);
 
 	// Create a Text Buffer for the Text Editor to work with
-	m_BuildTextBuf = new Fl_Text_Buffer();
+	m_BuildTextBuf = new My_Text_Buffer();
 	m_BuildTextDisp->buffer(m_BuildTextBuf);
 
 	// Setup a callback for the text display to report errors
@@ -1378,7 +1393,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	md->blink_enable(0);
 
 	// Create a Text Buffer for the Text Editor to work with
-	Fl_Text_Buffer *tb = new Fl_Text_Buffer();
+	My_Text_Buffer *tb = new My_Text_Buffer();
 	md->buffer(tb);
 
 	// Show the Disassembling text to indicate activity
@@ -1406,17 +1421,22 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Fl_Tile* tile2 = new Fl_Tile(2, 0,w,75-MENU_HEIGHT-22);
 
 	Fl_Box* box0 = new Fl_Box(2, 0,w/2-2,75-MENU_HEIGHT-22,"1");
+	box0->box(FL_DOWN_BOX);
+	box0->color(background_color);
+	box0->labelcolor(hl_plain);
+	box0->labelsize(36);
+	box0->align(FL_ALIGN_CLIP);
 
 	// Create a text display for this pane
+
 	md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
 	md->box(FL_DOWN_BOX);
 	md->textcolor(hl_plain);
 	md->color(background_color);
 	md->selection_color(FL_DARK_BLUE);
 	md->blink_enable(0);
-
 	// Create a Text Buffer for the Text Editor to work with
-	tb = new Fl_Text_Buffer();
+	tb = new My_Text_Buffer();
 	md->buffer(tb);
 
 	// Show the Disassembling text to indicate activity
@@ -1425,6 +1445,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	md->textfont(FL_COURIER);
 	md->textsize(text_size);
 	md->end();
+
 
 	Fl_Box* box1 = new Fl_Box(w/2, 0,w/2,75-MENU_HEIGHT-22,"2");
 	box1->box(FL_DOWN_BOX);
@@ -1441,7 +1462,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	md->blink_enable(0);
 
 	// Create a Text Buffer for the Text Editor to work with
-	tb = new Fl_Text_Buffer();
+	tb = new My_Text_Buffer();
 	md->buffer(tb);
 
 	// Show the Disassembling text to indicate activity
@@ -1463,6 +1484,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 
 	m_Tabs->end();
 	m_TabWindow->resizable(m_Tabs);
+    m_Tabs->value(m_BuildTab);
 
 	// Create a line display box
 	Fl_Group*	g = new Fl_Group(0, 0, m_TabWindow->w(), m_TabWindow->h());
@@ -1483,7 +1505,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	tile->end();
 	resizable(m);
 	resizable(tile);
-
+    
 	int ideTabHeight;
 	virtualt_prefs.get("IdeTabheight", ideTabHeight, 75);
 
@@ -3480,7 +3502,7 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 	int 					x, y, w, h;
 	int						c;
 	Fl_Multi_Edit_Window*	mw;
-
+    
 	// Test if this file already opened in a tab
 	for (c = m_EditTabs->children()-1; c >= 0; c--)
 	{
@@ -3493,14 +3515,14 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 	}
 
 	/* Calculate location of next window */
-	x = 1;
+	x = 0;
 	y = TAB_HEIGHT;
-	h = m_EditTabs->h() - TAB_HEIGHT;
-	w = m_EditTabs->w()-1;
-
-	/* Create a group tab */
-//	Fl_Group* g = new Fl_Group(x, y, w, h, (const char *) title);
-
+	h = m_EditTabs->h() - TAB_HEIGHT+1;
+	w = m_EditTabs->w()-2;
+    
+    /* Create the MultiEditWin as a child of the main EditWindow */
+//    m_EditTabs->begin();
+    
 	/* Now Create window */
 	mw = new Fl_Multi_Edit_Window(x, y, w, h, 
 		(const char *) title);
@@ -3514,20 +3536,28 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 	mw->end();
 
 	// Insert new window in EditWindow
-	m_EditTabs->insert(*mw, m_EditTabs->children());
-	m_EditTabs->resizable(m_EditTabs->child(m_EditWindow->children()-1));
+    m_EditTabs->insert(*mw, m_EditTabs->children());
+    m_EditTabs->resizable(mw);
 	mw->add_status_bar(&m_StatusBar);
 	mw->color(background_color);
 	mw->mCursor_color = hl_plain;
 	mw->textsize(text_size);
 	mw->textcolor(hl_plain);
+    mw->box(FL_DOWN_FRAME);
 	mw->selection_color(fl_color_average(FL_DARK_BLUE, FL_WHITE, .85f));
-	mw->utility_margin_color(20, fl_rgb_color(253, 252, 251));
-	mw->show();
+    mw->utility_margin_color(20, fl_rgb_color(253, 252, 251));
+    mw->show();
+//    m_EditTabs->value(mw);
+
 	m_EditTabs->value(m_EditTabs->child(m_EditTabs->children()-1));
 	if (m_EditTabs->children() == 1)
+    {
 		m_EditTabs->show();
-
+        m_TabNoBlinkBox->show();
+    }
+    m_EditWindow->redraw();
+//    m_EditTabs->redraw();
+    
 	// Call show again to bring window to front
 	mw->take_focus();
 
@@ -4058,3 +4088,4 @@ VT_FindDlg::VT_FindDlg(class VT_Ide* pParent)
 
 	m_pParent = pParent;
 }
+

@@ -1,6 +1,6 @@
 /* ide.h */
 
-/* $Id: ide.h,v 1.4 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: ide.h,v 1.5 2013/02/05 01:20:59 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -33,6 +33,8 @@
 
 #include <FL/Fl.H>
 #include <FL/Fl_Choice.H>
+#include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Tabs.H>
 #include "FLU/Flu_Combo_List.h"
 #include "FLU/Flu_Return_Button.h"
 #include "FLU/Flu_Button.h"
@@ -172,8 +174,9 @@ public:
 	int				SpliterHeight(void) { return m_ProjWindow->h(); }
 	int				SpliterWidth(void) { return m_ProjWindow->w(); }
 
-	Fl_Window*		m_EditWindow;
+	Fl_Double_Window*		m_EditWindow;
 	Fl_Ide_Tabs*	m_EditTabs;
+    Fl_Box*         m_TabNoBlinkBox;
 	VT_ReplaceDlg*	m_pReplaceDlg;
 	VT_FindDlg*		m_pFindDlg;
 
@@ -183,14 +186,14 @@ protected:
 	class Fl_Multi_Edit_Window*	NewEditWindow(const MString& title, const MString& file,
 						int addToRecentFiles = TRUE);
 
-	Fl_Window*					m_ProjWindow;
+	Fl_Double_Window*					m_ProjWindow;
 	Flu_Tree_Browser*			m_ProjTree;
 	Fl_Window*					m_TabWindow;
 	Fl_Ide_Tabs*					m_Tabs;
 //	Fl_Tabs*					m_Tabs;
 	Fl_Group*					m_BuildTab;
 	My_Text_Display*			m_BuildTextDisp;
-	Fl_Text_Buffer*				m_BuildTextBuf;
+	My_Text_Buffer*				m_BuildTextBuf;
 	Fl_Group*					m_DebugTab;
 	Fl_Group*					m_WatchTab;
 	Flu_Tree_Browser::Node*		m_Node;
