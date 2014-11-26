@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.18 2013/03/15 00:30:37 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.19 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -117,7 +117,7 @@ const char * gStrTable[256] = {
 	"ADC B",   "ADC C",   "ADC D",   "ADC E",   "ADC H",   "ADC L",    "ADC M",   "ADC A",
 
 	"SUB B",   "SUB C",   "SUB D",   "SUB E",   "SUB H",   "SUB L",    "SUB M",   "SUB A",
-	"SBB B",   "SBB C",   "SBB D",   "SBB E",   "SUB H",   "SBB L",    "SBB M",   "SBB A",
+	"SBB B",   "SBB C",   "SBB D",   "SBB E",   "SBB H",   "SBB L",    "SBB M",   "SBB A",
 
 	"ANA B",   "ANA C",   "ANA D",   "ANA E",   "ANA H",   "ANA L",    "ANA M",   "ANA A",
 	"XRA B",   "XRA C",   "XRA D",   "XRA E",   "XRA H",   "XRA L",    "XRA M",   "XRA A",
