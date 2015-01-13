@@ -1,6 +1,6 @@
 /* multiwin_icons.cpp */
 
-/* $Id: multiwin_icons.h,v 1.1 2007/03/31 22:09:18 kpettit1 Exp $ */
+/* $Id: multiwin_icons.h,v 1.2 2011/07/09 08:16:21 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -29,7 +29,7 @@
 
 
 #ifndef MULTIWIN_ICONS_H
-#define	MULTIIWN_ICONS_H
+#define	MULTIWIN_ICONS_H
 
 #include <FL/Fl.H>
 #include <FL/Fl_Pixmap.H>
