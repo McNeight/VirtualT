@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.19 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: disassemble.cpp,v 1.20 2014/11/26 07:18:27 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1250,6 +1250,11 @@ void VTDis::Disassemble()
 								sprintf(arg, "%c", m_memory[next]);
 								strcat(line, arg);
 							}
+						}
+						if (line[0]) {
+							if (str_active)
+								strcat(line, "\"");
+							tb->append(line);
 						}
 					}
 					// A JUMP table is one that contains 16 bit address in a table
