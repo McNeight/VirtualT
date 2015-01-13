@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.20 2014/11/26 07:18:27 deuce Exp $ */
+/* $Id: disassemble.cpp,v 1.21 2015/01/13 05:51:09 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1217,7 +1217,7 @@ void VTDis::Disassemble()
 						int str_active = 0;
 						for (next = c; next < last; next++)
 						{
-							if ((m_memory[next] > 0x7E) && (str_active))
+							if ((m_memory[next] > 0x7E || m_memory[next] < 0x20) && (str_active))
 							{
 								sprintf(arg, "\",%02XH\n", m_memory[next]);
 								strcat(line, arg);
@@ -1228,7 +1228,7 @@ void VTDis::Disassemble()
 							}
 							if (!str_active)
 							{
-								if (m_memory[next] > 0x7E)
+								if (m_memory[next] > 0x7E || m_memory[next] < 0x20)
 								{
 									if (oldSchool)
 										sprintf(line, "%04XH  DB   %02XH\n", next, m_memory[next]);
@@ -1254,6 +1254,7 @@ void VTDis::Disassemble()
 						if (line[0]) {
 							if (str_active)
 								strcat(line, "\"");
+							strcat(line, "\n");
 							tb->append(line);
 						}
 					}
