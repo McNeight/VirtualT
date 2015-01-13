@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.9 2013/02/22 17:31:49 kpettit1 Exp $ */
+/* $Id: display.h,v 1.10 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -145,7 +145,7 @@ protected:
 	virtual void	draw();
 	static int		sim_get_key(int key);
 	static int		sim_event_key(void);
-	__inline void	drawpixel(int x, int y, int color);
+	inline void	drawpixel(int x, int y, int color);
 	virtual void	draw_static();
 	static int		m_simKeys[32];
 	static int		m_simEventKey;

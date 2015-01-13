@@ -2,7 +2,7 @@
 
 /* General cross-platform development wrappers */
 
-/* $Id: genwrap.c,v 1.6 2008/02/01 06:18:04 kpettit1 Exp $ */
+/* $Id: genwrap.c,v 1.7 2011/07/11 06:17:23 kpettit1 Exp $ */
 
 /****************************************************************************
  * @format.tab-size 4		(Plain Text/Source Code File Header)			*
@@ -58,7 +58,7 @@
 	#if defined(__OpenBSD__) || defined(__NetBSD__)
 		#include <machine/spkr.h>
 	#elif defined(__FreeBSD__)
-		#include <machine/speaker.h>
+		#include <dev/speaker/speaker.h>
 	#endif
 #endif	/* __unix__ */
 

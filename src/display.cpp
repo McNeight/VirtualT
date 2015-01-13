@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.40 2014/04/25 01:48:04 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.41 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1723,7 +1723,7 @@ drawpixel:	This routine is called by the system to draw a single
 =================================================================
 */
 // Draw the black pixels on the LCD
-__inline void T100_Disp::drawpixel(int x, int y, int color)
+inline void T100_Disp::drawpixel(int x, int y, int color)
 {
 #ifdef ZIPIT_Z2
 	if (color)

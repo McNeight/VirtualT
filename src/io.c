@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.23 2013/02/02 15:29:02 kpettit1 Exp $ */
+/* $Id: io.c,v 1.24 2013/03/05 20:43:46 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -104,7 +104,7 @@ double hirestimer(void)
     return (double)pcount.QuadPart / (double)pcfreq.QuadPart;
 }
 #else
-__inline double hirestimer(void)
+inline double hirestimer(void)
 {
     struct timeval tv;
     gettimeofday(&tv, NULL);

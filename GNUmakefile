@@ -28,18 +28,24 @@ CFLAGS		+=	 -I $(SRCDIR)/FLU $(OPTIMIZE) $(DEBUG) -fsigned-char
 CPPFLAGS	+=	 -I $(SRCDIR) $(OPTIMIZE) $(DEBUG)
 VIRTUALT	=	 virtualt
 CLIENT		=	 vt_client
-CC          =    $(CROSS_COMPILE)gcc
+ifndef CC
+  CC		=    $(CROSS_COMPILE)gcc
+else
+  ifdef CROSS_COMPILE
+    CC		=    $(CROSS_COMPILE)gcc
+  endif
+endif
 
 # =============================
 # Find the FLTK libs
 # =============================
 FLTKCONFIG  =   $(shell which fltk-config)
 ifneq ($(FLTKCONFIG),)
-FLTKLIB     =   $(shell $(FLTKCONFIG) --libs)
-CFLAGS      +=  $(shell $(FLTKCONFIG) --cflags)
-CPPFLAGS    +=  $(shell $(FLTKCONFIG) --cxxflags)
+FLTKLIB     =   $(shell $(FLTKCONFIG) --use-images --libs)
+CFLAGS      +=  $(shell $(FLTKCONFIG) --use-images --cflags)
+CPPFLAGS    +=  $(shell $(FLTKCONFIG) --use-images --cxxflags)
 endif
-POSTBUILD	=   $(FLTKCONFIG) --post
+POSTBUILD	=   $(FLTKCONFIG) --use-images --post
 
 ifeq ($(FLTKLIB),)
 ifneq ($(FLTKDIR),)
@@ -52,14 +58,14 @@ endif
 # ================================
 # Define our linker flags and libs
 # ================================
-LDFLAGS		+=	$(shell $(FLTKCONFIG) --ldflags) -L/usr/X11R6/lib
-LIBFILES	=	-lstdc++ -lfltk_images -lfltk_jpeg -lfltk_png -lfltk_z -lfltk -lm -lc -ldl -lX11 -lpthread -lXft -lXinerama -lfontconfig -lXext
+LDFLAGS		+=	$(shell $(FLTKCONFIG) --use-images --ldflags) -L/usr/X11R6/lib
+LIBFILES	=	-lstdc++ $(FLTKLIB) -lm -lc -lX11 -lpthread -lXft -lXinerama -lfontconfig -lXext
 
 # =============================
 # Defines for MacOSX builds
 # =============================
-MACLDFLAGS	=	$(shell $(FLTKCONFIG) --ldflags) -arch i386 -arch ppc
-MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --ldstaticflags --use-images` --lm -lpthread
+MACLDFLAGS	=	$(shell $(FLTKCONFIG) --use-images --ldflags) -arch i386 -arch ppc
+MACLIBFILES	=	-lstdc++ `$(FLTKCONFIG) --use-images --ldstaticflags --use-images` --lm -lpthread
 
 # ====================================
 # Define all source files for VirtualT
@@ -113,10 +119,12 @@ ifndef FLTKLIB
 	exit 1
 else
 	# Test if FLTK libraries built
-	if ! test -f $(FLTKLIB); then \
-		echo "Please ensure the FLTK, JPEG, PNG and ZLIB libraries and run make again"; \
-		exit 1; \
-	fi;
+	for ONE_FLTKLIB in $(FLTKLIB); do \
+		if ! test -f $(ONE_FLTKLIB); then \
+			echo "Please ensure the FLTK, JPEG, PNG and ZLIB libraries and run make again"; \
+			exit 1; \
+		fi; \
+	done
 	@echo "Linking" $(VIRTUALT)
 	if test -f /Developer/Tools/Rez; then \
 		g++ $(MACLDFLAGS) $(OBJECTS) $(MACLIBFILES) -o $@ ; \
@@ -182,10 +190,10 @@ endif
 clean:
 	@echo "=== cleaning ===";
 	@echo "Objects..."
-	@rm -rf $(OBJDIR) $(DEPDIR)
+	@-rm -rf $(OBJDIR) $(DEPDIR)
 	@echo "Executables..."
-	rm -f virtualt 
-	rm -f vt_client
+	-rm -f virtualt 
+	-rm -rf vt_client
 
 # ================================================
 # Provide info for building FLTK, Tiger, Leopard versions
