@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.4 2013/03/05 20:48:26 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.5 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -216,19 +216,27 @@ Routine to draw the border and title bar of the window
 */
 void Fl_Multi_Edit_Window::OpenFile(const MString& filename)
 {
+    MString ext;
 
     // Show the Disassembling text to indicate activity
     if (filename != "")
     {
+        m_tb->canUndo(0);
         m_tb->loadfile((const char *) filename);
+        m_tb->canUndo(1);
         m_FileName = filename;
+        ext = filename.Right(4);
+        ext.MakeLower();
+        if (ext != ".asm" && ext != ".inc" && ext != ".lkr")
+            DisableHl();
     }
 
 	if (m_Title.Right(1) == '*')
 		m_Title = m_Title.Left(m_Title.GetLength()-1);
 
 	label((const char *) m_Title);
-	redraw();
+    if (parent() != NULL)
+	    parent()->redraw();
 	m_Modified = 0;
 }
 
@@ -257,7 +265,8 @@ void Fl_Multi_Edit_Window::SaveFile(const MString& rootpath)
 	{
 		m_Title = m_Title.Left(m_Title.GetLength()-1);
 		label((const char *) m_Title);
-		redraw();
+        if (parent() != NULL)
+		    parent()->redraw();
 	}
 
 	m_Modified = 0;
@@ -326,7 +335,8 @@ void Fl_Multi_Edit_Window::ModifedCB(int pos, int nInserted, int nDeleted,
 
 	m_Title += '*';
 	label((const char *) m_Title);
-	redraw();
+    if (parent() != NULL)
+        parent()->redraw();
 	
 	m_Modified = 1;
 }

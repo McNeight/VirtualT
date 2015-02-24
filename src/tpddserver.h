@@ -1,6 +1,6 @@
 /* tpddserver.h */
 
-/* $Id: tpddserver.h,v 1.1 2013/02/20 20:47:47 kpettit1 Exp $ */
+/* $Id: tpddserver.h,v 1.2 2013/02/22 17:31:49 kpettit1 Exp $ */
 
 /*
 * Copyright 2008 Ken Pettit
@@ -110,7 +110,7 @@ typedef struct VT_NADSCmd
 #define		TPDD_REQ_SET_EXTENDED		0x0B
 #define		TPDD_REQ_QUERY_EXTENDED		0x0E
 #define		TPDD_REQ_CONDENSED_LIST		0x0F
-#define		TPDD_REQ_LAST_OPCODE		0x0F
+#define		TPDD_REQ_LAST_OPCODE		0x0D
 
 #define		TPDD_REQ_TSDOS_MYSTERY23	0x23
 #define		TPDD_REQ_TSDOS_MYSTERY31	0x31
@@ -121,7 +121,7 @@ typedef struct VT_NADSCmd
 #define		TPDD_REQ_SET_EXTENDED		0x0B
 #define		TPDD_REQ_QUERY_EXTENDED		0x0E
 #define		TPDD_REQ_CONDENSED_LIST		0x0F
-#define		TPDD_REQ_LAST_OPCODE		0x0F
+//#define		TPDD_REQ_LAST_OPCODE		0x0F
 
 // Define OPEN mode constants here
 #define		TPDD_OPEN_MODE_WRITE		0x01

@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.24 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: io.c,v 1.25 2015/01/13 05:51:45 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -47,6 +47,7 @@
 #include "sound.h"
 #include "lpt.h"
 #include "clock.h"
+#include "tdock.h"
 
 uchar lcd[10][256];
 uchar lcdpointers[10]={0,0,0,0,0,0,0,0,0,0};
@@ -60,6 +61,8 @@ static uchar ioA3;
 uchar ioBA;
 uchar ioB9;
 uchar ioE8;
+uchar gSTROBE;
+uchar gCLK;
 uchar ioBC;		/* Low byte of 14-bit timer */
 uchar ioBD;		/* High byte of 14-bit timer */
 uchar ioD0;		/* D0-DF io for T200 */
@@ -70,6 +73,11 @@ int		gInMsPlanROM = FALSE;
 uchar keyscan[9] = { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 char  keyin[9];
 extern int		sound_enable;
+extern int      fullspeed;
+extern volatile UINT64   cycles;
+extern volatile int			cycle_delta;
+volatile UINT64 lcdCycles[10] = {0,};
+double          lcdTime[10] = {0.0, };
 
 uint			lcdbits=0;
 unsigned long	gSpecialKeys = 0;
@@ -78,6 +86,7 @@ int				gDelayUpdateKeys = 0;
 int				gDelayCount = 0;
 extern uchar	clock_serial_out;
 extern int		gRomBank;
+int             gTDock = 1;
 extern RomDescription_t	*gStdRomDesc;
 void handle_wheel_keys(void);
 
@@ -332,6 +341,8 @@ void init_io(void)
 	ioBC = 0;		/* Low byte of 14-bit timer */
 	ioBD = 0;		/* High byte of 14-bit timer */
 	ioD0 = 0;		/* D0-DF io for T200 */
+    gSTROBE = 0;
+    gCLK = 0;
 
 }
 
@@ -531,6 +542,21 @@ void out(uchar port, uchar val)
 				/* Call routine to process the CLK pulse */
 				pd1990ac_clk_pulse(val);
 			}
+
+            /* Check for a CLK condiiton if Video Dock enabled */
+            if (gTDock && gSTROBE)
+            {
+                /* Test for low to high transition on bit 7 */
+                //if ((val & 0x80) && !(ioB9 & 0x80))
+                {
+                    gCLK = 1;
+                }
+
+                /* Test for a high to low transition on bit 7 */
+                if (!(val & 0x80) && (ioB9 & 0x80))
+                    tdock_write((ioB9 >> 1) & 0x3F, (ioB9 & 1 ? 0x80 : 0) | val);
+            }
+
 			ioB9 = val;
 			return;
 
@@ -788,15 +814,32 @@ void out(uchar port, uchar val)
 					pd1990ac_chip_cmd(ioB9);
 				}
 
+                if ((val & 0x02) && !(ioE8 & 0x02))
+                    gSTROBE = 1;
+
 				/* Check for data to the printer */
-				if ((val & 0x02) && !(ioE8 & 0x02))
-					send_to_lpt(ioB9);
+				if (!(val & 0x02) && (ioE8 & 0x02))
+                {
+                    if (!gCLK)
+                        send_to_lpt(ioB9);
+                    gCLK = 0;
+                    gSTROBE = 0;
+                }
 			}
 			else
 			{
 				// T200 Printer port STROBE is on Bit 0, not Bit 1
-				if ((val & 0x01) && !(ioE8 & 0x01))
-					send_to_lpt(ioB9);
+                if ((val & 0x01) && !(ioE8 & 0x01))
+                    gSTROBE = 1;
+
+				/* Check for data to the printer */
+				if (!(val & 0x01) && (ioE8 & 0x01))
+                {
+                    if (!gCLK)
+                        send_to_lpt(ioB9);
+                    gCLK = 0;
+                    gSTROBE = 0;
+                }
 			}
 
 			ioE8 = val;
@@ -816,6 +859,9 @@ void out(uchar port, uchar val)
 				{
 					if (lcdbits & (1 << c))
 					{
+                        lcdCycles[c] = cycles;
+                        lcdTime[c] = hirestimer();
+
 						/* Save page and column info for later use */
 						lcdpointers[c]=A;
 
@@ -848,6 +894,8 @@ void out(uchar port, uchar val)
 					if (lcdbits & (1 << c))
 					{
 						int maxPixels = 50;
+                        lcdCycles[c] = cycles;
+                        lcdTime[c] = hirestimer();
 						if ((c == 4) || (c == 9))
 							maxPixels = 40;
 
@@ -855,6 +903,10 @@ void out(uchar port, uchar val)
 						{
 							/* Save Byte in LCD memory */
 							lcd[c][lcdpointers[c]]=A;
+#if 0
+                            if ((c == 4 || c==9) && lcdpointers[c] >= 40 && lcdpointers[c] < 50)
+                                printf("%d=%02X\n", lcdpointers[c], A);
+#endif
 
 							/* Draw the byte on the display */
 							if ((lcdpointers[c]&0x3f) < maxPixels)
@@ -906,7 +958,7 @@ int inport(uchar port)
 			timeLeft = timeNow - gPort21Time;
 
 			/* Convert timeLeft (in ms) to int */
-			c = (char) (timeLeft * 1000.0);
+			c = (uchar) (timeLeft * 1000.0);
 
 			/* Test if time has expired and clear io21 if it has */
 			if (c >= io21)
@@ -1008,7 +1060,10 @@ int inport(uchar port)
 				flags |= clock_serial_out;
 
 			// OR the Printer Not Busy bit
-			return flags | 0x02;
+            if (!gSTROBE)
+                return flags | 0x02;
+            else
+                return flags | tdock_read();
 
 		case 0xB4:	/* 8155 Timer register.  LSB of timer counter */
 		case 0xBC:
@@ -1194,7 +1249,13 @@ int inport(uchar port)
 			if (gModel == MODEL_T200)
 				return t200_readport(0xFE);
 			else
-				return(64);
+            {
+                if (fullspeed == 0 && (lcdTime[c]+.000014 > hirestimer()))
+                //if (fullspeed == 0 && (lcdCycles[c]+3*2454 > cycles + cycle_delta))
+                    return (0x80);
+                else
+                    return(64);
+            }
 		case 0xFF:
 			/* Loop through all LCD driver modules */
 			for (c = 0; c < 10; c++)
@@ -1204,6 +1265,10 @@ int inport(uchar port)
 				{
 					/* Get the return data from the LCD memory */
 					int ret = lcd[c][lcdpointers[c]];
+#if 0
+                    if ((c == 4 || c == 9) && lcdpointers[c] >= 40 && lcdpointers[c] < 50)
+                        printf("Read %d:  %02X\n", lcdpointers[c], ret);
+#endif
 
 					/* Update the pointer only if it isn't fresh */
 					if (!lcd_fresh_ptr[c])

@@ -1,6 +1,5 @@
 //
-// "$Id: My_Text_Buffer.cxx 6011 2008-01-04 20:32:37Z matt $"
-//
+// "$Id: My_Text_Buffer.cpp,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $"//
 // Copyright 2001-2005 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
 // the LGPL for the FLTK library granted by Mark Edel.
@@ -73,15 +72,16 @@ static const char *ControlCodeTable[ 32 ] = {
   "dle", "dc1", "dc2", "dc3", "dc4", "nak", "syn", "etb",
   "can", "em", "sub", "esc", "fs", "gs", "rs", "us"};
 
-static char* undobuffer;
-static int undobufferlength;
-static My_Text_Buffer* undowidget;
-static int undoat;	// points after insertion
-static int undocut;	// number of characters deleted there
-static int undoinsert;	// number of characters inserted
-static int undoyankcut;	// length of valid contents of buffer, even if undocut=0
+//static char* undobuffer;
+//static int undobufferlength;
+//static My_Text_Buffer* undowidget;
+//static int undoat;	// points after insertion
+//static int undocut;	// number of characters deleted there
+//static int undoinsert;	// number of characters inserted
+//static int undoyankcut;	// length of valid contents of buffer, even if undocut=0
 
-static void undobuffersize(int n) {
+void My_Text_Buffer::undobuffersize(int n) 
+{
   if (n > undobufferlength) {
     if (undobuffer) {
       do {undobufferlength *= 2;} while (undobufferlength < n);
@@ -99,6 +99,10 @@ static void undobuffersize(int n) {
 ** will need to hold
 */
 My_Text_Buffer::My_Text_Buffer( int requestedSize ) {
+  undobuffer = NULL;
+  undocut = 0;
+  undoinsert = 0;
+  undobufferlength = 0;
   mLength = 0;
   mBuf = (char *)malloc( requestedSize + PREFERRED_GAP_SIZE );
   mGapStart = 0;
@@ -349,7 +353,8 @@ void My_Text_Buffer::copy( My_Text_Buffer *fromBuf, int fromStart,
 ** from the undo buffer
 */
 int My_Text_Buffer::undo(int *cursorPos) {
-  if (undowidget != this || !undocut && !undoinsert &&!mCanUndo) return 0;
+  //if (undowidget != this || !undocut && !undoinsert &&!mCanUndo) return 0;
+  if (!undocut && !undoinsert &&!mCanUndo) return 0;
 
   int ilen = undocut;
   int xlen = undoinsert;
@@ -1368,7 +1373,8 @@ int My_Text_Buffer::insert_( int pos, const char *s ) {
   update_selections( pos, 0, insertedLength );
 
   if (mCanUndo) {
-    if ( undowidget==this && undoat==pos && undoinsert ) {
+    //if ( undowidget==this && undoat==pos && undoinsert ) {
+    if ( undoat==pos && undoinsert ) {
       undoinsert += insertedLength;
     }
     else {
@@ -1377,7 +1383,7 @@ int My_Text_Buffer::insert_( int pos, const char *s ) {
     }
     undoat = pos+insertedLength;
     undocut = 0;
-    undowidget = this;
+    //undowidget = this;
   }
 
   return insertedLength;
@@ -1392,7 +1398,8 @@ void My_Text_Buffer::remove_( int start, int end ) {
   /* if the gap is not contiguous to the area to remove, move it there */
 
   if (mCanUndo) {
-    if ( undowidget==this && undoat==end && undocut ) {
+    //if ( undowidget==this && undoat==end && undocut ) {
+    if ( undoat==end && undocut ) {
       undobuffersize( undocut+end-start+1 );
       memmove( undobuffer+end-start, undobuffer, undocut );
       undocut += end-start;
@@ -1404,7 +1411,7 @@ void My_Text_Buffer::remove_( int start, int end ) {
     undoat = start;
     undoinsert = 0;
     undoyankcut = 0;
-    undowidget = this;
+    //undowidget = this;
   }
 
   if ( start > mGapStart ) {
@@ -2535,5 +2542,5 @@ My_Text_Buffer::outputfile(const char *file, int start, int end, int buflen) {
 
 
 //
-// End of "$Id: My_Text_Buffer.cxx 6011 2008-01-04 20:32:37Z matt $".
+// End of "$Id: My_Text_Buffer.cpp,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $".
 //

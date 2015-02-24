@@ -5,6 +5,26 @@ VirtualT Release.txt
 
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
+=====================
+v1.7 Not released yet
+=====================
+
+1.  Fixed bug with deleting a .CO file where the deletion length wasn't including
+    the 6-byte CO header, causing memory corruption.
+
+2.  Fixed the IDE Editor's undo function.
+
+3.  Made the IDE's undo local to each file vs. being a global entity.  This allows
+    undo to be specific to the file being edited.
+
+4.  Fixed a bug in the linker to detect link addresses that are out of range.
+
+5.  Added TDock Video emulation support (and TDock I/O general processing).
+
+6.  Started adding documentation for the IDE / Assembler / Linker.
+
+7.  Updated the GNUMakefile to include libjpeg and libpng.
+
 ====================
 v1.6 April 24, 2014
 ====================

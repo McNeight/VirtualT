@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Buffer.H 6010 2008-01-04 20:31:52Z matt $"
+// "$Id: My_Text_Buffer.H,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $"
 //
 // Header file for My_Text_Buffer class.
 //
@@ -252,10 +252,21 @@ class  My_Text_Buffer {
                                    use it */
     char mCanUndo;		/* if this buffer is used for attributes, it must
 				   not do any undo calls */
+
+    /* KDP:  2/23/2015.   Undo variables moved within Buffer class so they
+                          are not global and apply only to this buffer. */
+
+    void undobuffersize(int n);
+    char* undobuffer;
+    int undobufferlength;
+    int undoat;	// points after insertion
+    int undocut;	// number of characters deleted there
+    int undoinsert;	// number of characters inserted
+    int undoyankcut;	// length of valid contents of buffer, even if undocut=0
 };
 
 #endif
 
 //
-// End of "$Id: My_Text_Buffer.H 6010 2008-01-04 20:31:52Z matt $".
+// End of "$Id: My_Text_Buffer.H,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $".
 //

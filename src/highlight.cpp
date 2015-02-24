@@ -280,6 +280,7 @@ const char         *asm_code_types[] = {	// List of known C/C++asm types...
 			 "if",
 			 "include",
 			 "link",
+			 "list",
 			 "lsfirst",
 			 "maclib",
 			 "module",
@@ -544,6 +545,7 @@ void style_init(HighlightCtrl_t *pHlCtrl)
 	  style_parse(text, style, pHlCtrl->textbuf->length());
 
   pHlCtrl->stylebuf->text(style);
+  pHlCtrl->stylebuf->canUndo(0);
   delete[] style;
   free(text);
 }
@@ -681,6 +683,10 @@ style_update(	int        pos,		// I - Position of update
 	HighlightCtrl_t	*pHlCtrl;
 
 	pHlCtrl = (HighlightCtrl_t *) cbArg;
+
+    /* Test if highlight disabled for this buffer */
+    if (pHlCtrl->stylebuf == NULL)
+        return;
 
 	// If this is just a selection change, just unselect the style buffer...
 	if (nInserted == 0 && nDeleted == 0) 

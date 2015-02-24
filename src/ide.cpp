@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.19 2014/04/25 01:15:57 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.20 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -326,7 +326,8 @@ void close_ide_cb(Fl_Widget* w, void*)
 =======================================================
 Callback for opening recent files
 =======================================================
-*/void recent_file_cb(Fl_Widget* w, void*)
+*/
+void recent_file_cb(Fl_Widget* w, void*)
 {
 //  if (!check_save()) return;
 	Fl_Menu_* mw = (Fl_Menu_*)w;
@@ -351,7 +352,8 @@ Callback for opening recent files
 =======================================================
 Routine to update the recent files menu items
 =======================================================
-*/void add_recent_file_to_menu(const char *filename)
+*/
+void add_recent_file_to_menu(const char *filename)
 {
 	int		c;
 
@@ -402,7 +404,8 @@ Routine to update the recent files menu items
 =======================================================
 Callback for opening recent projects
 =======================================================
-*/void recent_project_cb(Fl_Widget* w, void*)
+*/
+void recent_project_cb(Fl_Widget* w, void*)
 {
 //  if (!check_save()) return;
 	Fl_Menu_* mw = (Fl_Menu_*)w;
@@ -1611,6 +1614,7 @@ void VT_Ide::NewFile(void)
 {
 	int					seq;			// Next sequence number
 	MString				title;			// Tile of new file
+	MString				titlemod;		// Tile of new file
 	int					children, child;
 	Fl_Widget*			pWidget;
 
@@ -1626,6 +1630,9 @@ void VT_Ide::NewFile(void)
 		{
 			pWidget = (Fl_Widget*) m_EditTabs->child(child);
 			if (strcmp((const char *) title, pWidget->label()) == 0)
+				break;
+            titlemod = title + (char *) "*";
+			if (strcmp((const char *) titlemod, pWidget->label()) == 0)
 				break;
 		}
 
@@ -1755,7 +1762,7 @@ void VT_Ide::OpenFile(void)
 
 void VT_Ide::OpenFile(const char *file)
 {
-	MString					title;
+	MString					title, titlemod;
 	MString					rootpath;
 
 	if (m_ActivePrj == NULL)
@@ -1770,7 +1777,9 @@ void VT_Ide::OpenFile(const char *file)
 	for (int c = 0; c < children; c++)
 	{
 		Fl_Widget* pWidget = (Fl_Widget*) m_EditTabs->child(c);
-		if (strcmp((const char *) title, pWidget->label()) == 0)
+        titlemod = title + (char *) "*";
+		if ((strcmp((const char *) title, pWidget->label()) == 0) ||
+            (strcmp((const char *) titlemod, pWidget->label()) == 0))
 		{
 			// File already open...bring file to foreground
 			m_EditTabs->value((Fl_Group *) pWidget);
@@ -3788,6 +3797,8 @@ void VT_Ide::BuildProject(void)
 						break;
 
 					case VT_PROJ_TYPE_ROM:
+                        /* Re-load the OPT ROM */
+                        load_opt_rom();
 						break;
 
 					case VT_PROJ_TYPE_LIB:

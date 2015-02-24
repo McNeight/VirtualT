@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.41 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.42 2015/01/13 05:51:45 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -4778,6 +4778,8 @@ void T200_Disp::draw()
 	addr = ((m_dstarth << 8) | m_dstartl) & (8192-1);
 
 	fl_color(m_PixelColor);
+
+    window()->make_current();
 
 	/* Check if the driver is in "graphics" mode */
 	if (m_mcr & 0x02)

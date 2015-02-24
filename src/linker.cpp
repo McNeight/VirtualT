@@ -474,7 +474,16 @@ void VTLinker::ProcScriptField3(char *pStr, int lineNo, int& startAddr,
 				}
 			}
 			else
+            {
 				startAddr = EvaluateScriptAddress(pStr + 6, lineNo);
+                if (startAddr > 65535)
+                {
+                    err.Format("Error in line %d(%s):  START address too large", lineNo,
+                        (const char *) m_LinkerScript);
+                    m_Errors.Add(err);
+                    m_Command = LKR_CMD_ERROR;
+                }
+            }
 		}
 		else
 		{
@@ -532,7 +541,15 @@ void VTLinker::ProcScriptField4(const char *pStr, int lineNo, int& endAddr)
 		if (strncmp(pStr, "END=", 4) == 0)
 		{
 			endAddr = EvaluateScriptAddress(pStr + 4, lineNo);
-			m_Command |= LKR_CMD_CD_DONE;
+            if (endAddr > 65535)
+            {
+                err.Format("Error in line %d(%s):  END address too large", lineNo,
+                    (const char *) m_LinkerScript);
+                m_Errors.Add(err);
+                m_Command = LKR_CMD_ERROR;
+            }
+            else
+                m_Command |= LKR_CMD_CD_DONE;
 		}
 		else
 		{

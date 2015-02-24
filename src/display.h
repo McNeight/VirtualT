@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.10 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: display.h,v 1.11 2015/01/13 05:51:45 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -140,8 +140,8 @@ public:
 
 	const virtual	T100_Disp& operator=(const T100_Disp& srcDisp);
 
-protected:
 	virtual int		handle(int event);
+protected:
 	virtual void	draw();
 	static int		sim_get_key(int key);
 	static int		sim_event_key(void);
