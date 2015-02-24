@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.42 2015/01/13 05:51:45 deuce Exp $ */
+/* $Id: display.cpp,v 1.43 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -85,6 +85,7 @@ extern int					gMaintCount;
 extern int					gOsDelay;
 extern int					gInMsPlanROM;
 extern int					gDelayUpdateKeys;
+extern unsigned char        gQuad;
 void	set_target_frequency(int freq);
 void	memory_monitor_cb(void);
 }
@@ -1275,6 +1276,14 @@ void cb_menu_fkey (Fl_Widget* w, void* key)
 	}
 }
 
+void cb_menu_bank (Fl_Widget* w, void* key)
+{
+	int		bank =  atoi((char *) key);
+
+    set_ram_bank(bank);
+	resetcpu();
+}
+
 Fl_Menu_Item	gCopyCutMenu[] = {
 	{ " Copy ", 0, cb_select_copy, 0, 0 },
 	{ " Cut ", 0, cb_select_cut, 0, FL_MENU_DIVIDER },
@@ -1287,6 +1296,18 @@ Fl_Menu_Item	gLeftClickMenu[] = {
 	{ " Label ", 0, cb_menu_fkey, (void *) (FL_F + 9), 0 },
 	{ " Print ", 0, cb_menu_fkey, (void *) (FL_F + 10), 0 },
 	{ " Pause ", 0, cb_menu_fkey, (void *) (FL_F + 12), 0 },
+	{ 0 }
+};
+
+Fl_Menu_Item	gLeftClickQuadMenu[] = {
+	{ " Paste ", 0, cb_menu_fkey, (void *) (FL_F + 11), FL_MENU_DIVIDER },
+	{ " Label ", 0, cb_menu_fkey, (void *) (FL_F + 9), 0 },
+	{ " Print ", 0, cb_menu_fkey, (void *) (FL_F + 10), 0 },
+	{ " Pause ", 0, cb_menu_fkey, (void *) (FL_F + 12), FL_MENU_DIVIDER },
+	{ " Bank 1 ", 0, cb_menu_bank, (void *) "0", 0 },
+	{ " Bank 2 ", 0, cb_menu_bank, (void *) "1", 0 },
+	{ " Bank 3 ", 0, cb_menu_bank, (void *) "2", 0 },
+	{ " Bank 4 ", 0, cb_menu_bank, (void *) "3", 0 },
 	{ 0 }
 };
 
@@ -1631,11 +1652,18 @@ T100_Disp::T100_Disp(int x, int y, int w, int h) :
 	m_LeftClick->type(0);
 	m_LeftClick->callback(cb_leftclick_cancel);
 	m_LeftClick->hide();
+
+	m_LeftClickQuad = new Fl_Menu_Button(x, y, w, h, "Action");
+	m_LeftClickQuad->menu(gLeftClickQuadMenu);
+	m_LeftClickQuad->type(0);
+	m_LeftClickQuad->callback(cb_leftclick_cancel);
+	m_LeftClickQuad->hide();
 }
 
 T100_Disp::~T100_Disp()
 {
 	delete m_LeftClick;
+	delete m_LeftClickQuad;
 	delete m_CopyCut;
 }
 
@@ -3487,9 +3515,18 @@ int T100_Disp::handle(int event)
 		m_HaveMouse = TRUE;
 		if (Fl::event_button3())
 		{
-			m_LeftClick->type(Fl_Menu_Button::POPUP123);
-			m_LeftClick->popup();
-			m_LeftClick->type(0);
+            if (gModel == MODEL_M100 && gQuad)
+            {
+                m_LeftClickQuad->type(Fl_Menu_Button::POPUP123);
+                m_LeftClickQuad->popup();
+                m_LeftClickQuad->type(0);
+            }
+            else
+            {
+                m_LeftClick->type(Fl_Menu_Button::POPUP123);
+                m_LeftClick->popup();
+                m_LeftClick->type(0);
+            }
 			take_focus();
 			return 1;
 		}

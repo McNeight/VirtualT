@@ -1,6 +1,6 @@
 /* display.h */
 
-/* $Id: display.h,v 1.11 2015/01/13 05:51:45 deuce Exp $ */
+/* $Id: display.h,v 1.12 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -127,6 +127,7 @@ public:
 	int				m_WheelKeyDown;
 	class Fl_Menu_Button*	m_CopyCut;
 	class Fl_Menu_Button*	m_LeftClick;
+	class Fl_Menu_Button*	m_LeftClickQuad;
 	char			m_SimulatedCtrl;
 	char			m_SelectComplete;
 	char			m_HaveMouse;

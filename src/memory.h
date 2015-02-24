@@ -43,6 +43,7 @@ extern "C" {
 #define	REMEM_FLASH1_555_PORT		0x75
 #define	REMEM_FLASH2_AAA_PORT		0x76
 #define	REMEM_FLASH2_555_PORT		0x77
+#define QUAD_BANK_PORT              0x80
 #define	RAMPAC_SECTOR_PORT			0x81
 #define	RAMPAC_DATA_PORT			0x83
 
@@ -110,6 +111,7 @@ extern "C" {
 #define	REGION_ROM3					13
 #define	REGION_ROM4					14
 #define	REGION_MAX					15
+#define REGION_RAM4                 16
 
 #define	REX							1
 #define	REX2						2

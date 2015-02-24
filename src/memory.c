@@ -35,11 +35,12 @@ uchar			gMsplanROM[32768];	/* MSPLAN ROM T200 Only */
 extern char		file[255];
 
 int				gOptRomRW = 0;		/* Flag to make OptROM R/W */
-unsigned char	rambanks[3*32768];	/* Model T200 & NEC RAM banks */
+unsigned char	rambanks[4*32768];	/* Model T200 & NEC RAM banks */
 uchar			gRamBank = 0;		/* Currently enabled bank */
 int				gRomBank = 0;		/* Current ROM Bank selection */
 static int		gRom0Bank = 0;		/* Current ROM #0 Bank for PC-8300 */
 int				gRomSize = 32768;   /* Current ROM Size for R/O calculation */
+unsigned char   gQuad = 0;          /* QUAD (128K RAM bank on M100) enabled */
 
 uchar			gReMem = 0;			/* Flag indicating if ReMem emulation enabled */
 uchar			gReMemBoot = 0;		/* ALT boot flag */
@@ -258,7 +259,7 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 		break;
 
 	case REGION_RAM3:
-		// Check if RAM Bank 2 is active & copy from system memory if it is
+		// Check if RAM Bank 3 is active & copy from system memory if it is
 		if (gRamBank == 2)
 		{
 			addr = address + RAMSTART;
@@ -277,6 +278,31 @@ void get_memory8_ext(int region, long address, int count, unsigned char *data)
 				addr = 24576*2 + address;
 			else
 				addr = 32768*2 + address;
+			for (c = 0; c < count; c++)
+				data[c] = rambanks[addr++];
+		}
+		break;
+
+	case REGION_RAM4:
+		// Check if RAM Bank 4 is active & copy from system memory if it is
+		if (gRamBank == 3)
+		{
+			addr = address + RAMSTART;
+			for (c = 0; c < count; c++)
+			{
+				if (gReMem && !gRex)
+					data[c] = gMemory[addr>>10][addr&0x3FF];
+				else
+					data[c] = gBaseMemory[addr];
+				addr++;
+			}
+		}
+		else
+		{
+			if (gModel == MODEL_T200)
+				addr = 24576*3 + address;
+			else
+				addr = 32768*3 + address;
 			for (c = 0; c < count; c++)
 				data[c] = rambanks[addr++];
 		}
@@ -470,7 +496,7 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 		break;
 
 	case REGION_RAM3:
-		// Check if RAM Bank 2 is active & copy from system memory if it is
+		// Check if RAM Bank 3 is active & copy from system memory if it is
 		if (gRamBank == 2)
 		{
 			addr = address + RAMSTART;
@@ -489,6 +515,31 @@ void set_memory8_ext(int region, long address, int count, unsigned char *data)
 				addr = 24576*2 + address;
 			else
 				addr = 32768*2 + address;
+			for (c = 0; c < count; c++)
+				rambanks[addr++] = data[c];
+		}
+		break;
+
+	case REGION_RAM4:
+		// Check if RAM Bank 4 is active & copy from system memory if it is
+		if (gRamBank == 3)
+		{
+			addr = address + RAMSTART;
+			for (c = 0; c < count; c++)
+			{
+				if (gReMem && !gRex)
+					gMemory[addr>>10][addr&0x3FF] = data[c];
+				else
+					gBaseMemory[addr] = data[c];
+				addr++;
+			}
+		}
+		else
+		{
+			if (gModel == MODEL_T200)
+				addr = 24576*3 + address;
+			else
+				addr = 32768*3 + address;
 			for (c = 0; c < count; c++)
 				rambanks[addr++] = data[c];
 		}
@@ -727,7 +778,10 @@ void init_mem(void)
 	/* Set gReMem and gRampac based on preferences */
 	gReMem = (mem_setup.mem_mode == SETUP_MEM_REMEM) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
 	gRampac = (mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_REMEM_RAMPAC);
-	gRex = (mem_setup.mem_mode == SETUP_MEM_REX) ? REX : (mem_setup.mem_mode == SETUP_MEM_REX2) ? REX2 : 0;
+    gRex = (mem_setup.mem_mode == SETUP_MEM_REX || mem_setup.mem_mode == SETUP_MEM_REX_QUAD) ? REX : 
+           (mem_setup.mem_mode == SETUP_MEM_REX2) ? REX2 : 0;
+    gQuad = (mem_setup.mem_mode == SETUP_MEM_QUAD || mem_setup.mem_mode == SETUP_MEM_REX_QUAD) ? 1 : 0;
+
 	if (gRex)
 	{
 		gRexModel = REX | gRex;		
@@ -742,11 +796,21 @@ void init_mem(void)
 	gRamBank = 0;
 	gRomBank = 0;
 
+    if (gQuad)
+        set_ram_bank(0);
+
 	// Initialize ROM size base on current model
 	gRomSize = gModel == MODEL_T200 ? 40960 : 32768;
 
 	for (c = 0; c < 65536; c++)
 		gIndex[c] = c >> 10;
+
+    /* Zero out QUAD memory */
+    if (gQuad)
+    {
+        for (c = 0; c < 65536*2; c++)
+            rambanks[c] = 0;
+    }
 
 	/* Test if ReMem emulation enabled */
 	if (gReMem)
@@ -1163,7 +1227,10 @@ void save_ram(void)
 		get_emulation_path(file, gModel);
 
 		/* Append the RAM filename for Base Memory emulation */
-		strcat(file, "RAM.bin");
+        if (gModel == MODEL_M100 && gQuad)
+            strcat(file, "QUAD.bin");
+        else
+		    strcat(file, "RAM.bin");
 
 		/* Open the RAM file */
 		fd=fopen(file, "wb+");
@@ -1176,7 +1243,13 @@ void save_ram(void)
 			case MODEL_M10:					/* M100 & M102 have single bank */
 			case MODEL_KC85:				// JV
 			case MODEL_M102:
-				fwrite(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
+                if (gQuad)
+                {
+                    set_ram_bank(gRamBank);
+                    fwrite(rambanks, 1, 4*RAMSIZE, fd);
+                }
+                else
+                    fwrite(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 				break;
 
 			case MODEL_T200:
@@ -1439,6 +1512,7 @@ load_ram:	This routine loads the contens of the RAM in preparation
 void load_ram(void)
 {
 	char			file[256]; 
+    char            sbank[10];
 	FILE			*fd;
 	int				x;
 	int				readlen;
@@ -1452,6 +1526,7 @@ void load_ram(void)
 	}
 	else
 	{
+        /* Zero the base memory */
 		for (x = 0; x < 64; x++)
 			gMemory[x] = 0;
 
@@ -1459,7 +1534,13 @@ void load_ram(void)
 		get_emulation_path(file, gModel);
 
 		/* Append the RAM filename */
-		strcat(file, "RAM.bin");
+        if (gModel == MODEL_M100 && gQuad)
+            strcat(file, "QUAD.bin");
+        else
+        {
+            strcat(file, "RAM.bin");
+            display_map_mode("");
+        }
 
 		/* Open the RAM file */
 		fd = fopen(file, "rb+");
@@ -1473,7 +1554,16 @@ void load_ram(void)
 		case MODEL_M10:					/* M100 & M102 have single bank */
 		case MODEL_KC85:
 		case MODEL_M102:
-			readlen = fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
+            if (gQuad)
+            {
+				gRamBank = 0;
+			    readlen = fread(rambanks, 1, RAMSIZE*4, fd);
+                memcpy(&gBaseMemory[RAMSTART], &rambanks[gRamBank*32768], RAMSIZE);
+                sprintf(sbank, "Bank %d", gRamBank+1);
+                display_map_mode(sbank);
+            }
+            else
+                readlen = fread(gBaseMemory+RAMSTART, 1, RAMSIZE, fd);
 			break;
 
 		case MODEL_T200:
@@ -1768,6 +1858,7 @@ set_ram_bank:	This function sets the current RAM bank for Model T200 and
 */
 void set_ram_bank(unsigned char bank)
 {
+    char    sbank[10];
 	int		block;
 
 	if (!(gReMem && !gRex))
@@ -1775,12 +1866,24 @@ void set_ram_bank(unsigned char bank)
 		/* Deal with Non-Remem Banks */
 		switch (gModel)
 		{
+        case MODEL_M100:    /* Moel 100 QUAD support */
+            if (gQuad)
+            {
+                memcpy(&rambanks[gRamBank*RAMSIZE], &gBaseMemory[RAMSTART], RAMSIZE);
+                gRamBank = bank;
+                memcpy(&gBaseMemory[RAMSTART], &rambanks[gRamBank*RAMSIZE], RAMSIZE);
+                sprintf(sbank, "Bank %d", bank+1);
+                display_map_mode(sbank);
+            }
+            break;
+
 		case MODEL_T200:	/* Model T200 RAM banks */
 		case MODEL_PC8201:	/* NEC Laptop banks */
 		case MODEL_PC8300:
 			memcpy(&rambanks[gRamBank*RAMSIZE], &gBaseMemory[RAMSTART], RAMSIZE);
 			gRamBank = bank;
 			memcpy(&gBaseMemory[RAMSTART], &rambanks[gRamBank*RAMSIZE], RAMSIZE);
+            break;
 		}
 	}
 	else

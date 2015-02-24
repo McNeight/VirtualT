@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.25 2015/01/13 05:51:45 deuce Exp $ */
+/* $Id: io.c,v 1.26 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -86,6 +86,7 @@ int				gDelayUpdateKeys = 0;
 int				gDelayCount = 0;
 extern uchar	clock_serial_out;
 extern int		gRomBank;
+extern uchar    gQuad;
 int             gTDock = 1;
 extern RomDescription_t	*gStdRomDesc;
 void handle_wheel_keys(void);
@@ -371,6 +372,9 @@ void show_remem_mode(void)
 	}
 
 	/* Not in ReMem emulation mode */
+    if (gQuad)
+        return;
+
 	display_map_mode("");
 }
 
@@ -400,6 +404,14 @@ void out(uchar port, uchar val)
 		*/
 		case 0x23:
 			break;
+
+        case QUAD_BANK_PORT:
+            if (gModel == MODEL_M100 && gQuad)
+            {
+                /* Set the QUAD RAM bank */
+                set_ram_bank(val & 0x03);
+            }
+            break;
 
 		case REMEM_MODE_PORT:		/* ReMem Mode port */
 		case REMEM_SECTOR_PORT:		/* ReMem Sector access port */

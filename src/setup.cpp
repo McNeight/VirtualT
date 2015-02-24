@@ -1,6 +1,6 @@
 /* setup.cpp */
 
-/* $Id: setup.cpp,v 1.25 2013/03/08 02:32:58 kpettit1 Exp $ */
+/* $Id: setup.cpp,v 1.26 2014/04/24 23:30:14 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -131,6 +131,8 @@ typedef struct memory_ctrl_struct
 	Fl_Round_Button*	pRex;
 	Fl_Round_Button*	pRex2;
 	Fl_Check_Button*	pReMemOverride;
+	Fl_Round_Button*	pQuad;
+	Fl_Round_Button*	pRexQuad;
 	Fl_Input*			pReMemFile;
 	Fl_Input*			pRampacFile;
 	Fl_Input*			pRexFlashFile;
@@ -875,7 +877,8 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	===================================================
 	*/
 	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE) ||
-		(mem_setup.mem_mode == SETUP_MEM_REX))
+		(mem_setup.mem_mode == SETUP_MEM_REX) || (mem_setup.mem_mode == SETUP_MEM_QUAD) ||
+        (mem_setup.mem_mode == SETUP_MEM_REX_QUAD))
 		save_ram();
 
 	/* 
@@ -944,6 +947,10 @@ void cb_memory_OK(Fl_Widget* w, void*)
 		mem_setup.mem_mode = SETUP_MEM_REX;
 	else if (mem_ctrl.pRex2->value() == 1)
 		mem_setup.mem_mode = SETUP_MEM_REX2;
+	else if (mem_ctrl.pQuad->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_QUAD;
+	else if (mem_ctrl.pRexQuad->value() == 1)
+		mem_setup.mem_mode = SETUP_MEM_REX_QUAD;
 
 	// Get Memory installed selection
 	mem_setup.mem_installed = mem_ctrl.pMemInstalled->value();
@@ -967,7 +974,8 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	===================================================
 	*/
 	if ((mem_setup.mem_mode == SETUP_MEM_RAMPAC) || (mem_setup.mem_mode == SETUP_MEM_BASE) ||
-		(mem_setup.mem_mode == SETUP_MEM_REX))
+		(mem_setup.mem_mode == SETUP_MEM_REX) || (mem_setup.mem_mode == SETUP_MEM_QUAD) ||
+        (mem_setup.mem_mode == SETUP_MEM_REX_QUAD))
 			load_ram();
 
 	// If we are in ReMem or ReMem_Rampac mode, check if ReMem filename changed
@@ -1078,7 +1086,7 @@ void cb_memory_OK(Fl_Widget* w, void*)
 	resetcpu();
 	gExitLoop = 1;
 
-	show_remem_mode();
+    show_remem_mode();
 
 	// Destroy the window
 	gmsw->hide();
@@ -1352,6 +1360,36 @@ void cb_radio_rex2 (Fl_Widget* w, void*)
 	mem_ctrl.pRexCreateFlash->activate();
 }
 
+void cb_radio_quad (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemOverride->deactivate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->deactivate();
+	mem_ctrl.pRexFlashBrowse->deactivate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->deactivate();
+}
+
+void cb_radio_rex_quad (Fl_Widget* w, void*)
+{
+	mem_ctrl.pRampacFile->deactivate();
+	mem_ctrl.pRampacBrowse->deactivate();
+	mem_ctrl.pReMemOverride->deactivate();
+	mem_ctrl.pReMemFile->deactivate();
+	mem_ctrl.pReMemBrowse->deactivate();
+	mem_ctrl.pReMemText->hide();
+	mem_ctrl.pRexFlashFile->activate();
+	mem_ctrl.pRexFlashBrowse->activate();
+	mem_ctrl.pRex2RamFile->deactivate();
+	mem_ctrl.pRex2RamBrowse->deactivate();
+	mem_ctrl.pRexCreateFlash->activate();
+}
+
 void cb_memory_cancel (Fl_Widget* w, void*)
 {
 	gmsw->hide();
@@ -1504,7 +1542,7 @@ Routine to create the PeripheralSetup Window and tabs
 void cb_MemorySetup (Fl_Widget* w, void*)
 {
 	// Create Peripheral Setup window
-	gmsw = new Fl_Window(520, 415, "Memory Emulation Options");
+	gmsw = new Fl_Window(520, 465, "Memory Emulation Options");
 	gmsw->callback(cb_memorywin);
 
 	// Create items on the Tab
@@ -1595,34 +1633,57 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 		mem_ctrl.pReMemText->hide();
 	}
 
+
+    // Add radio button for QUAD
+	mem_ctrl.pQuad = new Fl_Round_Button(20, 210, 270, 20, "QUAD    (128K Banked RAM)");
+	mem_ctrl.pQuad->type(FL_RADIO_BUTTON);
+	mem_ctrl.pQuad->callback(cb_radio_quad);
+	if (mem_setup.mem_mode == SETUP_MEM_QUAD)
+		mem_ctrl.pQuad->value(1);
+
+    // Add radio button for REX+QUAD
+	mem_ctrl.pRexQuad = new Fl_Round_Button(20, 235, 270, 20, "QUAD + REX");
+	mem_ctrl.pRexQuad->type(FL_RADIO_BUTTON);
+	mem_ctrl.pRexQuad->callback(cb_radio_rex_quad);
+	if (mem_setup.mem_mode == SETUP_MEM_REX_QUAD)
+		mem_ctrl.pRexQuad->value(1);
+
+    if (gModel != MODEL_M100)
+    {
+        mem_ctrl.pQuad->deactivate();
+        mem_ctrl.pRexQuad->deactivate();
+    }
+
 	// Create Rex radio button
-	mem_ctrl.pRex = new Fl_Round_Button(20, 210, 270, 20, "Rex     (1M Flash Option ROM)");
+	mem_ctrl.pRex = new Fl_Round_Button(20, 260, 270, 20, "Rex     (1M Flash Option ROM)");
 	mem_ctrl.pRex->type(FL_RADIO_BUTTON);
 	mem_ctrl.pRex->callback(cb_radio_rex);
 	if (mem_setup.mem_mode == SETUP_MEM_REX)
 		mem_ctrl.pRex->value(1);
 
 	// Create Rex radio button
-	mem_ctrl.pRex2 = new Fl_Round_Button(20, 235, 270, 20, "Rex2   (1M Opt ROM + 128K SRAM)");
+	mem_ctrl.pRex2 = new Fl_Round_Button(20, 285, 270, 20, "Rex2   (1M Opt ROM + 128K SRAM)");
 	mem_ctrl.pRex2->type(FL_RADIO_BUTTON);
 	mem_ctrl.pRex2->callback(cb_radio_rex2);
 	if (mem_setup.mem_mode == SETUP_MEM_REX2)
 		mem_ctrl.pRex2->value(1);
 
-	mem_ctrl.pRexCreateFlash = new Fl_Button(300, 220, 170, 20, "Create Default Flash");
-	if (mem_setup.mem_mode != SETUP_MEM_REX && mem_setup.mem_mode != SETUP_MEM_REX2)
-		mem_ctrl.pRexCreateFlash->deactivate();
+	mem_ctrl.pRexCreateFlash = new Fl_Button(300, 270, 170, 20, "Create Default Flash");
+	if (mem_setup.mem_mode != SETUP_MEM_REX && mem_setup.mem_mode != SETUP_MEM_REX2 &&
+        mem_setup.mem_mode != SETUP_MEM_REX_QUAD)
+            mem_ctrl.pRexCreateFlash->deactivate();
 	mem_ctrl.pRexCreateFlash->callback(cb_create_flash, &mem_ctrl);
 
 	// ===============================================
 	// Setup Rex Flash File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRexFlashFile = new Fl_Input(105, 260, 310, 20, "Flash File");
+	mem_ctrl.pRexFlashFile = new Fl_Input(105, 310, 310, 20, "Flash File");
 	mem_ctrl.pRexFlashFile->value(mem_setup.rex_flash_file);
-	mem_ctrl.pRexFlashBrowse = new Fl_Button(430, 257, 60, 30, "Browse");
+	mem_ctrl.pRexFlashBrowse = new Fl_Button(430, 307, 60, 30, "Browse");
     mem_ctrl.pRexFlashBrowse->callback((Fl_Callback*)cb_rex_browse);
 
-	if ((mem_setup.mem_mode != SETUP_MEM_REX) && (mem_setup.mem_mode != SETUP_MEM_REX2))
+	if ((mem_setup.mem_mode != SETUP_MEM_REX) && (mem_setup.mem_mode != SETUP_MEM_REX2) && 
+        (mem_setup.mem_mode != SETUP_MEM_REX_QUAD))
 	{
 		mem_ctrl.pRexFlashFile->deactivate();
 		mem_ctrl.pRexFlashBrowse->deactivate();
@@ -1631,9 +1692,9 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 	// ===============================================
 	// Setup Rex Flash File edit field and Browser button
 	// ===============================================
-	mem_ctrl.pRex2RamFile = new Fl_Input(105, 295, 310, 20, "RAM File");
+	mem_ctrl.pRex2RamFile = new Fl_Input(105, 345, 310, 20, "RAM File");
 	mem_ctrl.pRex2RamFile->value(mem_setup.rex2_ram_file);
-	mem_ctrl.pRex2RamBrowse = new Fl_Button(430, 292, 60, 30, "Browse");
+	mem_ctrl.pRex2RamBrowse = new Fl_Button(430, 342, 60, 30, "Browse");
     mem_ctrl.pRex2RamBrowse->callback((Fl_Callback*)cb_rex2_browse);
 
 	if (mem_setup.mem_mode != SETUP_MEM_REX2)
@@ -1644,18 +1705,18 @@ void cb_MemorySetup (Fl_Widget* w, void*)
 
 
 	// Option ROM RW Enable
-	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 320, 210, 20, "Make Option ROM R/W");
+	mem_ctrl.pOptRomRW = new Fl_Check_Button(20, 370, 210, 20, "Make Option ROM R/W");
 	mem_ctrl.pOptRomRW->value(gOptRomRW);
 
 	// Show Version Checkbox
-	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 345, 210, 20, "Patch ROM on load to show VirtualT version");
+	mem_ctrl.pShowVersion = new Fl_Check_Button(20, 395, 210, 20, "Patch ROM on load to show VirtualT version");
 	mem_ctrl.pShowVersion->value(gShowVersion);
 
 	// OK button
-    { Fl_Button* o = new Fl_Button(140, 375, 60, 30, "Cancel");
+    { Fl_Button* o = new Fl_Button(140, 425, 60, 30, "Cancel");
       o->callback((Fl_Callback*)cb_memory_cancel);
     }
-    { Fl_Return_Button* o = new Fl_Return_Button(220, 375, 60, 30, "OK");
+    { Fl_Return_Button* o = new Fl_Return_Button(220, 425, 60, 30, "OK");
       o->callback((Fl_Callback*)cb_memory_OK);
     }
 

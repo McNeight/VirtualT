@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.20 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.21 2013/03/07 19:39:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -54,6 +54,7 @@ extern "C"
 #include "intelhex.h"
 
 extern int		gRamBottom;
+extern uchar    gQuad;
 }
 
 void cb_Ide(Fl_Widget* w, void*); 
@@ -378,7 +379,7 @@ void load_file_to_mem(const char *filename, int address)
 	// Adjust address if writing to RAM region
 	region = memedit_ctrl.pMemEdit->GetRegionEnum();
 	if ((region == REGION_RAM) || (region == REGION_RAM1) || (region == REGION_RAM2) ||
-		(region == REGION_RAM3))
+		(region == REGION_RAM3) || (region == REGION_RAM4))
 			address -= RAMSTART;
 
 	// Check for hex file
@@ -445,7 +446,7 @@ void save_mem_to_file(const char *filename, int address, int count, int save_as_
 	// Adjust address if writing from RAM
 	region = memedit_ctrl.pMemEdit->GetRegionEnum();
 	if ((region == REGION_RAM) || (region == REGION_RAM1) || (region == REGION_RAM2) ||
-		(region == REGION_RAM3))
+		(region == REGION_RAM3) || (region == REGION_RAM4))
 			address -= RAMSTART;
 
 	// Check for hex file
@@ -1296,7 +1297,15 @@ void T100_MemEditor::SetRegionOptions(void)
 		case MODEL_KC85:
 		case MODEL_M102:
 		case MODEL_M10:
-			memedit_ctrl.pRegion->add("RAM");
+            if (gQuad)
+            {
+                memedit_ctrl.pRegion->add("RAM 1");
+                memedit_ctrl.pRegion->add("RAM 2");
+                memedit_ctrl.pRegion->add("RAM 3");
+                memedit_ctrl.pRegion->add("RAM 4");
+            }
+            else
+                memedit_ctrl.pRegion->add("RAM");
 			memedit_ctrl.pRegion->add("ROM");
 			memedit_ctrl.pRegion->add("Opt ROM");
 			memedit_ctrl.pRegion->value(0);
@@ -1483,6 +1492,10 @@ int T100_MemEditor::GetRegionEnum(void)
 	if (strcmp(reg_text, "RAM 3") == 0)
 		m_Region = REGION_RAM3;
 
+	// Test if RAM 4 region is selecte
+	if (strcmp(reg_text, "RAM 4") == 0)
+		m_Region = REGION_RAM4;
+
 	// Test if ROM region is selected
 	if (strcmp(reg_text, "ROM") == 0)
 		m_Region = REGION_ROM;
@@ -1557,7 +1570,7 @@ void T100_MemEditor::UpdateDispMem(void)
 	get_memory8_ext(m_Region, m_FirstAddress, count, mem);
 	addrBase = 0;
 	if ((m_Region == REGION_RAM) || (m_Region == REGION_RAM2) || 
-		(m_Region == REGION_RAM3) || m_Region == REGION_RAM1)
+		(m_Region == REGION_RAM3) || m_Region == REGION_RAM1 || (m_Region == REGION_RAM4))
 			addrBase = ROMSIZE;
 
 	// Set the display
@@ -1747,7 +1760,7 @@ void T100_MemEditor::draw()
 			break;
 	    fl_color(m_colors.addr);
 		if ((region == REGION_RAM) || (region == REGION_RAM2) || 
-			(region == REGION_RAM3) || region == REGION_RAM1)
+			(region == REGION_RAM3) || region == REGION_RAM1 || (region == REGION_RAM4))
 		{
 			sprintf(string, "%06X  ", addr + RAMSTART);
 			actualAddr += RAMSTART;
@@ -2203,7 +2216,7 @@ int T100_MemEditor::handle(int event)
 			// Set or clear the Undo based on availablilty
 			int count = sizeof(gDeleteMarkerMenu) / sizeof(Fl_Menu_Item);
 			int region = m_Region;
-			if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+			if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 				region = REGION_RAM;
 			if (m_pUndoDeleteMarkers[region] == NULL)
 			{
@@ -2739,7 +2752,7 @@ int T100_MemEditor::handle(int event)
 
 					actualAddr = address;
 					if ((m_Region == REGION_RAM) || (m_Region == REGION_RAM2) || 
-						(m_Region == REGION_RAM3) || m_Region == REGION_RAM1)
+						(m_Region == REGION_RAM3) || m_Region == REGION_RAM1 || (m_Region == REGION_RAM4))
 							actualAddr += ROMSIZE;
 
 					// Determine if this is the first keystroke at this address
@@ -2909,7 +2922,7 @@ int T100_MemEditor::handle(int event)
 					address += m_CursorRow * 16;
 					actualAddr = address;
 					if ((m_Region == REGION_RAM) || (m_Region == REGION_RAM2) || 
-						(m_Region == REGION_RAM3) || m_Region == REGION_RAM1)
+						(m_Region == REGION_RAM3) || m_Region == REGION_RAM1 || (m_Region == REGION_RAM4))
 							actualAddr += ROMSIZE;
 					address += col;
 
@@ -3130,7 +3143,7 @@ void T100_MemEditor::MoveTo(int address)
 	   the ROM size from the address so we jump to the right
 	   location in the scroll bar */
 	if ((m_Region == REGION_RAM) || (m_Region == REGION_RAM2) || 
-		(m_Region == REGION_RAM3) || m_Region == REGION_RAM1)
+		(m_Region == REGION_RAM3) || m_Region == REGION_RAM1 || (m_Region == REGION_RAM4))
 			address -= ROMSIZE;
 
 	/* Calculate line value */
@@ -3226,7 +3239,7 @@ int T100_MemEditor::HasMarker(int address)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -3379,7 +3392,7 @@ void T100_MemEditor::UpdateAddressText()
 	region = GetRegionEnum();
 
 	if ((region == REGION_RAM) || (region == REGION_RAM2) || 
-		(region == REGION_RAM3) || region == REGION_RAM1)
+		(region == REGION_RAM3) || region == REGION_RAM1 || (region == REGION_RAM4))
 	{
 		if (gReMem)
 			sprintf(string, "0x%06X", (unsigned int) (address + RAMSTART));
@@ -4121,7 +4134,7 @@ void T100_MemEditor::AddMarker(int region)
 	if (region == -1)
 	{
 		region = m_Region;
-		if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+		if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 			region = REGION_RAM;
 	}
 
@@ -4253,7 +4266,7 @@ void T100_MemEditor::FindNextMarker(void)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -4308,7 +4321,7 @@ void T100_MemEditor::FindPrevMarker(void)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -4363,7 +4376,7 @@ memedit_marker_t* T100_MemEditor::GetMarker(int address)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -4399,7 +4412,7 @@ int T100_MemEditor::IsSelected(int address)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -4441,7 +4454,7 @@ void T100_MemEditor::DeleteMarker(void)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Get pointer to start of marker list
@@ -4496,7 +4509,7 @@ void T100_MemEditor::DeleteAllMarkers(void)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// First test if we have an existing undo delete all markers list
@@ -4538,7 +4551,7 @@ void T100_MemEditor::UndoDeleteAllMarkers(void)
 	// we use the REGION_RAM marker so they all have the same
 	// set of markers
 	region = m_Region;
-	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3)
+	if (region == REGION_RAM1 || region == REGION_RAM2 || region == REGION_RAM3 || (region == REGION_RAM4))
 		region = REGION_RAM;
 
 	// Check if we have an undo buffer for this region

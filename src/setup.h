@@ -1,6 +1,6 @@
 /* setup.h */
 
-/* $Id: setup.h,v 1.9 2013/02/20 20:47:47 kpettit1 Exp $ */
+/* $Id: setup.h,v 1.10 2013/02/25 00:52:28 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -95,7 +95,9 @@ enum {
 	SETUP_MEM_REMEM,
 	SETUP_MEM_REMEM_RAMPAC,
 	SETUP_MEM_REX,
-	SETUP_MEM_REX2
+	SETUP_MEM_REX2,
+    SETUP_MEM_QUAD,
+    SETUP_MEM_REX_QUAD
 };
 
 #ifdef __cplusplus

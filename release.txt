@@ -25,6 +25,10 @@ v1.7 Not released yet
 
 7.  Updated the GNUMakefile to include libjpeg and libpng.
 
+8.  Added support for Steve Adolph's QUAD Model 100 128K Banked RAM module.
+
+9.  Added right-click menu support to easily change QUAD bank when enabled.
+
 ====================
 v1.6 April 24, 2014
 ====================
