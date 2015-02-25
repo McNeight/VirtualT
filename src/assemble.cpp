@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.14 2013/02/05 01:36:11 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.15 2013/02/08 00:07:52 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -3526,7 +3526,7 @@ int VTAssembler::Assemble()
 						}
 					}
 					else
-					{						
+					{
 						// Equation does not evaluate.  Check if it is an extern
 						if (EquationIsExtern((CRpnEquation *) pInst->m_Group, size))
 						{
