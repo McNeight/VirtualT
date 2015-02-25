@@ -691,6 +691,14 @@
 				>
 			</File>
 			<File
+				RelativePath=".\src\tdock.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tdockvid.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\src\tpddclient.cpp"
 				>
 			</File>
@@ -1060,6 +1068,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath=".\src\My_Text_Buffer.cpp"
+					>
+				</File>
+				<File
 					RelativePath=".\src\My_Text_Display.cpp"
 					>
 				</File>
@@ -1131,6 +1143,10 @@
 			>
 			<File
 				RelativePath=".\src\clock.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\colors.h"
 				>
 			</File>
 			<File
@@ -1235,6 +1251,14 @@
 			</File>
 			<File
 				RelativePath="src\sound.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tdock.h"
+				>
+			</File>
+			<File
+				RelativePath=".\src\tdockvid.h"
 				>
 			</File>
 			<File

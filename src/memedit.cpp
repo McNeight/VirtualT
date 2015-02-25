@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.21 2013/03/07 19:39:01 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.22 2015/02/24 23:41:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -1265,7 +1265,15 @@ void T100_MemEditor::SetRegionOptions(void)
 			}
 			else
 			{
-				memedit_ctrl.pRegion->add("RAM");
+				if (gQuad)
+				{
+					memedit_ctrl.pRegion->add("RAM 1");
+					memedit_ctrl.pRegion->add("RAM 2");
+					memedit_ctrl.pRegion->add("RAM 3");
+					memedit_ctrl.pRegion->add("RAM 4");
+				}
+				else
+					memedit_ctrl.pRegion->add("RAM");
 			}
 			memedit_ctrl.pRegion->add("ROM");
 			if (gModel == MODEL_T200)

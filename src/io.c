@@ -1,6 +1,6 @@
 /* io.c */
 
-/* $Id: io.c,v 1.26 2015/02/24 20:19:17 kpettit1 Exp $ */
+/* $Id: io.c,v 1.27 2015/02/24 23:41:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -1262,9 +1262,18 @@ int inport(uchar port)
 				return t200_readport(0xFE);
 			else
             {
-                if (fullspeed == 0 && (lcdTime[c]+.000014 > hirestimer()))
-                //if (fullspeed == 0 && (lcdCycles[c]+3*2454 > cycles + cycle_delta))
-                    return (0x80);
+                if (fullspeed == 0)
+				{
+					/* Loop through all LCD driver modules */
+					for (c = 0; c < 10; c++)
+					{
+						/* Check if this driver is enabled */
+						if (lcdbits & (1 << c))
+							if (lcdTime[c]+.000014 > hirestimer())
+			                    return (0x80);
+					}
+					return 64;
+				}
                 else
                     return(64);
             }

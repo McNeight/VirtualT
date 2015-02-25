@@ -1,6 +1,6 @@
 /* tdockvid.cpp */
 
-/* $Id: tdockvid.cpp,v 1.41 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: tdockvid.cpp,v 1.1 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2015 Ken Pettit
@@ -102,6 +102,12 @@ extern int				gConsoleDebug;
 
 #ifndef	WIN32
 #define	min(a,b)	((a)<(b) ? (a):(b))
+#endif
+#ifdef WIN32
+extern "C"
+{
+int strcasecmp(const char* s1, const char* s2);
+}
 #endif
 
 extern T100_Disp* gpDisp;
@@ -208,8 +214,6 @@ Clear:	This routine clears the "LCD"
 */
 void VTTDockVid::Clear(void)
 {
-  int x,y;
-
   memset(pixdata, 0, 200*480);
 
   m_CurX = m_CurY = 0;
@@ -470,7 +474,7 @@ void VTTDockVid::draw_pixels()
 {
 	int x=0;
 	int y=0;
-	int line, col;
+	int line;
 	uchar value;
     int  lastColor = -1;
     int  color;
@@ -877,7 +881,7 @@ void VTTDockVid::WriteData(uchar data)
     /* Draw the received byte */
     else //if (data >= ' ');
     {
-        int addr, line, y, c, mem_index, column, color, lastcolor = -1;
+        int addr, line, c, mem_index, column, lastcolor = -1;
 
         if (m_CurY >= 200)
             Scroll();
@@ -1001,7 +1005,7 @@ void VTTDockVid::XorCursor(void)
 
 void VTTDockVid::Scroll(void)
 {
-    int  y, col, color, lastcolor;
+    int  y, col, color, lastcolor = -1;
 
     /* Test if at bottom of display */
     if (m_CurY >= 200)
@@ -1042,8 +1046,6 @@ void VTTDockVid::Scroll(void)
 
 int VTTDockVid::handle(int event)
 {
-    int key;
-    
     return gpDisp->handle(event);
 }
 

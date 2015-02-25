@@ -1,6 +1,6 @@
 /* doins.h */
 
-/* $Id: doins.h,v 1.6 2014/04/24 23:30:14 kpettit1 Exp $ */
+/* $Id: doins.h,v 1.7 2015/01/13 05:51:45 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -33,7 +33,11 @@
 
 extern char paritybits[256];
 
+#ifdef WIN32
+void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov)
+#else
 static inline void setflags(unsigned char regval, char sign, char zero, char auxcarry, char parity, char carry, char ov)
+#endif
 {
 	if (sign!=-2)
 	{
