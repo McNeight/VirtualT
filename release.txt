@@ -29,6 +29,24 @@ v1.7 Not released yet
 
 9.  Added right-click menu support to easily change QUAD bank when enabled.
 
+10. Updated linker so it back annotates listing files with actual addresses
+    determined during the link step.
+
+11. Made updates to the assembler to push unresolved equations into the object
+    file and added an equation evaluation function to the linker.  This allows
+    the linker to resolve addresses that consist of a relocatable address
+    location (i.e. label) embedded in an equation, such as Label+12h.
+
+12. Added support in Linker Script for segment addresses based on known symbol
+    values (e.g. from an absolute address in an ASEG) and also using simple
+    equations involving basic math (+ - / *).
+
+13. Modified the IDE's Find Dialog so that when it doesn't find the requested
+    text, it displays the error message in the Find Dialog instead of using
+    the FLTK fl_alert routine.  Using the fl_alert causes the main VirtualT
+    emulation window to come into focus instead of the IDE window, plus showing
+    the error in the Find Dialog box provides opportunity to modify the search.
+
 ====================
 v1.6 April 24, 2014
 ====================
