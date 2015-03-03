@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.20 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.21 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -1905,6 +1905,8 @@ void VT_Ide::FindNext(void)
 	if (mw == NULL)
 		return;
 
+    m_pFindDlg->m_pErrorMsg->hide();
+
 	// Ensure there is a search string 
 	pFind = m_pFindDlg->m_pFind->value();
 	if (pFind[0] == '\0')
@@ -1924,15 +1926,22 @@ void VT_Ide::FindNext(void)
 		if (!mw->ForwardSearch(pFind, m_pFindDlg->m_pMatchCase->value()))
 		{
 			// If still not found, report not found
-			mw->insert_position(pos);
-			fl_alert("Search string %s not found", pFind);
-			m_pFindDlg->m_pFind->take_focus();
+            m_pFindDlg->m_ErrMsg.Format("Search string %s not found", pFind);
+            m_pFindDlg->m_pErrorMsg->label((const char *) m_pFindDlg->m_ErrMsg);
+            m_pFindDlg->m_pErrorMsg->show();
+
+			//fl_alert("Search string %s not found", pFind);
+            m_pFindDlg->m_pFindDlg->show();
+            m_pFindDlg->m_pFind->take_focus();
+            m_pFindDlg->m_pFind->selectall();
+            return;
+			//mw->insert_position(pos);
 		}
 	}
 
 	// Hide the dialog box
-	mw->take_focus();
 	m_pFindDlg->m_pFindDlg->hide();
+	mw->take_focus();
 }
 
 /*
@@ -3606,6 +3615,111 @@ BuildProjet:  This routine is the reason for all this mess!  Try to assemble
 				each file in the project and then link if no errors.
 =============================================================================
 */
+void VT_Ide::AssembleSourcesInGroup(VTAssembler& assembler, VT_IdeGroup* pGroup, int& totalErrors, 
+		int& linkerScriptFound, MString& linkerScript, MString& linkerFiles)
+{
+	int				groups, sources;
+	int				c, x, err;
+	int				index;
+	VT_IdeGroup*	pSubGroup;
+	VT_IdeSource*	pSource;
+	int				errorCount;
+	MString			text, temp;
+	int				assemblyNeeded;
+	MStringArray	errors;
+	MString			filename;
+
+	// Loop through each source in group
+	sources = pGroup->m_Objects.GetSize();
+	for (x = 0; x < sources; x++)
+	{
+		// Test if this entry is a group or a source
+		if (strcmp(pGroup->m_Objects[x]->GetClass()->m_ClassName, "VT_IdeGroup") == 0)
+		{
+			// Sub group found.  Assemble all source files in this group
+
+			pSubGroup = (VT_IdeGroup *) pGroup->m_Objects[x];
+			AssembleSourcesInGroup(assembler, pSubGroup, totalErrors, linkerScriptFound, 
+				linkerScript, linkerFiles);
+			continue;
+		}
+
+        // Configure the assembler
+        assembler.ResetContent();
+        assembler.SetRootPath(m_ActivePrj->m_RootPath);
+        assembler.SetAsmOptions(m_ActivePrj->m_AsmOptions);
+        assembler.SetIncludeDirs(m_ActivePrj->m_IncludePath);
+        assembler.SetDefines(m_ActivePrj->m_Defines);
+        assembler.SetProjectType(m_ActivePrj->m_ProjectType);
+        assembler.SetStdoutFunction(this, ideStdoutProc);
+
+		// Get next source from group
+		pSource = (VT_IdeSource*) pGroup->m_Objects[x];
+
+		// Get extension of this source 
+
+		// Test if source is .asm or .a85
+		assemblyNeeded = FALSE;
+		temp = pSource->m_Name.Right(4);
+		temp.MakeLower();
+		if ((temp == ".asm") || (temp == ".a85"))
+		{
+			// Check source dependencies
+
+			assemblyNeeded = TRUE;
+
+			// Delete old .obj file
+
+			// Add this file to the list of files to be linked
+			temp = pSource->m_Name.Left(pSource->m_Name.GetLength() - 4) + (char *) ".obj";
+			linkerFiles += temp + (char *) ",";
+		}
+
+		// Try to assemble the file
+		if (assemblyNeeded)
+		{
+			// Display build indication
+			index = pSource->m_Name.ReverseFind('/');
+			temp = pSource->m_Name.Right(pSource->m_Name.GetLength()-index-1);
+			text.Format("%s\n", (const char *) temp);
+			m_BuildTextBuf->append((const char *) text);
+			Fl::check();
+
+			// Try to assemble this file
+			filename = MakePathAbsolute(pSource->m_Name, m_ActivePrj->m_RootPath);
+			assembler.Parse(filename);
+
+			// Check if any errors occurred & report them
+			errors = assembler.GetErrors();
+			errorCount = errors.GetSize();
+			totalErrors += errorCount;
+			for (err = 0; err < errorCount; err++)
+			{
+				m_BuildTextBuf->append((const char *) errors[err]);
+				m_BuildTextBuf->append("\n");
+			}
+		}
+
+		// Look for linker scripts while we are looping through the tree
+		if (temp == ".lkr")
+		{
+			if (pSource->m_Name[0] == '/' || pSource->m_Name[1] == ':')
+				linkerScript = pSource->m_Name;
+			else
+			{
+				linkerScript = m_ActivePrj->m_RootPath + (char *) "/"+ pSource->m_Name;
+			}
+			linkerScriptFound = true;
+		}
+	}
+}
+
+/*
+=============================================================================
+BuildProjet:  This routine is the reason for all this mess!  Try to assemble
+				each file in the project and then link if no errors.
+=============================================================================
+*/
 void VT_Ide::BuildProject(void)
 {
 	int				groups, sources;
@@ -3633,12 +3747,14 @@ void VT_Ide::BuildProject(void)
 	Fl::check();
 
 	// Configure the assembler
+#if 0
 	assembler.SetRootPath(m_ActivePrj->m_RootPath);
 	assembler.SetAsmOptions(m_ActivePrj->m_AsmOptions);
 	assembler.SetIncludeDirs(m_ActivePrj->m_IncludePath);
 	assembler.SetDefines(m_ActivePrj->m_Defines);
 	assembler.SetProjectType(m_ActivePrj->m_ProjectType);
 	assembler.SetStdoutFunction(this, ideStdoutProc);
+#endif
 
 	m_BuildTextBuf->append("Assembling...\n");
 	Fl::check();
@@ -3651,70 +3767,7 @@ void VT_Ide::BuildProject(void)
 		// Get group
 		pGroup = (VT_IdeGroup*) m_ActivePrj->m_Groups[c];
 
-		// Loop through each source in group
-		sources = pGroup->m_Objects.GetSize();
-		for (x = 0; x < sources; x++)
-		{
-			// Get next source from group
-			pSource = (VT_IdeSource*) pGroup->m_Objects[x];
-
-			// Get extension of this source 
-
-			// Test if source is .asm or .a85
-			assemblyNeeded = FALSE;
-			temp = pSource->m_Name.Right(4);
-			temp.MakeLower();
-			if ((temp == ".asm") || (temp == ".a85"))
-			{
-				// Check source dependencies
-
-				assemblyNeeded = TRUE;
-
-				// Delete old .obj file
-
-				// Add this file to the list of files to be linked
-				temp = pSource->m_Name.Left(pSource->m_Name.GetLength() - 4) + (char *) ".obj";
-				linkerFiles += temp + (char *) ",";
-			}
-
-			// Try to assemble the file
-			if (assemblyNeeded)
-			{
-				// Display build indication
-				index = pSource->m_Name.ReverseFind('/');
-				temp = pSource->m_Name.Right(pSource->m_Name.GetLength()-index-1);
-				text.Format("%s\n", (const char *) temp);
-				m_BuildTextBuf->append((const char *) text);
-				Fl::check();
-
-				// Try to assemble this file
-				filename = MakePathAbsolute(pSource->m_Name, m_ActivePrj->m_RootPath);
-				assembler.ResetContent();
-				assembler.Parse(filename);
-
-				// Check if any errors occurred & report them
-				errors = assembler.GetErrors();
-				errorCount = errors.GetSize();
-				totalErrors += errorCount;
-				for (err = 0; err < errorCount; err++)
-				{
-					m_BuildTextBuf->append((const char *) errors[err]);
-					m_BuildTextBuf->append("\n");
-				}
-			}
-
-			// Look for linker scripts while we are looping through the tree
-			if (temp == ".lkr")
-			{
-				if (pSource->m_Name[0] == '/' || pSource->m_Name[1] == ':')
-					linkerScript = pSource->m_Name;
-				else
-				{
-					linkerScript = m_ActivePrj->m_RootPath + (char *) "/"+ pSource->m_Name;
-				}
-				linkerScriptFound = true;
-			}
-		}
+        AssembleSourcesInGroup(assembler, pGroup, totalErrors, linkerScriptFound, linkerScript, linkerFiles);
 	}
 
 	// Check if there were any erros during assembly and if not, 
@@ -3970,15 +4023,19 @@ MString VT_Ide::MakePathAbsolute(const MString& path, const MString& relTo)
 	{
 		index = newRel.ReverseFind('/');
 		if (index != -1)
-			newRel = newRel.Left(index - 1);
+        {
+			newRel = newRel.Left(index);
+        }
 		else 
 		{
 			index = newRel.ReverseFind('\\');
 			if (index != -1)
-				newRel = newRel.Left(index - 1);
+				newRel = newRel.Left(index);
 			else
 				break;
 		}
+
+        temp = temp.Right(temp.GetLength()-3);
 	}
 
 	temp = newRel + '/' + temp;
@@ -4055,7 +4112,7 @@ VT_FindDlg routines below.
 VT_FindDlg::VT_FindDlg(class VT_Ide* pParent)
 {
 	// Create Find What combo list
-	m_pFindDlg = new Fl_Window(400, 300, "Find");
+	m_pFindDlg = new Fl_Window(400, 340, "Find");
 	Fl_Box *o = new Fl_Box(20, 10, 100, 25, "Find what:");
 	o->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
 	m_pFind = new Flu_Combo_List(20, 35, 360, 25, "");
@@ -4082,13 +4139,17 @@ VT_FindDlg::VT_FindDlg(class VT_Ide* pParent)
 	m_pMatchCase = new Fl_Check_Button(40, 185, 100, 25, "Match case");
 	m_pWholeWord = new Fl_Check_Button(40, 210, 140, 25, "Match whole word");
 
-	o = new Fl_Box(20, 250, 50, 45, "");
+    m_pErrorMsg = new Fl_Box(40, 250, 300, 25);
+    m_pErrorMsg->labelfont(m_pErrorMsg->labelfont()+1);
+    m_pErrorMsg->hide();
+
+	o = new Fl_Box(20, 300, 50, 45, "");
 	m_pFindDlg->resizable(o);
 
-	m_pNext = new Flu_Return_Button(160, 255, 100, 25, "Find Next");
+	m_pNext = new Flu_Return_Button(160, 295, 100, 25, "Find Next");
 	m_pNext->callback(cb_find_next, this);
 
-	m_pCancel = new Flu_Button(280, 255, 100, 25, "Close");
+	m_pCancel = new Flu_Button(280, 295, 100, 25, "Close");
 	m_pCancel->callback(cb_replace_cancel, this);
 	o = new Fl_Box(20, 295, 360, 2, "");
 	m_pFindDlg->resizable(o);

@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.15 2013/02/08 00:07:52 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.16 2015/02/25 02:12:08 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -397,8 +397,6 @@ int VTAssembler::PerformSubstitution(CMacro* pMacro, const char *pLoc)
 		*pNew++ = *ptr++;
 	*pNew = '\0';
 
-	//printf("New line = %s", pNewLine);
-
 	// Delete the old m_pInLine and replace with the new one
 	delete[] m_pInLine;
 	m_pInLine = pNewLine;
@@ -514,8 +512,8 @@ int VTAssembler::preprocessor(void)
 	if (m_pInPtr)
 	{
 		// filter out cr characters
-		if (*m_pInPtr == 13)
-			m_pInPtr++;
+        while (*m_pInPtr == 13 || (unsigned char) *m_pInPtr > 127)
+            m_pInPtr++;
 
 		// If not at end of line, return the next char
 		if (*m_pInPtr != '\0')
@@ -543,8 +541,14 @@ int VTAssembler::preprocessor(void)
 	m_pInPtr = m_pInLine;
 
 	// filter out cr characters
+    while (*m_pInPtr == 13 || (unsigned char) *m_pInPtr > 127)
+        m_pInPtr++;
+#if 0
 	if (*m_pInPtr == 13)
 		m_pInPtr++;
+    else if (*m_pInPtr > 127)
+        m_pInPtr++;
+#endif
 
 	return *m_pInPtr++;
 }
@@ -614,6 +618,15 @@ void VTAssembler::ResetContent(void)
 
 	// Delete all undefined symbols
 	m_UndefSymbols.RemoveAll();
+
+    // Remove all linker equations
+    count = m_Equations.GetSize();
+    for (c = 0; c < count; c++)
+    {
+        CLinkerEquation* pEq = (CLinkerEquation *) m_Equations[c];
+        delete pEq;
+    }
+    m_Equations.RemoveAll();
 
 	// Delete all errors
 	m_Errors.RemoveAll();
@@ -1076,9 +1089,7 @@ int VTAssembler::GetValue(MString & string, int & value)
 	}
 	else if (string[0] == '$' && string.GetLength() > 1)
 	{
-		printf("Found %s\n", (const char *) string);
 		myStr = string.Right(string.GetLength()-1);
-		printf("New string %s\n", (const char *) myStr);
 	}
 
 	// Lookup the symbol in all modules
@@ -1236,7 +1247,7 @@ void VTAssembler::opcode_arg_1reg_equ8(int opcode)
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
 		reg_cnt--;									// Pop unused reg operand from stack
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1271,7 +1282,7 @@ void VTAssembler::opcode_arg_1reg_2byte(int opcode)
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
 		reg_cnt--;									// Pop unused reg operand from stack
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1302,7 +1313,7 @@ void VTAssembler::opcode_arg_1reg_equ16(int opcode)
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
 		reg_cnt--;									// Pop unused reg operand from stack
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1335,7 +1346,7 @@ void VTAssembler::opcode_arg_equ8(int opcode)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1367,7 +1378,7 @@ void VTAssembler::opcode_arg_equ16(int opcode)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1398,7 +1409,7 @@ void VTAssembler::opcode_arg_equ24(int opcode)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1523,7 +1534,7 @@ void VTAssembler::equate(const char *name)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1547,7 +1558,6 @@ void VTAssembler::equate(const char *name)
 		pSymbol->m_SymType = SYM_EQUATE;
 		pSymbol->m_pRange = m_ActiveAddr;
 
-
 		// Try to evaluate the equation.  Note that we may not be able to
 		// successfully evaluate it at this point because it may contain
 		// a forward reference, so don't report any errors yet.
@@ -1555,13 +1565,11 @@ void VTAssembler::equate(const char *name)
 		{
 			pSymbol->m_Value = (long) value;
 			pSymbol->m_SymType |= SYM_HASVALUE;
-			//printf("EQU: %s = %d\n", (const char *) pSymbol->m_Name, (int) value);
 		}
 		else
 		{
 			// Symbol did not evaluate, save as an equation
 			pSymbol->m_SymType |= SYM_ISEQ;
-			//printf("EQU: %s = equation\n", (const char *) pSymbol->m_Name);
 		}
 
 		// Save equation
@@ -1646,6 +1654,12 @@ void VTAssembler::label(const char *label, int address)
 			pSymbol->m_Value = address;
 		pSymbol->m_FileIndex = m_FileIndex;			// Save index of the current file
 		pSymbol->m_SymType = SYM_LABEL | SYM_HASVALUE;
+
+        // Check for auto Auto Extern and make all lables auto PUBLIC
+        if (m_AsmOptions.Find((char *) "-e") != -1 && !local)
+        {
+            pSymbol->m_SymType |= SYM_PUBLIC;
+        }
 		pSymbol->m_pRange = m_ActiveAddr;
 		pSymbol->m_Segment = m_ActiveSeg;
 		if (m_ActiveSeg->m_Type == CSEG)
@@ -1683,6 +1697,7 @@ void VTAssembler::label(const char *label, int address)
 			m_LastLabelSym= pSymbol;
 			CInstruction* pInst = new CInstruction;
 			pInst->m_ID = INST_LABEL;
+            pInst->m_Line = m_Line;
 			pInst->m_Operand1 = new MString;
 			*pInst->m_Operand1 = m_LastLabel;
 			m_Instructions->Add(pInst);					// Save instruction 
@@ -1705,7 +1720,7 @@ void VTAssembler::directive_set(const char *name)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1826,7 +1841,7 @@ void VTAssembler::directive_org()
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1944,7 +1959,7 @@ void VTAssembler::directive_printf(const char *string, int hasEquation)
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -1985,7 +2000,7 @@ void VTAssembler::directive_printf(const char *string, int hasEquation)
 				strcat(str, ptr + 2 + fmtDigits);
 		}
 
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 
 		if (m_pStdoutFunc != NULL)
@@ -2012,7 +2027,7 @@ void VTAssembler::directive_echo()
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -2040,7 +2055,7 @@ void VTAssembler::directive_echo()
 			m_pStdoutFunc(m_pStdoutContext, "#UNDEFINED");
 	}
 
-	delete gEq;									// Delete the unused equaiton
+	delete gEq;									// Delete the unused equation
 	gEq = new CRpnEquation;						// Allocate new equation for parser
 }
 
@@ -2242,6 +2257,7 @@ void VTAssembler::directive_cdseg(int segType, int page)
 		}
 
 		// Add segment to our list of segments
+        pSeg->m_Line = m_Line;          // Save line number where segment starts
 		m_Segments[name] = pSeg;
 	}
 
@@ -2261,7 +2277,7 @@ void VTAssembler::directive_ds()
 	// Determine if conditional assembly enabled
 	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
 	{
-		delete gEq;									// Delete the unused equaiton
+		delete gEq;									// Delete the unused equation
 		gEq = new CRpnEquation;						// Allocate new equation for parser
 		return;
 	}
@@ -2989,6 +3005,10 @@ void VTAssembler::preproc_define()
 {
 	int		count, c;
 
+	// Determine if conditional assembly enabled
+	if (m_IfStat[m_IfDepth] != IF_STAT_ASSEMBLE)
+		return;
+
 	// Update line number
 	m_Line = (PCB).line;
 
@@ -2997,7 +3017,8 @@ void VTAssembler::preproc_define()
 	if (pInst != NULL)
 	{
 		pInst->m_ID = INST_DEFINE;
-		pInst->m_Line = m_Line;
+		//pInst->m_Line = m_Line;
+        pInst->m_Line = -1;     // KDP
 		pInst->m_Group = gMacro;				// Save the macro
 		pInst->m_Operand1 = new MString;
 		*pInst->m_Operand1 = gMacro->m_Name;	// Save name of define
@@ -3071,7 +3092,7 @@ void VTAssembler::preproc_undef(const char *name)
 /*
 ============================================================================
 This is the preprocessor function to handle macros found in the code that
-is acrually a statement vs. a parameter / equation
+is actually a statement vs. a parameter / equation
 ============================================================================
 */
 int VTAssembler::preproc_macro()
@@ -3178,127 +3199,116 @@ void VTAssembler::directive_if(int inst)
 
 	// Update line number
 	m_Line = (PCB).line - 1;
-	
-//	CInstruction*	pInst = new CInstruction;
-//	if (pInst != NULL)
-//	{
-//		pInst->m_ID = inst;							// If or elif
-//		pInst->m_Line = m_Line;
-//		pInst->m_Group = gCond;
-//		pInst->m_FileIndex = m_FileIndex;			// Save index of the current file
-		m_LastIfElseLine = m_Line;
-		m_LastIfElseIsIf = 1;
+	m_LastIfElseLine = m_Line;
+	m_LastIfElseIsIf = 1;
 
-		// First push results from previous IF/ELSE/ENDIF operation so
-		// we generate "nested if" conditions.  Initialize condition to
-		// EVAL_ERROR in case the condition does not evaluate
-		if (inst == INST_IF)
+	// First push results from previous IF/ELSE/ENDIF operation so
+	// we generate "nested if" conditions.  Initialize condition to
+	// EVAL_ERROR in case the condition does not evaluate
+	if (inst == INST_IF)
+	{
+		// Process if instrution
+		if ((m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE) ||
+			(m_IfStat[m_IfDepth] == IF_STAT_NESTED_DONT_ASSEMBLE) ||
+			(m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR))
 		{
-			// Process if instrution
-			if ((m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE) ||
-				(m_IfStat[m_IfDepth] == IF_STAT_NESTED_DONT_ASSEMBLE) ||
-				(m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR))
-			{
-				m_IfStat[++m_IfDepth] = IF_STAT_NESTED_DONT_ASSEMBLE;
-			}
-			else
-				m_IfStat[++m_IfDepth] = IF_STAT_EVAL_ERROR;
-
-			if (m_IfDepth >= sizeof(m_IfStat))
-			{
-				m_IfDepth--;
-				err.Format("Error in line %d(%s):  Too many nested ifs", m_Line, 
-					(const char *) m_Filenames[m_FileIndex].Filename());
-				m_Errors.Add(err);
-				gCond = new CCondition;
-//				m_Instructions->Add(pInst);
-			}
+			m_IfStat[++m_IfDepth] = IF_STAT_NESTED_DONT_ASSEMBLE;
 		}
 		else
-		{
-			// Process elif instruction
-			if (m_IfDepth == 0)
-			{
-				err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
-					(const char *) m_Filenames[m_FileIndex].Filename());
-				m_Errors.Add(err);
-				return;
-			}
+			m_IfStat[++m_IfDepth] = IF_STAT_EVAL_ERROR;
 
-			if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
-				m_IfStat[m_IfDepth] = IF_STAT_NESTED_DONT_ASSEMBLE;
-			else
-				if (m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE)
-					m_IfStat[m_IfDepth] = IF_STAT_EVAL_ERROR;
+		if (m_IfDepth >= sizeof(m_IfStat))
+		{
+			m_IfDepth--;
+			err.Format("Error in line %d(%s):  Too many nested ifs", m_Line, 
+				(const char *) m_Filenames[m_FileIndex].Filename());
+			m_Errors.Add(err);
+			gCond = new CCondition;
+		}
+	}
+	else
+	{
+		// Process elif instruction
+		if (m_IfDepth == 0)
+		{
+			err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
+				(const char *) m_Filenames[m_FileIndex].Filename());
+			m_Errors.Add(err);
+			return;
 		}
 
-		// Determine if both equations can be evaluated
-		if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR)
+		if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
+			m_IfStat[m_IfDepth] = IF_STAT_NESTED_DONT_ASSEMBLE;
+		else
+			if (m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE)
+				m_IfStat[m_IfDepth] = IF_STAT_EVAL_ERROR;
+	}
+
+	// Determine if both equations can be evaluated
+	if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR)
+	{
+		if (Evaluate(gCond->m_EqLeft, &valuel, 0, errVar))
 		{
-			if (Evaluate(gCond->m_EqLeft, &valuel, 0, errVar))
+			// Check if condition contains 2 equations or not
+			if (gCond->m_EqRight != 0)
 			{
-				// Check if condition contains 2 equations or not
-				if (gCond->m_EqRight != 0)
+				if (Evaluate(gCond->m_EqRight, &valuer, 0, errVar))
 				{
-					if (Evaluate(gCond->m_EqRight, &valuer, 0, errVar))
+					m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
+
+					// Both equations evaluate, check condition
+					switch (gCond->m_Condition)
 					{
-						m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
+					case COND_EQ:
+						if (valuel == valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 
-						// Both equations evaluate, check condition
-						switch (gCond->m_Condition)
-						{
-						case COND_EQ:
-							if (valuel == valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
+					case COND_NE:	
+						if (valuel != valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 
-						case COND_NE:	
-							if (valuel != valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
+					case COND_GE:	
+						if (valuel >= valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 
-						case COND_GE:	
-							if (valuel >= valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
+					case COND_LE:	
+						if (valuel <= valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 
-						case COND_LE:	
-							if (valuel <= valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
+					case COND_GT:	
+						if (valuel > valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 
-						case COND_GT:	
-							if (valuel > valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
-
-						case COND_LT:	
-							if (valuel < valuer)
-								m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-							break;
-						}
+					case COND_LT:	
+						if (valuel < valuer)
+							m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+						break;
 					}
 				}
-				else
-				{
-					// Check bit 0 of the evaluated expression from equation 1
-					if (((int) valuel) & 0x01)
-						m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-					else
-						m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
-				}
 			}
-		}		
-		if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR || errVar != "")
-		{
-			err.Format("Error in line %d(%s):  Symbol %s undefined", m_Line,
-				(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) errVar);
-			m_Errors.Add(err);
+			else
+			{
+				// Check bit 0 of the evaluated expression from equation 1
+				if (((int) valuel) & 0x01)
+					m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+				else
+					m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
+			}
 		}
+	}		
+	if (m_IfStat[m_IfDepth] == IF_STAT_EVAL_ERROR || errVar != "")
+	{
+		err.Format("Error in line %d(%s):  Symbol %s undefined", m_Line,
+			(const char *) m_Filenames[m_FileIndex].Filename(), (const char *) errVar);
+		m_Errors.Add(err);
+	}
 
-		gCond = new CCondition;
-//		m_Instructions->Add(pInst);
-//	}
+	gCond = new CCondition;
 }
 
 /*
@@ -3313,33 +3323,25 @@ void VTAssembler::directive_else()
 	// Update line number
 	m_Line = (PCB).line - 1;
 	
-//	CInstruction*	pInst = new CInstruction;
-//	if (pInst != NULL)
-//	{
-//		pInst->m_ID = INST_ELSE;
-//		pInst->m_Line = m_Line;
-//		pInst->m_FileIndex = m_FileIndex;			// Save index of the current file
-		m_LastIfElseLine = m_Line;
-		m_LastIfElseIsIf = 0;
-//		m_Instructions->Add(pInst);
+	m_LastIfElseLine = m_Line;
+	m_LastIfElseIsIf = 0;
 
-		// Process ELSE statement during parsing.  First insure else has a matching if
-		if (m_IfDepth == 0)
-		{
-			err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
-				(const char *) m_Filenames[m_FileIndex].Filename());
-			m_Errors.Add(err);
-			return;
-		}
-		
-		// Now check if the active IF statement is not a NESTED_DONT_ASSEMBLE.
-		// If it isn't then change the state of the  assembly
-		if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
-			m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
-		else
-			if (m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE)
-				m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
-//	}
+	// Process ELSE statement during parsing.  First insure else has a matching if
+	if (m_IfDepth == 0)
+	{
+		err.Format("Error in line %d(%s):  ELSE without a matching IF", m_Line, 
+			(const char *) m_Filenames[m_FileIndex].Filename());
+		m_Errors.Add(err);
+		return;
+	}
+	
+	// Now check if the active IF statement is not a NESTED_DONT_ASSEMBLE.
+	// If it isn't then change the state of the  assembly
+	if (m_IfStat[m_IfDepth] == IF_STAT_ASSEMBLE)
+		m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
+	else
+		if (m_IfStat[m_IfDepth] == IF_STAT_DONT_ASSEMBLE)
+			m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
 }
 
 /*
@@ -3354,26 +3356,17 @@ void VTAssembler::directive_endif()
 	// Update line number
 	m_Line = (PCB).line - 1;
 	
-//	CInstruction*	pInst = new CInstruction;
-//	if (pInst != NULL)
-//	{
-//		pInst->m_ID = INST_ENDIF;
-//		pInst->m_Line = m_Line;
-//		pInst->m_FileIndex = m_FileIndex;			// Save index of the current file
-//		m_Instructions->Add(pInst);
+	// Process ENDIF statement during parsing.  First insure else has a matching if
+	if (m_IfDepth == 0)
+	{
+		err.Format("Error in line %d(%s):  ENDIF without a matching IF", m_Line, 
+			(const char *) m_Filenames[m_FileIndex].Filename());
+		m_Errors.Add(err);
+		return;
+	}
 
-		// Process ENDIF statement during parsing.  First insure else has a matching if
-		if (m_IfDepth == 0)
-		{
-			err.Format("Error in line %d(%s):  ENDIF without a matching IF", m_Line, 
-				(const char *) m_Filenames[m_FileIndex].Filename());
-			m_Errors.Add(err);
-			return;
-		}
-
-		// Pop If from stack
-		m_IfDepth--;
-//	}
+	// Pop If from stack
+	m_IfDepth--;
 }
 
 /*
@@ -3403,7 +3396,7 @@ int VTAssembler::Assemble()
 	unsigned int	address;
 	double			value;
 	char			rel_mask;
-	int				valid, extern_label;
+	int				valid, extern_label, equation;
 	POSITION		pos;
 	MString			key, errSymbol;
 	CSegment*		relSeg;
@@ -3441,8 +3434,11 @@ int VTAssembler::Assemble()
 		{
 			pInst = (CInstruction*) (*m_Instructions)[c];
 			m_Line = pInst->m_Line;
+			if (m_Line != -1)
+				m_ActiveSeg->m_LastLine = m_Line;
 			m_FileIndex = pInst->m_FileIndex;
 			rel_mask = 0;
+			equation = 0;
 			address = m_Address;
 
 			/*
@@ -3498,6 +3494,8 @@ int VTAssembler::Assemble()
 					(type == OPCODE_REG_IMM) || (type == OPCODE_REG_EQU16) || 
 					(type == OPCODE_PGI))
 				{
+					CRpnEquation* pEq = (CRpnEquation *) pInst->m_Group;
+
 					if ((type == OPCODE_EQU8) || (type == OPCODE_REG_IMM))
 						size = 1;
 					else if (type == OPCODE_EQU24)
@@ -3506,14 +3504,19 @@ int VTAssembler::Assemble()
 						size = 2;
 
 					// Try to get value of the equation
-					if (Evaluate((CRpnEquation *) pInst->m_Group, &value, 1, errSymbol))
+					if (Evaluate(pEq, &value, 1, errSymbol))
 					{
 						// Equation evaluated to a value.  Check if it is 
 						// relative to a relocatable segment
-						if (InvalidRelocation((CRpnEquation *) pInst->m_Group, rel_mask,
+						if (InvalidRelocation(pEq, rel_mask,
 							relSeg))
 						{
 							valid = 0;
+							equation = 1;
+							op1 = 0;
+							op2 = 0;
+							op3 = 0;
+							value = 0.0;
 						}
 
 						if (type == OPCODE_PGI)
@@ -3528,7 +3531,7 @@ int VTAssembler::Assemble()
 					else
 					{
 						// Equation does not evaluate.  Check if it is an extern
-						if (EquationIsExtern((CRpnEquation *) pInst->m_Group, size))
+						if (EquationIsExtern(pEq, size))
 						{
 							// Add a dummy value (0) with relocation
 							op1 = 0;
@@ -3539,11 +3542,13 @@ int VTAssembler::Assemble()
 						}
 						else
 						{
-							err.Format("Error in line %d(%s):  Invalid relocation relative to symbol %s",
-								pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename(), 
-								(const char *) errSymbol);
-							m_Errors.Add(err);
-							valid = 0;
+							// We need to save the equation in the ELF file and let the linker
+							// to the evaluation after the segments have been located.
+							equation = 1;
+							op1 = 0;
+							op2 = 0;
+							op3 = 0;
+							value = 0.0;
 						}
 					}
 				}
@@ -3556,6 +3561,12 @@ int VTAssembler::Assemble()
 					pRel->m_Address = m_Address + 1;
 					pRel->m_pSourceRange = m_ActiveAddr;
 					pRel->m_Segment = relSeg;
+					if (type == OPCODE_EQU16 || type == OPCODE_REG_EQU16)
+						pRel->m_Size = 2;
+					else if (type == OPCODE_EQU24)
+						pRel->m_Size = 3;
+					else
+						pRel->m_Size = 1;
 					pRange = m_ActiveSeg->m_UsedAddr;
 					if (relSeg != NULL)
 						pRange = relSeg->m_UsedAddr;
@@ -3584,6 +3595,24 @@ int VTAssembler::Assemble()
 					pExt->m_pRange = m_ActiveAddr;
 					m_Externs.Add(pExt);
 				}
+
+				// Add equation to the array of equations to be added to the ELF file
+				else if (equation)
+				{
+					// Add a linker equation for relocation
+					CLinkerEquation *pLinkEq = new CLinkerEquation;
+					pLinkEq->m_Address = m_Address + 1;
+					if (m_ActiveSeg->m_Type == ASEG)
+						pLinkEq->m_Address -= m_ActiveAddr->address;
+					pLinkEq->m_Segment = m_ActiveSeg->m_Type;
+					pLinkEq->m_Size = size;
+					pLinkEq->m_pRange = m_ActiveAddr;
+					pLinkEq->m_pRpnEq = ((CRpnEquation *) pInst->m_Group);
+					pLinkEq->m_Line = m_Line;
+					pInst->m_Group = NULL;
+					m_Equations.Add(pLinkEq);
+				}
+
 				// Test for relative branch instruction
 				else if ((pInst->m_ID >= OPCODE_BR) && (pInst->m_ID <= OPCODE_RCALL))
 				{
@@ -3777,44 +3806,10 @@ int VTAssembler::Assemble()
 
 			/*
 			====================================================================
-			Deal with DB directive by adding bytes to the output stream
+			Deal with DB and DW directive by adding bytes to the output stream
 			====================================================================
 			*/
-			else if (pInst->m_ID == INST_DB)
-			{
-				// Get count of expression in list
-				pExpList = (VTObArray *) pInst->m_Group;
-				len = pExpList->GetSize();
-
-				// Update address based on number of items in expression list
-				for (x = 0; x < len; x++)
-				{
-					// Get next expression from expression list
-					pExp = (CExpression *) (*pExpList)[x];
-
-					// If expression has an equation, try to evaluate it
-					if (pExp->m_Equation != NULL)
-					{
-						if (Evaluate(pExp->m_Equation, &value, 1))
-							m_ActiveSeg->m_AsmBytes[m_Address++] = (unsigned char) value;
-					}
-					else
-					{
-						// Add bytes from the string
-						int y, str_len;
-						str_len = pExp->m_Literal.GetLength();
-						for (y = 0; y < str_len; y++)
-							m_ActiveSeg->m_AsmBytes[m_Address++] = pExp->m_Literal[y];
-					}
-				}
-			}
-
-			/*
-			====================================================================
-			Deal with DW directive by adding bytes to the output stream
-			====================================================================
-			*/
-			else if (pInst->m_ID == INST_DW)
+			else if (pInst->m_ID == INST_DW || pInst->m_ID == INST_DB)
 			{
 				// Get count of expression in list
 				pExpList = (VTObArray *) pInst->m_Group;
@@ -3839,22 +3834,40 @@ int VTAssembler::Assemble()
 							if (InvalidRelocation(pExp->m_Equation, rel_mask, relSeg))
 							{
 								valid = 0;
+								equation = 1;
+								op1 = 0;
+								op2 = 0;
+								op3 = 0;
+								value = 0.0;
 							}
 
 							// Test operand1 to check if MSFIRST is on or not
-							if (*pInst->m_Operand1 == "1")
+							if (pInst->m_ID == INST_DW)
 							{
-								m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) >> 8;
-								m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) & 0xFF;
+								if (*pInst->m_Operand1 == "1")
+								{
+									m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) >> 8;
+									m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) & 0xFF;
+								}
+								else
+								{
+									m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) & 0xFF;
+									m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) >> 8;
+								}
 							}
 							else
 							{
 								m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) & 0xFF;
-								m_ActiveSeg->m_AsmBytes[m_Address++] = ((unsigned short) value) >> 8;
 							}
 						}
 						else
 						{
+							// Set size based on instruction
+							if (pInst->m_ID == INST_DW)
+								size = 2;
+							else
+								size = 1;
+
 							// Equation does not evaluate.  Check if it is an extern
 							if (EquationIsExtern(pExp->m_Equation, size))
 							{
@@ -3867,11 +3880,19 @@ int VTAssembler::Assemble()
 							}
 							else
 							{
-								err.Format("Error in line %d(%s):  Equation cannot be evaluated",
-									pInst->m_Line, (const char *) m_Filenames[m_FileIndex].Filename());
-								m_Errors.Add(err);
-								valid = 0;
+								// We need to save the equation in the ELF file and let the linker
+								// to the evaluation after the segments have been located.
+								op1 = 0;
+								op2 = 0;
+								op3 = 0;
+								value = 0.0;
+								equation = 1;
 							}
+
+							// Add zero bytes to the output
+							m_ActiveSeg->m_AsmBytes[m_Address++] = 0;
+							if (size == 2)
+								m_ActiveSeg->m_AsmBytes[m_Address++] = 0;
 						}
 
 						// Check if DW is relative to a relocatable section
@@ -3882,6 +3903,7 @@ int VTAssembler::Assemble()
 							pRel->m_Address = m_Address-2;
 							pRel->m_pSourceRange = m_ActiveAddr;
 							pRel->m_Segment = relSeg;
+							pRel->m_Size = size;
 							pRange = m_ActiveSeg->m_UsedAddr;
 							if (relSeg != NULL)
 								pRange = relSeg->m_UsedAddr;
@@ -3909,16 +3931,43 @@ int VTAssembler::Assemble()
 							pExt->m_pRange = m_ActiveAddr;
 							m_Externs.Add(pExt);
 						}
+
+						// Add equation to the array of relocatable equations to add to the ELF file
+						else if (equation)
+						{
+							// Add a linker equation for relocation
+							CLinkerEquation *pLinkEq = new CLinkerEquation;
+							pLinkEq->m_Address = m_Address - 2;
+							if (m_ActiveSeg->m_Type == ASEG)
+								pLinkEq->m_Address -= m_ActiveAddr->address;
+							pLinkEq->m_Segment = m_ActiveSeg->m_Type;
+							pLinkEq->m_Size = size;
+							pLinkEq->m_pRange = m_ActiveAddr;
+							pLinkEq->m_pRpnEq = pExp->m_Equation;
+							pLinkEq->m_Line = m_Line;
+							pExp->m_Equation = NULL;
+							m_Equations.Add(pLinkEq);
+						}
 					}
 					else
 					{
 						// Add bytes from the string
 						int y, str_len;
-						str_len = pExt->m_Name.GetLength();
-						for (y = 0; y < str_len; y++)
-							m_ActiveSeg->m_AsmBytes[m_Address++] = pExt->m_Name[y];
-						if (str_len & 1)
-							m_ActiveSeg->m_AsmBytes[m_Address++] = 0;
+						if (pInst->m_ID == INST_DW)
+						{	
+							str_len = pExt->m_Name.GetLength();
+							for (y = 0; y < str_len; y++)
+								m_ActiveSeg->m_AsmBytes[m_Address++] = pExt->m_Name[y];
+							if (str_len & 1)
+								m_ActiveSeg->m_AsmBytes[m_Address++] = 0;
+						}
+						else
+						{
+							// Add bytes from the string
+							str_len = pExp->m_Literal.GetLength();
+							for (y = 0; y < str_len; y++)
+								m_ActiveSeg->m_AsmBytes[m_Address++] = pExp->m_Literal[y];
+						}
 					}
 				}
 			}
@@ -4015,16 +4064,21 @@ int VTAssembler::Assemble()
 This routine creates the ELF object file.
 ========================================================================
 */
-int VTAssembler::CreateObjFile(const char *filename)
+int VTAssembler::CreateObjFile(const char *filename, const char *sourcefile)
 {
 	Elf32_Ehdr		ehdr;
-	Elf32_Shdr		strhdr, str2hdr, symhdr, *aseg_hdr, *cseg_hdr, *dseg_hdr;
+	Elf32_Shdr		strhdr, str2hdr, symhdr, eqhdr, *aseg_hdr, *cseg_hdr, *dseg_hdr;
 	Elf32_Shdr		*rel_hdrs, null_hdr;
 	Elf32_Sym		sym;
+	Elf32_LinkEq	eqent;
 	Elf32_Rel		rel;
-	int				c, idx;
+    Elf32_Half      namelen;
+	int				c, idx, count, x, opcount, eqIdx;
 	int				aseg_sections, cseg_sections, dseg_sections;
+    Elf32_Word      seglineinfo;
 	FILE*			fd;
+	char*			eqTemp;
+	char			sval[20];
 	CSymbol*		pSymbol;
 	CSegment*		pSegment;
 	CRelocation*	pReloc;
@@ -4036,16 +4090,20 @@ int VTAssembler::CreateObjFile(const char *filename)
 	const char		relString[] = ".relcseg\0.reldseg\0";
 	const char		debugString[] = ".debug\0";
 	const char		symString[] = ".symtab\0";
+	const char		equString[] = ".equtab\0";
 	int				symtab_off, symtab_idx;
 	const int		debugStrSize = 7;
+	const int		eqStrSize = 8;
 	const int		shstrtab_off = 1;
 	const int		strtab_off = 11;
 	const int		aseg_off = 19;
 	const int		cseg_off = 25;
 	const int		dseg_off = 31;
+    int             eqtab_off;
 	int				len, strtab_start;
 	int				first_aseg_idx, first_cseg_idx, first_dseg_idx;
 	int				shidx, type, bind;
+	int				symtype;
 	const char *	pStr;
 
 	// Now try to open the object file
@@ -4128,6 +4186,12 @@ int VTAssembler::CreateObjFile(const char *filename)
 	fwrite(sectString, sizeof(sectString), 1, fd);
 	fwrite(relString, sizeof(relString), 1, fd); 
 	strhdr.sh_size = sizeof(sectString) + sizeof(relString);
+    if (m_Equations.GetSize() > 0)
+    {
+		fwrite(equString, eqStrSize, 1, fd);
+        eqtab_off = strhdr.sh_size;
+		strhdr.sh_size += eqStrSize;
+    }
 	if (m_DebugInfo)
 	{
 		fwrite(debugString, debugStrSize, 1, fd);
@@ -4194,7 +4258,8 @@ int VTAssembler::CreateObjFile(const char *filename)
 		{
 			// Get next symbol
 			m_ActiveMod->m_Symbols->GetNextAssoc(pos, key, (VTObject *&) pSymbol);
-			if ((pSymbol->m_SymType & SYM_PUBLIC) || (pSymbol->m_SymType & SYM_EXTERN))
+			symtype = pSymbol->m_SymType & 0xFF;
+			if ((pSymbol->m_SymType & SYM_PUBLIC) || (symtype == SYM_EXTERN))
 			{
 				// Don't add global defines to Object file
 				if ((pSymbol->m_SymType & 0xFF) == SYM_DEFINE)
@@ -4250,7 +4315,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 		aseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 		aseg_hdr[idx].sh_link = 0;			// Set link data to zero
 		aseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
-		aseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
+		seglineinfo = (m_ActiveSeg->m_Line & 0xFFFF) | 
+			((m_ActiveSeg->m_LastLine & 0xFFFF) << 16);
+		aseg_hdr[idx].sh_addralign = seglineinfo;	// Set allignment data to zero
 		aseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
 		// Save the index of this ASEG Section Header for relocation reference
@@ -4326,7 +4393,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 			cseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 			cseg_hdr[idx].sh_link = 0;			// Set link data to zero
 			cseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
-			cseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
+            seglineinfo = (m_ActiveSeg->m_Line & 0xFFFF) | 
+                ((m_ActiveSeg->m_LastLine & 0xFFFF) << 16);
+			cseg_hdr[idx].sh_addralign = seglineinfo;// Use alignment for line #
 			cseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
 			// Save the index of this CSEG Section Header for relocation reference
@@ -4397,7 +4466,9 @@ int VTAssembler::CreateObjFile(const char *filename)
 			dseg_hdr[idx].sh_size = pRange->length;	// Get size from AddrRange
 			dseg_hdr[idx].sh_link = 0;			// Set link data to zero
 			dseg_hdr[idx].sh_info = pRange->line;// Set info byte to lineNo where range starts
-			dseg_hdr[idx].sh_addralign = 0;		// Set allignment data to zero
+            seglineinfo = (m_ActiveSeg->m_Line & 0xFFFF) | 
+                ((m_ActiveSeg->m_LastLine & 0xFFFF) << 16);
+			dseg_hdr[idx].sh_addralign = seglineinfo;// Use alignment for line #
 			dseg_hdr[idx].sh_entsize = 0;		// Symbol table has equal size items
 
 			// Save the index of this CSEG Section Header for relocation reference
@@ -4444,6 +4515,8 @@ int VTAssembler::CreateObjFile(const char *filename)
 		{
 			// Get next symbol
 			m_ActiveMod->m_Symbols->GetNextAssoc(pos, key, (VTObject *&) pSymbol);
+			symtype = pSymbol->m_SymType & 0xFF;
+			//if ((pSymbol->m_SymType & SYM_PUBLIC) || (symtype == SYM_EXTERN))
 			if ((pSymbol->m_SymType & SYM_PUBLIC) || (pSymbol->m_SymType & SYM_EXTERN))
 			{
 				// Don't add global defines to Object file
@@ -4461,6 +4534,8 @@ int VTAssembler::CreateObjFile(const char *filename)
 					bind = STB_EXTERN;
 				if ((pSymbol->m_SymType & 0xFF) == SYM_LABEL)
 					type = STT_FUNC;
+				else if ((pSymbol->m_SymType & 0xFF) == SYM_EQUATE)
+					type = STT_EQUATE;
 				else
 					type = STT_OBJECT;
 
@@ -4550,6 +4625,12 @@ int VTAssembler::CreateObjFile(const char *filename)
 				{
 					// Check if this relocation relative to current section
 					pReloc = (CRelocation *) m_ActiveSeg->m_Reloc[c];
+					if (pReloc->m_Size == 2)
+						type = SR_ADDR_XLATE;
+					else if (pReloc->m_Size == 1)
+						type = SR_8BIT;
+					else
+						type = SR_24BIT;
 					if (pReloc->m_pTargetRange == pRange)
 					{	
 						if (pReloc->m_pSourceRange->shidx >= first_dseg_idx)
@@ -4557,21 +4638,21 @@ int VTAssembler::CreateObjFile(const char *filename)
 							shidx = pReloc->m_pSourceRange->shidx - first_dseg_idx;
 							rel.r_offset = pReloc->m_Address - dseg_hdr[shidx].sh_addr + 
 								dseg_hdr[shidx].sh_offset;
-							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+							rel.r_info = ELF32_R_INFO(0, type); 
 						}
 						else if (pReloc->m_pSourceRange->shidx >= first_cseg_idx)
 						{
 							shidx = pReloc->m_pSourceRange->shidx - first_cseg_idx;
 							rel.r_offset = pReloc->m_Address - cseg_hdr[shidx].sh_addr + 
 								cseg_hdr[shidx].sh_offset;
-							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+							rel.r_info = ELF32_R_INFO(0, type); 
 						}
 						else
 						{
 							shidx = pReloc->m_pSourceRange->shidx - first_aseg_idx;
 							rel.r_offset = pReloc->m_Address - aseg_hdr[shidx].sh_addr + 
 								aseg_hdr[shidx].sh_offset;
-							rel.r_info = ELF32_R_INFO(0, SR_ADDR_XLATE); 
+							rel.r_info = ELF32_R_INFO(0, type); 
 						}
 
 						// Update size of header
@@ -4595,7 +4676,10 @@ int VTAssembler::CreateObjFile(const char *filename)
 				{
 					// Set address for this relocation
 					rel.r_offset = pExt->m_Address - pExt->m_pRange->address;
-					rel.r_info = ELF32_R_INFO(pExt->m_SymIdx, SR_EXTERN);
+                    if (pExt->m_Size == 1)
+                        rel.r_info = ELF32_R_INFO(pExt->m_SymIdx, SR_EXTERN8);
+                    else
+                        rel.r_info = ELF32_R_INFO(pExt->m_SymIdx, SR_EXTERN);
 
 					// Update size of header
 					rel_hdrs[idx].sh_size += sizeof(Elf32_Rel);
@@ -4634,6 +4718,121 @@ int VTAssembler::CreateObjFile(const char *filename)
 			pRange = pRange->pNext;	
 			idx++;								// Increment to next index
 		}
+	}
+
+	/*
+	=========================================================
+	Create section for relocatable linker equations if needed
+
+	Equations are store in the ELF file with a 16-bit length
+	followed by the equation data. Equation data is storeed
+	in binary + NULL terminated variable name format.  Each
+	RPN operation is added as a single byte.  For RPN entries
+	that are values or variables, a NULL terminated string
+	representing the value / variable will follow the
+	RPN operation code.
+	=========================================================
+	*/
+	count = m_Equations.GetSize();
+	if (count > 0)
+	{
+		// Create section header 
+		eqhdr.sh_name = eqtab_off;		// Put ".strtab" as first entry in table
+		eqhdr.sh_type = SHT_LINK_EQ;	// Make section a linker equation section
+		eqhdr.sh_flags = SHF_OS_NONCONFORMING;	// This section is custom
+		eqhdr.sh_addr = 0;				// No address data for string table
+		eqhdr.sh_offset = ftell(fd);
+		eqhdr.sh_size = 0;				// Initialize size to zero -- fill in later
+		eqhdr.sh_link = 0;				// Set link data to point to the .shstrtab section
+		eqhdr.sh_info = 0;				// Set info byte to zero
+		eqhdr.sh_addralign = 0;			// Set allignment data to zero
+		eqhdr.sh_entsize = 0;			// String table does not have equal size entries
+		ehdr.e_shnum++;					// Increment Section Header count
+
+        /* Add the source filename to the ELF file */
+        namelen = strlen(sourcefile)+1;
+        fwrite(&namelen, 1, sizeof(namelen), fd);
+        fwrite(sourcefile, 1, namelen, fd);
+
+		/* Loop through all Linker Equations and add them to this section */
+		eqTemp = new char[2048];
+		for (c = 0; c < count; c++)
+		{
+			// Get pointer to next LinkerEquation 
+			CLinkerEquation *pLinkEq = (CLinkerEquation *) m_Equations[c];
+			opcount = pLinkEq->m_pRpnEq->m_OperationArray.GetSize();
+            eqIdx = 0;
+
+			for (x = 0; x < opcount; x++)
+			{
+				CRpnOperation& 		op = pLinkEq->m_pRpnEq->m_OperationArray[x];
+
+				// Add the operation code to the equation data
+				eqTemp[eqIdx++] = op.m_Operation;
+
+				// Check if a value or variable needs to be added 
+				switch (op.m_Operation)
+				{
+				case RPN_VARIABLE:
+                    // Try to evaluate the variable.  If we can evaluate it, then
+                    // we will add the value to the equation instead of the variable name
+					{
+                        int  int_val;
+
+                        if (!GetValue(op.m_Variable, int_val))
+						{
+							// Add the variable to the eqTemp data
+							if (op.m_Variable.GetLength() > 0)
+							{
+								strcpy(&eqTemp[eqIdx], (const char *) op.m_Variable);
+								eqIdx += op.m_Variable.GetLength()+1;
+							}
+							break;
+						}
+						else
+						{
+                            // Change the RPN_VARIABLE in the output array to a value
+                            eqTemp[eqIdx-1] = RPN_VALUE;
+                            op.m_Value = int_val;
+
+							// Fallthrough to add RPN_VALUE to ELF file
+						}
+					}
+
+				case RPN_VALUE:
+					// Add the operation code
+					sprintf(sval, "%f", op.m_Value);
+                    len = strlen(sval);
+                    while (sval[len-1] == '0')
+                        sval[--len] = '\0';
+                    if (sval[len-1] == '.')
+                        sval[--len] = '\0';
+					strcpy(&eqTemp[eqIdx], sval);
+					eqIdx += strlen(sval)+1;
+					break;
+
+				default:
+					break;
+				}
+			}
+
+			// Write this equation out to the file
+			eqent.st_addr = pLinkEq->m_Address;
+			eqent.st_size = pLinkEq->m_Size;
+            eqent.st_num = opcount;
+			eqent.st_len = sizeof(eqent) + eqIdx;
+			eqent.st_info = pLinkEq->m_pRange->shidx;   // Index of the segment this is relative to
+            eqent.st_line = pLinkEq->m_Line;
+			fwrite(&eqent, 1, sizeof(eqent), fd);
+			fwrite(eqTemp, 1, eqIdx, fd);
+
+			// Update the section size
+			eqhdr.sh_size += eqent.st_len;
+
+		}
+		
+		// delete the temporary equation storage
+		delete[] eqTemp;
 	}
 
 	/*
@@ -4696,6 +4895,12 @@ int VTAssembler::CreateObjFile(const char *filename)
 		fwrite(&rel_hdrs[c], sizeof(Elf32_Shdr), 1, fd);
 	}
 
+	// Write Linker Equation header if needed
+	if (m_Equations.GetSize() > 0)
+	{
+		fwrite(&eqhdr, sizeof(eqhdr), 1, fd);
+	}
+
 	// Write Debug section headers
 
 	// Seek to beginning and update Elf Header
@@ -4723,7 +4928,7 @@ more than one segment.
 int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
 	CSegment *&pSeg)
 {
-	int		c, count, invalid;
+	int		c, count, invalid, sameseg;
 	char	rel[3];
 	CSymbol	*pSym;
 
@@ -4736,6 +4941,10 @@ int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
 		rel[c] = 0;
 
 	pSeg = NULL;
+    if (count > 1)
+        sameseg = TRUE;
+    else
+        sameseg = FALSE;
 	for (c = 0; c < count; c++)
 	{
 		// Check if operation type is a variable
@@ -4775,15 +4984,25 @@ int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
 					else
 					{
 						if (pSeg != pSym->m_Segment)
+                        {
 							invalid = TRUE;
+                            sameseg = FALSE;
+                        }
 					}
 				}
 			}
+            else
+                sameseg = FALSE;
 		}
+        else if (pEq->m_OperationArray[c].m_Operation == RPN_VALUE)
+            sameseg = FALSE;
 	}
 
 	// Update rel_mask based on which types of segments referenced
-	rel_mask = rel[0] | (rel[1] << 1) | (rel[2] << 2);
+    rel_mask = rel[0] | (rel[1] << 1) | (rel[2] << 2);
+    if (sameseg && (rel_mask == 1 || rel_mask == 2 || rel_mask == 4))
+        rel_mask = 0;
+
 	return invalid;
 }
 
@@ -4834,7 +5053,7 @@ output files for .obj, .lst, .hex, etc.
 void VTAssembler::ParseExternalDefines(void)
 {
 	int			startIndex, endIndex;
-	MString		def;
+	MString		def, sval;
 	int			valIdx, len;
 	int			value = -1;
 
@@ -4857,12 +5076,16 @@ void VTAssembler::ParseExternalDefines(void)
 		// Extract the define from the string
 		def = m_ExtDefines.Mid(startIndex, endIndex - startIndex);
 
+        sval = "";
+
 		// Test if the define has an embedded '='
 		if ((valIdx = def.Find('=')) != -1)
 		{
 			MString name = def.Left(valIdx);
 
-			MString val = def.Mid(valIdx+1, endIndex - (valIdx+1));
+			sval = def.Mid(valIdx+1, endIndex - (valIdx+1));
+			//MString val = def.Mid(valIdx+1, endIndex - (valIdx+1));
+#if 0
 			if (!GetValue(val, value))
 			{
 				MString errMsg;
@@ -4871,11 +5094,21 @@ void VTAssembler::ParseExternalDefines(void)
 					(const char *) name);
 				m_Errors.Add(errMsg);
 			}
+#endif
 
 			// The value was valid.  Replace the def name
 			def = name;
 		}
 
+        CMacro  *pMacro = new CMacro;
+        if (pMacro != NULL)
+        {
+            pMacro->m_Name = def;
+            pMacro->m_DefString = sval;
+            m_Defines.Add(pMacro);
+        }
+
+#if 0
 		// Now assign this define
 		CSymbol*	pSymbol = new CSymbol;
 		if (pSymbol != NULL)
@@ -4893,6 +5126,7 @@ void VTAssembler::ParseExternalDefines(void)
 			const char *pStr = (const char *) pSymbol->m_Name;
 			(*m_Symbols)[pStr] = pSymbol;
 		}
+#endif
 
 		// Update startIndex
 		startIndex = endIndex + 1;
@@ -4924,10 +5158,6 @@ void VTAssembler::Parse(MString filename)
 	int		lastDirMark;
 	MString	outfile, errMsg;
 	MString	temp;
-
-
-	// Clean up the assembler files from previous assembler
-	ResetContent();
 
 	// Assign the file's directory for searching include files
 	lastDirMark = filename.ReverseFind('/');
@@ -4971,22 +5201,18 @@ void VTAssembler::Parse(MString filename)
 
 			// Append .obj to filename
 			temp = outfile;
-			outfile += (char *) ".obj";
-
-			// Generate the object file
-			CreateObjFile(outfile);
 
 			// Generate a listing file if requested
 			outfile = temp + (char *) ".lst";
 			CreateList(outfile, filename);
 
+			// Generate the object file
+			outfile = temp + (char *) ".obj";
+			CreateObjFile(outfile, filename);
+
 			// Generate a hex file if requested
 			outfile = temp + (char *) ".hex";
 			CreateHex(outfile);
-
-			// Generate a .CO file if needed
-			outfile = temp + (char *) ".co";
-			CreateCO(outfile);
 
 			// Generate a verilog file if requested
 			outfile = temp + (char *) ".dat";
@@ -5002,10 +5228,10 @@ This function creates a listing file if one was requested.
 */
 void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 {
-	MString			outfile;
 	FILE*			fd;
 	FILE*			inFd;
 	int				lineNo = 1;
+	int				outLine = 1;
 	int				c;				// Segment this line was found in
 	char *			pRead;
 	char		    lineBuf[256];
@@ -5052,10 +5278,11 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 	pSegLines = (CSegLines *) m_SegLines[0];
 	pSeg = pSegLines->pSegment;
 
+    // Get the first instruction / line with output bytes
 	if (pSeg->m_Count != 0)
 	{
 		pInst = (CInstruction*) (*pSeg->m_Instructions)[0];
-		while ((pInst != NULL) && (pInst->m_ID == INST_LABEL))
+		while ((pInst != NULL) && (pInst->m_ID == INST_LABEL || pInst->m_Line == -1))
 		{
 			if (++pSeg->m_Index < pSeg->m_Count)
 				pInst = (CInstruction *) (*pSeg->m_Instructions)[pSeg->m_Index];
@@ -5120,6 +5347,7 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 								fprintf(fd, "   ");
 						}
 						fprintf(fd, LINE_ENDING);
+						outLine++;
 					}
 
 					// Print any remaining bytes (dw or db statement)
@@ -5132,6 +5360,7 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 								if (pInst->m_Bytes > 12)
 								{
 									fprintf(fd, "...%s", LINE_ENDING);
+									outLine++;
 									continue;
 								}
 							}
@@ -5152,6 +5381,7 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 								fprintf(fd, "   ");
 						}
 						fprintf(fd, LINE_ENDING);
+						outLine++;
 					}
 
 					firstInst = FALSE;
@@ -5187,11 +5417,11 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 			fputs(lineBuf, fd);
 		}
 
-		// Append .lst to filename
-		outfile += (char *) ".lst";
+        pSeg->m_LastLine = outLine;
 
 		// Increment the line number
 		lineNo++;
+		outLine++;
 
 		// Test if the new lineNo causes us to change to a new segment
 		if ((pSegLines->lastLine != -1) && (lineNo > pSegLines->lastLine))
@@ -5209,6 +5439,8 @@ void VTAssembler::CreateList(MString& filename, MString& asmFilename)
 			// Update pSegLines and pSeg plus pInst structures
 			pSegLines = (CSegLines *) m_SegLines[segLines];
 			pSeg = pSegLines->pSegment;
+			pSeg->m_Line = outLine - 1;
+			pInst = (CInstruction*) (*pSeg->m_Instructions)[0];
 
 			// Get the pInst for this module
 			if (pSeg->m_Index < pSeg->m_Count)
@@ -5605,6 +5837,7 @@ CSegment::CSegment(const char *name, int type, CModule* initialMod)
 	m_InitialMod = initialMod;
 	m_LastMod = initialMod;
 	m_InstIndex = 0;
+    m_Line = 0;
 	m_Instructions = new VTObArray;
 	m_Address = 0;
 	m_UsedAddr = new AddrRange;

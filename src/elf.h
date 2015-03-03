@@ -1,6 +1,6 @@
 /* elf.h */
 
-/* $Id: elf.h,v 1.2 2011/07/09 08:16:21 kpettit1 Exp $ */
+/* $Id: elf.h,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -31,11 +31,13 @@
 #ifndef		ELF_H
 #define		ELF_H
 
-typedef	unsigned long	Elf32_Addr;
-typedef	unsigned short	Elf32_Half;
-typedef	unsigned long	Elf32_Off;
-typedef	signed long		Elf32_Sword;
-typedef	unsigned long	Elf32_Word;
+#include <stdint.h>
+
+typedef	uint32_t        Elf32_Addr;
+typedef	uint16_t	    Elf32_Half;
+typedef	uint32_t        Elf32_Off;
+typedef	int32_t		    Elf32_Sword;
+typedef	uint32_t	    Elf32_Word;
 typedef	unsigned char	Elf32_Char;
 
 #define	EI_NIDENT		16
@@ -204,6 +206,7 @@ typedef struct {
 #define		SHT_PREINIT_ARRAY	16
 #define		SHT_GROUP			17
 #define		SHT_SYMTAB_SHNDX	18
+#define		SHT_LINK_EQ			19
 #define		SHT_LOOS			0x6000000
 #define		SHT_HIOS			0x6ffffff
 #define		SHT_LOPROC			0x7000000
@@ -255,6 +258,7 @@ typedef	struct {
 #define		STT_FUNC		2
 #define		STT_SECTION		3
 #define		STT_FILE		4
+#define     STT_EQUATE      5		// Absoute value (EQU) in a relocatable segment
 #define		STT_LOPROC		13
 #define		STT_HIPROC		15
 
@@ -278,6 +282,9 @@ typedef struct {
 #define		SR_ADDR_XLATE		1
 #define		SR_EXTERN			2
 #define		SR_PUBLIC			3
+#define		SR_8BIT				4
+#define		SR_24BIT			5
+#define		SR_EXTERN8			6
 #define		SR_ADDR_PROCESSED	0x81
 
 // Define program header information
@@ -303,6 +310,16 @@ typedef struct {
 #define		PT_LOPROC		0x70000000
 #define		PT_HIPROC		0x7fffffff
 
+
+// Define Linker Equation entry
+typedef	struct {
+	Elf32_Half	st_addr;	// Address of the relocation
+	Elf32_Half	st_size;	// Symbol size
+	Elf32_Half	st_len;		// Length of equation entry, counting this struct
+	Elf32_Half	st_num;     // Number of entries in the RPN equation
+	Elf32_Half	st_line;    // Line number where equation occurrs
+	Elf32_Half	st_info;    // Index of the section this is relative to
+} Elf32_LinkEq;
 
 
 #endif

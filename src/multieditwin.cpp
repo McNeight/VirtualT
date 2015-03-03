@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.5 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.6 2015/02/24 20:19:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -227,7 +227,7 @@ void Fl_Multi_Edit_Window::OpenFile(const MString& filename)
         m_FileName = filename;
         ext = filename.Right(4);
         ext.MakeLower();
-        if (ext != ".asm" && ext != ".inc" && ext != ".lkr")
+        if (ext != ".asm" && ext != ".inc" && ext != ".lkr" && ext != ".lst")
             DisableHl();
     }
 

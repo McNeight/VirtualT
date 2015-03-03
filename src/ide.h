@@ -1,6 +1,6 @@
 /* ide.h */
 
-/* $Id: ide.h,v 1.5 2013/02/05 01:20:59 kpettit1 Exp $ */
+/* $Id: ide.h,v 1.6 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -54,6 +54,8 @@ void cb_Ide(Fl_Widget* w, void*) ;
 #ifndef MENU_HEIGHT
 #define MENU_HEIGHT	32
 #endif
+
+class VTAssembler;
 
 class VT_IdeSource : public VTObject
 {
@@ -111,6 +113,9 @@ public:
 	Fl_Check_Button*	m_pWholeWord;
 	Flu_Button*			m_pNext;
 	Flu_Button*			m_pCancel;
+    Fl_Box*             m_pErrorMsg;
+
+    MString             m_ErrMsg;
 
 	class VT_Ide*		m_pParent;
 
@@ -158,6 +163,9 @@ public:
 	void			OpenTreeFile(Flu_Tree_Browser::Node* n);
 	void			AssembleTreeFile(Flu_Tree_Browser::Node* n);
 	void			TreeFileProperties(Flu_Tree_Browser::Node* n);
+	void			AssembleSourcesInGroup(VTAssembler& assembler, VT_IdeGroup* pGroup, 
+						int& totalErrors, int& linkerScriptFound, MString& linkerScript,
+						MString& linkerFiles);
 	void			BuildProject(void);
 	void			CleanProject(void);
 	void			SetColors(int fg, int bg);

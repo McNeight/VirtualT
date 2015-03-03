@@ -31,6 +31,9 @@
 #define		LKR_CMD_ENTRY		8
 #define		LKR_CMD_DEFINE		9
 #define		LKR_CMD_MIXED		10
+#define		LKR_CMD_PRELINK		11
+#define		LKR_CMD_POSTLINK	12
+#define		LKR_CMD_ECHO		13
 #define		LKR_CMD_CD_DONE		0x80
 #define		LKR_CMD_ERROR		98
 #define		LKR_CMD_COMPLETE	99
@@ -56,6 +59,8 @@
 #endif
 // Support classes for VTAssembler objects...
 
+class CObjFile;
+
 typedef struct sLinkAddrRange {
 	int						startAddr;
 	int						endAddr;
@@ -64,6 +69,23 @@ typedef struct sLinkAddrRange {
 	struct sLinkAddrRange*	pNext;
 	struct sLinkAddrRange*	pPrev;
 } LinkAddrRange;
+
+// Define a local struct to support back annotating listing files
+// We will allocate an array of 65536 of these, initialize them to
+// NULL pointers and then populate them as we learn of the 
+// fd offset for each address.
+typedef struct ListAddrLines 
+{
+	CObjFile*	    pObjFile;
+	int			    line;
+	int			    fdPos;
+    unsigned char   value;
+} ListAddrLines_t;
+
+typedef struct
+{
+	ListAddrLines	a[65536];
+} ListAddrLinesAry_t;
 
 class CObjSegment : public VTObject
 {
@@ -125,7 +147,8 @@ class CObjFileSection : public VTObject
 {
 public:
 	CObjFileSection() { m_pStrTab = NULL; m_pObjSegment = NULL; m_pProgBytes = NULL; m_Located = false;
-						m_LocateAddr = -1; m_Size = 0; m_Index = -1; };
+						m_LocateAddr = -1; m_Size = 0; m_Index = -1; 
+						m_Line = 0; m_LastLine = 0; };
 	~CObjFileSection();
 
 	Elf32_Shdr			m_ElfHeader;		// The ELF header as read from the file
@@ -133,6 +156,7 @@ public:
 	CObjSegment*		m_pObjSegment;		// Pointer to the Segment data
 	VTObArray			m_Symbols;			// Symbols from the symbol table
 	VTObArray			m_Reloc;			// Relocation entries 
+	VTObArray			m_Equations;		// Linker Equations
 	char*				m_pProgBytes;		// Pointer to program bytes
 	int					m_Size;				// Size of the ProgBytes
 	int					m_Index;			// Index of this section in the object file
@@ -140,6 +164,8 @@ public:
 	int					m_LocateAddr;		// Address where the segment was located by linker
 	MString				m_Name;				// Name of the section
 	int					m_Type;				// Segment type for segment sections
+	int					m_Line;				// Starting line in source for segment
+	int					m_LastLine;			// Ending line in source for segment
 };
 
 class CLinkRgn : public VTObject
@@ -221,6 +247,7 @@ private:
 	int					m_TotalCodeSpace;	// Total space used by code
 	int					m_TotalDataSpace;	// Total space used for data
 	int					m_TargetModel;		// Target model we are linking for
+	int					m_LinkDone;			// TRUE if link complete
 	unsigned short		m_StartAddress;		// Start address of generated code
 	unsigned short		m_EntryAddress;		// Entry address of generated code
 	MString				m_OutputName;		// Name of output file
@@ -233,7 +260,7 @@ private:
 	MString				m_EntryLabel;		// Label or address of program entry
 	MStringArray		m_ObjDirs;			// Array of '/' terminated object dirs
 	CObjFileSection*	m_SegMap[65536];	// Map of Segment assignements
-
+    ListAddrLinesAry_t  m_AddrLines;        // Array of relative address / line mappings
 // Operations
 	int					GetValue(MString & string, int & value);
 	int					LookupSymbol(MString& name, CObjSymbol *& symbol);
@@ -275,6 +302,7 @@ private:
 	CObjFileSection*	FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel);
 	int					ResolveLocals();
 	int					ResolveExterns();
+	int					ResolveEquations();
 	MString				MakeTitle(const MString& path);
 	int					GenerateOutputFile(void);
 	int					GenerateMapFile(void);
@@ -282,6 +310,8 @@ private:
 	int					CreateQuintuple(FILE* fd, unsigned long& ascii85, int& lineNo, 
 							int& dataCount, int& lastDataFilePos, int& lineCount, int& checksum);
 	int					GenerateLoaderFile(int startAddr, int endAddr, int entryAddr);
+	int 				Evaluate(class CRpnEquation* eq, double* value,  
+							int reportError, MString& errVariable, MString& filename);
 
 public:
 // Public Access functions
@@ -301,6 +331,7 @@ public:
 	void				SetOutputFile(const MString& outFile );
 	int					TotalCodeSpace(void) { return m_TotalCodeSpace; }
 	int					TotalDataSpace(void) { return m_TotalDataSpace; }
+	void				ProcessPostlink(void);
 };
 
 #endif

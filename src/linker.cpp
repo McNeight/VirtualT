@@ -10,6 +10,7 @@ Written:	11/13/09  Kenneth D. Pettit
 
 #include		"VirtualT.h"
 #include		"linker.h"
+#include 		"assemble.h"
 #include		"elf.h"
 #include		"project.h"
 #include		<FL/Fl.H>
@@ -37,8 +38,7 @@ static const char *gLoaderCode[] = {
 	"97IFK<>%dTHEN99ELSE PRINT@200,\"Success! Issue command: clear 256,%d\"\x0D\x0A",
 	"98SAVEM\"%s\",%d,%d,%d:END\x0D\x0A",
 	"99PRINT@200,\"Chksum error! Need %d, got\";K:END\x0D\x0A",
-
-	// These are used for PC-8201 and PC-8300 links
+// These are used for PC-8201 and PC-8300 links
 	"96CLS:DEFDBLV:LOCATE10,1:PRINT\"Creating %s\":LOCATE9,3:PRINT\"|\"SPACE$(21)\"|\";:D=59:I=%.3f:S=%d:M=256:FORJ%%=1TO%d:READA$:GOSUB90:NEXT\x0D\x0A",
 	"97IFK<>%dTHEN99ELSE LOCATE0,5:PRINT\"Success! Issue command: clear 256,%d\"\x0D\x0A",
 	"98BSAVE\"%s\",%d,%d,%d:END\x0D\x0A",
@@ -63,6 +63,7 @@ VTLinker::VTLinker()
 	m_TotalDataSpace = 0;
 	m_EntryAddress = 0;
 	m_StartAddress = 0;
+    m_LinkDone = FALSE;
 	
 	// Clear out the Segment assignement map
 	for (x = 0; x < sizeof(m_SegMap) / sizeof(CObjSegment *); x++)
@@ -109,6 +110,7 @@ void VTLinker::ResetContent(void)
 	MStringArray*	pStrArray;
 	CObjSymFile*	pObjSymFile;
 	POSITION		pos;
+    int             x;
 
 	// Loop through each segment
 	pos = m_ObjFiles.GetStartPosition();
@@ -178,6 +180,10 @@ void VTLinker::ResetContent(void)
 	m_LinkFiles.RemoveAll();
 	m_FileIndex = -1;
 	m_ObjDirs.RemoveAll();
+
+    // Reset the AddrLines array
+    for (x = 0; x < 65536; x++)
+        m_AddrLines.a[x].pObjFile = NULL;
 
 	// Assign active assembly pointers
 	m_Hex = FALSE;
@@ -252,6 +258,13 @@ void VTLinker::ProcessArgs(MString &str, const char *pDelim)
 				// Set the linker script filename
 				m_LinkerScript = pTok + 1;
 			}
+
+            // Test for OptROM Bytes
+            else if (*pTok == 'b')
+            {
+                // Get pointer to next token
+                pTok = strtok(NULL, pDelim);
+            }
 		}
 		else
 		{
@@ -319,6 +332,14 @@ int VTLinker::MapScriptCommand(const char *pStr, int lineNo)
 	// Test for ENTRY specification
 	else if (strcmp(pStr, "DEFINE") == 0)
 		command = LKR_CMD_DEFINE;
+	
+	// Test for PRELINK specification
+	else if (strcmp(pStr, "PRELINK") == 0)
+		command = LKR_CMD_PRELINK;
+	
+	// Test for POSTLINK specification
+	else if (strcmp(pStr, "POSTLINK") == 0)
+		command = LKR_CMD_POSTLINK;
 	
 	else
 	{
@@ -398,37 +419,201 @@ void VTLinker::ProcScriptField2(const char *pStr, int lineNo, MString &segname)
 ============================================================================
 This routine evaluates the string provided and returns it's value.  The
 string can be decimal, hex, etc. and can contain simple math.
+
+END=Preamble_start + (1 + COUNT*4+a)*2
+
 ============================================================================
 */
-int VTLinker::EvaluateScriptAddress(const char *pStr, int lineNo)
+typedef struct
 {
-	int		len = strlen(pStr);
-	int		hex = 0;
-	int		address;
+	char	op;
+	char*	val;
+} SimpleEqOperator_t;
 
-	// Test for Hex conversion
-	if (*pStr == '$')
+#define SIMPLE_EQ_PAREN	0
+#define SIMPLE_EQ_ADD	1
+#define SIMPLE_EQ_SUB	2
+#define SIMPLE_EQ_MULT	3
+#define SIMPLE_EQ_DIV	4
+#define SIMPLE_EQ_VALUE 6
+#define SIMPLE_EQ_NOADD 10
+
+int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
+{
+	int					len = strlen(pEq);
+	int					hex = 0;
+	int					stack[10];
+	int					slevel = 0;
+	int					address, x;
+    char    			op, unwindto;
+    char    			*token, *pStr;
+	SimpleEqOperator_t	eq[20];
+	SimpleEqOperator_t	build[20];
+    char                temp[256];
+	int					eqsize = 0;
+	int					buildidx = 0;
+    int                 value;
+
+    strncpy(temp, pEq, sizeof(temp));
+    pStr = temp;
+    token = pStr;
+	for (x = 0; x < len; )
 	{
-		hex = 1;	// Indicate HEX conversion
-		pStr++;		// Skip the '$' hex delimiter
+		// Find end of next token
+		while (*pStr != '+' && *pStr != '-' && *pStr != '*' && *pStr != '/' && *pStr != 0 &&
+				*pStr != '(' && *pStr != ')')
+		{
+			pStr++;
+			x++;
+		}
+		op = *pStr;
+		*pStr = 0;
+
+		if (strlen(token) > 0)
+		{
+			// Push the value to the equation
+			eq[eqsize].op = SIMPLE_EQ_VALUE;
+			eq[eqsize++].val = token;
+		}
+
+		switch (op)
+		{
+			case '+': 
+				op= SIMPLE_EQ_ADD;
+				unwindto = SIMPLE_EQ_ADD;
+				break;
+
+			case '-': 
+				op = SIMPLE_EQ_SUB; 
+				unwindto = SIMPLE_EQ_ADD;
+				break;
+
+			case '*': 
+				op = SIMPLE_EQ_MULT; 
+				unwindto = SIMPLE_EQ_ADD;
+				break;
+			case '/': 
+				op = SIMPLE_EQ_DIV; 
+				unwindto = SIMPLE_EQ_ADD;
+				break;
+
+			case '(': 
+				build[buildidx++].op = SIMPLE_EQ_PAREN; 
+                unwindto = 99;
+				break;
+
+			case ')':
+                op = SIMPLE_EQ_NOADD;
+				unwindto = SIMPLE_EQ_PAREN;
+				break;
+            default:
+                op = SIMPLE_EQ_NOADD;
+                break;
+		}
+
+		// Unwind the build stack
+		while (buildidx > 0 && build[buildidx-1].op >= unwindto)
+		{
+			if (build[buildidx-1].op != SIMPLE_EQ_PAREN)
+				eq[eqsize++].op = build[buildidx-1].op;
+			buildidx--;
+		}
+
+        if (op != SIMPLE_EQ_NOADD)
+            build[buildidx++].op = op;
+
+		x++;
+		token = ++pStr;
 	}
-	else if ((*pStr == '0') && (*(pStr + 1) == 'x'))
+	while (buildidx > 0)
 	{
-		hex = 1;
-		pStr += 2;	// Skip the "0x" hex delimiter
-	}
-	else if ((pStr[len-1] == 'h') || (pStr[len-1] == 'H'))
-	{
-		hex = 1;
+		eq[eqsize++].op = build[buildidx-1].op;
+		buildidx--;
 	}
 
-	// Perform the conversion
-	if (hex)
-		sscanf(pStr, "%x", &address);
-	else
-		sscanf(pStr, "%d", &address);
+	// Evaluate equation
+	for (x = 0; x < eqsize; x++)
+	{
+		if (eq[x].op == SIMPLE_EQ_VALUE)
+		{
+			token = eq[x].val;
 
-	return address;
+			// Lookup symbol in active module
+			CObjSymFile* pSymFile;
+			if (m_Symbols.Lookup(token, (VTObject *&) pSymFile))
+			{
+				// If symbol was found, try to evaluate it
+				if (pSymFile != (CObjSymFile*) NULL)
+				{
+					// First get a pointer to the section referenced by the symbol
+					CObjFileSection* pSymSect = (CObjFileSection *) pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
+
+					// Get the symbol value
+					value = (unsigned short) pSymFile->m_pSym->st_value;
+					if (pSymSect->m_Type == ASEG || m_LinkDone)
+					{
+						stack[slevel++] = value;
+					}
+					else
+						stack[slevel++] = 0;
+				}
+				else
+					stack[slevel++] = 0;
+			}
+			else
+			{
+				// Test for Hex conversion
+				if (*token == '$')
+				{
+					hex = 1;	// Indicate HEX conversion
+					token++;		// Skip the '$' hex delimiter
+				}
+				else if ((*token == '0') && (*(token + 1) == 'x'))
+				{
+					hex = 1;
+					token += 2;	// Skip the "0x" hex delimiter
+				}
+				else if ((token[len-1] == 'h') || (token[len-1] == 'H'))
+				{
+					hex = 1;
+				}
+
+				// Perform the conversion
+				if (hex)
+					sscanf(token, "%x", &address);
+				else
+					sscanf(token, "%d", &address);
+
+				stack[slevel++] = address;
+			}
+		}
+		else if (eq[x].op == SIMPLE_EQ_ADD)
+		{
+			// Add the 2 top stack items and save in stack
+			value = stack[--slevel];
+			stack[slevel-1] += value;
+		}
+		else if (eq[x].op == SIMPLE_EQ_SUB)
+		{
+			// Subtract top stack item from next one down
+			value = stack[--slevel];
+			stack[slevel-1] -= value;
+		}
+		else if (eq[x].op == SIMPLE_EQ_MULT)
+		{
+			// Subtract top stack item from next one down
+			value = stack[--slevel];
+			stack[slevel-1] *= value;
+		}
+		else if (eq[x].op == SIMPLE_EQ_DIV)
+		{
+			// Subtract top stack item from next one down
+			value = stack[--slevel];
+			stack[slevel-1] /= value;
+		}
+	}
+
+	return stack[slevel - 1];
 }
 
 /*
@@ -782,6 +967,9 @@ void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
 			{
 				err.Format("Error in line %d(%s):  Linker script address ranges cannot overlap",
 					lineNo, (const char *) m_LinkerScript);
+				m_Errors.Add(err);
+                err.Format("    Range %X-%X  and    %X-%X\n", pThisRange->startAddr, pThisRange->endAddr,
+                        startAddr, endAddr);
 				m_Errors.Add(err);
 				m_Command = LKR_CMD_ERROR;
 				return;
@@ -1164,12 +1352,16 @@ CObjFile object provided.
 int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile, 
 	CObjFileSection* pFileSection)
 {
-	int				bytes = 0, count, c;
-	MString			err;
-	Elf32_Shdr*		pHdr = &pFileSection->m_ElfHeader;
-	Elf32_Sym*		pSym;
-	Elf32_Rel*		pRel;
-	CObjSymFile*	pSymFile;
+	int					bytes = 0, count, c, size, idx;
+	MString				err, sourcefile;
+	Elf32_Shdr*			pHdr = &pFileSection->m_ElfHeader;
+	Elf32_Sym*			pSym;
+	Elf32_Rel*			pRel;
+	Elf32_LinkEq		eqent;
+    Elf32_Half          namelen;
+	CObjSymFile*		pSymFile;
+	CLinkerEquation*	pEq;
+    char            	eqdata[2048];
 
 	if (pHdr->sh_offset != 0)
 		fseek(fd, pHdr->sh_offset, SEEK_SET);
@@ -1279,6 +1471,8 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 		// Allocate space for bytes and read from file
 		pFileSection->m_pProgBytes = new char[pHdr->sh_size];
 		pFileSection->m_Size = pHdr->sh_size;
+		pFileSection->m_Line = pHdr->sh_addralign & 0xFFFF;
+		pFileSection->m_LastLine = pHdr->sh_addralign >> 16;
 		if (pFileSection->m_pProgBytes != NULL)
 			bytes = fread(pFileSection->m_pProgBytes, 1, pHdr->sh_size, fd);
 
@@ -1324,7 +1518,7 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 			// Allocate new symbol and read data from the file
 			pRel = new Elf32_Rel;
 			if (pRel != NULL)
-				bytes = fread(pRel, 1, sizeof(Elf32_Rel), fd);
+				bytes = fread(pRel, 1, sizeof(Elf32_Rel), fd); 
 
 			// Test for error during read or allocate
 			if (bytes != sizeof(Elf32_Rel))
@@ -1341,6 +1535,85 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 			pFileSection->m_Reloc.Add((VTObject *) pRel);
 		}
 		break;
+
+		/* Read in the Linker Equations */
+	case SHT_LINK_EQ:
+		size = pHdr->sh_size;
+
+		// Read the source file name
+		bytes = fread(&namelen, 1, sizeof(namelen), fd);
+		bytes = fread(eqdata, 1, namelen, fd);
+		if (bytes != namelen)
+		{
+			err.Format("%sUnable to read equation data for %s",
+				gsEdl, (const char *) pObjFile->m_Name);
+			m_Errors.Add(err);
+			return FALSE;
+		}
+		sourcefile = eqdata;
+
+		while (size)
+		{
+			pEq = new CLinkerEquation;
+			pEq->m_pRpnEq = new CRpnEquation;
+
+			// Read equation header
+			bytes = fread(&eqent, 1, sizeof(eqent), fd);
+
+			// Read equation data from the file
+			bytes = fread(eqdata, 1, eqent.st_len - sizeof(eqent), fd);
+			if (bytes != eqent.st_len - sizeof(eqent))
+			{
+				err.Format("%sUnable to read equation data for %s",
+					gsEdl, (const char *) pObjFile->m_Name);
+				m_Errors.Add(err);
+				if (pEq != NULL)
+					delete pEq;
+				return FALSE;
+			}
+
+			// Save the index of the relative segment
+			pEq->m_Segment = eqent.st_info;
+			pEq->m_Address = eqent.st_addr;
+			pEq->m_Size = eqent.st_size;
+			pEq->m_Line = eqent.st_line;
+            pEq->m_Sourcefile = sourcefile;
+
+			// Build the equation from the data
+			count = eqent.st_num;
+			idx = 0;
+			for (c = 0; c < count; c++)
+			{
+				int operation = eqdata[idx];
+				idx++;
+
+				switch (operation)
+				{
+				case RPN_VALUE:
+					pEq->m_pRpnEq->Add(atof(&eqdata[idx]));
+					idx += strlen(&eqdata[idx])+1;
+					break;
+
+				case RPN_VARIABLE:
+					pEq->m_pRpnEq->Add(RPN_VARIABLE, (const char *) &eqdata[idx]);
+					idx += strlen(&eqdata[idx])+1;
+					break;
+
+				default:
+					pEq->m_pRpnEq->Add(operation);
+					break;
+				}
+				
+			}
+
+			// Subtract equation size from total section size
+			size -= eqent.st_len;
+
+			// Add the equation to the array
+			pFileSection->m_Equations.Add((VTObject *) pEq);
+		}
+		break;
+
 	}
 
 	return TRUE;
@@ -1589,9 +1862,9 @@ int VTLinker::LocateSegmentIntoRegion(MString& region, CObjFileSection* pFileSec
 
 		// Validate the range was found
 		if ((pAddrRange == NULL) || (pAddrRange->startAddr > locateAddr) ||
-			(locateAddr + segSize > pAddrRange->endAddr))
+			(locateAddr + segSize-1 > pAddrRange->endAddr))
 		{
-			err.Format("%sNo Link Range found for ASEG %s (addr=%d, size=%d)", gsEdl, 
+			err.Format("%sNo link range found for ASEG %s (addr=%d, size=%d)", gsEdl, 
 				(const char *) segment,	locateAddr, segSize);
 			m_Errors.Add(err);
 			return FALSE;
@@ -1980,13 +2253,13 @@ int VTLinker::LocateSegments()
 
 /*
 ============================================================================
-Now that all segments have been located, this function assigns physical
-addresses to local values, such as data, jump and call addresses, etc.
+This routine finds the file section referenced by the relocation object
+pRel in th especified object file.
 ============================================================================
 */
 CObjFileSection* VTLinker::FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel)
 {
-	int					sectCount, sect;
+	int					sectCount, sect, type;
 	CObjFileSection*	pFileSect;
 	CObjFileSection*	pRelSect;
 
@@ -1999,7 +2272,8 @@ CObjFileSection* VTLinker::FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel)
 		if (pFileSect->m_ElfHeader.sh_offset < pRel->r_offset)
 		{
 			// Validate the section type
-			if ((ELF32_R_TYPE(pRel->r_info) == SR_ADDR_XLATE) &&
+            type = ELF32_R_TYPE(pRel->r_info); 
+			if ((type == SR_ADDR_XLATE || type == SR_8BIT || type == SR_24BIT) &&
 				(pFileSect->m_ElfHeader.sh_type != SHT_PROGBITS))
 					continue;
 
@@ -2029,7 +2303,7 @@ int VTLinker::ResolveLocals()
 	CObjFile*			pObjFile;
 	CObjFileSection*	pFileSect;
 	CObjFileSection*	pRelSect;
-	int					sect, sectCount, rel, relCount;
+	int					sect, sectCount, rel, relCount, type;
 	MString				err, filename;
 
 	// Exit if error has occurred
@@ -2054,7 +2328,8 @@ int VTLinker::ResolveLocals()
 			{
 				// Process this relocation item
 				Elf32_Rel* pRel = (Elf32_Rel *) pFileSect->m_Reloc[rel];
-				if (ELF32_R_TYPE(pRel->r_info) == SR_ADDR_XLATE)
+				type = ELF32_R_TYPE(pRel->r_info);
+				if (type == SR_ADDR_XLATE || type == SR_8BIT || type == SR_24BIT)
 				{
 					CObjFileSection* pRefSect = (CObjFileSection *) pObjFile->m_FileSections[pFileSect->m_ElfHeader.sh_info];
 					pRelSect = FindRelSection(pObjFile, pRel);
@@ -2067,15 +2342,30 @@ int VTLinker::ResolveLocals()
 						unsigned short addr = (((unsigned short) pRelSect->m_pProgBytes[offset]) & 0xFF) | (pRelSect->m_pProgBytes[offset+1] << 8);
 
 						// Update the address based on the segments locate address
-//						addr += pRelSect->m_LocateAddr;
 						addr += pRefSect->m_LocateAddr;
 
 						// Update the translated address in the ProgBits
 						pRelSect->m_pProgBytes[offset] = addr & 0xFF;
-						pRelSect->m_pProgBytes[offset + 1] = addr >> 8;
+						if (type != SR_8BIT)
+							pRelSect->m_pProgBytes[offset + 1] = addr >> 8;
+
+						// Save the relative update info for listing back annotation
+                        offset += pRelSect->m_LocateAddr;
+                        m_AddrLines.a[offset].pObjFile = pObjFile;
+                        m_AddrLines.a[offset].line = 0; 
+                        m_AddrLines.a[offset].fdPos = -1;
+                        m_AddrLines.a[offset].value = addr & 0xFF;
+						if (type != SR_8BIT)
+						{
+							m_AddrLines.a[offset+1].pObjFile = pObjFile;
+							m_AddrLines.a[offset+1].line = 0; 
+							m_AddrLines.a[offset+1].fdPos = -1;
+							m_AddrLines.a[offset+1].value = addr >> 8;
+						}
 
 						// Change the relocation type so we know we have translated this item
 						pRel->r_info = ELF32_R_INFO(0, SR_ADDR_PROCESSED);
+						pRel->r_offset = offset;
 					}
 					else
 					{
@@ -2094,14 +2384,14 @@ int VTLinker::ResolveLocals()
 ============================================================================
 Now resolved all extern symbols.
 ============================================================================
-*/
-int VTLinker::ResolveExterns()
+*/ int VTLinker::ResolveExterns()
 {
 	POSITION			pos;
 	CObjFile*			pObjFile;
 	CObjFileSection*	pFileSect;
-	int					sect, sectCount, rel, relCount;
+	int					sect, sectCount, rel, relCount, type;
 	MString				err, filename;
+	VTObject*			dummy;
 
 	// Exit if error has occurred
 	if (m_Errors.GetSize() != 0)
@@ -2130,9 +2420,10 @@ int VTLinker::ResolveExterns()
 			{
 				// Process this relocation item
 				Elf32_Rel* pRel = (Elf32_Rel *) pFileSect->m_Reloc[rel];
+				type = ELF32_R_TYPE(pRel->r_info);
 
 				// Test if this is an EXTERN relocation type
-				if (ELF32_R_TYPE(pRel->r_info) == SR_EXTERN)
+				if (type == SR_EXTERN || type == SR_EXTERN8)
 				{
 					// Get the EXTERN symbol name
 					if (pObjFile->m_pStrTab != NULL)
@@ -2152,18 +2443,22 @@ int VTLinker::ResolveExterns()
 						{
 							// PUBLIC symbol found!  Now perform the link
 							// First get a pointer to the section referenced by the symbol
-							CObjFileSection* pSymSect = (CObjFileSection *) pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
+							CObjFileSection* pSymSect = (CObjFileSection *) 
+								pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
 
 							// Calculate the value of the EXTERN symbol
 							unsigned short value = (unsigned short) pSymFile->m_pSym->st_value;
-							if (pSymSect->m_Type != ASEG)
+							if (pSymSect->m_Type != ASEG && ((pSymFile->m_pSym->st_info & 0x0F)
+										!= STT_EQUATE))
 								value +=(unsigned short) pSymSect->m_LocateAddr;
 
 							// Calculate the address where we update with the symbol's value
 							if (pRel->r_offset + 1 >= (unsigned short) pObjSect->m_Size)
 							{
-								err.Format("Invalid relocation offset for section %s, symbol = %s, offset = %d, size = %d\n",
-									(const char *) pObjSect->m_Name, (const char *) pSymName, pRel->r_offset, pObjSect->m_Size);
+								err.Format("Invalid relocation offset for section %s, symbol = %s, "
+									"offset = %d, size = %d\n",
+									(const char *) pObjSect->m_Name, (const char *) pSymName, 
+									pRel->r_offset, pObjSect->m_Size);
 								m_Errors.Add(err);
 							}
 							else
@@ -2172,15 +2467,39 @@ int VTLinker::ResolveExterns()
 
 								// Update the code
 								*pAddr++ = value & 0xFF;
-								*pAddr = value >> 8;
+								if (type != SR_EXTERN8)
+									*pAddr = value >> 8;
+
+								int offset = pRel->r_offset + pObjSect->m_LocateAddr;
+
+								// Save the relative update info for listing back annotation
+								m_AddrLines.a[offset].pObjFile = pObjFile;
+								m_AddrLines.a[offset].line = 0; 
+								m_AddrLines.a[offset].fdPos = -1;
+								m_AddrLines.a[offset].value = value & 0xFF;
+								if (type != SR_EXTERN8)
+								{
+									m_AddrLines.a[offset+1].pObjFile = pObjFile;
+									m_AddrLines.a[offset+1].line = 0; 
+									m_AddrLines.a[offset+1].fdPos = -1;
+									m_AddrLines.a[offset+1].value = value >> 8;
+								}
+
+								// Update the relocation information
+								pRel->r_info = ELF32_R_INFO(0, SR_ADDR_PROCESSED);
+								pRel->r_offset += pObjSect->m_LocateAddr;
 							}
 						}
 						else
 						{
-							MString title = MakeTitle(pObjFile->m_Name);
-							err.Format("%sUnresolved EXTERN symbol %s referenced in file %s", gsEdl, 
-								pSymName, (const char *) title);
-							m_Errors.Add(err);
+							if (!m_UndefSymbols.Lookup(pObjFile->m_Name, dummy))
+							{
+								MString title = MakeTitle(pObjFile->m_Name);
+								err.Format("%sUnresolved symbol \"%s\" referenced in %s", 
+									gsEdl, pSymName, (const char *) title);
+								m_Errors.Add(err);
+								m_UndefSymbols[pObjFile->m_Name] = 0;
+							}
 						}
 					}
 					else
@@ -2199,6 +2518,340 @@ int VTLinker::ResolveExterns()
 
 /*
 ============================================================================
+This function evaluates equations and attempts to determine a numeric value
+for the equation.  If a numeric value can be achieved, it updates the value
+parameter and returns TRUE.  If it cannot achieve a numeric value, the 
+function returns FALSE, and creates an error report in design if the
+reportError flag is TRUE.
+============================================================================
+*/
+int VTLinker::Evaluate(class CRpnEquation* eq, double* value,  
+	int reportError, MString& errVariable, MString& filename)
+{
+	double				s1, s2;
+	CSymbol*			symbol;
+	MString				errMsg, temp;
+	double				stack[200];
+	int					stk = 0;
+	int					int_value;
+	const char*			pStr;
+	int					c, local;
+	VTObject*			dummy;
+
+	// Get count of number of operations in equation and initalize stack
+	int count = eq->m_OperationArray.GetSize();
+
+	for (c = 0; c < count; c++)
+	{
+		CRpnOperation& 		op = eq->m_OperationArray[c];
+		switch (op.m_Operation)
+		{
+		case RPN_VALUE:
+			stack[stk++] = op.m_Value;
+			break;
+
+		case RPN_VARIABLE:
+			// Try to find variable in equate array
+			temp = op.m_Variable;
+			local = 0;
+
+			// Lookup symbol in active module
+			pStr = (const char *) temp;
+			CObjSymFile* pSymFile;
+			if (!m_Symbols.Lookup(pStr, (VTObject *&) pSymFile))
+				pSymFile = NULL;
+
+			// If symbol was found, try to evaluate it
+			if (pSymFile != (CObjSymFile*) NULL)
+			{
+				// First get a pointer to the section referenced by the symbol
+				CObjFileSection* pSymSect = (CObjFileSection *) pSymFile->m_pObjFile->m_FileSections[pSymFile->m_pSym->st_shndx];
+
+				// Get the symbol value
+				unsigned short value = (unsigned short) pSymFile->m_pSym->st_value;
+				if (pSymSect->m_Type != ASEG && ELF32_ST_TYPE(pSymFile->m_pSym->st_info)
+                            != STT_EQUATE)
+					value +=(unsigned short) pSymSect->m_LocateAddr;
+
+				// Add the value to the stack
+				stack[stk++] = value;
+				break;
+			}
+			else
+			{
+				if (reportError)
+				{
+					// Check if thie symbol has already been declared undefined
+					if (!m_UndefSymbols.Lookup(op.m_Variable, dummy))
+					{
+						errMsg.Format("%sin line %d(%s): Unresolved symbol %s", gsEdl, eq->m_Line, 
+								(const char *) filename, pStr);
+						m_Errors.Add(errMsg);
+						m_UndefSymbols[op.m_Variable] = 0;
+					}
+				}
+				else 
+					errVariable = op.m_Variable;
+				return 0;
+			}
+			break;
+
+		case RPN_MACRO:
+			// Need to add code here to process macros
+			break;
+
+		case RPN_MULTIPLY:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = s2 * s1;
+			break;
+
+		case RPN_DIVIDE:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			if (s2 == 0.0)
+			{
+				// Divide by zero error
+				if (reportError)
+				{
+					errMsg.Format("Error in line %d(%s):  Divide by zero!", 
+						eq->m_Line, (const char *) filename);
+					m_Errors.Add(errMsg);
+				}
+				return 0;
+			}
+			stack[stk++] = s1 / s2;
+			break;
+
+		case RPN_ADD:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = s1 + s2;
+			break;
+
+		case RPN_SUBTRACT:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = s1 - s2;
+			break;
+
+		case RPN_EXPONENT:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = pow(s1, s2);
+			break;
+
+		case RPN_MODULUS:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s1 % (int) s2);
+			break;
+
+		case RPN_BITOR:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s2 | (int) s1);
+			break;
+
+		case RPN_BITAND:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s2 & (int) s1);
+			break;
+
+		case RPN_NEGATE:
+			s1 = stack[--stk];
+			stack[stk++] = -s1;
+			break;
+
+		case RPN_BITXOR:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s1 ^ (int) s2);
+			break;
+
+		case RPN_LEFTSHIFT:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s1 << (int) s2);
+			break;
+
+		case RPN_RIGHTSHIFT:
+			s2 = stack[--stk];
+			s1 = stack[--stk];
+			stack[stk++] = (double) ((int) s1 >> (int) s2);
+			break;
+
+		case RPN_FLOOR:
+			s1 = stack[--stk];
+			stack[stk++] = floor(s1);
+			break;
+
+		case RPN_CEIL:
+			s1 = stack[--stk];
+			stack[stk++] = ceil(s1);
+			break;
+
+		case RPN_IP:
+			s1 = stack[--stk];
+			stack[stk++] = floor(s1);
+			break;
+
+		case RPN_FP:
+			s1 = stack[--stk];
+			stack[stk++] = s1 - floor(s1);
+			break;
+
+		case RPN_LN:
+			s1 = stack[--stk];
+			stack[stk++] = log(s1);
+			break;
+
+		case RPN_PAGE:
+			s1 = stack[--stk];
+			stack[stk++] = ((unsigned int) s1 >> 16) & 0xFF;
+			break;
+
+		case RPN_HIGH:
+			s1 = stack[--stk];
+			stack[stk++] = ((unsigned int) s1 >> 8) & 0xFF;
+			break;
+
+		case RPN_LOW:
+			s1 = stack[--stk];
+			stack[stk++] = (unsigned int) s1 & 0xFF;
+			break;
+
+		case RPN_LOG:
+			s1 = stack[--stk];
+			stack[stk++] = log10(s1);
+			break;
+
+		case RPN_SQRT:
+			s1 = stack[--stk];
+			stack[stk++] = sqrt(s1);
+			break;
+
+#if 0
+		case RPN_DEFINED:
+			if (LookupSymbol(op.m_Variable, symbol))
+				stack[stk++] = 1.0;
+			else
+				stack[stk++] = 0.0;
+			break;
+#endif
+
+		case RPN_NOT:
+			s1 = stack[--stk];
+			if (s1 == 0.0)
+				stack[stk++] = 1.0;
+			else
+				stack[stk++] = 0.0;
+			break;
+
+		case RPN_BITNOT:
+			s1 = stack[--stk];
+			stack[stk++] = (double) (~((int) s1));
+			break;
+
+		}
+		errVariable = "";
+	}
+
+	// Get the result from the equation and return to calling function
+	*value = stack[--stk];
+
+	return 1;
+}
+
+/*
+============================================================================
+Now resolved all equations.
+============================================================================
+*/
+int VTLinker::ResolveEquations()
+{
+	POSITION			pos;
+	CObjFile*			pObjFile;
+	CObjFileSection*	pFileSect;
+	int					sect, sectCount, c, relCount, eqCount;
+	MString				err, errVar, filename;
+    double              value;
+
+	// Exit if error has occurred
+	if (m_Errors.GetSize() != 0)
+		return FALSE;
+
+	// Loop for all object files loaded
+	pos = m_ObjFiles.GetStartPosition();
+	while (pos != NULL)
+	{
+		// Get pointer to this object file's data
+		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
+
+		// Loop through all segments and look for equation info
+		sectCount = pObjFile->m_FileSections.GetSize();
+		for (sect = 0; sect < sectCount; sect++)
+		{
+			// Loop through equation segments
+			pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
+
+			if (pFileSect->m_Type != SHT_LINK_EQ)
+				continue;
+			
+			eqCount = pFileSect->m_Equations.GetSize();
+			for (c = 0; c < eqCount; c++)
+			{
+				// Process this equation item
+				CLinkerEquation* pEq = (CLinkerEquation *) pFileSect->m_Equations[c];
+                CObjFileSection* pObjSect = (CObjFileSection *) pObjFile->m_FileSections[pEq->m_Segment];
+
+				// Try to evaluate the equation
+				if (Evaluate(pEq->m_pRpnEq, &value, 0, errVar, pObjSect->m_Name))
+				{
+					// Calculate the address where we update with the symbol's value
+					if (pEq->m_Address + 1 >= (unsigned short) pObjSect->m_Size)
+					{
+						err.Format("Invalid relocation offset for section %s, offset = %d, size = %d\n",
+							(const char *) pObjSect->m_Name, pEq->m_Address, pObjSect->m_Size);
+						m_Errors.Add(err);
+					}
+					else
+					{
+						char * pAddr = pObjSect->m_pProgBytes + pEq->m_Address;
+
+						// Update the code
+						*pAddr++ = (unsigned int) value & 0xFF;
+						*pAddr = (unsigned int) value >> 8;
+
+						int offset = pObjSect->m_LocateAddr + pEq->m_Address;
+
+						// Save the relative update info for listing back annotation
+						m_AddrLines.a[offset].pObjFile = pObjFile;
+						m_AddrLines.a[offset].line = 0; 
+						m_AddrLines.a[offset].fdPos = -1;
+						m_AddrLines.a[offset].value = (int) value & 0xFF;
+						m_AddrLines.a[offset+1].pObjFile = pObjFile;
+						m_AddrLines.a[offset+1].line = 0; 
+						m_AddrLines.a[offset+1].fdPos = -1;
+						m_AddrLines.a[offset+1].value = (int) value >> 8;
+					}
+				}
+				else
+				{
+					MString title = MakeTitle(pObjFile->m_Name);
+					err.Format("Error in line %d(%s): Unresolved symbol %s", pEq->m_Line, 
+                            (const char *) pEq->m_Sourcefile, (const char *) errVar);
+					m_Errors.Add(err);
+				}
+			}
+		}
+	}
+
+	return TRUE;
+}
+/*
+============================================================================
 Generate the output file(s).  For .CO projects, this will be the .CO file,
 for library files, a .lib, and for ROM projects, it will be a HEX file.
 ============================================================================
@@ -2206,7 +2859,7 @@ for library files, a .lib, and for ROM projects, it will be a HEX file.
 int VTLinker::GenerateOutputFile()
 {
 	int					startAddr, endAddr, entryAddr;
-	int					c;
+	int					c, size, index;
 	unsigned char		temp;
 	const int			addrSize = sizeof(m_SegMap) / sizeof(void *);
 	MString				err;
@@ -2358,20 +3011,30 @@ int VTLinker::GenerateOutputFile()
 
 		// Allocate a 32K memory region to hold the ROM contents
 		char * pRom = new char[32768];
+        char  fillchar = 0;
+
+        if (m_LinkOptions.Find((char *) "-f") != -1)
+            fillchar = 0xFF;
 
 		// Fill contents with zero
 		for (c = 0; c < 32768; c++)
-			pRom[c] = 0;
+			pRom[c] = fillchar;
+
+        size = 32768;
+        if ((index = m_LinkOptions.Find((char *) "-b")) != -1)
+        {
+            size = m_LinkOptions.ToInt(index+2);
+        }
 
 		// Copy the output data to the ROM storage
-		for (c = 0; c < 32768; )
+		for (c = 0; c < size; )
 		{
 			// Skip empty space in the link map
-			while (m_SegMap[c] == NULL && c < 32768)
+			while (m_SegMap[c] == NULL && c < size)
 				c++;
 
 			// Write the next block of bytes
-			if (c < 32768)
+			if (c < size)
 			{
 				CObjFileSection *pSect = m_SegMap[c];
 				if (pSect != NULL)
@@ -2385,7 +3048,7 @@ int VTLinker::GenerateOutputFile()
 		}
 
 		// Write the ROM data to the HEX file.  File is closed by the routine
-		save_hex_file_buf(pRom, 0, 32767, 0, fd);
+		save_hex_file_buf(pRom, 0, size-1, 0, fd);
 
 		// Write the data out as a REX .BX file also...
 		int dot = m_OutputName.ReverseFind('.');
@@ -2409,7 +3072,7 @@ int VTLinker::GenerateOutputFile()
 		}
 
 		// The REX BX file is a simple binary dump of the ROM contents
-		fwrite(pRom, 1, 32768, fd);
+		fwrite(pRom, 1, size, fd);
 		fclose(fd);
 
 		// Delete the ROM memory
@@ -2420,6 +3083,8 @@ int VTLinker::GenerateOutputFile()
 	else if (m_ProjectType == VT_PROJ_TYPE_LIB)
 	{
 	}
+
+    m_LinkDone = TRUE;
 	return TRUE;
 }
 
@@ -2629,7 +3294,7 @@ int VTLinker::GenerateMapFile(void)
 {
 	MString		err, filename;
 	FILE*		fd;
-	int			c, count;
+	int			c, count, addr;
 	int			codeSize = 0, dataSize = 0;
 	VTObArray	m_Sorted;
 
@@ -2752,15 +3417,21 @@ int VTLinker::GenerateMapFile(void)
 	count = m_Sorted.GetSize();
 	for (c = 0; c < count; c++)
 	{
+        CFileString fstr;
+
 		pObjSymFile = (CObjSymFile *) m_Sorted[c];
 
 		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
 			pObjSymFile->m_pSym->st_shndx];
 
-		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
-			(int) (pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr), 
+		addr = (int) pObjSymFile->m_pSym->st_value;
+		if (pSymSect->m_Type != ASEG && ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) != STT_EQUATE)
+		   addr += (int) pSymSect->m_LocateAddr; 
+
+        fstr = pObjSymFile->m_pObjFile->m_Name;
+		fprintf(fd, "%35s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, addr, 
 			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? (char *) "data" : (char *) "function", 
-			(const char *) pObjSymFile->m_pObjFile->m_Name);
+			(const char *) fstr.Filename());
 	}
 
 	// Remove all items from the sort array and re-sort by address
@@ -2796,14 +3467,20 @@ int VTLinker::GenerateMapFile(void)
 	count = m_Sorted.GetSize();
 	for (c = 0; c < count; c++)
 	{
+        CFileString fstr;
+
 		pObjSymFile = (CObjSymFile *) m_Sorted[c];
 		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
 			pObjSymFile->m_pSym->st_shndx];
 
-		fprintf(fd, "%25s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, 
-			(int) (pObjSymFile->m_pSym->st_value + pSymSect->m_LocateAddr), 
+		addr = (int) pObjSymFile->m_pSym->st_value;
+		if (pSymSect->m_Type != ASEG && ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) != STT_EQUATE)
+		   addr += (int) pSymSect->m_LocateAddr; 
+
+        fstr = pObjSymFile->m_pObjFile->m_Name;
+		fprintf(fd, "%35s   0x%04x  %9s  %s\n", pObjSymFile->m_pName, addr,
 			ELF32_ST_TYPE(pObjSymFile->m_pSym->st_info) == STT_OBJECT ? (char *) "data" : (char *) "function", 
-			(const char *) pObjSymFile->m_pObjFile->m_Name);
+			(const char *) fstr.Filename());
 	}
 
 	// Remove all entries from the Sorted array
@@ -2826,28 +3503,255 @@ int VTLinker::BackAnnotateListingFiles(void)
 {
 	POSITION			pos;
 	CObjFile*			pObjFile;
-//	CObjFileSection*	pFileSect;
+	CObjFile*			pOpenFile;
+	CObjFileSection*	pFileSection;
 	MString				err, filename;
+	FILE*				fd;
+	char*				pRead;
+	char				lineBuf[512];
+	char				str[6];
+	int					fdpos, fdpos2, c, x, eq, count, line;
+	int					addr, rel, relCount;
 
 	// Exit if error has occurred
 	if (m_Errors.GetSize() != 0)
 		return FALSE;
 
 	// Test if list file generation requested
-	if (m_LinkOptions.Find((char *) "-t") == -1)
-		return FALSE;
+	//if (m_LinkOptions.Find((char *) "-t") == -1)
+	//	return FALSE;
 
-	// Loop for all object files loaded and locate any that have not been located yet
-	pos = m_ObjFiles.GetStartPosition();
-	while (pos != NULL)
+	// Loop for all object files loaded and update the address of all CSEG and DSEG
+    // segments
+	pos = m_ObjFiles.GetStartPosition(); while (pos != NULL)
 	{
 		// Get pointer to this object file's data
 		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
 
 		// Get the path of the source file for this object file
+		CFileString  lstFile(pObjFile->m_Name);
+		lstFile.NewExt(".lst");
+
+		// Try to open the listing file.  If no file, just move on
+		if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+			continue;
+
+		// Now loop through all ObjFileSections for this file and update the
+		// address for any CSEG or DSEG segments
+		count = pObjFile->m_FileSections.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			// Get a pointer to the next file section
+			pFileSection = (CObjFileSection *) pObjFile->m_FileSections[c];
+            if (pFileSection->m_Type != CSEG && pFileSection->m_Type != DSEG && 
+                    pFileSection->m_Type != ASEG)
+                continue;
+
+			// Start at beginning of list file and search for the starting line
+			fseek(fd, 0, SEEK_SET);
+			line = 1;
+			fdpos = 0;
+			while (line != 0 && line < pFileSection->m_Line)
+			{
+				// Read next line from listing file
+				pRead = fgets(lineBuf, sizeof(lineBuf), fd);
+				if (pRead == NULL || feof(fd))
+					break;
+
+				// Keep track of the file position
+				line++;
+			}
+
+			// Test if end of file encoundered	
+			if (feof(fd))
+				continue;
+
+			// Now loop for all lines in this section and update addresses
+			for (; line < pFileSection->m_LastLine; line++)
+			{
+				// Save the file position so we can rewind for saving new address
+				fdpos = ftell(fd);
+				
+				// Read in the next line
+				pRead = fgets(lineBuf, sizeof(lineBuf), fd);
+				if (pRead == NULL || feof(fd))
+					break;
+
+				// Check if this line has an address at col 1
+				if (lineBuf[0] == ' ')
+					continue;
+
+				// Okay, we need to add our segment start address to the address
+				// (offset) reported in the listing file
+				sscanf(lineBuf, "%X", &addr);
+				if (pFileSection->m_Type != ASEG)
+				{
+					addr += pFileSection->m_LocateAddr;
+					sprintf(lineBuf, "%04X", addr);
+
+					// Seek back, write the new addr and then restore
+					fdpos2 = ftell(fd);
+					fseek(fd, fdpos, SEEK_SET);
+					fwrite(lineBuf, 1, 4, fd);
+					fseek(fd, fdpos2, SEEK_SET);
+				}
+
+                // Add this address to our AddrLines array
+				m_AddrLines.a[addr].line = line;
+				m_AddrLines.a[addr].fdPos = fdpos+6;
+
+				// Check if this line has multiple bytes on it and add all AddrLines
+				for (x = 1; x < 4; x++)
+				{
+					if (lineBuf[6+x*3] != ' ')
+					{
+						m_AddrLines.a[addr+x].line = line;
+						m_AddrLines.a[addr+x].fdPos = fdpos+6+x*3;
+					}
+                    else
+                        break;
+				}
+			}
+		}
+
+		// Close the listing file
+		fclose(fd);
 	}
 
+	// Now loop through all relocate items and replace the offsets with actual addresses
+	// Loop for all object files loaded
+	pos = m_ObjFiles.GetStartPosition();
+    pOpenFile = NULL;
+	while (pos != NULL)
+	{
+		// Get pointer to this object file's data
+		m_ObjFiles.GetNextAssoc(pos, filename, (VTObject *&) pObjFile);
+
+		// Loop through all segments and look for relocation info
+		count = pObjFile->m_FileSections.GetSize();
+		for (c = 0; c < count; c++)
+		{
+			// Loop through relocation segments
+			pFileSection = (CObjFileSection *) pObjFile->m_FileSections[c];
+			relCount = pFileSection->m_Reloc.GetSize();
+			for (rel = 0; rel < relCount; rel++)
+			{
+				// Process this relocation item
+				Elf32_Rel* pRel = (Elf32_Rel *) pFileSection->m_Reloc[rel];
+				if (ELF32_R_TYPE(pRel->r_info) == SR_ADDR_PROCESSED)
+				{
+					// Lookup this address in the AddrLines array
+					if (pRel->r_offset > 0 && pRel->r_offset < 65536)
+					{
+						if (m_AddrLines.a[pRel->r_offset].pObjFile != NULL)
+						{
+							// Found!  Now go update the data
+							if (pOpenFile != NULL && pOpenFile != pObjFile)
+							{
+								// Close the file so we can open a new one
+								fclose(fd);
+								pOpenFile = NULL;
+							}
+
+							// Get the path of the source file for this object file
+							CFileString  lstFile(m_AddrLines.a[pRel->r_offset].pObjFile->m_Name);
+							lstFile.NewExt(".lst");
+
+							// Try to open the listing file.  If no file, just move on
+							if (pOpenFile == NULL)
+							{
+								if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+									continue;
+
+								// Mark the file as opened
+								pOpenFile = pObjFile;
+							}
+
+							// Seek to the location in the lst file for LSB
+							fseek(fd, m_AddrLines.a[pRel->r_offset].fdPos, SEEK_SET);
+							sprintf(str, "%02X", m_AddrLines.a[pRel->r_offset].value);
+							fwrite(str, 1, 2, fd);
+
+							if (m_AddrLines.a[pRel->r_offset+1].pObjFile != NULL)
+							{
+								// Seek to the location in the lst file for MSB
+								fseek(fd, m_AddrLines.a[pRel->r_offset+1].fdPos, SEEK_SET);
+								sprintf(str, "%02X", m_AddrLines.a[pRel->r_offset+1].value);
+								fwrite(str, 1, 2, fd);
+							}
+						}
+					}
+				}
+			}
+
+			// Now loop for all equations in this section
+			if (pFileSection->m_Type != SHT_LINK_EQ)
+				continue;
+			
+			int eqCount = pFileSection->m_Equations.GetSize();
+			for (eq = 0; eq < eqCount; eq++)
+			{
+				// Process this equation item
+				CLinkerEquation* pEq = (CLinkerEquation *) pFileSection->m_Equations[eq];
+                CObjFileSection* pObjSect = (CObjFileSection *) pObjFile->m_FileSections[pEq->m_Segment];
+
+				int offset = pObjSect->m_LocateAddr + pEq->m_Address;
+				if (m_AddrLines.a[offset].pObjFile != NULL)
+				{
+					// Found!  Now go update the data
+					if (pOpenFile != NULL && pOpenFile != pObjFile)
+					{
+						// Close the file so we can open a new one
+						fclose(fd);
+						pOpenFile = NULL;
+					}
+
+					// Get the path of the source file for this object file
+					CFileString  lstFile(m_AddrLines.a[offset].pObjFile->m_Name);
+					lstFile.NewExt(".lst");
+
+					// Try to open the listing file.  If no file, just move on
+					if (pOpenFile == NULL)
+					{
+						if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+							continue;
+
+						// Mark the file as opened
+						pOpenFile = pObjFile;
+					}
+
+					// Seek to the location in the lst file for LSB
+					fseek(fd, m_AddrLines.a[offset].fdPos, SEEK_SET);
+					sprintf(str, "%02X", m_AddrLines.a[offset].value);
+					fwrite(str, 1, 2, fd);
+
+					if (m_AddrLines.a[offset+1].pObjFile != NULL)
+					{
+						// Seek to the location in the lst file for MSB
+						fseek(fd, m_AddrLines.a[offset+1].fdPos, SEEK_SET);
+						sprintf(str, "%02X", m_AddrLines.a[offset+1].value);
+						fwrite(str, 1, 2, fd);
+					}
+				}
+			}
+		}
+	}
+
+	if (pOpenFile != NULL)
+		fclose(fd);
+
 	return TRUE;
+}
+
+/*
+============================================================================
+Process any POSTLINK commands from the Linker Script.
+============================================================================
+*/
+void VTLinker::ProcessPostlink(void)
+{
+    if (!m_LinkDone || m_Errors.GetSize() > 0)
+        return;
 }
 
 /*
@@ -2867,12 +3771,12 @@ int VTLinker::Link()
 	// Process the input filename list from the IDE
 	ProcessArgs(m_ObjFileList, ",;");
 
-	// Read the linker script
-	ReadLinkerScript();
-	
 	// Load all files to be linked
 	ReadObjFiles();
 
+	// Read the linker script
+	ReadLinkerScript();
+	
 	// Locate segments based on commands in the Linker Script
 	LocateSegments();
 
@@ -2881,6 +3785,9 @@ int VTLinker::Link()
 
 	// Resolve segment extern symbols
 	ResolveExterns();
+
+	// Resolve reloatable equations
+	ResolveEquations();
 
 	// Generate output file
 	GenerateOutputFile();
@@ -2892,6 +3799,9 @@ int VTLinker::Link()
 
 	// Back annotate Listing files with actual addresses
 	BackAnnotateListingFiles();
+
+    // Process Linker Script POSTLINK commands
+    ProcessPostlink();
 
 	return m_Errors.GetSize() == 0;
 }

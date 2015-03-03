@@ -1,6 +1,6 @@
 /* project.h */
 
-/* $Id: project.h,v 1.4 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: project.h,v 1.5 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -76,11 +76,13 @@ public:
 	int				LinkDebugInfo(void) const;
 	void			MapFile(int enable);
 	int				MapFile(void) const;
-	void			IgnoreStdLibs(int enable);
-	int				IgnoreStdLibs(void) const;
+	void			Flash(int enable);
+	int				Flash(void) const;
+	void			CustomRomSize(int enable, MString bytes);
+	int				CustomRomSize(void);
 
-	void			AddLinkOption(char *pOpt);
-	void			RemoveLinkOption(char *pOpt);
+	void			AddLinkOption(const char *pOpt);
+	void			RemoveLinkOption(char *pOpt, int param = 0);
 
 	void			SaveProject(void);
 	void			LoadProject(void);
@@ -99,6 +101,7 @@ public:
     MString         m_LinkOptions;
 	MString			m_LinkScript;
 	MString			m_OutputName;
+    MString         m_RomBytes;
     VTObArray       m_Groups;
     int             m_Dirty;			// Set true when project settings change
     int             m_ProjectType;		// Type of project
@@ -106,9 +109,9 @@ public:
 	int				m_AutoLoad;			// Load to emulator after assemble?
 	int				m_UpdateHIMEM;		// Auto update HIMEM variable?
 	int				m_CreateLoader;		// Create BASIC loader for .CO program?
+    int             m_CustomRomSize;	// Set TRUE to select custom ROM size
 	MString			m_LoaderFilename;	// BASIC loader filename
-};
-
+}; 
 class VT_NewProject 
 {
 public:
@@ -171,11 +174,13 @@ public:
 
 	int					getLinkDebugInfo(void);
 	int					getMapFile(void);
-	int					getIgnoreStdLibs(void);
+	int					getFlash(void);
+	int					getCustomRomSize(void);
 	MString				getLinkPath(void);
 	MString				getOutputName(void);
 	MString				getLinkObjs(void);
 	MString				getLinkScript(void);
+	MString				getRomBytes(void);
 
 	void				ProjTypeChanged(void);
 	void				EnableUpdateHIMEM(int enable);
@@ -207,13 +212,15 @@ protected:
 	Fl_Input*			m_pDefines;
 
 	// Define Link tab items
-	Fl_Button*			m_pIgnoreStdLibs;
+	Fl_Button*			m_pFlash;
 	Fl_Button*			m_pMapFile;
 	Fl_Button*			m_pLinkDebugInfo;
+	Fl_Check_Button*	m_pCustomRomSize;
 	Fl_Input*			m_pObjPath;
 	Fl_Input*			m_pOutputName;
 	Fl_Input*			m_pLinkObjs;
 	Fl_Input*			m_pLinkScript;
+	Fl_Input*			m_pRomBytes;
 
 	Fl_Button*			m_pOk;
 	Fl_Button*			m_pCancel;

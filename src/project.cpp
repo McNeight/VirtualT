@@ -1,6 +1,6 @@
 /* project.cpp */
 
-/* $Id: project.cpp,v 1.8 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: project.cpp,v 1.9 2013/02/11 08:37:17 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -394,11 +394,12 @@ void cb_settings_ok(Fl_Widget* w, void*)
 	// Update the Linker Options
 	pProject->LinkDebugInfo(pProj->getLinkDebugInfo());
 	pProject->MapFile(pProj->getMapFile());
-	pProject->IgnoreStdLibs(pProj->getIgnoreStdLibs());
+	pProject->Flash(pProj->getFlash());
 	pProject->m_LinkPath = pProj->getLinkPath();
 	pProject->m_LinkLibs = pProj->getLinkObjs();
 	pProject->m_LinkScript = pProj->getLinkScript();
 	pProject->m_OutputName = pProj->getOutputName();
+    pProject->CustomRomSize(pProj->getCustomRomSize(), pProj->getRomBytes());
 
 	// Hide the window to end the session
 	pProj->m_pProject->m_Dirty = 1;
@@ -532,8 +533,8 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pLinkDebugInfo->value(m_pProject->LinkDebugInfo());
 	m_pMapFile = new Fl_Check_Button(20, 75, 170, 20, "Generate Map File");
 	m_pMapFile->value(m_pProject->MapFile());
-	m_pIgnoreStdLibs = new Fl_Check_Button(200, 50, 165, 20, "Ingore Std Libraries");
-	m_pIgnoreStdLibs->value(m_pProject->IgnoreStdLibs());
+	m_pFlash = new Fl_Check_Button(200, 50, 165, 20, "FLASH (0xFF fill)");
+	m_pFlash->value(m_pProject->Flash());
 
 	// Add edit fields for Code and Data segment addresses
 	o = new Fl_Box(20, 95, 100, 20, "Linker Script");
@@ -561,6 +562,12 @@ VT_ProjectSettings::VT_ProjectSettings(VT_Project *pProj)
 	m_pObjPath = new Fl_Input(20, 240, 320, 20, "");
 	m_pObjPath->value(m_pProject->m_LinkPath);
 
+	// Create Edit field for Link Dirs
+	m_pCustomRomSize = new Fl_Check_Button(20, 265, 100, 20, "Custom OptROM Size");
+	m_pCustomRomSize->align(FL_ALIGN_LEFT | FL_ALIGN_INSIDE);
+    m_pCustomRomSize->value(m_pProject->CustomRomSize());
+	m_pRomBytes = new Fl_Input(20, 285, 320, 20, "");
+	m_pRomBytes->value(m_pProject->m_RomBytes);
 
 	// End the Linker tab
 	g->end();
@@ -748,12 +755,20 @@ int VT_ProjectSettings::getMapFile(void)
 	return m_pMapFile->value();
 }
 
-int VT_ProjectSettings::getIgnoreStdLibs(void)
+int VT_ProjectSettings::getFlash(void)
 {
-	if (m_pIgnoreStdLibs == NULL)
+	if (m_pFlash == NULL)
 		return 0;
 
-	return m_pIgnoreStdLibs->value();
+	return m_pFlash->value();
+}
+
+int VT_ProjectSettings::getCustomRomSize(void)
+{
+	if (m_pCustomRomSize == NULL)
+		return 0;
+
+	return m_pCustomRomSize->value();
 }
 
 MString VT_ProjectSettings::getLinkPath(void)
@@ -762,6 +777,14 @@ MString VT_ProjectSettings::getLinkPath(void)
 		return "";
 
 	return m_pObjPath->value();
+}
+
+MString VT_ProjectSettings::getRomBytes(void)
+{
+	if (m_pRomBytes == NULL)
+		return "";
+
+	return m_pRomBytes->value();
 }
 
 MString VT_ProjectSettings::getLinkObjs(void)
@@ -890,7 +913,7 @@ void VT_Project::RemoveAsmOption(char* pOpt)
 	m_AsmOptions = temp;
 }
 
-void VT_Project::AddLinkOption(char* pOpt)
+void VT_Project::AddLinkOption(const char* pOpt)
 {
 	int		index;
 
@@ -903,9 +926,9 @@ void VT_Project::AddLinkOption(char* pOpt)
 	m_LinkOptions = m_LinkOptions + (char *) " " + pOpt;
 }
 
-void VT_Project::RemoveLinkOption(char* pOpt)
+void VT_Project::RemoveLinkOption(char* pOpt, int param)
 {
-	int		index;
+	int		index, len = 2, size;
 	MString	temp;
 
 	// Determin if option already exists in m_AsmOptions
@@ -913,11 +936,21 @@ void VT_Project::RemoveLinkOption(char* pOpt)
 	if (index == -1)
 		return;
 
+    // Test if we need to trim an option parameter also
+    size = m_LinkOptions.GetLength();
+    if (param)
+    {
+        while (size > index + len && m_LinkOptions[index+len] == ' ')
+            len++;
+        while (size > index + len && m_LinkOptions[index+len] != ' ')
+            len++;
+    }
+
 	// Need to remove option from the m_AsmOptons string
 	temp = m_LinkOptions.Left(index);
 	temp.Trim();
-	if (m_LinkOptions.GetLength() > index + 2)
-		temp += m_LinkOptions.Right(m_LinkOptions.GetLength() - (index + 2));
+	if (size > index + len)
+		temp += m_LinkOptions.Right(m_LinkOptions.GetLength() - (index + len));
 
 	// Assign new m_AsmOptions
 	m_LinkOptions = temp;
@@ -949,17 +982,49 @@ int VT_Project::MapFile(void) const
 	return m_LinkOptions.Find((char *) "-m", 0) != -1;
 }
 
-void VT_Project::IgnoreStdLibs(int enable)
+void VT_Project::Flash(int enable)
 {
 	if (enable)
-		AddLinkOption((char *) "-i");
+		AddLinkOption((char *) "-f");
 	else
-		RemoveLinkOption((char *) "-i");
+		RemoveLinkOption((char *) "-f");
 }
 
-int VT_Project::IgnoreStdLibs(void) const
+int VT_Project::Flash(void) const
 {
-	return m_LinkOptions.Find((char *) "-i", 0) != -1;
+	return m_LinkOptions.Find((char *) "-f", 0) != -1;
+}
+
+void VT_Project::CustomRomSize(int enable, MString bytes)
+{
+	MString str;
+
+	if (enable)
+	{
+		str = "-b ";
+		str += bytes;
+		AddLinkOption((const char *) str);
+	}
+	else
+		RemoveLinkOption((char *) "-b", 1);
+}
+
+int VT_Project::CustomRomSize(void)
+{
+    int index;
+
+	if ((index = m_LinkOptions.Find((char *) "-b", 0)) == -1)
+        return 0;
+
+    m_RomBytes = "";
+    index += 2;
+    while (index < m_LinkOptions.GetLength() && m_LinkOptions[index] == ' ')
+        index++;
+
+    while (index < m_LinkOptions.GetLength() && m_LinkOptions[index] != ' ')
+        m_RomBytes += m_LinkOptions[index++];
+    
+    return 1;
 }
 
 /*

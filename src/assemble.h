@@ -151,6 +151,7 @@
 #define		SYM_SET			3
 #define		SYM_EXTERN		4
 #define		SYM_DEFINE		5
+#define		SYM_EXTERN8		6
 #define		SYM_CSEG		0x0100
 #define		SYM_DSEG		0x0200
 #define		SYM_8BIT		0x0400
@@ -265,6 +266,8 @@ public:
 	int					m_Index;			// Current index for listing
 	int					m_Count;			// Instruction count for listing
 	int					m_sh_offset;		// Offset in .obj file of segment name
+	int					m_Line;				// Line numbrer in source of the seg directive
+	int					m_LastLine;			// Line numbrer in source of last line
 	VTObArray*			m_Instructions;		// Array of Instructions for each segment
 	unsigned int		m_Address;			// Address counter for each segment
 	VTObArray			m_Reloc;
@@ -309,6 +312,22 @@ public:
 	unsigned char		m_Size;
 };
 
+class CLinkerEquation : public VTObject
+{
+public:
+	CLinkerEquation()	{ m_Address = 0; m_pRange = 0; m_pRpnEq = 0; };
+    ~CLinkerEquation()  { if (m_pRpnEq) delete m_pRpnEq; }
+
+	unsigned int		m_Address;
+	unsigned int		m_Line;
+	unsigned short		m_Segment;
+	unsigned short		m_SegIdx;
+	AddrRange*			m_pRange;
+	CRpnEquation*		m_pRpnEq;
+    MString             m_Sourcefile;
+	unsigned char		m_Size;
+};
+
 class CCondition : public VTObject
 {
 public:
@@ -328,6 +347,7 @@ public:
 	CRelocation()		{ m_Address = 0; m_Segment = 0; m_pSourceRange = 0; m_pTargetRange = 0; };
 
 	unsigned int		m_Address;
+    int                 m_Size;
 	CSegment*			m_Segment;
 	AddrRange*			m_pSourceRange;
 	AddrRange*			m_pTargetRange;
@@ -477,7 +497,8 @@ public:
 	stdOutFunc_t		m_pStdoutFunc;		// Standard out message routine
 	void*				m_pStdoutContext;   // Opaque context for stdout
 	MStringArray		m_Errors;			// Array of error messages during parsing
-	VTObArray			m_Externs;
+	VTObArray			m_Externs;          // Array of externs to add to ELF file
+	VTObArray			m_Equations;        // Array of equations to add to ELF file
 	VTMapStringToOb		m_UndefSymbols;
 	int					m_List;				// Create a list file?
 	int					m_Hex;				// Create a HEX file?
@@ -518,7 +539,7 @@ public:
 	int					LookupMacro(MString& name, CMacro *& macro);
 	CSymbol*			LookupSymOtherModules(MString& name, CSegment** pSeg = NULL);
 	void				ResetContent(void);
-	int					CreateObjFile(const char *filename);
+	int					CreateObjFile(const char *filename, const char *sourcefile);
 	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask, CSegment *&pSeg);
 	int					EquationIsExtern(CRpnEquation* pEq, int size);
 	void				MakeBinary(int val, int length, MString& binary);

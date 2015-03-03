@@ -1,5 +1,5 @@
 /*  
-  $Id: MString.cpp,v 1.2 2013/02/06 17:10:33 kpettit1 Exp $
+  $Id: MString.cpp,v 1.3 2013/02/20 20:47:46 kpettit1 Exp $
 
   MString - Dynamic string data type library
   Copyright (C) 2001-2005 Jesse L. Lovelace (jesse at aslogicsys dot com)
@@ -20,6 +20,9 @@
 
   -----
     $Log: MString.cpp,v $
+    Revision 1.3  2013/02/20 20:47:46  kpettit1
+    Added TPDD Server (NADSBox emulation).  Currently only tested under Windows build and only minimal implementation, though functional.
+
     Revision 1.2  2013/02/06 17:10:33  kpettit1
     Added method to MString to extract the filename portion of the string.  This
     will cause a search for '/' or '\' and return only the filename segment.
@@ -160,7 +163,7 @@ void MString::deallocate(MNode* p)
 	}
 }
 
-static int string_length(char* string)
+static int string_length(const char* string)
 {
 	int count = 0;
 	if (string == NULL)
@@ -1605,9 +1608,11 @@ char* MString::ToChar(int nStart,int nCount) {
 
 }
 
-int MString::ToInt(int nStart) {
+int MString::ToInt(int nStart) const {
 
    MNode* tmp;
+   int      base = 10;
+
    if( nStart != 0 )
    {
 	   if ((nStart < 0) || (nStart > GetLength()))
@@ -1625,10 +1630,24 @@ int MString::ToInt(int nStart) {
 		tmpInt = 0,
       tmpMul = 1;
 
+   // Skip spaces
+   while ((tmp) && (tmp->MInfo == ' '))
+       tmp = tmp->MLink_Forward;
+
    if( (tmp) && (tmp->MInfo == '-') )
    {
       tmpMul = -1;
       tmp = tmp->MLink_Forward;
+   }
+
+   // Test for "0x" 
+   if ( (tmp) && (tmp->MInfo == '0'))
+   {
+       if ( (tmp->MLink_Forward) && (tmp->MLink_Forward->MInfo == 'x'))
+       {
+           base = 16;
+           tmp = tmp->MLink_Forward->MLink_Forward;
+       }
    }
 
 	while((tmp) && (tmp->MInfo >= '0') && (tmp->MInfo <='9')) {
@@ -1642,7 +1661,7 @@ int MString::ToInt(int nStart) {
 
 	while(tmp) {
 		tmpInt = tmpInt + ((tmp->MInfo - '0') * power);
-		power = power * 10;
+		power = power * base;
 		tmp = tmp->MLink_Forward;
 	}
 	return tmpInt * tmpMul;
@@ -2049,7 +2068,7 @@ int MString::Find(char ch, int nStart) const {
 	return -1;
 }
 
-int MString::Find(char* string, int nStart) const { 
+int MString::Find(const char* string, int nStart) const { 
 	//Idea from CString
 
 	int strLength = string_length(string);
@@ -2288,7 +2307,7 @@ void _splitpath(char *path, char* pDrive, char* pDir, char* pFname, char* pExt)
 	pDrive[0] = '\0';
 
 	// Get the filename
-	fname_ptr = strrchr(path, '\\');
+	fname_ptr = strrchr(path, '/');
 	if (fname_ptr == NULL)
 		fname_ptr = path;
 	else
@@ -2344,6 +2363,7 @@ MString CFileString::Filename()
 	m_String.ReleaseBuffer();
 
 	filename = fname;
+    filename += (char *) ".";
 	filename += ext;
 	return filename;
 }
@@ -2463,6 +2483,20 @@ MString CFileString::NextSubDir()
 	dir.ReleaseBuffer();
 
 	return subDir;
+}
+
+void CFileString::NewExt(MString newext)
+{
+	char drive[_MAX_DRIVE];
+	char dir[_MAX_DIR*2];
+	char fname[_MAX_FNAME];
+	char ext[_MAX_EXT];
+
+	_splitpath( m_String.GetBuffer(m_String.GetLength() + 1), drive, dir, fname, ext );
+    m_String = drive;
+    m_String += dir;
+    m_String += fname;
+    m_String += newext;
 }
 
 //End Buffer Access ---------------------------------------

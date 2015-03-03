@@ -274,7 +274,7 @@ public:
 	// POST: returns a pointer to a new null-terminated character array
 	//       that is a copy of the infomation in the MString.
 
-	int ToInt(int nStart = 0);
+	int ToInt(int nStart = 0) const;
 	// PRE: nStart is > 0 and < GetLength().  
 	// POST: returns an integer created from the numbers starting at nStart
 	// Other: ToInt does not check to see if the string of numbers contained 
@@ -327,7 +327,7 @@ public:
 //Begin Searching -----------------------------------------
 
 	int Find(char ch, int nStart = 0) const; //Idea from CString
-	int Find(char* string, int nStart = 0) const; //Idea from CString
+	int Find(const char* string, int nStart = 0) const; //Idea from CString
 
 
 	int ReverseFind(char ch) const; //Idea from CString
@@ -395,8 +395,10 @@ public:
 	MString		Ext();			// C:\DATA\SUBDIR\FILE.TXT    -> .TXT
 	MString		FirstSubDir();	// C:\DATA\SUBDIR\FILE.TXT    -> DATA
 	MString		NextSubDir();	// C:\DATA\SUBDIR\FILE.TXT    -> SUBDIR  ...
+	void		NewExt(MString ext);
 
-	MString&	operator->() { return m_String; };
+	MString&	GetString(void) { return m_String; };
+	MString&	operator->*(MString&) { return m_String; };
 	CFileString&	operator=(const MString& string) { m_String = string; return *this; };
 
 protected:

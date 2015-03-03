@@ -80,6 +80,7 @@ public:
 
 // Attributes
 	CRpnOpArray			m_OperationArray;
+    int                 m_Line;
 	int					m_EqPtr;
 };
 

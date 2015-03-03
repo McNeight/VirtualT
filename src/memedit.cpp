@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.22 2015/02/24 23:41:16 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.23 2015/02/25 00:36:00 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -1404,14 +1404,26 @@ void T100_MemEditor::SetScrollSize(void)
 			}
 			else
 			{
-				if (region == 0)
-					m_Max = RAMSIZE / 16;
-				else if (region == 1)
-					m_Max = ROMSIZE / 16;
-				else if (region == 2)
-					m_Max = 1024 * 1024 / 16;			
-				else if (region == 3)
-					m_Max = 128 * 1024 / 16;			
+                if (gQuad)
+                {
+                    if (region < 4)
+                        m_Max = RAMSIZE / 16;
+                    else if (region == 4)
+                        m_Max = ROMSIZE / 16;
+                    else
+                        m_Max = 1024 * 1024 / 16;			
+                }
+                else
+                {
+                    if (region == 0)
+                        m_Max = RAMSIZE / 16;
+                    else if (region == 1)
+                        m_Max = ROMSIZE / 16;
+                    else if (region == 2)
+                        m_Max = 1024 * 1024 / 16;			
+                    else if (region == 3)
+                        m_Max = 128 * 1024 / 16;			
+                }
 			}
 		}
 		else
