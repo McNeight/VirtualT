@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.21 2015/02/24 20:19:17 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.22 2015/03/03 01:51:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -804,7 +804,7 @@ void cb_lcd_display(Fl_Widget* w, void*)
 	if (gpIde->m_EditTabs->children() == 1)
     {
 		gpIde->m_EditTabs->show();
-        m_TabNoBlinkBox->show();
+        //m_TabNoBlinkBox->show();
     }
 	gpLcd->show();
 	gpLcd->show();
@@ -3499,6 +3499,7 @@ void VT_Ide::OpenTreeFile(Flu_Tree_Browser::Node* n)
 			// File already open...bring file to foreground
 			m_EditTabs->value(pWidget);
 			pWidget->take_focus();
+			m_EditTabs->redraw();
 			return;
 		}
 	}
@@ -3534,8 +3535,8 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 
 	/* Calculate location of next window */
 	x = 0;
-	y = TAB_HEIGHT;
-	h = m_EditTabs->h() - TAB_HEIGHT+1;
+	y = TAB_HEIGHT-1;
+	h = m_EditTabs->h() - TAB_HEIGHT+3;
 	w = m_EditTabs->w()-2;
     
     /* Create the MultiEditWin as a child of the main EditWindow */
@@ -3574,7 +3575,7 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
         m_TabNoBlinkBox->show();
     }
     m_EditWindow->redraw();
-//    m_EditTabs->redraw();
+    m_EditTabs->redraw();
     
 	// Call show again to bring window to front
 	mw->take_focus();

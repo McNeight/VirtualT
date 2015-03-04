@@ -47,6 +47,13 @@ v1.7 Not released yet
     emulation window to come into focus instead of the IDE window, plus showing
     the error in the Find Dialog box provides opportunity to modify the search.
 
+14. Modified the non-T200 LCD emulation routines when in 2.4Mhz emulaiton mode
+    to more closely reflect the actual delay introduced by the LCD hardware.
+
+15. Updated IDE Tab control to deal with more tabs than can fit on the window.
+    Tabs are now clipped and a "More Files" icon is displayed to allow selection
+    of off-screen open file windows.
+
 ====================
 v1.6 April 24, 2014
 ====================

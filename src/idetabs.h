@@ -1,6 +1,6 @@
 /* idetabs.h */
 
-/* $Id: idetabs.h,v 1.2 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: idetabs.h,v 1.3 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2009 Ken Pettit
@@ -32,6 +32,7 @@
 
 #include <FL/Fl_Tabs.H>
 #include <FL/Fl_Double_Window.H>
+#include <FL/Fl_Menu_Button.H>
 #include "vtobj.h"
 
 #define	FL_IDE_TABS_CLOSE	(0xDEADD00D)
@@ -49,16 +50,22 @@ public:
 	Fl_Widget *push()  {return last_visible_;}
 	int push(Fl_Widget *);
 	Fl_Widget *which(int event_x, int event_y);
-	void has_close_button(int bHasCloseButton) { m_hasCloseButton = bHasCloseButton; }
+	void has_close_button(int bHasCloseButton) { m_hasCloseButton = bHasCloseButton?1:0; }
     Fl_Widget *last_visible_;
+    void SelectTab(Fl_Widget *pTab);
 
 protected:
 	VT_Rect	m_closeRect;
+	VT_Rect	m_moveRect;
 	int		m_prevInRect;
+	int		m_prevInMoveRect;
 	int		m_pushInRect;
 	int		m_hasCloseButton;
+	int		m_hasMoreButton;
 	Fl_Widget *value_;
 	Fl_Widget *push_;
+	Fl_Menu_Item m_PopupMenuItems[100];
+    Fl_Menu_Button*		m_MorePopup;
 
     virtual int handle(int e);
     virtual int orig_handle(int e);

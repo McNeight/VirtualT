@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.6 2014/04/24 23:30:14 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.7 2014/05/09 18:27:44 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -466,13 +466,13 @@ void My_Text_Display::resize(int X, int Y, int W, int H)
         if (scrollbar_align() & FL_ALIGN_LEFT) {
           text_area.x = X+scrollbar_width()+LEFT_MARGIN+mLeftMargin;
           text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN*2-mLeftMargin;
-          mVScrollBar->resize(X, text_area.y-TOP_MARGIN, scrollbar_width(),
-                              text_area.h+TOP_MARGIN+BOTTOM_MARGIN);
+          mVScrollBar->resize(X, text_area.y-TOP_MARGIN-2, scrollbar_width(),
+                              text_area.h+TOP_MARGIN+BOTTOM_MARGIN+2);
         } else {
           text_area.x = X+LEFT_MARGIN+mLeftMargin;
           text_area.w = W-scrollbar_width()-LEFT_MARGIN-RIGHT_MARGIN*2-mLeftMargin-2;
-          mVScrollBar->resize(X+W+2-scrollbar_width(), text_area.y-TOP_MARGIN,
-                              scrollbar_width(), text_area.h+TOP_MARGIN+BOTTOM_MARGIN);
+          mVScrollBar->resize(X+W+2-scrollbar_width(), text_area.y-4,//-TOP_MARGIN-4,
+                              scrollbar_width(), text_area.h+TOP_MARGIN+BOTTOM_MARGIN+2);
         }
       }
 
@@ -2896,9 +2896,7 @@ void My_Text_Display::draw(void) {
     
   // draw the non-text, non-scrollbar areas.
   if (damage() & FL_DAMAGE_ALL) {
-//	  Fl_Region r = XRectangleRegion(0, 0, w(), h());
-	  fl_push_clip(0, 0, w(), h());
-	 // fl_clip_region(r);
+	  fl_push_clip(0, 0, w(), h()); // fl_clip_region(r);
 	  
     // draw the box()
     int W = w(), H = h();
@@ -2915,8 +2913,12 @@ void My_Text_Display::draw(void) {
 	{
 	    fl_rectf(1 /*text_area.x-mLeftMargin - LEFT_MARGIN*/, text_area.y-TOP_MARGIN-2,
              mLeftMargin, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+4, mUtilityMarginColor);
-	    fl_rectf(text_area.x - LEFT_MARGIN-1, text_area.y-1,
-             LEFT_MARGIN+1, text_area.h+2, color());
+        fl_color(FL_DARK1);
+        fl_line(0, text_area.y-TOP_MARGIN-2, 0, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+4);
+        fl_color(FL_BLACK);
+        fl_line(1, text_area.y-TOP_MARGIN-2, 1, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+4);
+	    //fl_rectf(text_area.x - LEFT_MARGIN-1, text_area.y-1,
+             //LEFT_MARGIN+1, text_area.h+2, color());
 	}
 	else
 	    fl_rectf(text_area.x-mLeftMargin, text_area.y-TOP_MARGIN,
@@ -2948,8 +2950,6 @@ void My_Text_Display::draw(void) {
   else if (damage() & (FL_DAMAGE_SCROLL | FL_DAMAGE_EXPOSE)) {
     // CET - FIXME - save old cursor position instead and just draw side needed?
 	  fl_push_clip(0, 0, w(), text_area.h + scrollbar_width());
-//	  Fl_Region r = XRectangleRegion(0, 0, w(), text_area.h + scrollbar_width());
-//	  fl_clip_region(r);
       
     // Top margin
     fl_rectf(text_area.x, text_area.y-TOP_MARGIN,
@@ -2957,8 +2957,12 @@ void My_Text_Display::draw(void) {
       
 	if (bHasUtilityMargin)
 	{
-	    fl_rectf(1 /*text_area.x-mLeftMargin - LEFT_MARGIN*/, text_area.y-TOP_MARGIN,
+	    fl_rectf(2 /*text_area.x-mLeftMargin - LEFT_MARGIN*/, text_area.y-TOP_MARGIN,
              mLeftMargin, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+2, mUtilityMarginColor);
+        fl_color(FL_DARK1);
+        fl_line(0, text_area.y-TOP_MARGIN-2, 0, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+4);
+        fl_color(FL_BLACK);
+        fl_line(1, text_area.y-TOP_MARGIN-2, 1, text_area.h+TOP_MARGIN-BOTTOM_MARGIN+4);
 	    fl_rectf(text_area.x - LEFT_MARGIN-1, text_area.y-1,
              LEFT_MARGIN+1, text_area.h+2, color());
 	}
@@ -2996,9 +3000,6 @@ void My_Text_Display::draw(void) {
     // draw some lines of text
     fl_push_clip(text_area.x, text_area.y,
                  text_area.w, text_area.h);
-//	  Fl_Region r = XRectangleRegion(text_area.x, text_area.y,
-//		  text_area.w, text_area.h);
-//	  fl_clip_region(r);
     draw_range(damage_range1_start, damage_range1_end);
     if (damage_range2_end != -1) {
       draw_range(damage_range2_start, damage_range2_end);
@@ -3016,9 +3017,6 @@ void My_Text_Display::draw(void) {
                  text_area.y,
                  text_area.w+LEFT_MARGIN+RIGHT_MARGIN,
                  text_area.h);
-//	  Fl_Region r = XRectangleRegion(0, 0,
-//		  w(), h());
-//	  fl_clip_region(r);
 
     int X, Y;
     if (position_to_xy(mCursorPos, &X, &Y)) draw_cursor(X, Y);
@@ -3217,5 +3215,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.6 2014/04/24 23:30:14 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.7 2014/05/09 18:27:44 kpettit1 Exp $".
 //
