@@ -1,6 +1,6 @@
 /* multieditwin.h */
 
-/* $Id: multieditwin.h,v 1.3 2013/03/05 20:43:46 kpettit1 Exp $ */
+/* $Id: multieditwin.h,v 1.4 2014/05/09 18:27:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -66,6 +66,7 @@ public:
 	int				ForwardSearch(const char *pFind, int caseSensitive = TRUE);
 	virtual void	show(void) { My_Text_Editor::show(); Fl_Widget::show(); }
     virtual void	buffer(My_Text_Buffer* buf);
+	void			tab_distance(int);
 	My_Text_Buffer* buffer() { return My_Text_Display::buffer(); }
 
 	My_Text_Editor*	m_te;
@@ -75,6 +76,7 @@ protected:
 	MString			m_FileName;
 	MString			m_Title;
 	int				m_Modified;
+	int				m_TabChange;
 	int virtual		OkToClose(void);
 };
 

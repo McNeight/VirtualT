@@ -54,6 +54,12 @@ v1.7 Not released yet
     Tabs are now clipped and a "More Files" icon is displayed to allow selection
     of off-screen open file windows.
 
+16. Added linker script PRELINK and POSTLINK processing to allow defining symbols
+    based on #if / #else / #endif C preprocessor style statements.  Also added
+    ability to display link messages using "echo" for displaying things like
+    program sizes and addresses, etc.
+
+
 ====================
 v1.6 April 24, 2014
 ====================

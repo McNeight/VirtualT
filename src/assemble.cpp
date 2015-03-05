@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.16 2015/02/25 02:12:08 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.17 2015/03/03 01:51:44 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -5107,26 +5107,6 @@ void VTAssembler::ParseExternalDefines(void)
             pMacro->m_DefString = sval;
             m_Defines.Add(pMacro);
         }
-
-#if 0
-		// Now assign this define
-		CSymbol*	pSymbol = new CSymbol;
-		if (pSymbol != NULL)
-		{
-			pSymbol->m_Name = def;
-			pSymbol->m_Line = -1;
-			pSymbol->m_SymType = SYM_DEFINE;
-			pSymbol->m_pRange = NULL;
-			pSymbol->m_FileIndex = -1;
-			pSymbol->m_Value = value;
-			if (value != -1)
-				pSymbol->m_SymType |= SYM_HASVALUE;
-
-			// Assign symbol to active segment
-			const char *pStr = (const char *) pSymbol->m_Name;
-			(*m_Symbols)[pStr] = pSymbol;
-		}
-#endif
 
 		// Update startIndex
 		startIndex = endIndex + 1;

@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.6 2015/02/24 20:19:17 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.7 2015/03/03 01:51:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -162,6 +162,7 @@ Fl_Multi_Edit_Window::Fl_Multi_Edit_Window(int x, int y, int w, int h, const cha
 	textsize(14);
 #endif
 	m_Modified = 0;
+	m_TabChange = 0;
 	m_Title = title;
 	this->label((const char *) m_Title);
 }
@@ -319,6 +320,18 @@ void Fl_Multi_Edit_Window::SaveAs(const MString& rootpath)
 Routine to handle modifications to the text buffer
 ===============================================================
 */
+void Fl_Multi_Edit_Window::tab_distance(int size)
+{
+	m_TabChange = 1;
+	buffer()->tab_distance(size);
+	m_TabChange = 0;
+}
+
+/*
+===============================================================
+Routine to handle modifications to the text buffer
+===============================================================
+*/
 void Fl_Multi_Edit_Window::ModifedCB(int pos, int nInserted, int nDeleted, 
 	int nRestyled, const char* deletedText)
 {
@@ -326,19 +339,20 @@ void Fl_Multi_Edit_Window::ModifedCB(int pos, int nInserted, int nDeleted,
 		return;
 
 	// Check if buffer had already been modified before
-	if (m_Modified)
-		return;
+	if (!m_TabChange)
+	{
+		// Update the window title to append a '*'
+		if (m_Title.Right(1) != '*')
+		{
+			m_Title += '*';
+			label((const char *) m_Title);
 
-	// Update the window title to append a '*'
-	if (m_Title.Right(1) == '*')
-		return;
+			m_Modified = 1;
+		}
+	}
 
-	m_Title += '*';
-	label((const char *) m_Title);
     if (parent() != NULL)
         parent()->redraw();
-	
-	m_Modified = 1;
 }
 
 /*

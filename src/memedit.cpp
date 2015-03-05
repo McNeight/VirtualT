@@ -1,6 +1,6 @@
 /* memedit.cpp */
 
-/* $Id: memedit.cpp,v 1.23 2015/02/25 00:36:00 kpettit1 Exp $ */
+/* $Id: memedit.cpp,v 1.24 2015/03/03 01:51:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit and Stephen Hurd 
@@ -3073,6 +3073,7 @@ int T100_MemEditor::handle(int event)
 			break;
 			
 		}
+            redraw();
 		break;
 
 	case FL_MOUSEWHEEL:

@@ -20,8 +20,6 @@ in no specfic order.
 - Modifiy IDE / Project settings window so it is resizable and uses a list on the 
   left with control window panes on the right.
 
-- Add Linker Script command processing.
-
 - Add IDE Project Profiles to allow setting environment variables for M100, T200, etc.
 
 - Update TDock VGA so that it pulls in the M100 ROM and doesn't depen on the M100
@@ -34,8 +32,6 @@ in no specfic order.
 - Add "Install TDock Tools" menu item to automatically install the TDock CO files.
 
 - Update REX memory model to pull in REX 4.9 instead of REX 4.8.
-
-- Add ability from IDE / Editor to specify Tab spacing.
 
 - Add ability to create multiple Memory Editor windows.
 

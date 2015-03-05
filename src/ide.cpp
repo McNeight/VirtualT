@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.22 2015/03/03 01:51:44 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.23 2015/03/04 02:27:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -75,6 +75,7 @@ Fl_Multi_Window*	gpLcd;
 MString				gRootpath;
 char				usrdocdir[256];
 int					gIdeX, gIdeY, gIdeW, gIdeH;
+int					tab_size = 4;
 char				gRecentFile[VT_NUM_RECENT_FILES][256];
 char				gRecentProject[VT_NUM_RECENT_PROJECTS][256];
 int					gDisableHl, gSmartIndent, gReloadProject;
@@ -562,6 +563,7 @@ void VT_Ide::SetColors(int fg, int bg)
 		te->mCursor_color = hl_plain;
 		te->smart_indent = gSmartIndent;
 		te->textsize(text_size);
+		te->tab_distance(tab_size);
 		if (gDisableHl)
 			te->DisableHl();
 		else
@@ -607,6 +609,8 @@ dialog box.
 void cb_prefs(Fl_Widget* w, void*)
 {
 	text_size_choice->value((text_size - 6)/2);
+	sprintf(stab, "%d", tab_size);
+	tab_size_choice->value(stab);
 	save_wsoe_check->value(save_window_size);
 	hide_output_check->value(auto_hide);
 	
@@ -973,6 +977,7 @@ void VT_Ide::LoadPrefs(void)
 	virtualt_prefs.get("Ide_SaveWindowSize", save_window_size, 1);
 	virtualt_prefs.get("Ide_AutoHide", auto_hide, 0);
 	virtualt_prefs.get("Ide_TextSize", text_size, 12);
+	virtualt_prefs.get("Ide_TabSize", tab_size, 4);
 	for (c = 0; c < VT_NUM_RECENT_FILES; c++)
 	{
 		sprintf(sRecentFile, "Ide_RecentFile%d", c + 1);
@@ -1031,6 +1036,7 @@ void VT_Ide::SavePrefs(void)
 	virtualt_prefs.set("Ide_SaveWindowSize", save_window_size);
 	virtualt_prefs.set("Ide_AutoHide", auto_hide);
 	virtualt_prefs.set("Ide_TextSize", text_size);
+	virtualt_prefs.set("Ide_TabSize", tab_size);
 	for (int c = 0; c < VT_NUM_RECENT_FILES; c++)
 	{
 		sprintf(sRecentFile, "Ide_RecentFile%d", c + 1);
@@ -3545,7 +3551,7 @@ Fl_Multi_Edit_Window* VT_Ide::NewEditWindow(const MString& title, const MString&
 	/* Now Create window */
 	mw = new Fl_Multi_Edit_Window(x, y, w, h, 
 		(const char *) title);
-	mw->buffer()->tab_distance(4);
+	mw->buffer()->tab_distance(tab_size);
 	if (file != "")
 	{
 		mw->OpenFile((const char *) file);
@@ -3790,6 +3796,7 @@ void VT_Ide::BuildProject(void)
 		linker.SetProjectType(m_ActivePrj->m_ProjectType);
 		linker.SetOutputFile(m_ActivePrj->m_OutputName);
 		linker.SetTargetModel(m_ActivePrj->m_TargetModel);
+        linker.SetDefines(m_ActivePrj->m_Defines);
 		if (linkerScriptFound)
 			linker.SetLinkerScript(linkerScript);
 		else

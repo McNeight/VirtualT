@@ -8,6 +8,7 @@
 #include <stdio.h>
 extern void load_lang_cb(char *file);
 extern int text_size;
+extern int tab_size;
 extern Fl_Color hl_plain;
 extern Fl_Color hl_linecomment;
 extern Fl_Color hl_blockcomment;
@@ -36,6 +37,8 @@ extern Fl_Group *ed_group;
 #include <FL/Fl_Box.H>
 #include <FL/Fl_Choice.H>
 extern Fl_Choice *text_size_choice;
+extern Fl_Input *tab_size_choice;
+extern char stab[10];
 #include <FL/Fl_Check_Button.H>
 extern Fl_Check_Button *smart_indent_check;
 extern Fl_Check_Button *save_wsoe_check;

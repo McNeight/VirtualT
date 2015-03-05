@@ -1,6 +1,6 @@
 /* idetabs.cpp */
 
-/* $Id: idetabs.cpp,v 1.4 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: idetabs.cpp,v 1.5 2015/03/04 02:27:51 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -47,7 +47,7 @@
 #include "multieditwin.h"
 
 #define BORDER 3
-#define EXTRASPACE 16
+#define EXTRASPACE 32
 #ifndef TAB_HEIGHT
 #define	TAB_HEIGHT 24
 #endif

@@ -18,6 +18,7 @@ Written:	11/13/09  Kenneth D. Pettit
 #include		<string.h>
 #include		<stdio.h>
 #include		<stdlib.h>
+#include        <ctype.h>
 #include		<FL/filename.H>
 
 extern "C"
@@ -64,6 +65,7 @@ VTLinker::VTLinker()
 	m_EntryAddress = 0;
 	m_StartAddress = 0;
     m_LinkDone = FALSE;
+	m_LinkScriptRaw = FALSE;
 	
 	// Clear out the Segment assignement map
 	for (x = 0; x < sizeof(m_SegMap) / sizeof(CObjSegment *); x++)
@@ -73,6 +75,89 @@ VTLinker::VTLinker()
 VTLinker::~VTLinker()
 {
 	ResetContent();
+}
+
+/*
+============================================================================
+Constructor for the CLinkRgn object.  This object is used to keep track of
+regions defined in the linker script.
+============================================================================
+*/
+CLinkRgn::CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot, 
+				   const char* pAtEndName, int atend)
+{
+	m_Type = type; 
+	m_Name = name; 
+	if (pAtEndName != NULL)
+		m_AtEndRgn = pAtEndName;
+	m_Protected = prot;
+	m_AtEnd = atend;
+	m_LocateComplete = FALSE;
+	m_pFirstAddrRange = new LinkAddrRange;
+	m_pLastAddrRange = m_pFirstAddrRange;
+	m_pFirstAddrRange->startAddr = startAddr;
+	m_pFirstAddrRange->endAddr = endAddr;
+	m_pFirstAddrRange->pNext = NULL;
+	m_pFirstAddrRange->pPrev = NULL;
+	m_pFirstAddrRange->nextLocateAddr = startAddr;
+	m_pFirstAddrRange->endLocateAddr = endAddr;
+	m_NextLocateAddr = startAddr;
+	m_EndLocateAddr = endAddr;
+}
+
+CLinkRgn::~CLinkRgn()
+{
+	LinkAddrRange	*pRange;
+	LinkAddrRange	*pNextRange;
+
+	pRange = m_pFirstAddrRange;
+	while (pRange != NULL)
+	{
+		pNextRange = pRange->pNext;
+		delete pRange;
+		pRange = pNextRange;
+	}
+}
+
+CObjFile::~CObjFile()
+{
+	int			count, c;
+
+	count = m_FileSections.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		delete (CObjFileSection *) m_FileSections[c];
+	}
+	m_FileSections.RemoveAll();
+}
+
+CObjFileSection::~CObjFileSection()
+{
+	int		count, c;
+
+	if (m_pStrTab != NULL)
+		delete m_pStrTab;
+
+	if (m_pObjSegment != NULL)
+		delete m_pObjSegment;
+
+	count = m_Symbols.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		delete (Elf32_Sym *) m_Symbols[c];
+	}
+	m_Symbols.RemoveAll();
+
+	count = m_Reloc.GetSize();
+	for (c = 0; c < count; c++)
+	{
+		delete (Elf32_Rel *) m_Reloc[c];
+	}
+	m_Symbols.RemoveAll();
+
+	// Delete program bytes pointer if not NULL
+	if (m_pProgBytes != NULL)
+		delete m_pProgBytes;
 }
 
 /*
@@ -94,6 +179,26 @@ Sets the standard output "printf" function to write error messages to
 void VTLinker::SetOutputFile(const MString& outFile)
 {
 	m_OutputName = outFile;
+}
+
+/*
+============================================================================
+Returns the Start address (lowest address) of the generated code.
+============================================================================
+*/
+unsigned short VTLinker::GetStartAddress(void)
+{
+	return m_StartAddress;
+}
+
+/*
+============================================================================
+Returns the Entry address (lowest address) of the generated code.
+============================================================================
+*/
+unsigned short VTLinker::GetEntryAddress(void)
+{
+	return m_EntryAddress;
 }
 
 /*
@@ -181,6 +286,34 @@ void VTLinker::ResetContent(void)
 	m_FileIndex = -1;
 	m_ObjDirs.RemoveAll();
 
+    // Delete all entries in the Prelink script
+    for (x = 0; x < m_PrelinkScript.m_Script.GetSize(); x++)
+    {
+        CScriptCmd *pCmd = (CScriptCmd *) m_PrelinkScript.m_Script[x];
+        delete pCmd;
+    }
+    m_PrelinkScript.m_Script.RemoveAll();
+
+    // Delete all entries in the Postlink script
+    for (x = 0; x < m_PostlinkScript.m_Script.GetSize(); x++)
+    {
+        CScriptCmd *pCmd = (CScriptCmd *) m_PostlinkScript.m_Script[x];
+        delete pCmd;
+    }
+    m_PostlinkScript.m_Script.RemoveAll();
+
+    // Delete all entries in the m_Defines map
+	pos = m_Defines.GetStartPosition();
+    CDefine* pDefine;
+	while (pos != NULL)
+	{
+		m_Defines.GetNextAssoc(pos, key, (VTObject *&) pDefine);
+		delete pDefine;
+	}
+	m_Defines.RemoveAll();
+	
+	m_ProgSections.RemoveAll();
+
     // Reset the AddrLines array
     for (x = 0; x < 65536; x++)
         m_AddrLines.a[x].pObjFile = NULL;
@@ -191,6 +324,77 @@ void VTLinker::ResetContent(void)
 	m_Map = FALSE;
 	m_EntryAddress = 0;
 	m_StartAddress = 0;
+}
+
+/*
+============================================================================
+Parses the comma delimeted object filename list and splits it into an array
+of filenames to be linked.
+============================================================================
+*/
+void VTLinker::CalcObjDirs(void)
+{
+	char*		pStr;
+	char*		pToken;
+	MString		temp;
+
+	m_ObjDirs.RemoveAll();
+
+	// Add the root directory to the ObjDirs
+	m_ObjDirs.Add(m_RootPath+(char *) "/");
+
+	// Check if there is an include path
+	if (m_ObjPath.GetLength() == 0)
+		return;
+
+	// Copy path to a char array so we can tokenize
+	pStr = new char[m_ObjPath.GetLength() + 1];
+	strcpy(pStr, (const char *) m_ObjPath);
+
+	pToken = strtok(pStr, ",;");
+	while (pToken != NULL)
+	{
+		// Preprocess the directory by searching for $VT_ROOT and $VT_PROJ
+		temp = PreprocessDirectory(pToken);
+
+		// Now add it to the array
+		m_ObjDirs.Add(temp);
+
+		// Get next token
+		pToken = strtok(NULL, ",;");
+	}
+
+	delete pStr;
+}
+
+/*
+============================================================================
+Parses the provided directory name and substitutes {$VT_ROOT} and {$VT_PROJ}
+with actual path's.  Returns the resultant string.
+============================================================================
+*/
+MString VTLinker::PreprocessDirectory(const char *pDir)
+{
+	MString temp;
+
+	if (strncmp(pDir, "{$VT_ROOT}", 10) == 0)
+	{
+		// Substitute the VirtualT path
+		temp = path;
+		temp += pDir[10];
+	}
+	else if (strncmp(pDir, "{$VT_PROJ}", 10) == 0)
+	{
+		// Generate a projet relative path
+		temp = pDir[10];
+		temp.Trim();
+		temp += (char *) "/";
+		temp = m_RootPath + (char *) "/" + temp;
+	}
+	else
+		temp = pDir;
+
+	return temp;
 }
 
 /*
@@ -413,55 +617,74 @@ void VTLinker::ProcScriptField2(const char *pStr, int lineNo, MString &segname)
 	else if (m_Command == LKR_CMD_DEFINE)
 	{
 	}
+
+	// Test if command is PRELINK or POSTLINK
+	else if ((m_Command == LKR_CMD_PRELINK) || (m_Command == LKR_CMD_POSTLINK))
+	{
+		if (strcmp(pStr, "{") != 0)
+		{
+			err.Format("Error in line %d(%s):  Expected open brace", lineNo,
+				(const char *) m_LinkerScript);
+			m_Errors.Add(err);
+			m_Command = LKR_CMD_ERROR;
+		}
+        else
+            m_LinkScriptRaw = TRUE;
+	}
 }
 
 /*
 ============================================================================
 This routine evaluates the string provided and returns it's value.  The
-string can be decimal, hex, etc. and can contain simple math.
+string can be decimal, hex, etc. and can contain simple math or comparisons
+such as:
 
-END=Preamble_start + (1 + COUNT*4+a)*2
+    Preamble_start + (1 + COUNT*4+a)*2
+    modeltype=2
+    COUNT > 4
+    count+1 > 3 || modeltype * 2 < 4
 
 ============================================================================
 */
-typedef struct
-{
-	char	op;
-	char*	val;
-} SimpleEqOperator_t;
-
-#define SIMPLE_EQ_PAREN	0
-#define SIMPLE_EQ_ADD	1
-#define SIMPLE_EQ_SUB	2
-#define SIMPLE_EQ_MULT	3
-#define SIMPLE_EQ_DIV	4
-#define SIMPLE_EQ_VALUE 6
-#define SIMPLE_EQ_NOADD 10
-
-int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
+int VTLinker::EvaluateStringEquation(const char *pEq, int lineNo, int* asHex)
 {
 	int					len = strlen(pEq);
 	int					hex = 0;
 	int					stack[10];
-	int					slevel = 0;
-	int					address, x;
+	int					slevel = 1;
+	int					address, x, i;
     char    			op, unwindto;
     char    			*token, *pStr;
 	SimpleEqOperator_t	eq[20];
 	SimpleEqOperator_t	build[20];
+	CLinkRgn			*pLinkRgn;
+    CDefine             *pDefine;
+	MString 			err;
     char                temp[256];
 	int					eqsize = 0;
 	int					buildidx = 0;
-    int                 value;
+    int                 value, found;
 
     strncpy(temp, pEq, sizeof(temp));
     pStr = temp;
     token = pStr;
+
+    while (*pStr == ' ')
+        pStr++;
+    if (asHex)
+    {
+        if (*pStr == '$')
+            *asHex = 1;
+        else
+            *asHex = 0;
+    }
+
 	for (x = 0; x < len; )
 	{
 		// Find end of next token
 		while (*pStr != '+' && *pStr != '-' && *pStr != '*' && *pStr != '/' && *pStr != 0 &&
-				*pStr != '(' && *pStr != ')')
+				*pStr != '(' && *pStr != ')' && *pStr != '=' && *pStr != '>' && *pStr != '<' &&
+                *pStr != '|' && *pStr != '&' && *pStr != '!' && *pStr != ' ')
 		{
 			pStr++;
 			x++;
@@ -471,13 +694,26 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 
 		if (strlen(token) > 0)
 		{
-			// Push the value to the equation
-			eq[eqsize].op = SIMPLE_EQ_VALUE;
-			eq[eqsize++].val = token;
+			if (strcmp(token, "sizeof") == 0 && op == '(')
+			{
+				// Push SIMPLE_EQ_SIZEOF to build stack
+				build[buildidx++].op = SIMPLE_EQ_SIZEOF;
+			}
+			else
+			{
+				// Push the value to the equation
+				eq[eqsize].op = SIMPLE_EQ_VALUE;
+				eq[eqsize++].val = token;
+			}
 		}
 
 		switch (op)
 		{
+            case ' ':
+                op = SIMPLE_EQ_NOADD;
+                unwindto = SIMPLE_EQ_NOADD;
+                break;
+
 			case '+': 
 				op= SIMPLE_EQ_ADD;
 				unwindto = SIMPLE_EQ_ADD;
@@ -498,6 +734,7 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 				break;
 
 			case '(': 
+                op = SIMPLE_EQ_PAREN;
 				build[buildidx++].op = SIMPLE_EQ_PAREN; 
                 unwindto = 99;
 				break;
@@ -506,6 +743,82 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
                 op = SIMPLE_EQ_NOADD;
 				unwindto = SIMPLE_EQ_PAREN;
 				break;
+
+			case '|':
+                if (*(pStr+1) != '|')
+                {
+					err.Format("Error in line %d(%s):  Bitwise OR not supported", lineNo,
+						(const char *) m_LinkerScript);
+					m_Errors.Add(err);
+					return 0;
+                }
+				pStr++;
+                op = SIMPLE_EQ_LOGOR;
+				unwindto = SIMPLE_EQ_LOGOR;
+				break;
+
+			case '&':
+                if (*(pStr+1) != '&')
+                {
+					err.Format("Error in line %d(%s):  Bitwise AND not supported", lineNo,
+						(const char *) m_LinkerScript);
+					m_Errors.Add(err);
+					return 0;
+                }
+				pStr++;
+                op = SIMPLE_EQ_LOGAND;
+				unwindto = SIMPLE_EQ_LOGOR;
+				break;
+
+            case '=':
+                if (*(pStr+1) == '=')
+                {
+                    // Skip the 2nd = so "==" and "=" are the same
+                    pStr++;
+                }
+                op = SIMPLE_EQ_EQUAL;
+                unwindto = SIMPLE_EQ_EQUAL;
+                break;
+
+            case '<':
+                if (*(pStr+1) == '=')
+                {
+                    // Skip the '<' 
+                    pStr++;
+                    op = SIMPLE_EQ_LTE;
+                }
+                else
+                    op = SIMPLE_EQ_LT;
+                break;
+                unwindto = SIMPLE_EQ_LT;
+
+            case '>':
+                if (*(pStr+1) == '=')
+                {
+                    // Skip the '>' 
+                    pStr++;
+                    op = SIMPLE_EQ_GTE;
+                }
+                else
+                    op = SIMPLE_EQ_GT;
+                break;
+                unwindto = SIMPLE_EQ_LT;
+
+			case '!':
+				if (*(pStr+1) == '=')
+				{
+                    // Skip the '=' 
+                    pStr++;
+					op = SIMPLE_EQ_NOTEQUAL;
+					unwindto = SIMPLE_EQ_EQUAL;
+				}
+				else
+				{
+					op = SIMPLE_EQ_LOGNOT;
+					unwindto = SIMPLE_EQ_NOADD;
+				}
+				break;
+
             default:
                 op = SIMPLE_EQ_NOADD;
                 break;
@@ -515,12 +828,35 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 		while (buildidx > 0 && build[buildidx-1].op >= unwindto)
 		{
 			if (build[buildidx-1].op != SIMPLE_EQ_PAREN)
+			{
+				// Test for special processing of "sizeof(SECTION)" syntax
+				if (build[buildidx-1].op == SIMPLE_EQ_SIZEOF)
+				{
+					// Pop the sizeof from the build stack
+					buildidx--;
+					if (eqsize == 0 || eq[eqsize-1].op != SIMPLE_EQ_VALUE)
+					{
+						// Error condition ... nothing else on the stack.  Must
+						// be something like sizeof() 
+						// Error condition in equation!  Something like "/3" was specified
+						err.Format("Error in line %d(%s):  Malformed sizeof", lineNo,
+							(const char *) m_LinkerScript);
+						m_Errors.Add(err);
+						return 0;
+					}
+
+					eq[eqsize-1].op = SIMPLE_EQ_SIZEOF;
+					continue;
+				}
 				eq[eqsize++].op = build[buildidx-1].op;
+			}
 			buildidx--;
 		}
 
         if (op != SIMPLE_EQ_NOADD)
+        {
             build[buildidx++].op = op;
+        }
 
 		x++;
 		token = ++pStr;
@@ -534,8 +870,9 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 	// Evaluate equation
 	for (x = 0; x < eqsize; x++)
 	{
-		if (eq[x].op == SIMPLE_EQ_VALUE)
+		switch (eq[x].op)
 		{
+		case SIMPLE_EQ_VALUE:
 			token = eq[x].val;
 
 			// Lookup symbol in active module
@@ -550,6 +887,13 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 
 					// Get the symbol value
 					value = (unsigned short) pSymFile->m_pSym->st_value;
+					if (pSymSect->m_Type != ASEG && ELF32_ST_TYPE(pSymFile->m_pSym->st_info)
+								!= STT_EQUATE)
+					{
+						value +=(unsigned short) pSymSect->m_LocateAddr;
+					}
+
+					// Symbol is only valid if it is ASEG or has been located
 					if (pSymSect->m_Type == ASEG || m_LinkDone)
 					{
 						stack[slevel++] = value;
@@ -560,9 +904,16 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 				else
 					stack[slevel++] = 0;
 			}
+            else if (m_Defines.Lookup(token, (VTObject *&) pDefine))
+            {
+                // It is a define, evaluate it
+                value = EvaluateStringEquation((const char *) pDefine->m_Value, lineNo);
+				stack[slevel++] = value;
+            }
 			else
 			{
 				// Test for Hex conversion
+                int tokenlen = strlen(token);
 				if (*token == '$')
 				{
 					hex = 1;	// Indicate HEX conversion
@@ -573,9 +924,27 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 					hex = 1;
 					token += 2;	// Skip the "0x" hex delimiter
 				}
-				else if ((token[len-1] == 'h') || (token[len-1] == 'H'))
+				else if ((token[tokenlen-1] == 'h') || (token[tokenlen-1] == 'H'))
 				{
 					hex = 1;
+					token[--tokenlen] = '\0';
+				}
+
+				// Validate it is a value
+                tokenlen = strlen(token);
+				for (i = 0; i < tokenlen; i++)
+				{
+					if (token[i] < '0' || token[i] > '9')
+					{
+						if (!hex || !isxdigit(token[i]))
+						{
+							MString err;
+							err.Format("Error in line %d(%s):  Unknown symbol %s", lineNo,
+								(const char *) m_LinkerScript, token);
+							m_Errors.Add(err);
+							return 0;
+						}
+					}
 				}
 
 				// Perform the conversion
@@ -586,30 +955,138 @@ int VTLinker::EvaluateScriptAddress(const char *pEq, int lineNo)
 
 				stack[slevel++] = address;
 			}
-		}
-		else if (eq[x].op == SIMPLE_EQ_ADD)
-		{
+			break;
+
+		case SIMPLE_EQ_ADD:
 			// Add the 2 top stack items and save in stack
 			value = stack[--slevel];
 			stack[slevel-1] += value;
-		}
-		else if (eq[x].op == SIMPLE_EQ_SUB)
-		{
+			break;
+
+		case SIMPLE_EQ_SUB:
 			// Subtract top stack item from next one down
 			value = stack[--slevel];
 			stack[slevel-1] -= value;
-		}
-		else if (eq[x].op == SIMPLE_EQ_MULT)
-		{
+			break;
+
+		case SIMPLE_EQ_MULT:
 			// Subtract top stack item from next one down
 			value = stack[--slevel];
 			stack[slevel-1] *= value;
-		}
-		else if (eq[x].op == SIMPLE_EQ_DIV)
-		{
+			break;
+
+		case SIMPLE_EQ_DIV:
 			// Subtract top stack item from next one down
 			value = stack[--slevel];
 			stack[slevel-1] /= value;
+			break;
+
+		case SIMPLE_EQ_LOGNOT:
+			stack[slevel] = !stack[slevel];
+			break;
+
+		case SIMPLE_EQ_EQUAL:
+			value = stack[--slevel];
+			stack[slevel-1] = value == stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_NOTEQUAL:
+			value = stack[--slevel];
+			stack[slevel-1] = value != stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_LT:
+			value = stack[--slevel];
+			stack[slevel-1] = value < stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_LTE:
+			value = stack[--slevel];
+			stack[slevel-1] = value <= stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_GT:
+			value = stack[--slevel];
+			stack[slevel-1] = value > stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_GTE:
+			value = stack[--slevel];
+			stack[slevel-1] = value >= stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_LOGOR:
+			value = stack[--slevel];
+			stack[slevel-1] = value || stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_LOGAND:
+			value = stack[--slevel];
+			stack[slevel-1] = value && stack[slevel-1];
+			break;
+
+		case SIMPLE_EQ_SIZEOF:
+			token = eq[x].val;
+			value = 0;
+			found = FALSE;
+
+			// Search for token in the Progbits section array
+			for (i = 0; i < m_ProgSections.GetSize(); i++)
+			{
+				// Test if this section name matches.
+				if (((CObjFileSection *) m_ProgSections[i])->m_Name == token)
+				{
+					// Add all sizes of sections that match
+					value += ((CObjFileSection *) m_ProgSections[i])->m_Size;
+					found = TRUE;
+				}
+			}
+			if (found)
+			{
+				// Add the value to the stack
+				stack[slevel++] = value;
+				break;
+			}
+
+			// Maybe it's a Linker Region?
+			else if (m_LinkRegions.Lookup(token, (VTObject *&) pLinkRgn))
+			{
+				// Search for Progbits sections located in this region
+				for (i = 0; i < m_ProgSections.GetSize(); i++)
+				{
+					// Test if this section name matches.
+					if (((CObjFileSection *) m_ProgSections[i])->m_pLinkRgn == pLinkRgn)
+					{
+						// Add all sizes of sections that match
+						value += ((CObjFileSection *) m_ProgSections[i])->m_Size;
+					}
+				}
+
+				// Add the size to the stack
+				stack[slevel++] = value;
+				break;
+			}
+            else
+            {
+				MString err;
+				// Error condition in equation!  Something like "/3" was specified
+				err.Format("Error in line %d(%s):  Unknown symbol '%s'", lineNo,
+					(const char *) m_LinkerScript, token);
+				m_Errors.Add(err);
+                return 0;
+            }
+
+			break;
+		}
+
+		if (slevel <= 1)
+		{
+            MString err;
+			// Error condition in equation!  Something like "/3" was specified
+			err.Format("Error in line %d(%s):  Malformed equation", lineNo,
+				(const char *) m_LinkerScript);
+			m_Errors.Add(err);
+			return 0;
 		}
 	}
 
@@ -660,7 +1137,7 @@ void VTLinker::ProcScriptField3(char *pStr, int lineNo, int& startAddr,
 			}
 			else
             {
-				startAddr = EvaluateScriptAddress(pStr + 6, lineNo);
+				startAddr = EvaluateStringEquation(pStr + 6, lineNo);
                 if (startAddr > 65535)
                 {
                     err.Format("Error in line %d(%s):  START address too large", lineNo,
@@ -725,7 +1202,7 @@ void VTLinker::ProcScriptField4(const char *pStr, int lineNo, int& endAddr)
 	{
 		if (strncmp(pStr, "END=", 4) == 0)
 		{
-			endAddr = EvaluateScriptAddress(pStr + 4, lineNo);
+			endAddr = EvaluateStringEquation(pStr + 4, lineNo);
             if (endAddr > 65535)
             {
                 err.Format("Error in line %d(%s):  END address too large", lineNo,
@@ -1065,6 +1542,344 @@ void VTLinker::NewLinkRegion(int type, int lineNo, int startAddr,
 
 /*
 ============================================================================
+Process a Linker Sub Script
+============================================================================
+*/
+void VTLinker::ProcessScript(CLinkScript *pScript, int singleStep)
+{
+    MString     msg;
+    int         x, count, value, index;
+    CScriptCmd  *pCmd;
+	CDefine  	*pDefine;
+    MString     name, val;
+
+	count = pScript->m_Script.GetSize();
+    for (x = singleStep ? pScript->m_executeIdx++ : 0; x < count; x++)
+	{
+		pCmd = (CScriptCmd *) pScript->m_Script[x];
+
+		switch (pCmd->m_ID)
+		{
+		case SCR_CMD_IF:
+			if (pScript->m_execute == FALSE)
+			{
+				// Even if we can't execute, we still have to keep
+				// track of the nested if condition so we know which
+				// else and endif belongs to us
+				pScript->m_ifStack[pScript->m_ifdepth].m_CanExecute = FALSE;
+				pScript->m_ifStack[pScript->m_ifdepth++].m_StartLine = pCmd->m_Line;
+				continue;
+			}
+
+			// Evaluate the if condition
+			value = EvaluateStringEquation((const char *) pCmd->m_CmdArg,
+					pCmd->m_Line);
+			if (m_Errors.GetSize() > 0)
+				return;
+
+			pScript->m_ifStack[pScript->m_ifdepth].m_StartLine = pCmd->m_Line;
+			pScript->m_ifStack[pScript->m_ifdepth].m_CanExecute = pScript->m_execute;
+			pScript->m_ifStack[pScript->m_ifdepth].m_Executed = value;
+			pScript->m_execute = value;
+			pScript->m_ifdepth++;
+			break;
+
+		case SCR_CMD_IFDEF:
+		case SCR_CMD_IFNDEF:
+			if (pScript->m_execute == FALSE)
+			{
+				// Even if we can't execute, we still have to keep
+				// track of the nested if condition so we know which
+				// else and endif belongs to us
+				pScript->m_ifStack[pScript->m_ifdepth].m_CanExecute = FALSE;
+				pScript->m_ifStack[pScript->m_ifdepth++].m_StartLine = pCmd->m_Line;
+				continue;
+			}
+
+			// Lookup symbol in active module
+			CObjSymFile* pSymFile;
+			value = m_Symbols.Lookup((const char *) pCmd->m_CmdArg, (VTObject *&) pSymFile);
+
+			pScript->m_ifStack[pScript->m_ifdepth].m_StartLine = pCmd->m_Line;
+			pScript->m_ifStack[pScript->m_ifdepth].m_CanExecute = pScript->m_execute;
+			if (pCmd->m_ID == SCR_CMD_IFDEF)
+			{
+				pScript->m_ifStack[pScript->m_ifdepth].m_Executed = value;
+				pScript->m_execute = value;
+			}
+			else
+			{
+				pScript->m_ifStack[pScript->m_ifdepth].m_Executed = !value;
+				pScript->m_execute = !value;
+			}
+			pScript->m_ifdepth++;
+			break;
+
+		case SCR_CMD_ENDIF:
+			if (!pScript->m_ifdepth)
+			{
+				msg.Format("Error in line %d(%s):  #endif with no matching #if statement", pCmd->m_Line,
+					(const char *) m_LinkerScript);
+				m_Errors.Add(msg);
+				return;
+			}
+
+			// Pop the ifStack and restore the execute flag
+			pScript->m_execute = pScript->m_ifStack[--pScript->m_ifdepth].m_CanExecute;
+			break;
+
+		case SCR_CMD_ELSE:
+			if (!pScript->m_ifdepth)
+			{
+				msg.Format("Error in line %d(%s):  #else with no matching #if statement", pCmd->m_Line,
+					(const char *) m_LinkerScript);
+				m_Errors.Add(msg);
+				return;
+			}
+
+			// Check if we can execute at this level
+			if (pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute)
+			{
+				// If we haven't executed this if, then execute the else
+				pScript->m_execute = !pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed;
+				pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = 1;
+			}
+			break;
+
+		case SCR_CMD_ELSIF:
+			if (!pScript->m_ifdepth)
+			{
+				msg.Format("Error in line %d(%s):  #elsif with no matching #if statement", pCmd->m_Line,
+					(const char *) m_LinkerScript);
+				m_Errors.Add(msg);
+				return;
+			}
+
+			// Check if we can execute at this level
+			if (pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute && !pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed)
+			{
+				// We haven't executed yet.  Evaluate and test if we should execute
+				// Evaluate the if condition
+				value = EvaluateStringEquation((const char *) pCmd->m_CmdArg,
+						pCmd->m_Line);
+				if (m_Errors.GetSize() > 0)
+					return;
+
+				pScript->m_ifStack[pScript->m_ifdepth-1].m_StartLine = pCmd->m_Line;
+				pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute = pScript->m_execute;
+				if (value)
+				{
+					pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = TRUE;
+				}
+				else
+				{
+					pScript->m_execute = FALSE;
+				}
+				break;
+			}
+			break;
+
+		case SCR_CMD_DEFINE:
+			// Test if we are in a non-execute mode (#if)
+			if (pScript->m_execute == FALSE)
+				continue;
+
+			// Split the CmdArg into name and value
+			pCmd->m_CmdArg.Replace('\t', ' ');
+			index = pCmd->m_CmdArg.Find(' ');
+			name = pCmd->m_CmdArg.Left(index);
+			val = pCmd->m_CmdArg.Right(pCmd->m_CmdArg.GetLength()-index-1);
+			val.TrimLeft();
+			val.Trim();
+			
+			// Add a symbol to the m_Defines map.
+			if (m_Defines.Lookup((const char *) name, (VTObject *&) pDefine))
+			{
+				msg.Format("Error in line %d(%s):  symbol %s already defined", pCmd->m_Line,
+					(const char *) m_LinkerScript, (const char *) name);
+				m_Errors.Add(msg);
+				return;
+				break;
+			}
+			if (pDefine != NULL)
+			{
+				pDefine = new CDefine;
+				pDefine->m_Name = name;
+				pDefine->m_Value = val;
+				m_Defines[name] = pDefine;
+			}
+
+			break;
+
+		case SCR_CMD_ECHO:
+			// Test if we are in a non-execute mode (#if)
+			if (pScript->m_execute == FALSE)
+				continue;
+
+			// Echo data to the build window
+			if (pCmd->m_CmdArg[0] == '"')
+			{
+				// Data is a simple string
+				msg = pCmd->m_CmdArg.Right(pCmd->m_CmdArg.GetLength()-1);
+				msg = msg.Left(msg.GetLength()-1);
+				msg.Replace((char *) "\\n", (char *) "\n");
+				m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+			}
+			else
+			{
+				// Data is an equation
+				int asHex;
+				value = EvaluateStringEquation((const char *) pCmd->m_CmdArg, 
+						pCmd->m_Line, &asHex);
+				if (asHex)
+					msg.Format("%X", value);
+				else
+					msg.Format("%d", value);
+				m_pStdoutFunc(m_pStdoutContext, (const char *) msg);
+			}
+			break;
+	
+		}
+
+		// Test for single step and return if set
+		if (singleStep)
+			return;
+	}
+}
+
+/*
+============================================================================
+This routine parses lines from the Linker Script that occur between the
+open brace and close brace of PRELINK and POSTLINK commands in the script.
+============================================================================
+*/
+void VTLinker::ParseSubScript(char *pStr, int lineNo, CLinkScript* pScript)
+{
+	char*		token;
+	char*		arg;
+	MString		cmd, sArg, err;
+	CScriptCmd	*pCmd;
+
+	// Test for close brace
+	if (pStr[0] == '}')
+	{
+		// Turn off RAW linker script processing
+		m_LinkScriptRaw = FALSE;
+
+		// Indicate sub-script parsing complete
+		m_Command = LKR_CMD_COMPLETE;
+		return;
+	}
+
+    while (*pStr == ' ' || *pStr == '\t')
+        pStr++;
+    if (*pStr == ';')
+        return;
+
+	// Parse command from the rest of the line
+	token = strtok(pStr, " \t\n");
+	arg = strtok(NULL,"\n;");
+
+	if (token == NULL)
+		return;
+
+	cmd = token;
+	cmd.MakeLower();
+	if (arg == NULL)
+	{
+		if (cmd != "#else" && cmd != "#endif")
+		{
+			err.Format("Error in line %d(%s):  Expecting argument to %s", lineNo,
+				(const char *) m_LinkerScript, token);
+			m_Errors.Add(err);
+			return;
+		}
+	}
+    else
+        while (*arg == ' ' || *arg == '\t')
+            arg++;
+	sArg = arg;
+	sArg.Trim();
+
+	// Test for #ifdef or #ifndef
+	pCmd = new CScriptCmd;
+	if (cmd == "#ifdef" || cmd == "#ifndef")
+	{
+		if (cmd == "#ifdef")
+			pCmd->m_ID = SCR_CMD_IFDEF;
+		else
+			pCmd->m_ID = SCR_CMD_IFNDEF;
+	}
+
+	// Test for "#if"
+	else if (cmd == "#if")
+	{
+		pCmd->m_ID = SCR_CMD_IF;
+	}
+
+    // Test for "#else"
+    else if (cmd == "#else")
+    {
+		pCmd->m_ID = SCR_CMD_ELSE;
+    }
+
+    // Test for "#elsif"
+    else if (cmd == "#elseif" || cmd == "#elsif")
+    {
+		pCmd->m_ID = SCR_CMD_ELSIF;
+    }
+
+    // Test for "#endif"
+    else if (cmd == "#endif")
+    {
+		pCmd->m_ID = SCR_CMD_ENDIF;
+    }
+
+	// Test for #define
+	else if (cmd == "#define")
+	{
+        // Validate there is an identifier and an argument
+        while (*arg != ' ' && *arg != '\t' && *arg != '\0')
+            arg++;
+        token = arg;
+        while (*token == ' ' || *token == '\t')
+            token++;
+        if ((*arg != ' ' && *arg != '\t') || *token == '\0')
+        {
+            // Error, only 1 argument given
+			err.Format("Error in line %d(%s):  Expecting argument to %s", lineNo,
+				(const char *) m_LinkerScript, (const char *) sArg);
+			m_Errors.Add(err);
+			delete pCmd;
+			return;
+        }
+		pCmd->m_ID = SCR_CMD_DEFINE;
+	}
+
+	// Test for echo
+	else if (cmd == "echo" || cmd == ".echo")
+	{
+		pCmd->m_ID = SCR_CMD_ECHO;
+	}
+
+    // Unknown linker script command!
+    else
+    {
+        err.Format("Error in line %d(%s):  Unkown linker script command %s", lineNo,
+            (const char *) m_LinkerScript, token);
+        m_Errors.Add(err);
+		delete pCmd;
+        return;
+    }
+
+	// Add the command to the script
+	pCmd->m_CmdArg = sArg;
+	pCmd->m_Line= lineNo;
+	pScript->m_Script.Add(pCmd);
+}
+
+/*
+============================================================================
 This routine attempts to open and parse the linker script to be used during
 the link operation.  If the file cannot be opened or contains an erro, the
 routine returns FALSE, otherwise it configures internal structures and
@@ -1080,6 +1895,7 @@ int VTLinker::ReadLinkerScript()
 	char			*pRead, *pTok;
 	int				field, startAddr, endAddr, prot, atend;
 	char			*pSectName;
+    CLinkScript     readScript;
 
 	// Test if linker script was supplied
 	if (m_LinkerScript.GetLength() == 0)
@@ -1130,81 +1946,110 @@ int VTLinker::ReadLinkerScript()
 		if (lineBuf[0] == ';')
 			continue;
 
-		// Separate the line into tokens
-		pTok = strtok(lineBuf, " ,\t\n\r");
-		if ((m_Command == LKR_CMD_ERROR) || (m_Command == LKR_CMD_COMPLETE))
-		{
-			field = 0;
-			m_Command = LKR_CMD_NONE;
-			startAddr = endAddr = prot = 0;
-		}
+        if (lineBuf[0] == '#')
+        {
+            // Process #if / #else / #endif directives at the root level
+            ParseSubScript(lineBuf, lineNo, &readScript);
+            ProcessScript(&readScript, TRUE);
+            continue;
+        }
 
-		// Loop for all fields on the line
-		while (pTok != NULL)
+        if (readScript.m_execute == FALSE)
+            continue;
+
+		// If we are not in RAW mode, then tokenized.  RAW mode is used
+		// by the PRELINK and POSTLINK commands.
+		if (!m_LinkScriptRaw)
 		{
-			// Test for comment in the line
-			if (*pTok == ';')
+			// Separate the line into tokens
+			pTok = strtok(lineBuf, " ,\t\n\r");
+			if ((m_Command == LKR_CMD_ERROR) || (m_Command == LKR_CMD_COMPLETE))
 			{
-				// Comment only allowd on line if all args processed
-				if ((m_Command != LKR_CMD_NONE) && (m_Command != LKR_CMD_COMPLETE) &&
-					!(m_Command & LKR_CMD_CD_DONE))
+				field = 0;
+				m_Command = LKR_CMD_NONE;
+				startAddr = endAddr = prot = 0;
+			}
+
+			// Loop for all fields on the line
+			while (pTok != NULL)
+			{
+				// Test for comment in the line
+				if (*pTok == ';')
 				{
-					err.Format("Error in line %d(%s):  Incomplete linker script command", lineNo,
-						(const char *) m_LinkerScript);
-					m_Errors.Add(err);
+					// Comment only allowd on line if all args processed
+					if ((m_Command != LKR_CMD_NONE) && (m_Command != LKR_CMD_COMPLETE) &&
+						!(m_Command & LKR_CMD_CD_DONE))
+					{
+						err.Format("Error in line %d(%s):  Incomplete linker script command", lineNo,
+							(const char *) m_LinkerScript);
+						m_Errors.Add(err);
+					}
+					break;
 				}
-				break;
+
+				// Parse based on field number
+				switch (field)
+				{
+				case 0:
+					m_Command = MapScriptCommand(pTok, lineNo);
+					break;
+
+				case 1:
+					ProcScriptField2(pTok, lineNo, segname);
+					m_SegName = segname;
+					break;
+
+				case 2:
+					ProcScriptField3(pTok, lineNo, startAddr, pSectName);
+					break;
+
+				case 3:
+					ProcScriptField4(pTok, lineNo, endAddr);
+					break;
+
+				case 4:
+					ProcScriptField5(pTok, lineNo, prot, atend);
+					break;
+
+				default:
+					// Keep processing arguments to the ORDER command
+					if (m_Command == LKR_CMD_ORDER)
+						AddOrderedSegment(pTok, lineNo);
+					else if (m_Command == LKR_CMD_CONTAINS)
+						AddContainsSegment(pTok, lineNo);
+					else if (m_Command == LKR_CMD_ENDSWITH)
+						AddEndsWithSegment(pTok, lineNo);
+					break;
+				}
+
+				// Increment the field number
+				field++;
+				if ((m_Command == LKR_CMD_NONE) || (m_Command == LKR_CMD_ERROR))
+					break;
+				pTok = strtok(NULL, " ,\t\n\r");
 			}
 
-			// Parse based on field number
-			switch (field)
+			// If this was a DATA or CODE command that completed, process the
+			// information
+			if (m_Command & LKR_CMD_CD_DONE)
 			{
-			case 0:
-				m_Command = MapScriptCommand(pTok, lineNo);
-				break;
-
-			case 1:
-				ProcScriptField2(pTok, lineNo, segname);
-				m_SegName = segname;
-				break;
-
-			case 2:
-				ProcScriptField3(pTok, lineNo, startAddr, pSectName);
-				break;
-
-			case 3:
-				ProcScriptField4(pTok, lineNo, endAddr);
-				break;
-
-			case 4:
-				ProcScriptField5(pTok, lineNo, prot, atend);
-				break;
-
-			default:
-				// Keep processing arguments to the ORDER command
-				if (m_Command == LKR_CMD_ORDER)
-					AddOrderedSegment(pTok, lineNo);
-				else if (m_Command == LKR_CMD_CONTAINS)
-					AddContainsSegment(pTok, lineNo);
-				else if (m_Command == LKR_CMD_ENDSWITH)
-					AddEndsWithSegment(pTok, lineNo);
-				break;
+				// Clear the CMD_CD_DONE bit
+				m_Command &= ~LKR_CMD_CD_DONE;
+				NewLinkRegion(m_Command, lineNo, startAddr, endAddr, prot, pSectName, atend);
 			}
-
-			// Increment the field number
-			field++;
-			if ((m_Command == LKR_CMD_NONE) || (m_Command == LKR_CMD_ERROR))
-				break;
-			pTok = strtok(NULL, " ,\t\n\r");
 		}
-
-		// If this was a DATA or CODE command that completed, process the
-		// information
-		if (m_Command & LKR_CMD_CD_DONE)
+		else
 		{
-			// Clear the CMD_CD_DONE bit
-			m_Command &= ~LKR_CMD_CD_DONE;
-			NewLinkRegion(m_Command, lineNo, startAddr, endAddr, prot, pSectName, atend);
+			// Must be a PRELINK or POSTLINK command.  Send RAW strings
+			// to the ParseScript routine.
+			if (m_Command == LKR_CMD_PRELINK)
+            {
+				ParseSubScript(lineBuf, lineNo, &m_PrelinkScript);
+                if (m_Command  == LKR_CMD_COMPLETE)
+                    ProcessScript(&m_PrelinkScript);
+            }
+			else
+				ParseSubScript(lineBuf, lineNo, &m_PostlinkScript);
 		}
 	}
 
@@ -1659,6 +2504,9 @@ int VTLinker::AssignSectionNames()
 			// Finally, assign the name to the segment
 			if (*pName != '\0')
 				pFileSection->m_Name = pName;
+
+            if (pFileSection->m_ElfHeader.sh_type == SHT_PROGBITS)
+                m_ProgSections.Add(pFileSection);
 		}
 	}
 
@@ -1947,6 +2795,7 @@ int VTLinker::LocateSegmentIntoRegion(MString& region, CObjFileSection* pFileSec
 	// Mark the segment as located
 	pFileSection->m_LocateAddr = locateAddr;
 	pFileSection->m_Located = true;
+	pFileSection->m_pLinkRgn = pLinkRgn;
 
 	if (pFileSection->m_Type == DSEG)
 		m_TotalDataSpace += segSize;
@@ -3295,6 +4144,7 @@ int VTLinker::GenerateMapFile(void)
 	MString		err, filename;
 	FILE*		fd;
 	int			c, count, addr;
+	int			x;
 	int			codeSize = 0, dataSize = 0;
 	VTObArray	m_Sorted;
 
@@ -3403,6 +4253,20 @@ int VTLinker::GenerateMapFile(void)
 		m_Symbols.GetNextAssoc(pos, key, (VTObject *&) pObjSymFile);
 		CObjSymFile* pComp;
 
+		int sectionname = FALSE;
+		for (x = 0; x < m_ProgSections.GetSize(); x++)
+		{
+			if (((CObjFileSection *) m_ProgSections[x])->m_Name == pObjSymFile->m_pName)
+			{
+				sectionname = TRUE;
+				break;
+			}
+		}
+		if (sectionname)
+			continue;
+
+		// Test if this symbol is a section name
+
 		count = m_Sorted.GetSize();
 		for (c = 0; c < count; c++)
 		{
@@ -3449,6 +4313,18 @@ int VTLinker::GenerateMapFile(void)
 		CObjFileSection* pSymSect = (CObjFileSection *) pObjSymFile->m_pObjFile->m_FileSections[
 			pObjSymFile->m_pSym->st_shndx];
 		CObjSymFile* pComp;
+
+		int sectionname = FALSE;
+		for (x = 0; x < m_ProgSections.GetSize(); x++)
+		{
+			if (((CObjFileSection *) m_ProgSections[x])->m_Name == pObjSymFile->m_pName)
+			{
+				sectionname = TRUE;
+				break;
+			}
+		}
+		if (sectionname)
+			continue;
 
 		count = m_Sorted.GetSize();
 		for (c = 0; c < count; c++)
@@ -3745,18 +4621,93 @@ int VTLinker::BackAnnotateListingFiles(void)
 
 /*
 ============================================================================
+This function is called to parse an input file.  If there are no errors
+during parsing, the routine calls the routines to assemlbe and generate
+output files for .obj, .lst, .hex, etc.
+============================================================================
+*/
+void VTLinker::ParseExternalDefines(void)
+{
+	int			startIndex, endIndex;
+	MString		def, sval;
+	int			valIdx, len;
+	int			value = -1;
+
+	// If zero length then we're done
+	if ((len = m_ExtDefines.GetLength()) == 0)
+		return;
+
+	// Convert any commas to semicolons to make searches easy
+	m_ExtDefines.Replace(',', ';');
+
+	// Loop for all items in the string and assign labels
+	startIndex = 0;
+	while (startIndex >= 0)
+	{
+		// Find end of next define
+		endIndex = m_ExtDefines.Find(';', startIndex);
+		if (endIndex < 0)
+			endIndex = len;
+		
+		// Extract the define from the string
+		def = m_ExtDefines.Mid(startIndex, endIndex - startIndex);
+
+        sval = "";
+
+		// Test if the define has an embedded '='
+		if ((valIdx = def.Find('=')) != -1)
+		{
+			MString name = def.Left(valIdx);
+			sval = def.Mid(valIdx+1, endIndex - (valIdx+1));
+
+			// The value was valid.  Replace the def name
+			def = name;
+		}
+
+        // Add this define / string value pair
+        CDefine  *pDefine = new CDefine;
+        if (pDefine != NULL)
+        {
+            pDefine->m_Name = def;
+            pDefine->m_Value = sval;
+            m_Defines[def] = pDefine;
+        }
+
+		// Update startIndex
+		startIndex = endIndex + 1;
+		if (startIndex >= len)
+			startIndex = -1;
+		while (startIndex > 0)
+		{
+			if (m_ExtDefines[startIndex] == ' ')
+			{
+				if (++startIndex >= len)
+					startIndex = -1;
+			}
+			else
+				break;
+		}
+	}
+}
+
+/*
+============================================================================
 Process any POSTLINK commands from the Linker Script.
 ============================================================================
 */
 void VTLinker::ProcessPostlink(void)
 {
+    // Validate link done and no errors
     if (!m_LinkDone || m_Errors.GetSize() > 0)
         return;
+
+    // Process the postlink script from the linker script file
+    ProcessScript(&m_PostlinkScript);
 }
 
 /*
 ============================================================================
-The parser calls this function to perform the link operation after all
+The IDE calls this function to perform the link operation after all
 files have been assembled.
 ============================================================================
 */
@@ -3770,6 +4721,9 @@ int VTLinker::Link()
 
 	// Process the input filename list from the IDE
 	ProcessArgs(m_ObjFileList, ",;");
+
+    // Add any external defines from the IDE
+    ParseExternalDefines();
 
 	// Load all files to be linked
 	ReadObjFiles();
@@ -3816,7 +4770,7 @@ void VTLinker::SetLinkOptions(const MString& options)
 	// Set the options string in case we need it later
 	m_LinkOptions = options;
 
-	// Parse the options later during assembly
+	// Parse the options later during linking
 }
 
 /*
@@ -3829,7 +4783,7 @@ void VTLinker::SetLinkerScript(const MString& script)
 	// Set the linker script filename for processing later
 	m_LinkerScript = script;
 
-	// Parse the options later during assembly
+	// Parse the options later during linking
 }
 
 /*
@@ -3895,174 +4849,12 @@ void VTLinker::SetProjectType(int type)
 
 /*
 ============================================================================
-Parses the comma delimeted object filename list and splits it into an array
-of filenames to be linked.
+Sets the Linker external defines
 ============================================================================
 */
-void VTLinker::CalcObjDirs(void)
+void VTLinker::SetDefines(const MString& defines)
 {
-	char*		pStr;
-	char*		pToken;
-	MString		temp;
-
-	m_ObjDirs.RemoveAll();
-
-	// Add the root directory to the ObjDirs
-	m_ObjDirs.Add(m_RootPath+(char *) "/");
-
-	// Check if there is an include path
-	if (m_ObjPath.GetLength() == 0)
-		return;
-
-	// Copy path to a char array so we can tokenize
-	pStr = new char[m_ObjPath.GetLength() + 1];
-	strcpy(pStr, (const char *) m_ObjPath);
-
-	pToken = strtok(pStr, ",;");
-	while (pToken != NULL)
-	{
-		// Preprocess the directory by searching for $VT_ROOT and $VT_PROJ
-		temp = PreprocessDirectory(pToken);
-
-		// Now add it to the array
-		m_ObjDirs.Add(temp);
-
-		// Get next token
-		pToken = strtok(NULL, ",;");
-	}
-
-	delete pStr;
+	// Save the project type
+	m_ExtDefines = defines;
 }
 
-/*
-============================================================================
-Parses the provided directory name and substitutes {$VT_ROOT} and {$VT_PROJ}
-with actual path's.  Returns the resultant string.
-============================================================================
-*/
-MString VTLinker::PreprocessDirectory(const char *pDir)
-{
-	MString temp;
-
-	if (strncmp(pDir, "{$VT_ROOT}", 10) == 0)
-	{
-		// Substitute the VirtualT path
-		temp = path;
-		temp += pDir[10];
-	}
-	else if (strncmp(pDir, "{$VT_PROJ}", 10) == 0)
-	{
-		// Generate a projet relative path
-		temp = pDir[10];
-		temp.Trim();
-		temp += (char *) "/";
-		temp = m_RootPath + (char *) "/" + temp;
-	}
-	else
-		temp = pDir;
-
-	return temp;
-}
-
-/*
-============================================================================
-Returns the Start address (lowest address) of the generated code.
-============================================================================
-*/
-unsigned short VTLinker::GetStartAddress(void)
-{
-	return m_StartAddress;
-}
-
-/*
-============================================================================
-Returns the Entry address (lowest address) of the generated code.
-============================================================================
-*/
-unsigned short VTLinker::GetEntryAddress(void)
-{
-	return m_EntryAddress;
-}
-
-/*
-============================================================================
-Constructor for the CLinkRgn object.  This object is used to keep track of
-regions defined in the linker script.
-============================================================================
-*/
-CLinkRgn::CLinkRgn(int type, MString& name, int startAddr, int endAddr, int prot, 
-				   const char* pAtEndName, int atend)
-{
-	m_Type = type; 
-	m_Name = name; 
-	if (pAtEndName != NULL)
-		m_AtEndRgn = pAtEndName;
-	m_Protected = prot;
-	m_AtEnd = atend;
-	m_LocateComplete = FALSE;
-	m_pFirstAddrRange = new LinkAddrRange;
-	m_pLastAddrRange = m_pFirstAddrRange;
-	m_pFirstAddrRange->startAddr = startAddr;
-	m_pFirstAddrRange->endAddr = endAddr;
-	m_pFirstAddrRange->pNext = NULL;
-	m_pFirstAddrRange->pPrev = NULL;
-	m_pFirstAddrRange->nextLocateAddr = startAddr;
-	m_pFirstAddrRange->endLocateAddr = endAddr;
-	m_NextLocateAddr = startAddr;
-	m_EndLocateAddr = endAddr;
-}
-
-CLinkRgn::~CLinkRgn()
-{
-	LinkAddrRange	*pRange;
-	LinkAddrRange	*pNextRange;
-
-	pRange = m_pFirstAddrRange;
-	while (pRange != NULL)
-	{
-		pNextRange = pRange->pNext;
-		delete pRange;
-		pRange = pNextRange;
-	}
-}
-
-CObjFile::~CObjFile()
-{
-	int			count, c;
-
-	count = m_FileSections.GetSize();
-	for (c = 0; c < count; c++)
-	{
-		delete (CObjFileSection *) m_FileSections[c];
-	}
-	m_FileSections.RemoveAll();
-}
-
-CObjFileSection::~CObjFileSection()
-{
-	int		count, c;
-
-	if (m_pStrTab != NULL)
-		delete m_pStrTab;
-
-	if (m_pObjSegment != NULL)
-		delete m_pObjSegment;
-
-	count = m_Symbols.GetSize();
-	for (c = 0; c < count; c++)
-	{
-		delete (Elf32_Sym *) m_Symbols[c];
-	}
-	m_Symbols.RemoveAll();
-
-	count = m_Reloc.GetSize();
-	for (c = 0; c < count; c++)
-	{
-		delete (Elf32_Rel *) m_Reloc[c];
-	}
-	m_Symbols.RemoveAll();
-
-	// Delete program bytes pointer if not NULL
-	if (m_pProgBytes != NULL)
-		delete m_pProgBytes;
-}

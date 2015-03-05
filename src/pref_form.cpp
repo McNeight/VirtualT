@@ -15,10 +15,14 @@ extern int gReloadProject;
 Fl_Double_Window *pref_window=(Fl_Double_Window *)0;
 
 Fl_Button *pref_ok_btn=(Fl_Button *)0;
+Fl_Input *tab_size_choice=(Fl_Input *)0;
+char stab[10];
+
 
 static void cb_pref_ok_btn(Fl_Button*, void*) 
 {
 	text_size = text_size_choice->value() * 2 + 6;
+    tab_size = atoi(tab_size_choice->value());
 	auto_brace_mode = auto_brace_check->value();
 	save_window_size = save_wsoe_check->value();
 	auto_hide = hide_output_check->value();
@@ -173,10 +177,14 @@ Fl_Double_Window* make_pref_form() {
           o->labeltype(FL_ENGRAVED_LABEL);
           o->align(FL_ALIGN_TOP_LEFT|FL_ALIGN_INSIDE);
         }
-        { Fl_Choice* o = text_size_choice = new Fl_Choice(130, 45, 60, 25, "Text Size");
+        { Fl_Choice* o = text_size_choice = new Fl_Choice(90, 45, 60, 25, "Text Size");
           o->down_box(FL_BORDER_BOX);
           text_size_choice->add("6");text_size_choice->add("8");text_size_choice->add("10");text_size_choice->add("12");text_size_choice->add("14");text_size_choice->add("16");text_size_choice->add("18");text_size_choice->add("20");
           text_size_choice->value(3);
+        }
+        { Fl_Input* i = tab_size_choice = new Fl_Input(240, 45, 40, 25, "Tab Size");
+          sprintf(stab, "%d", tab_size);
+          tab_size_choice->value(stab);
         }
         { Fl_Check_Button* o = smart_indent_check = new Fl_Check_Button(30, 95, 180, 25, "Use Auto-Indent Option");
           o->down_box(FL_DOWN_BOX);
