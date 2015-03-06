@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.17 2015/03/03 01:51:44 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.18 2015/03/05 23:48:25 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -424,6 +424,12 @@ int VTAssembler::MacroSubstitution(void)
 		pMacro = (CMacro *) m_Defines[c];
 		len = pMacro->m_Name.GetLength();
 
+        if (pMacro->m_ParamList == NULL && pMacro->m_DefList == NULL &&
+                pMacro->m_DefString.GetLength() == 0)
+        {
+            // Skip this macro ... it is an empty define
+            continue;
+        }
 		// Test if this macro name found in the current line
 		if ((pStr = strstr(m_pInLine, (const char *) pMacro->m_Name)) != NULL)
 		{
