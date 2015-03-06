@@ -1666,15 +1666,8 @@ void VTLinker::ProcessScript(CLinkScript *pScript, int singleStep)
 					return;
 
 				pScript->m_ifStack[pScript->m_ifdepth-1].m_StartLine = pCmd->m_Line;
-				pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute = pScript->m_execute;
-				if (value)
-				{
-					pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = TRUE;
-				}
-				else
-				{
-					pScript->m_execute = FALSE;
-				}
+				pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = value;
+				pScript->m_execute = value;
 				break;
 			}
 			break;
@@ -1777,8 +1770,8 @@ void VTLinker::ParseSubScript(char *pStr, int lineNo, CLinkScript* pScript)
         return;
 
 	// Parse command from the rest of the line
-	token = strtok(pStr, " \t\n");
-	arg = strtok(NULL,"\n;");
+	token = strtok(pStr, " \t\n\r");
+	arg = strtok(NULL,"\n\r;");
 
 	if (token == NULL)
 		return;
@@ -4407,7 +4400,7 @@ int VTLinker::BackAnnotateListingFiles(void)
 		lstFile.NewExt(".lst");
 
 		// Try to open the listing file.  If no file, just move on
-		if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+		if ((fd = fopen((const char *) lstFile.GetString(), "rb+")) == NULL)
 			continue;
 
 		// Now loop through all ObjFileSections for this file and update the
@@ -4534,7 +4527,7 @@ int VTLinker::BackAnnotateListingFiles(void)
 							// Try to open the listing file.  If no file, just move on
 							if (pOpenFile == NULL)
 							{
-								if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+								if ((fd = fopen((const char *) lstFile.GetString(), "rb+")) == NULL)
 									continue;
 
 								// Mark the file as opened
@@ -4587,7 +4580,7 @@ int VTLinker::BackAnnotateListingFiles(void)
 					// Try to open the listing file.  If no file, just move on
 					if (pOpenFile == NULL)
 					{
-						if ((fd = fopen((const char *) lstFile.GetString(), "r+")) == NULL)
+						if ((fd = fopen((const char *) lstFile.GetString(), "rb+")) == NULL)
 							continue;
 
 						// Mark the file as opened
