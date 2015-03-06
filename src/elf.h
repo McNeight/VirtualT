@@ -1,6 +1,6 @@
 /* elf.h */
 
-/* $Id: elf.h,v 1.3 2013/01/22 22:29:01 kpettit1 Exp $ */
+/* $Id: elf.h,v 1.4 2015/03/03 01:51:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Ken Pettit
@@ -31,7 +31,13 @@
 #ifndef		ELF_H
 #define		ELF_H
 
+#ifdef WIN32
+typedef __int32				int32_t;
+typedef unsigned __int32	uint32_t;
+typedef unsigned __int16	uint16_t;
+#else
 #include <stdint.h>
+#endif
 
 typedef	uint32_t        Elf32_Addr;
 typedef	uint16_t	    Elf32_Half;

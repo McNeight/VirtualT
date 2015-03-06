@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.23 2015/03/04 02:27:51 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.24 2015/03/05 23:48:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -3625,8 +3625,8 @@ BuildProjet:  This routine is the reason for all this mess!  Try to assemble
 void VT_Ide::AssembleSourcesInGroup(VTAssembler& assembler, VT_IdeGroup* pGroup, int& totalErrors, 
 		int& linkerScriptFound, MString& linkerScript, MString& linkerFiles)
 {
-	int				groups, sources;
-	int				c, x, err;
+	int				x, sources;
+	int				err;
 	int				index;
 	VT_IdeGroup*	pSubGroup;
 	VT_IdeSource*	pSource;
@@ -3729,19 +3729,16 @@ BuildProjet:  This routine is the reason for all this mess!  Try to assemble
 */
 void VT_Ide::BuildProject(void)
 {
-	int				groups, sources;
-	int				c, x, err;
-	int				index;
+	int				groups;
+	int				c, err;
 	VT_IdeGroup*	pGroup;
-	VT_IdeSource*	pSource;
 	int				errorCount, totalErrors=0;
 	MString			text, temp;
-	VTAssembler		assembler;
-	int				assemblyNeeded;
+	VTAssembler*	assembler;
 	MStringArray	errors;
 	MString			filename;
 	MString			linkerFiles;
-	VTLinker		linker;
+	VTLinker*		linker;
 	MString			linkerScript;
 	int				linkerScriptFound = false;
 
@@ -3766,6 +3763,9 @@ void VT_Ide::BuildProject(void)
 	m_BuildTextBuf->append("Assembling...\n");
 	Fl::check();
 
+	assembler = new VTAssembler;
+	linker = new VTLinker;
+
 	// Loop through each group and look for files to assemble
 	errorCount = 0;
 	groups = m_ActivePrj->m_Groups.GetSize();
@@ -3774,7 +3774,7 @@ void VT_Ide::BuildProject(void)
 		// Get group
 		pGroup = (VT_IdeGroup*) m_ActivePrj->m_Groups[c];
 
-        AssembleSourcesInGroup(assembler, pGroup, totalErrors, linkerScriptFound, linkerScript, linkerFiles);
+        AssembleSourcesInGroup(*assembler, pGroup, totalErrors, linkerScriptFound, linkerScript, linkerFiles);
 	}
 
 	// Check if there were any erros during assembly and if not, 
@@ -3790,29 +3790,29 @@ void VT_Ide::BuildProject(void)
 		Fl::check();
 
 		// Setup the linker
-		linker.SetRootPath(m_ActivePrj->m_RootPath);
-		linker.SetLinkOptions(m_ActivePrj->m_LinkOptions);
-		linker.SetObjDirs(m_ActivePrj->m_LinkPath);
-		linker.SetProjectType(m_ActivePrj->m_ProjectType);
-		linker.SetOutputFile(m_ActivePrj->m_OutputName);
-		linker.SetTargetModel(m_ActivePrj->m_TargetModel);
-        linker.SetDefines(m_ActivePrj->m_Defines);
+		linker->SetRootPath(m_ActivePrj->m_RootPath);
+		linker->SetLinkOptions(m_ActivePrj->m_LinkOptions);
+		linker->SetObjDirs(m_ActivePrj->m_LinkPath);
+		linker->SetProjectType(m_ActivePrj->m_ProjectType);
+		linker->SetOutputFile(m_ActivePrj->m_OutputName);
+		linker->SetTargetModel(m_ActivePrj->m_TargetModel);
+        linker->SetDefines(m_ActivePrj->m_Defines);
 		if (linkerScriptFound)
-			linker.SetLinkerScript(linkerScript);
+			linker->SetLinkerScript(linkerScript);
 		else
-			linker.SetLinkerScript(m_ActivePrj->m_LinkScript);
+			linker->SetLinkerScript(m_ActivePrj->m_LinkScript);
 		linkerFiles = linkerFiles + (char *) "," + m_ActivePrj->m_LinkLibs;
-		linker.SetObjFiles(linkerFiles);
-		linker.SetStdoutFunction(this, ideStdoutProc);
+		linker->SetObjFiles(linkerFiles);
+		linker->SetStdoutFunction(this, ideStdoutProc);
 		if (m_ActivePrj->m_CreateLoader)
 		{
-			linker.SetLoaderFilename(m_ActivePrj->m_LoaderFilename);
+			linker->SetLoaderFilename(m_ActivePrj->m_LoaderFilename);
 		}
 		
 		// Now finally perform the link operation
-		linker.Link();
+		linker->Link();
 
-		errors = linker.GetErrors();
+		errors = linker->GetErrors();
 		errorCount = errors.GetSize();
 		totalErrors += errorCount;
 		for (err = 0; err < errorCount; err++)
@@ -3826,7 +3826,7 @@ void VT_Ide::BuildProject(void)
 		{
 			// Print the message
 			temp.Format("Success, code size=%d, data size=%d\n",
-				linker.TotalCodeSpace(), linker.TotalDataSpace());
+				linker->TotalCodeSpace(), linker->TotalDataSpace());
 			m_BuildTextBuf->append((const char *) temp);
 
 			// Check if we generated a MAP file and the MAP file is opened
@@ -3842,7 +3842,7 @@ void VT_Ide::BuildProject(void)
 							if (m_ActivePrj->m_UpdateHIMEM)
 							{
 								// Set Himem
-								set_memory16(gStdRomDesc->sHimem, linker.GetStartAddress());
+								set_memory16(gStdRomDesc->sHimem, linker->GetStartAddress());
 
 								// May need to change some other parameters??
 							}
@@ -3874,6 +3874,10 @@ void VT_Ide::BuildProject(void)
 			}
 		}
 	}
+
+	// Delete the linker and assembler
+	delete linker;
+	delete assembler;
 }
 
 void VT_Ide::CleanProject(void)

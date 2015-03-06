@@ -1,6 +1,6 @@
 /* idetabs.cpp */
 
-/* $Id: idetabs.cpp,v 1.5 2015/03/04 02:27:51 kpettit1 Exp $ */
+/* $Id: idetabs.cpp,v 1.6 2015/03/05 23:48:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -240,7 +240,7 @@ void Fl_Ide_Tabs::draw()
 
 			// Now move the selected tab such that is is at index i
 			pSel = child(selected);
-			remove(selected);
+			remove(pSel);
 			insert(*pSel, i);
 			value(pSel);
 			selected = tab_positions(p,wp);

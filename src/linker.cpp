@@ -2420,7 +2420,7 @@ int VTLinker::ReadSectionData(FILE* fd, CObjFile* pObjFile,
 			// Save the index of the relative segment
 			pEq->m_Segment = eqent.st_info;
 			pEq->m_Address = eqent.st_addr;
-			pEq->m_Size = eqent.st_size;
+			pEq->m_Size = (unsigned char) eqent.st_size;
 			pEq->m_Line = eqent.st_line;
             pEq->m_Sourcefile = sourcefile;
 
@@ -3378,11 +3378,9 @@ int VTLinker::Evaluate(class CRpnEquation* eq, double* value,
 	int reportError, MString& errVariable, MString& filename)
 {
 	double				s1, s2;
-	CSymbol*			symbol;
 	MString				errMsg, temp;
 	double				stack[200];
 	int					stk = 0;
-	int					int_value;
 	const char*			pStr;
 	int					c, local;
 	VTObject*			dummy;
@@ -3623,7 +3621,7 @@ int VTLinker::ResolveEquations()
 	POSITION			pos;
 	CObjFile*			pObjFile;
 	CObjFileSection*	pFileSect;
-	int					sect, sectCount, c, relCount, eqCount;
+	int					sect, sectCount, c, eqCount;
 	MString				err, errVar, filename;
     double              value;
 
@@ -3860,7 +3858,7 @@ int VTLinker::GenerateOutputFile()
 
 		// Allocate a 32K memory region to hold the ROM contents
 		char * pRom = new char[32768];
-        char  fillchar = 0;
+        unsigned char  fillchar = 0;
 
         if (m_LinkOptions.Find((char *) "-f") != -1)
             fillchar = 0xFF;
