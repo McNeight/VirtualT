@@ -1656,19 +1656,26 @@ void VTLinker::ProcessScript(CLinkScript *pScript, int singleStep)
 			}
 
 			// Check if we can execute at this level
-			if (pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute && !pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed)
+			if (pScript->m_ifStack[pScript->m_ifdepth-1].m_CanExecute)
 			{
-				// We haven't executed yet.  Evaluate and test if we should execute
-				// Evaluate the if condition
-				value = EvaluateStringEquation((const char *) pCmd->m_CmdArg,
-						pCmd->m_Line);
-				if (m_Errors.GetSize() > 0)
-					return;
+				if (!pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed)
+				{
+					// We haven't executed yet.  Evaluate and test if we should execute
+					// Evaluate the if condition
+					value = EvaluateStringEquation((const char *) pCmd->m_CmdArg,
+							pCmd->m_Line);
+					if (m_Errors.GetSize() > 0)
+						return;
 
-				pScript->m_ifStack[pScript->m_ifdepth-1].m_StartLine = pCmd->m_Line;
-				pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = value;
-				pScript->m_execute = value;
-				break;
+					pScript->m_ifStack[pScript->m_ifdepth-1].m_StartLine = pCmd->m_Line;
+					pScript->m_ifStack[pScript->m_ifdepth-1].m_Executed = value;
+					pScript->m_execute = value;
+					break;
+				}
+				else
+				{
+					pScript->m_execute = FALSE;
+				}
 			}
 			break;
 

@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Buffer.cpp,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $"//
+// "$Id: My_Text_Buffer.cpp,v 1.2 2015/02/24 20:19:17 kpettit1 Exp $"//
 // Copyright 2001-2005 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
 // the LGPL for the FLTK library granted by Mark Edel.
@@ -955,6 +955,12 @@ int My_Text_Buffer::expand_character( char c, int indent, char *outStr, int tabD
     for ( i = 0; i < nSpaces; i++ )
       outStr[ i ] = ' ';
     return nSpaces;
+  }
+
+  if ( c == '\r' )
+  {
+      outStr[0] = '\0';
+      return 0;
   }
 
   /* Convert control codes to readable character sequences */
@@ -2542,5 +2548,5 @@ My_Text_Buffer::outputfile(const char *file, int start, int end, int buflen) {
 
 
 //
-// End of "$Id: My_Text_Buffer.cpp,v 1.1 2014/05/09 19:04:52 kpettit1 Exp $".
+// End of "$Id: My_Text_Buffer.cpp,v 1.2 2015/02/24 20:19:17 kpettit1 Exp $".
 //
