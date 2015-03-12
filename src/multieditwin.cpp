@@ -1,6 +1,6 @@
 /* multieditwin.cpp */
 
-/* $Id: multieditwin.cpp,v 1.7 2015/03/03 01:51:44 kpettit1 Exp $ */
+/* $Id: multieditwin.cpp,v 1.8 2015/03/05 23:48:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -462,6 +462,23 @@ int Fl_Multi_Edit_Window::ForwardSearch(const char *pFind, int caseSensitive)
 {
 	int pos = insert_position();
 	int found = m_tb->search_forward(pos, pFind, &pos, caseSensitive);
+	if (found)
+	{
+		take_focus();
+		insert_position(pos+strlen(pFind));
+		show_insert_position();
+		m_tb->select(pos, pos+strlen(pFind));
+	}
+	else
+		return FALSE;
+
+	return TRUE;
+}
+
+int Fl_Multi_Edit_Window::BackwardSearch(const char *pFind, int caseSensitive)
+{
+	int pos = insert_position()-1;
+	int found = m_tb->search_backward(pos, pFind, &pos, caseSensitive);
 	if (found)
 	{
 		insert_position(pos+strlen(pFind));

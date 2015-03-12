@@ -1,6 +1,6 @@
 /* ide.h */
 
-/* $Id: ide.h,v 1.6 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: ide.h,v 1.7 2015/03/03 01:51:44 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -54,6 +54,9 @@ void cb_Ide(Fl_Widget* w, void*) ;
 #ifndef MENU_HEIGHT
 #define MENU_HEIGHT	32
 #endif
+
+#define LAST_FIND_DLG		1
+#define LAST_FIND_TOOLBAR	2
 
 class VTAssembler;
 
@@ -122,6 +125,48 @@ public:
 	char				search[256];
 };
 
+class IDE_Toolbar : public Fl_Pack {
+public:
+    // CTOR
+    IDE_Toolbar(int X,int Y,int W,int H):Fl_Pack(X,Y,W,H) 
+	{
+        type(Fl_Pack::HORIZONTAL);    // horizontal packing of buttons
+		box(FL_UP_FRAME);
+		spacing(4);            // spacing between buttons
+        end();
+    }
+    // ADD A TOOLBAR BUTTON TO THE PACK
+    void AddButton(const char *name, Fl_Pixmap *img=0, Fl_Callback *cb=0, void *data=0) 
+	{
+        begin();
+        Fl_Button *b = new Fl_Button(0,0,24,24);
+        b->box(FL_FLAT_BOX);    // buttons won't have 'edges'
+        b->clear_visible_focus();
+        if ( name ) b->tooltip(name);
+        if ( img  ) b->image(img);
+        if ( cb   ) b->callback(cb,data);
+        end();
+    }
+    // ADD A TOOLBAR BUTTON TO THE PACK
+    void AddHandle(Fl_Pixmap *img=0, Fl_Callback *cb=0, void *data=0) 
+	{
+        begin();
+        Fl_Button *b = new Fl_Button(0,0,8,8);
+        b->box(FL_FLAT_BOX);    // buttons won't have 'edges'
+        b->clear_visible_focus();
+        if ( img  ) b->image(img);
+        if ( cb   ) b->callback(cb,data);
+        end();
+    }
+    void AddComboList(Flu_Combo_List *&box, int width, Fl_Callback *cb=0, void *data=0) {
+        begin();
+		box = new Flu_Combo_List(0, 2, width, 20);
+        box->clear_visible_focus();
+        if ( cb   ) box->callback(cb,data);
+        end();
+    }
+}; 
+
 class VT_Ide : public Fl_Window
 {
 public:
@@ -154,6 +199,8 @@ public:
 	void			Undo(void);
 	void			Find(void);
 	void			FindNext(void);
+	void			FindPrev(void);
+	void			ToolbarFind(Flu_Combo_List *pList);	
 	void			Replace(void);
 	void			ReplaceAll(void);
 	void			ReplaceNext(void);
@@ -187,6 +234,8 @@ public:
     Fl_Box*         m_TabNoBlinkBox;
 	VT_ReplaceDlg*	m_pReplaceDlg;
 	VT_FindDlg*		m_pFindDlg;
+	int				m_LastFind;
+	Flu_Combo_List *m_pToolbarFind;
 
 protected:
 	virtual void	draw();

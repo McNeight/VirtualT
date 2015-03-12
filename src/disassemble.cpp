@@ -1,6 +1,6 @@
 /* disassemble.cpp */
 
-/* $Id: disassemble.cpp,v 1.21 2015/01/13 05:51:09 deuce Exp $ */
+/* $Id: disassemble.cpp,v 1.22 2015/01/13 18:48:19 deuce Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -812,6 +812,8 @@ Disassembler Class Definition - empty constructor
 */
 VTDis::~VTDis()
 {
+	delete m_pTd;
+
 	// Delete the find dialog
 	if (m_pFindDlg != NULL)
 		delete m_pFindDlg;

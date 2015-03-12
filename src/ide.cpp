@@ -1,6 +1,6 @@
 /* ide.cpp */
 
-/* $Id: ide.cpp,v 1.24 2015/03/05 23:48:25 kpettit1 Exp $ */
+/* $Id: ide.cpp,v 1.25 2015/03/06 01:41:11 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -120,6 +120,7 @@ void cb_cut(Fl_Widget* w, void*);
 void cb_paste(Fl_Widget* w, void*);
 void cb_find(Fl_Widget* w, void*);
 void cb_find_next(Fl_Widget* w, void*);
+void cb_find_prev(Fl_Widget* w, void*);
 void cb_replace(Fl_Widget* w, void*);
 void cb_prefs(Fl_Widget* w, void*);
 // Define project management routines
@@ -129,6 +130,7 @@ void cb_clean_project(Fl_Widget* w, void*);
 void cb_project_settings(Fl_Widget* w, void*);
 void add_recent_file_to_menu(const char *filename);
 void add_recent_project_to_menu(const char *filename);
+void cb_toolbar_find(Fl_Widget* w, void*);
 
 IMPLEMENT_DYNCREATE(VT_IdeGroup, VTObject);
 IMPLEMENT_DYNCREATE(VT_IdeSource, VTObject);
@@ -173,6 +175,7 @@ Fl_Menu_Item gIde_menuitems[] = {
 	{ "&Paste",				'p',				cb_paste, 0, FL_MENU_DIVIDER},
 	{ "Find...",			FL_CTRL + 'f',		cb_find, 0, 0 },
 	{ "Find Next",			FL_F + 3,			cb_find_next, 0, 0 },
+	{ "Find Prev",			FL_SHIFT + FL_F + 3,	cb_find_prev, 0, 0 },
 	{ "Replace",			FL_CTRL + 'r',		cb_replace, 0, FL_MENU_DIVIDER },
 	{ "Preferences",		0,					cb_prefs, 0, 0 },
 	{ 0 },
@@ -235,6 +238,9 @@ Fl_Menu_Item gRootMenu[] = {
 };
 
 Fl_Pixmap gTextDoc( textdoc_xpm ), gComputer( computer_xpm );
+Fl_Pixmap gExecute( arrow_execute_xpm);
+Fl_Pixmap gDollar ( dollar_xpm );
+Fl_Pixmap gAssemble( brick_add_xpm);
 
 /*
 =======================================================
@@ -760,6 +766,52 @@ void cb_find_next(Fl_Widget* w, void*)
 
 /*
 =======================================================
+Callback routine for finding next text
+=======================================================
+*/
+void cb_find_prev(Fl_Widget* w, void*)
+{
+	if (gpIde != NULL)
+		gpIde->FindPrev();
+}
+
+/*
+=======================================================
+Callback routine for toolbar find item
+=======================================================
+*/
+void cb_toolbar_find(Fl_Widget* w, void*obj)
+{
+	int		count, x;
+	Flu_Combo_List *pList = (Flu_Combo_List *) w;
+	const char*	text = pList->value();
+
+	count = pList->list.size();
+	for (x = 1; x <= count; x++)
+	{
+		const char *pItem = pList->list.text(x);
+		if (strcmp(text, pItem) == 0)
+		{
+			pList->list.move(1, x);
+			break;
+		}
+	}
+	if (x == count+1)
+	{
+		if (pList->list.size() >= 18)
+			pList->list.remove(18);
+		pList->list.add(text);
+	}
+
+	if (gpIde != NULL)
+	{
+		gpIde->m_LastFind = LAST_FIND_TOOLBAR;
+		gpIde->ToolbarFind(pList);
+	}
+}
+
+/*
+=======================================================
 Callback routine for replacing text
 =======================================================
 */
@@ -1186,7 +1238,6 @@ void projtree_callback( Fl_Widget* w, void* )
       break;
 
     case FLU_WIDGET_CALLBACK:
-		printf("Flu WIDGET callback\n");
 		break;
       break;
 
@@ -1262,6 +1313,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 : Fl_Window(x, y, w, h, title)
 {
 	int		ideTreeWidth;
+	int		h2;
 
 	// Parent window has no box, only child regions
 	box(FL_NO_BOX);
@@ -1275,8 +1327,48 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	m->menu(gIde_menuitems);
 	m->color(fl_rgb_color(240,239,228));
 
+	Fl_Box* tbbox = new Fl_Box(0, MENU_HEIGHT-2, w, 28);
+	int     dark = 30;
+	Fl_Color	color = fl_rgb_color(220-dark,219-dark,208-dark);
+	tbbox->box(FL_FLAT_BOX);
+	tbbox->color(color);
+
+	IDE_Toolbar * pToolbar = new IDE_Toolbar(0, MENU_HEIGHT-2, w, 28);
+	Fl_Pixmap* toolbar_handle =  new Fl_Pixmap(toolbar_handle_xpm);
+	Fl_Pixmap* new_file = new Fl_Pixmap(document_new_xpm);
+	Fl_Pixmap* open_file =  new Fl_Pixmap(document_open_xpm);
+	Fl_Pixmap* save_file =  new Fl_Pixmap(document_save_xpm);
+	Fl_Pixmap* print_file =  new Fl_Pixmap(printer_xpm);
+
+	Fl_Pixmap* cut_icon =  new Fl_Pixmap(edit_cut_xpm);
+	Fl_Pixmap* copy_icon =  new Fl_Pixmap(edit_copy_xpm);
+	Fl_Pixmap* paste_icon =  new Fl_Pixmap(edit_paste_xpm);
+	Fl_Pixmap* undo_icon =  new Fl_Pixmap(edit_undo_xpm);
+	Fl_Pixmap* find_icon =  new Fl_Pixmap(edit_find_xpm);
+	Fl_Pixmap* configure_icon =  new Fl_Pixmap(configure_xpm);
+	Fl_Pixmap* wizard_icon =  new Fl_Pixmap(wizard_xpm);
+	Fl_Pixmap* log_viewer_icon =  new Fl_Pixmap(log_viewer_xpm);
+
+	pToolbar->AddHandle(toolbar_handle, NULL, NULL);
+	pToolbar->AddButton("New", new_file, cb_new_file, NULL);
+	pToolbar->AddButton("Open", open_file, cb_open_file, NULL);
+	pToolbar->AddButton("Save", save_file, cb_save_file, NULL);
+	pToolbar->AddButton("Cut", cut_icon, cb_cut, NULL);
+	pToolbar->AddButton("Copy", copy_icon, cb_copy, NULL);
+	pToolbar->AddButton("Paste", paste_icon, cb_paste, NULL);
+	pToolbar->AddButton("Undo", undo_icon, cb_undo, NULL);
+	pToolbar->AddButton("Find", find_icon, cb_find, NULL);
+	pToolbar->AddComboList(m_pToolbarFind, 140);
+	m_pToolbarFind->callback(cb_toolbar_find, this);
+	//TODO: populate find list with recent searches
+	pToolbar->AddButton("New Project Wizard", wizard_icon, cb_new_project, NULL);
+	pToolbar->AddButton("Project Settings", configure_icon, cb_project_settings, NULL);
+	pToolbar->AddButton("Build", &gAssemble, cb_build_project, NULL);
+
 	// Create a tiled window to support Project, Edit, and debug regions
-	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT-2,w,h-MENU_HEIGHT-2);
+//	Fl_Tile* tile = new Fl_Tile(0,MENU_HEIGHT-2,w,h-MENU_HEIGHT-2);
+	Fl_Tile* tile = new Fl_Tile(0, MENU_HEIGHT-2+28, w, h - (MENU_HEIGHT-2+28));
+//	h -= 28;
 
 	virtualt_prefs.get("IdeTreeWidth", ideTreeWidth, 198);
 
@@ -1285,12 +1377,13 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region for Project tree
 	============================================
 	*/
-	m_ProjWindow = new Fl_Double_Window(0,MENU_HEIGHT-2,ideTreeWidth,h-75,"");
+	h2 = tile->h();
+	m_ProjWindow = new Fl_Double_Window(0,MENU_HEIGHT-2+28,ideTreeWidth, h2-75,"");
 	m_ProjWindow->box(FL_DOWN_BOX);
 	m_ProjWindow->color(background_color);
     
 	// Create Tree control
-	m_ProjTree = new Flu_Tree_Browser( 0, 0, ideTreeWidth, h-75 );
+	m_ProjTree = new Flu_Tree_Browser( 0, 0, ideTreeWidth, m_ProjWindow->h() /*h-75*/ );
 	m_ProjTree->box( FL_DOWN_FRAME );
 	m_ProjTree->callback( projtree_callback );
 	m_ProjTree->selection_mode( FLU_SINGLE_SELECT );
@@ -1319,7 +1412,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region and Child Window for editing files
 	=================================================
 	*/
-	m_EditWindow = new Fl_Double_Window(ideTreeWidth,MENU_HEIGHT-2,w-(ideTreeWidth),h - 75,"Edit");
+	m_EditWindow = new Fl_Double_Window(ideTreeWidth,MENU_HEIGHT-2+28,w-(ideTreeWidth),h2 - 75,"Edit");
 	m_EditWindow->box(FL_DOWN_BOX);
     m_TabNoBlinkBox = new Fl_Box(20, TAB_HEIGHT, m_EditWindow->w()-22, m_EditWindow->h() - TAB_HEIGHT-1);
     m_TabNoBlinkBox->box(FL_FLAT_BOX);
@@ -1342,11 +1435,13 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create region for Debug and output tabs
 	=================================================
 	*/
-	m_TabWindow = new Fl_Window(0,MENU_HEIGHT-2+h-75,w,75-MENU_HEIGHT+2,"Tab");
+//	m_TabWindow = new Fl_Window(0,MENU_HEIGHT-2+h-75+28,w,75-MENU_HEIGHT+2,"Tab");
+	m_TabWindow = new Fl_Window(0,h-75,w,75,"Tab");
 	m_TabWindow->box(FL_DOWN_BOX);
 
 	// Create a tab control
-	m_Tabs = new Fl_Ide_Tabs(0, 1, w, 75-MENU_HEIGHT+3);
+//	m_Tabs = new Fl_Ide_Tabs(0, 1, w, 75-MENU_HEIGHT+3);
+	m_Tabs = new Fl_Ide_Tabs(0, 1, w, 75);
 	m_Tabs->selection_color(fl_rgb_color(253, 252, 251));
 
 	/*
@@ -1354,13 +1449,14 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create build tab
 	====================
 	*/
-	m_BuildTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Build ");
+//	m_BuildTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Build ");
+	m_BuildTab = new Fl_Group(2, 0, w-3, 75-22, " Build ");
 	m_BuildTab->box(FL_DOWN_BOX);
 	m_BuildTab->selection_color(FL_LIGHT2);
 	m_BuildTab->color(background_color);
 
 	// Create a Text Editor to show the disassembled text
-	m_BuildTextDisp = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	m_BuildTextDisp = new My_Text_Display(0, 0, w-3, 75-22);
 	m_BuildTextDisp->box(FL_DOWN_BOX);
 	m_BuildTextDisp->textcolor(hl_plain);
 	m_BuildTextDisp->color(background_color);
@@ -1389,12 +1485,12 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create Debug tab
 	====================
 	*/
-	m_DebugTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Debug ");
+	m_DebugTab = new Fl_Group(2, 0, w-3, 75-22, " Debug ");
 	m_DebugTab->box(FL_DOWN_BOX);
 	m_DebugTab->selection_color(FL_LIGHT2);
 	m_DebugTab->color(background_color);
 
-	My_Text_Display* md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	My_Text_Display* md = new My_Text_Display(0, 0, w-3, 75-22);
 	md->box(FL_DOWN_BOX);
 	md->textcolor(hl_plain);
 	md->color(background_color);
@@ -1421,15 +1517,15 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	Create watch tab
 	====================
 	*/
-	m_WatchTab = new Fl_Group(2, 0, w-3, 75-MENU_HEIGHT-22, " Watch ");
+	m_WatchTab = new Fl_Group(2, 0, w-3, 75-22, " Watch ");
 	m_WatchTab->box(FL_NO_BOX);
 	m_WatchTab->selection_color(FL_LIGHT2);
 	m_WatchTab->color(background_color);
 
 	// Create tiled window for auto and watch variables
-	Fl_Tile* tile2 = new Fl_Tile(2, 0,w,75-MENU_HEIGHT-22);
+	Fl_Tile* tile2 = new Fl_Tile(2, 0,w,75-22);
 
-	Fl_Box* box0 = new Fl_Box(2, 0,w/2-2,75-MENU_HEIGHT-22,"1");
+	Fl_Box* box0 = new Fl_Box(2, 0,w/2-2,75-22,"1");
 	box0->box(FL_DOWN_BOX);
 	box0->color(background_color);
 	box0->labelcolor(hl_plain);
@@ -1438,7 +1534,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 
 	// Create a text display for this pane
 
-	md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	md = new My_Text_Display(0, 0, w-3, 75-22);
 	md->box(FL_DOWN_BOX);
 	md->textcolor(hl_plain);
 	md->color(background_color);
@@ -1456,14 +1552,14 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	md->end();
 
 
-	Fl_Box* box1 = new Fl_Box(w/2, 0,w/2,75-MENU_HEIGHT-22,"2");
+	Fl_Box* box1 = new Fl_Box(w/2, 0,w/2,75-22,"2");
 	box1->box(FL_DOWN_BOX);
 	box1->color(background_color);
 	box1->labelcolor(hl_plain);
 	box1->labelsize(36);
 	box1->align(FL_ALIGN_CLIP);
 	// Create a text display for this pane
-	md = new My_Text_Display(0, 0, w-3, 75-MENU_HEIGHT-22);
+	md = new My_Text_Display(0, 0, w-3, 75-22);
 	md->box(FL_DOWN_BOX);
 	md->textcolor(hl_plain);
 	md->color(background_color);
@@ -1483,7 +1579,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 
 	box0->show();
 	box1->show();
-	Fl_Box* r2 = new Fl_Box(0,0,w,75-MENU_HEIGHT-22);
+	Fl_Box* r2 = new Fl_Box(0,0,w,75-22);
 	tile2->resizable(r2);
 	tile2->end();
 	m_WatchTab->resizable(tile2);
@@ -1519,7 +1615,7 @@ VT_Ide::VT_Ide(int x, int y, int w, int h, const char *title)
 	virtualt_prefs.get("IdeTabheight", ideTabHeight, 75);
 
 	// Reposition the tile separators to be a little bigger than the minimum
-	tile->position(ideTreeWidth,MENU_HEIGHT-2+h-75, ideTreeWidth,MENU_HEIGHT-2+h-(ideTabHeight));
+	tile->position(ideTreeWidth,MENU_HEIGHT-2+h-75+28, ideTreeWidth,MENU_HEIGHT-2+h-(ideTabHeight)+28);
 
 	SetColors(hl_plain, background_color);
 
@@ -1892,6 +1988,7 @@ void VT_Ide::Find(void)
 	m_pFindDlg->m_pFindDlg->show();
 	m_pFindDlg->m_pFind->take_focus();
 	m_pFindDlg->m_pFind->selectall();
+	m_LastFind = LAST_FIND_DLG;
 }
 
 /*
@@ -1913,12 +2010,147 @@ void VT_Ide::FindNext(void)
 
     m_pFindDlg->m_pErrorMsg->hide();
 
+	if (m_LastFind == LAST_FIND_TOOLBAR)
+	{
+	}
+	else
+	{
+		// Ensure there is a search string 
+		pFind = m_pFindDlg->m_pFind->value();
+		if (pFind[0] == '\0' && m_Search == NULL)
+		{
+			m_pFindDlg->m_pFindDlg->show();
+			m_pFindDlg->m_pFind->take_focus();
+			return;
+		}
+
+		// Find the text
+		m_Search = pFind;
+	}
+
+	if (!mw->ForwardSearch(m_Search, m_pFindDlg->m_pMatchCase->value()))
+	{
+		// Save the current position and search from beginning of file
+		int pos = mw->insert_position();
+		mw->insert_position(0);
+		if (!mw->ForwardSearch(m_Search, m_pFindDlg->m_pMatchCase->value()))
+		{
+			if (m_LastFind != LAST_FIND_TOOLBAR)
+			{
+				// If still not found, report not found
+				m_pFindDlg->m_ErrMsg.Format("Search string %s not found", pFind);
+				m_pFindDlg->m_pErrorMsg->label((const char *) m_pFindDlg->m_ErrMsg);
+				m_pFindDlg->m_pErrorMsg->show();
+
+				//fl_alert("Search string %s not found", pFind);
+				m_pFindDlg->m_pFindDlg->show();
+				m_pFindDlg->m_pFind->take_focus();
+				m_pFindDlg->m_pFind->selectall();
+				return;
+				//mw->insert_position(pos);
+			}
+		}
+	}
+
+	// Hide the dialog box
+	m_pFindDlg->m_pFindDlg->hide();
+	Fl::check();
+	if (m_LastFind == LAST_FIND_TOOLBAR)
+		m_pToolbarFind->take_focus();
+	else
+		mw->take_focus();
+}
+
+/*
+=============================================================
+FindAgain routine handles the Edit->Find Next menu item.
+The routine identifies the active window and calls the Fl 
+cut routine.
+=============================================================
+*/
+void VT_Ide::FindPrev(void)
+{
+	Fl_Multi_Edit_Window*	mw;
+	const char *			pFind;
+
+	// First get a pointer to the active (topmost) window
+	mw = (Fl_Multi_Edit_Window*) m_EditTabs->value();
+	if (mw == NULL)
+		return;
+
+    m_pFindDlg->m_pErrorMsg->hide();
+
+	if (m_LastFind == LAST_FIND_TOOLBAR)
+	{
+	}
+	else
+	{
+		// Ensure there is a search string 
+		pFind = m_pFindDlg->m_pFind->value();
+		if (pFind[0] == '\0' && m_Search == NULL)
+		{
+			m_pFindDlg->m_pFindDlg->show();
+			m_pFindDlg->m_pFind->take_focus();
+			return;
+		}
+
+		// Find the text
+		m_Search = pFind;
+	}
+
+	if (!mw->BackwardSearch(m_Search, m_pFindDlg->m_pMatchCase->value()))
+	{
+		// Save the current position and search from beginning of file
+		int pos = mw->insert_position();
+		mw->insert_position(99999999);
+		if (!mw->BackwardSearch(m_Search, m_pFindDlg->m_pMatchCase->value()))
+		{
+			if (m_LastFind != LAST_FIND_TOOLBAR)
+			{
+				// If still not found, report not found
+				m_pFindDlg->m_ErrMsg.Format("Search string %s not found", pFind);
+				m_pFindDlg->m_pErrorMsg->label((const char *) m_pFindDlg->m_ErrMsg);
+				m_pFindDlg->m_pErrorMsg->show();
+
+				//fl_alert("Search string %s not found", pFind);
+				m_pFindDlg->m_pFindDlg->show();
+				m_pFindDlg->m_pFind->take_focus();
+				m_pFindDlg->m_pFind->selectall();
+				return;
+				//mw->insert_position(pos);
+			}
+		}
+	}
+
+	// Hide the dialog box
+	m_pFindDlg->m_pFindDlg->hide();
+	if (m_LastFind == LAST_FIND_TOOLBAR)
+		m_pToolbarFind->take_focus();
+	else
+		mw->take_focus();
+}
+
+/*
+=============================================================
+FindAgain routine handles the Edit->Find Next menu item.
+The routine identifies the active window and calls the Fl 
+cut routine.
+=============================================================
+*/
+void VT_Ide::ToolbarFind(Flu_Combo_List *pList)
+{
+	Fl_Multi_Edit_Window*	mw;
+	const char *			pFind;
+
+	// First get a pointer to the active (topmost) window
+	mw = (Fl_Multi_Edit_Window*) m_EditTabs->value();
+	if (mw == NULL)
+		return;
+
 	// Ensure there is a search string 
-	pFind = m_pFindDlg->m_pFind->value();
+	pFind = pList->value();
 	if (pFind[0] == '\0')
 	{
-		m_pFindDlg->m_pFindDlg->show();
-		m_pFindDlg->m_pFind->take_focus();
 		return;
 	}
 
@@ -1931,23 +2163,12 @@ void VT_Ide::FindNext(void)
 		mw->insert_position(0);
 		if (!mw->ForwardSearch(pFind, m_pFindDlg->m_pMatchCase->value()))
 		{
-			// If still not found, report not found
-            m_pFindDlg->m_ErrMsg.Format("Search string %s not found", pFind);
-            m_pFindDlg->m_pErrorMsg->label((const char *) m_pFindDlg->m_ErrMsg);
-            m_pFindDlg->m_pErrorMsg->show();
-
-			//fl_alert("Search string %s not found", pFind);
-            m_pFindDlg->m_pFindDlg->show();
-            m_pFindDlg->m_pFind->take_focus();
-            m_pFindDlg->m_pFind->selectall();
             return;
-			//mw->insert_position(pos);
 		}
 	}
 
 	// Hide the dialog box
-	m_pFindDlg->m_pFindDlg->hide();
-	mw->take_focus();
+	m_pToolbarFind->take_focus();
 }
 
 /*
@@ -4109,11 +4330,6 @@ VT_ReplaceDlg::VT_ReplaceDlg(class VT_Ide* pParent)
 	m_pReplaceDlg->set_non_modal();
 
 	m_pParent = pParent;
-}
-
-void cb_find_edit(Fl_Widget* w, void *opaque)
-{
-	printf("Edit callback\n");
 }
 
 /*

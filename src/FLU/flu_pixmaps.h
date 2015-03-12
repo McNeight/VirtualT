@@ -1,4 +1,4 @@
-// $Id: flu_pixmaps.h,v 1.1 2007/03/31 22:09:19 kpettit1 Exp $
+// $Id: flu_pixmaps.h,v 1.2 2010/10/31 05:37:24 kpettit1 Exp $
 
 /***************************************************************
  *                FLU - FLTK Utility Widgets 
@@ -50,5 +50,27 @@ FLU_EXPORT extern const char* cdrom_xpm[];
 FLU_EXPORT extern const char* trash_xpm[];
 FLU_EXPORT extern const char* home_xpm[];
 FLU_EXPORT extern const char* reload_xpm[];
+
+FLU_EXPORT extern const char* arrow_execute_xpm[];
+
+FLU_EXPORT extern const char* edit_undo_xpm[];
+FLU_EXPORT extern const char* edit_paste_xpm[];
+FLU_EXPORT extern const char* edit_find_xpm[];
+FLU_EXPORT extern const char* edit_cut_xpm[];
+FLU_EXPORT extern const char* edit_copy_xpm[];
+FLU_EXPORT extern const char* check_xpm[];
+FLU_EXPORT extern const char* document_open_xpm[];
+FLU_EXPORT extern const char* document_save_xpm[];
+FLU_EXPORT extern const char* document_new_xpm[];
+FLU_EXPORT extern const char* toolbar_handle_xpm[];
+FLU_EXPORT extern const char* configure_xpm[];
+FLU_EXPORT extern const char* wizard_xpm[];
+FLU_EXPORT extern const char* printer_xpm[];
+FLU_EXPORT extern const char* log_viewer_xpm[];
+FLU_EXPORT extern const char* brick_add_xpm[];
+FLU_EXPORT extern const char* computer_xpm[];
+FLU_EXPORT extern const char* chip_xpm[];
+FLU_EXPORT extern const char* dollar_xpm[];
+FLU_EXPORT extern const char* checkmark_xpm[];
 
 #endif

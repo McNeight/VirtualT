@@ -121,12 +121,14 @@ CLinkRgn::~CLinkRgn()
 
 CObjFile::~CObjFile()
 {
-	int			count, c;
+	int				count, c;
+	CObjFileSection	*pSect;
 
 	count = m_FileSections.GetSize();
 	for (c = 0; c < count; c++)
 	{
-		delete (CObjFileSection *) m_FileSections[c];
+		pSect = (CObjFileSection *) m_FileSections[c]; 
+		delete pSect;
 	}
 	m_FileSections.RemoveAll();
 }
@@ -158,6 +160,7 @@ CObjFileSection::~CObjFileSection()
 	// Delete program bytes pointer if not NULL
 	if (m_pProgBytes != NULL)
 		delete m_pProgBytes;
+	m_pProgBytes = NULL;
 }
 
 /*
@@ -3118,13 +3121,16 @@ CObjFileSection* VTLinker::FindRelSection(CObjFile* pObjFile, Elf32_Rel* pRel)
 	{
 		// Loop through relocation segments
 		pFileSect = (CObjFileSection *) pObjFile->m_FileSections[sect];
-		if (pFileSect->m_ElfHeader.sh_offset < pRel->r_offset)
+		if (pFileSect->m_ElfHeader.sh_offset <= pRel->r_offset)
 		{
 			// Validate the section type
             type = ELF32_R_TYPE(pRel->r_info); 
 			if ((type == SR_ADDR_XLATE || type == SR_8BIT || type == SR_24BIT) &&
 				(pFileSect->m_ElfHeader.sh_type != SHT_PROGBITS))
 					continue;
+
+			if (pFileSect->m_ElfHeader.sh_offset + pFileSect->m_ElfHeader.sh_size <= pRel->r_offset)
+				continue;
 
 			// If no rel section assigned yet, just assign it
 			if (pRelSect == NULL)

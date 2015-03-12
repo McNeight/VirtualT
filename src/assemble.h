@@ -540,7 +540,8 @@ public:
 	CSymbol*			LookupSymOtherModules(MString& name, CSegment** pSeg = NULL);
 	void				ResetContent(void);
 	int					CreateObjFile(const char *filename, const char *sourcefile);
-	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask, CSegment *&pSeg);
+	int					InvalidRelocation(CRpnEquation* pEq, char &rel_mask, CSegment *&pSeg,
+							char &pcRel);
 	int					EquationIsExtern(CRpnEquation* pEq, int size);
 	void				MakeBinary(int val, int length, MString& binary);
 	void				CreateHex(MString& filename);

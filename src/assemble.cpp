@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.19 2015/03/06 01:54:49 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.20 2015/03/06 02:11:08 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -850,7 +850,7 @@ int VTAssembler::Evaluate(class CRpnEquation* eq, double* value,
 				}
 			} 
 			else if (temp == "$")
-				stack[stk++] = m_Address;
+				stack[stk++] = m_ActiveSeg->m_Address;
 			else	// Genereate error indication
 			{
 				if (reportError)
@@ -3416,7 +3416,7 @@ int VTAssembler::Assemble()
 	unsigned char	type;
 	unsigned int	address;
 	double			value;
-	char			rel_mask;
+	char			rel_mask, pcRel;
 	int				valid, extern_label, equation;
 	POSITION		pos;
 	MString			key, errSymbol;
@@ -3444,6 +3444,7 @@ int VTAssembler::Assemble()
 		m_Instructions = m_ActiveSeg->m_Instructions;
 		m_ActiveAddr = m_ActiveSeg->m_UsedAddr;
 		m_Address = 0;
+		m_ActiveSeg->m_Address = 0;
 
 		// Get the initial module that was active during segment creation
 		m_ActiveMod = m_ActiveSeg->m_InitialMod;
@@ -3530,7 +3531,7 @@ int VTAssembler::Assemble()
 						// Equation evaluated to a value.  Check if it is 
 						// relative to a relocatable segment
 						if (InvalidRelocation(pEq, rel_mask,
-							relSeg))
+							relSeg, pcRel))
 						{
 							valid = 0;
 							equation = 1;
@@ -3591,6 +3592,8 @@ int VTAssembler::Assemble()
 					pRange = m_ActiveSeg->m_UsedAddr;
 					if (relSeg != NULL)
 						pRange = relSeg->m_UsedAddr;
+					if (pcRel)
+						pRel->m_pTargetRange = pRange;
 					while ((pRange != 0) && (pRel->m_pTargetRange == 0))
 					{
 						if ((pRange->address <= (unsigned int) value) &&
@@ -3852,7 +3855,7 @@ int VTAssembler::Assemble()
 						{
 							// Equation evaluated to a value.  Check if it is 
 							// relative to a relocatable segment
-							if (InvalidRelocation(pExp->m_Equation, rel_mask, relSeg))
+							if (InvalidRelocation(pExp->m_Equation, rel_mask, relSeg, pcRel))
 							{
 								valid = 0;
 								equation = 1;
@@ -3928,6 +3931,8 @@ int VTAssembler::Assemble()
 							pRange = m_ActiveSeg->m_UsedAddr;
 							if (relSeg != NULL)
 								pRange = relSeg->m_UsedAddr;
+							if (pcRel)
+								pRel->m_pTargetRange = pRange;
 							while ((pRange != 0) && (pRel->m_pTargetRange == 0))
 							{
 								if ((pRange->address <= (unsigned int) value) &&
@@ -4068,9 +4073,9 @@ int VTAssembler::Assemble()
 			// increased m_Address
 			if (pInst->m_Bytes != -1)
 				pInst->m_Bytes = m_Address - address;
-		}
 
-		// Here we should check if m_Address == m_ActiveSeg->m_Address as validation
+			m_ActiveSeg->m_Address = m_Address;
+		}
 	}
 
 	// Check for errors during assembly
@@ -4947,7 +4952,7 @@ more than one segment.
 ========================================================================
 */
 int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
-	CSegment *&pSeg)
+	CSegment *&pSeg, char &pcRel)
 {
 	int		c, count, invalid, sameseg;
 	char	rel[3];
@@ -4957,6 +4962,7 @@ int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
 	// in more than just one segment, we will mark the equation invalid
 	// for relocation.
 	invalid = FALSE;
+	pcRel = FALSE;
 	count = pEq->m_OperationArray.GetSize();
 	for (c = 0; c < 3; c++)
 		rel[c] = 0;
@@ -5010,6 +5016,21 @@ int VTAssembler::InvalidRelocation(CRpnEquation *pEq, char &rel_mask,
                             sameseg = FALSE;
                         }
 					}
+				}
+			}
+			else if (temp == "$")
+			{
+				rel[m_ActiveSeg->m_Type] = 1;
+				pcRel = TRUE;
+				if (pSeg == NULL)
+					pSeg = m_ActiveSeg;
+				else
+				{
+					if (pSeg != m_ActiveSeg)
+                    {
+						invalid = TRUE;
+                        sameseg = FALSE;
+                    }
 				}
 			}
             else

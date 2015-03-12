@@ -37,7 +37,7 @@ eof             = -1 + 0
 hex digit       = '0-9' + 'A-F' + 'a-f'
 newline         = '\n'
 letter          = 'a-z' + 'A-Z' + '_'
-label char      = '$' + '?' + '{' + '}'
+label char      = '?' + '{' + '}'
 string char     = ~eof - ('"' + '\\' + '\n')
 rst arg			= '0-7'
 asm incl char	= 'a-z' + 'A-Z' + '0-9' + '_' + '.' + '\\' + '/'
@@ -242,7 +242,7 @@ expression list
 */
 
 name list
- -> literal name nows								= gNameList->Add(ss[ss_idx--]);
+ -> literal name nows								= gNameList->Add(ss[ss_idx--]); 
  -> name list, ",", WS?...,	literal name nows		= gNameList->Add(ss[ss_idx--]);
 
 literal name
@@ -250,7 +250,7 @@ literal name
 
 literal name nows
  -> literal alpha
- -> "$"												= { strcpy(ss[++ss_idx], "$"); ss_len = 1; }
+// -> "$"												= { strcpy(ss[++ss_idx], "$"); ss_len = 1; printf("Added '$'\n"); }
  -> "&"												= { strcpy(ss[++ss_idx], "&"); ss_len = 1; }
 
 literal alpha
@@ -399,6 +399,7 @@ primary exp
 														else { \
 															gEq->Add((VTObject *) gMacro); gMacro = new CMacro; \
 														} }
+ -> '$'												= gEq->Add("$");
  -> function
  -> '(', WS?..., equation, WS?..., ')'
 
@@ -444,7 +445,7 @@ decimal integer
  -> '0-9':n											= { int_len = 1; integer[0] = n; integer[1] = 0; }
  -> decimal integer, '0-9':n						= { integer[int_len++] = n; integer[int_len] = 0; }
  -> decimal integer, '_'
- -> decimal integer, '$'
+// -> decimal integer, '$'
 
 hex integer
  -> '0', 'x' + 'X', hex digit:n						= { int_len = 1; integer[0] = n; integer[1] = 0; }

@@ -1,6 +1,6 @@
 /* multieditwin.h */
 
-/* $Id: multieditwin.h,v 1.4 2014/05/09 18:27:44 kpettit1 Exp $ */
+/* $Id: multieditwin.h,v 1.5 2015/03/05 23:48:25 kpettit1 Exp $ */
 
 /*
  * Copyright 2007 Ken Pettit
@@ -64,6 +64,7 @@ public:
 	void			DisableHl(void);
 	void			EnableHl(void);
 	int				ForwardSearch(const char *pFind, int caseSensitive = TRUE);
+	int				BackwardSearch(const char *pFind, int caseSensitive = TRUE);
 	virtual void	show(void) { My_Text_Editor::show(); Fl_Widget::show(); }
     virtual void	buffer(My_Text_Buffer* buf);
 	void			tab_distance(int);
