@@ -1,5 +1,5 @@
 //
-// "$Id: My_Text_Display.cpp,v 1.7 2014/05/09 18:27:44 kpettit1 Exp $"
+// "$Id: My_Text_Display.cpp,v 1.8 2015/03/04 02:27:51 kpettit1 Exp $"
 //
 // Copyright 2001-2003 by Bill Spitzak and others.
 // Original code Copyright Mark Edel.  Permission to distribute under
@@ -855,7 +855,7 @@ int My_Text_Display::position_to_xy( int pos, int* X, int* Y ) {
     outIndex += charLen;
   }
   *X = xStep;
-  delete [] (char *)lineStr;
+  free((void *) lineStr);
   return 1;
 }
 
@@ -1546,6 +1546,7 @@ void My_Text_Display::draw_vline(int visLineNum, int leftClip, int rightClip,
      draw parts whenever the style changes (also note if the cursor is on
      this line, and where it should be drawn to take advantage of the x
      position which we've gone to so much trouble to calculate) */
+  outStr[0] = '\0';
   outPtr = outStr;
   outIndex = outStartIndex;
   X = startX;
@@ -1898,7 +1899,7 @@ int My_Text_Display::xy_to_position( int X, int Y, int posType ) {
     charStyle = position_style( lineStart, lineLen, charIndex, outIndex );
     charWidth = string_width( expandedChar, charLen, charStyle );
     if ( X < xStep + ( posType == CURSOR_POS ? charWidth / 2 : charWidth ) ) {
-      delete [] (char *)lineStr;
+      free((char *)lineStr);
       return lineStart + charIndex;
     }
     xStep += charWidth;
@@ -1907,7 +1908,7 @@ int My_Text_Display::xy_to_position( int X, int Y, int posType ) {
 
   /* If the X position was beyond the end of the line, return the position
      of the newline at the end of the line */
-  delete [] (char *)lineStr;
+  free((char *)lineStr);
   return lineStart + lineLen;
 }
 
@@ -3215,5 +3216,5 @@ int My_Text_Display::handle(int event)
 
 
 //
-// End of "$Id: My_Text_Display.cpp,v 1.7 2014/05/09 18:27:44 kpettit1 Exp $".
+// End of "$Id: My_Text_Display.cpp,v 1.8 2015/03/04 02:27:51 kpettit1 Exp $".
 //

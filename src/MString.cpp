@@ -1,5 +1,5 @@
 /*  
-  $Id: MString.cpp,v 1.3 2013/02/20 20:47:46 kpettit1 Exp $
+  $Id: MString.cpp,v 1.4 2015/03/03 01:51:44 kpettit1 Exp $
 
   MString - Dynamic string data type library
   Copyright (C) 2001-2005 Jesse L. Lovelace (jesse at aslogicsys dot com)
@@ -20,6 +20,9 @@
 
   -----
     $Log: MString.cpp,v $
+    Revision 1.4  2015/03/03 01:51:44  kpettit1
+    *** empty log message ***
+
     Revision 1.3  2013/02/20 20:47:46  kpettit1
     Added TPDD Server (NADSBox emulation).  Currently only tested under Windows build and only minimal implementation, though functional.
 
@@ -156,7 +159,7 @@ void MString::deallocate(MNode* p)
 		tmp = NULL;
 	}
    if (pcStr) {
-      delete pcStr;
+      delete[] pcStr;
       pcStr = NULL;
       bModified = true;
 //    iBufferInUse = 0;
@@ -262,7 +265,7 @@ MString::~MString() {
 	tailMNode = NULL;
 	if (pcStr)
 	{
-		delete pcStr;
+		delete[] pcStr;
 		pcStr = NULL;
 	}
 }
@@ -1942,7 +1945,7 @@ void MString::Format( const char * sFormat, ...)
 	vsnprintf(s, 2000, sFormat, arglist);
 	va_end(arglist);
 	*this = s;
-	delete s;
+	delete[] s;
    s = NULL;
 }
 // End additions by Bruce Riggins 11/14/00
@@ -2186,7 +2189,7 @@ char * MString::GetBuffer(int nMinBufLength) {
    {
 	   if (pcStr) {
 		   // if buffer is in existence already, simply delete it and start over
-		   delete pcStr;	
+		   delete[] pcStr;	
          pcStr = NULL;
 	   }
 	   

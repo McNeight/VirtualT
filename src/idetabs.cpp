@@ -1,6 +1,6 @@
 /* idetabs.cpp */
 
-/* $Id: idetabs.cpp,v 1.6 2015/03/05 23:48:25 kpettit1 Exp $ */
+/* $Id: idetabs.cpp,v 1.7 2015/03/06 01:41:11 kpettit1 Exp $ */
 
 /*
  * Copyright 2006 Ken Pettit
@@ -109,6 +109,7 @@ void cb_idetabs(Fl_Widget* w, void *args)
 Fl_Ide_Tabs::Fl_Ide_Tabs(int x, int y, int w, int h, const char* title)
 : Fl_Group(x, y, w, h, title)
 {
+	m_prevInMoveRect = FALSE;
 	m_prevInRect = FALSE;
 	m_pushInRect = FALSE;
 	m_hasCloseButton = 0;

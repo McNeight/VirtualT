@@ -1,5 +1,5 @@
 /*
- * $Id: assemble.cpp,v 1.20 2015/03/06 02:11:08 kpettit1 Exp $
+ * $Id: assemble.cpp,v 1.21 2015/03/12 18:49:22 kpettit1 Exp $
  *
  * Copyright 2010 Ken Pettit
  *
@@ -2115,10 +2115,13 @@ This function searches for the specified symbol in the active module
 */
 int VTAssembler::LookupSymbol(MString& name, CSymbol *&symbol)
 {
+    CMacro  pMacro;
 
 	// Test if the specified label / define exists
 	if (m_ActiveMod->m_Symbols->Lookup(name, (VTObject*&) symbol))
+    {
 		return TRUE;
+    }
 
 	// Symbol not found in active module.  Check other modules
 	if (name.GetLength() > 1)
@@ -2929,6 +2932,7 @@ void VTAssembler::preproc_ifdef(const char* name, int negate)
 {
 	MString		err, strName;
 	CSymbol*	dummy;
+    CMacro*     pMacro;
 	int			defined;
 
 	// Update line number
@@ -2961,9 +2965,18 @@ void VTAssembler::preproc_ifdef(const char* name, int negate)
 	{
 		m_IfStat[m_IfDepth] = IF_STAT_DONT_ASSEMBLE;
 		strName = name;
-		defined = LookupSymbol(strName, dummy);
-		if ((defined && !negate) || (!defined && negate))
-			m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+        // Test if it is a CMacro
+        if (LookupMacro(strName, pMacro))
+        {
+            if (!negate)
+                m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+        }
+        else
+        {
+            defined = LookupSymbol(strName, dummy);
+            if ((defined && !negate) || (!defined && negate))
+                m_IfStat[m_IfDepth] = IF_STAT_ASSEMBLE;
+        }
 	}
 }
 
