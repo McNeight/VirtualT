@@ -1,6 +1,6 @@
 /* display.cpp */
 
-/* $Id: display.cpp,v 1.43 2015/02/24 20:19:17 kpettit1 Exp $ */
+/* $Id: display.cpp,v 1.44 2015/02/24 23:41:16 kpettit1 Exp $ */
 
 /*
  * Copyright 2004 Stephen Hurd and Ken Pettit
@@ -196,7 +196,7 @@ const char *gSpKeyText[] = {
 	"CTRL",
 	"GRAPH",
 	"CODE",
-	"",
+	"NUM",
 	"CAPS",
 	"",
 	"PAUSE",
@@ -3738,6 +3738,9 @@ int T100_Disp::handle(int event)
 		case FL_F+11:
 			gSpecialKeys |= MT_PASTE;
 			break;
+        case FL_Num_Lock:
+            gSpecialKeys |= MT_NUM;
+            break;
 		default:
 			key &= 0x7F;
                        // key=(unsigned int)Fl::event_text();
@@ -4163,6 +4166,9 @@ int T100_Disp::handle(int event)
 		case FL_F+11:
 			gSpecialKeys &= ~MT_PASTE;
 			break;
+         case FL_Num_Lock:
+            gSpecialKeys &= ~MT_NUM;
+            break;
 		default:
 			key &= 0x7F;
 			gKeyStates[key] = 1;
