@@ -6,7 +6,7 @@ VirtualT Release.txt
 This file lists the changes and additions for each of the versions of VirtualT since v0.3
 
 =====================
-v1.7 Not released yet
+v1.7 4/7/2014
 =====================
 
 1.  Fixed bug with deleting a .CO file where the deletion length wasn't including
@@ -59,6 +59,7 @@ v1.7 Not released yet
     ability to display link messages using "echo" for displaying things like
     program sizes and addresses, etc.
 
+17. Added support for NUM lock key so T200 Calculator will work.
 
 ====================
 v1.6 April 24, 2014
