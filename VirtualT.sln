@@ -1,9 +1,11 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualT", "VirtualT.vcproj", "{4B62EF01-B8D4-4C99-BC7B-661B97684568}"
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28010.2046
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "VirtualT", "VirtualT.vcxproj", "{4B62EF01-B8D4-4C99-BC7B-661B97684568}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vt_client", "vt_client_src\vt_client.vcproj", "{2EE29331-FFC1-46AF-96AB-AA0643DF918E}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "vt_client", "vt_client_src\vt_client.vcxproj", "{2EE29331-FFC1-46AF-96AB-AA0643DF918E}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -22,5 +24,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B4F43083-81E2-4E95-8106-53B7D02CA44E}
 	EndGlobalSection
 EndGlobal

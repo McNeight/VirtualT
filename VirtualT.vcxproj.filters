@@ -1,0 +1,518 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4b3fea00-7452-4f53-a102-8d310766fd33}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;rc;def;r;odl;idl;hpj;bat</Extensions>
+    </Filter>
+    <Filter Include="Source Files\asm">
+      <UniqueIdentifier>{133bd099-8817-4896-a864-e169e6c8768d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\ide">
+      <UniqueIdentifier>{7f0345da-4a5e-4224-b130-3cde6e5c0555}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files\print">
+      <UniqueIdentifier>{d3fdff02-8087-49a9-942c-861070c95588}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{cae63e95-f109-4eab-9b71-98555fa8a80a}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl</Extensions>
+    </Filter>
+    <Filter Include="Header Files\asm.h">
+      <UniqueIdentifier>{d76a5411-f4f0-4c1a-b85c-7b2035ce386d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ide.h">
+      <UniqueIdentifier>{ce2709c6-1fc6-4adf-a736-53990b287dde}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\print">
+      <UniqueIdentifier>{3ad1f518-81f2-4028-97b1-11e58b1f9a60}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{527b2d5c-d931-4ca2-bc53-1ae21c91fa62}</UniqueIdentifier>
+      <Extensions>ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\clock.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\cpuregs.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\disassemble.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\display.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\doins.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\file.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fileview.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fl_usage_box.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\genwrap.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\inet_pton.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\intelhex.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\io.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\kc85rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m100emu.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m100rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m10rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\m200rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\memedit.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\memory.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\n8201rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\n8300rom.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\periph.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\rememcfg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\remote.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\reximages.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\romstrings.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\serial.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\serversocket.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\setup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\socket.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\socketdlg.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\sound.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\strcase.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tdock.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tdockvid.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tpddclient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tpddserver.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tpddserverlog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\tsdosimages.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\a85parse.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\assemble.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\linker.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MString.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\MStringArray.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\rpn_eqn.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vtobj.cpp">
+      <Filter>Source Files\asm</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Button.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Combo_Box.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Combo_List.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Combo_Tree.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_DND.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_File_Chooser.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\flu_file_chooser_pixmaps.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Label.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\flu_pixmaps.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Return_Button.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Separator.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Tree_Browser.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Flu_Wrap_Group.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\FluSimpleString.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\highlight.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\ide.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\idetabs.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\multieditwin.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\multiwin.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\multiwin_icons.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\My_Text_Buffer.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\My_Text_Display.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\My_Text_Editor.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\pref_form.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\project.cpp">
+      <Filter>Source Files\ide</Filter>
+    </ClCompile>
+    <ClCompile Include="src\autofile.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\chargen.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fileprint.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fl_action_icon.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fx80print.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fx80rom.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\hostprint.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\lpt.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\printer.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\vtpaper.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+    <ClCompile Include="src\watchtable.cpp">
+      <Filter>Source Files\print</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="VirtualT.rc">
+      <Filter>Source Files</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\clock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\colors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\cpu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\cpuregs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\disassemble.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\display.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\do_instruct.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\doins.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\file.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fileview.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fl_usage_box.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\gen_defs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\genwrap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\inet_pton.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\intelhex.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\io.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\m100emu.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\memedit.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\memory.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\periph.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rememcfg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\remote.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\roms.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\romstrings.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\serial.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\serversocket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\setup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\sound.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tdock.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tdockvid.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tpddclient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tpddserver.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\tpddserverlog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\VirtualT.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\watchtable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\wrapdll.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\a85parse.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assemble.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\elf.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\linker.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MString.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\MStringArray.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\rpn_eqn.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vtobj.h">
+      <Filter>Header Files\asm.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Button.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Combo_Box.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Combo_List.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Combo_Tree.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_DND.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Enumerations.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\flu_export.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_File_Chooser.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Label.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\flu_pixmaps.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Return_Button.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Separator.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Tree_Browser.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\Flu_Wrap_Group.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FLU\FluSimpleString.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ide.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\idetabs.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\multieditwin.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\multiwin.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\multiwin_icons.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\My_Text_Display.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\My_Text_Editor.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\project.h">
+      <Filter>Header Files\ide.h</Filter>
+    </ClInclude>
+    <ClInclude Include="src\autofile.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\chargen.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fileprint.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fl_action_icon.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fx80print.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hostprint.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\lpt.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\printer.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+    <ClInclude Include="src\vtpaper.h">
+      <Filter>Header Files\print</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

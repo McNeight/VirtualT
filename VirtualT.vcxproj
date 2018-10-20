@@ -1,0 +1,309 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{4B62EF01-B8D4-4C99-BC7B-661B97684568}</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+    <UseOfAtl>Static</UseOfAtl>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v141</PlatformToolset>
+    <UseOfMfc>false</UseOfMfc>
+    <CharacterSet>MultiByte</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC60.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC60.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <_ProjectFileVersion>15.0.27924.0</_ProjectFileVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>.\Debug\</OutDir>
+    <IntDir>.\Debug\</IntDir>
+    <LinkIncremental>true</LinkIncremental>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>.\Release\</OutDir>
+    <IntDir>.\Release\</IntDir>
+    <LinkIncremental>false</LinkIncremental>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Midl>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <TypeLibraryName>.\Debug/VirtualT.tlb</TypeLibraryName>
+      <HeaderFileName />
+    </Midl>
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <AdditionalIncludeDirectories>$(FLTKDIR);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MinimalRebuild>true</MinimalRebuild>
+      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PrecompiledHeaderOutputFile>.\Debug/VirtualT.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\Debug/</AssemblerListingLocation>
+      <ObjectFileName>.\Debug/</ObjectFileName>
+      <ProgramDataBaseFileName>.\Debug/</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>fltkd.lib;fltkimagesd.lib;wsock32.lib;comctl32.lib;fltkjpegd.lib;fltkpngd.lib;fltkz.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>.\Debug/VirtualT.exe</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>..\lib; $(FLTKDIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries>libcmtd;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>.\Debug/VirtualT.pdb</ProgramDatabaseFile>
+      <SubSystem>Windows</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Debug/VirtualT.bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Midl>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <MkTypLibCompatible>true</MkTypLibCompatible>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <TargetEnvironment>Win32</TargetEnvironment>
+      <TypeLibraryName>.\Release/VirtualT.tlb</TypeLibraryName>
+      <HeaderFileName />
+    </Midl>
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <AdditionalIncludeDirectories>$(FLTKDIR);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_CRT_SECURE_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PrecompiledHeaderOutputFile>.\Release/VirtualT.pch</PrecompiledHeaderOutputFile>
+      <AssemblerListingLocation>.\Release/</AssemblerListingLocation>
+      <ObjectFileName>.\Release/</ObjectFileName>
+      <ProgramDataBaseFileName>.\Release/</ProgramDataBaseFileName>
+      <WarningLevel>Level3</WarningLevel>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+    </ClCompile>
+    <ResourceCompile>
+      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <Culture>0x0409</Culture>
+    </ResourceCompile>
+    <Link>
+      <AdditionalDependencies>fltk.lib;fltkimages.lib;wsock32.lib;comctl32.lib;fltkjpeg.lib;fltkpng.lib;fltkz.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <OutputFile>.\Release/VirtualT.exe</OutputFile>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <AdditionalLibraryDirectories>..\lib; $(FLTKDIR)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
+      <IgnoreSpecificDefaultLibraries>libcmt;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
+      <ProgramDatabaseFile>.\Release/VirtualT.pdb</ProgramDatabaseFile>
+      <SubSystem>Windows</SubSystem>
+      <TargetMachine>MachineX86</TargetMachine>
+    </Link>
+    <Bscmake>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <OutputFile>.\Release/VirtualT.bsc</OutputFile>
+    </Bscmake>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\a85parse.cpp" />
+    <ClCompile Include="src\assemble.cpp" />
+    <ClCompile Include="src\autofile.cpp" />
+    <ClCompile Include="src\chargen.cpp" />
+    <ClCompile Include="src\clock.cpp" />
+    <ClCompile Include="src\cpuregs.cpp" />
+    <ClCompile Include="src\disassemble.cpp" />
+    <ClCompile Include="src\display.cpp" />
+    <ClCompile Include="src\doins.c" />
+    <ClCompile Include="src\file.cpp" />
+    <ClCompile Include="src\fileprint.cpp" />
+    <ClCompile Include="src\fileview.cpp" />
+    <ClCompile Include="src\FluSimpleString.cpp" />
+    <ClCompile Include="src\Flu_Button.cpp" />
+    <ClCompile Include="src\Flu_Combo_Box.cpp" />
+    <ClCompile Include="src\Flu_Combo_List.cpp" />
+    <ClCompile Include="src\Flu_Combo_Tree.cpp" />
+    <ClCompile Include="src\Flu_DND.cpp" />
+    <ClCompile Include="src\Flu_File_Chooser.cpp" />
+    <ClCompile Include="src\flu_file_chooser_pixmaps.cpp" />
+    <ClCompile Include="src\Flu_Label.cpp" />
+    <ClCompile Include="src\flu_pixmaps.cpp" />
+    <ClCompile Include="src\Flu_Return_Button.cpp" />
+    <ClCompile Include="src\Flu_Separator.cpp" />
+    <ClCompile Include="src\Flu_Tree_Browser.cpp" />
+    <ClCompile Include="src\Flu_Wrap_Group.cpp" />
+    <ClCompile Include="src\fl_action_icon.cpp" />
+    <ClCompile Include="src\fl_usage_box.cpp" />
+    <ClCompile Include="src\fx80print.cpp" />
+    <ClCompile Include="src\fx80rom.cpp" />
+    <ClCompile Include="src\genwrap.c" />
+    <ClCompile Include="src\highlight.cpp" />
+    <ClCompile Include="src\hostprint.cpp" />
+    <ClCompile Include="src\ide.cpp" />
+    <ClCompile Include="src\idetabs.cpp" />
+    <ClCompile Include="src\inet_pton.c" />
+    <ClCompile Include="src\intelhex.c" />
+    <ClCompile Include="src\io.c" />
+    <ClCompile Include="src\kc85rom.c" />
+    <ClCompile Include="src\linker.cpp" />
+    <ClCompile Include="src\lpt.cpp" />
+    <ClCompile Include="src\m100emu.c" />
+    <ClCompile Include="src\m100rom.c" />
+    <ClCompile Include="src\m10rom.c" />
+    <ClCompile Include="src\m200rom.c" />
+    <ClCompile Include="src\memedit.cpp" />
+    <ClCompile Include="src\memory.c" />
+    <ClCompile Include="src\MString.cpp" />
+    <ClCompile Include="src\MStringArray.cpp" />
+    <ClCompile Include="src\multieditwin.cpp" />
+    <ClCompile Include="src\multiwin.cpp" />
+    <ClCompile Include="src\multiwin_icons.cpp" />
+    <ClCompile Include="src\My_Text_Buffer.cpp" />
+    <ClCompile Include="src\My_Text_Display.cpp" />
+    <ClCompile Include="src\My_Text_Editor.cpp" />
+    <ClCompile Include="src\n8201rom.c" />
+    <ClCompile Include="src\n8300rom.c" />
+    <ClCompile Include="src\periph.cpp" />
+    <ClCompile Include="src\pref_form.cpp" />
+    <ClCompile Include="src\printer.cpp" />
+    <ClCompile Include="src\project.cpp" />
+    <ClCompile Include="src\rememcfg.cpp" />
+    <ClCompile Include="src\remote.cpp" />
+    <ClCompile Include="src\reximages.c" />
+    <ClCompile Include="src\romstrings.c" />
+    <ClCompile Include="src\rpn_eqn.cpp" />
+    <ClCompile Include="src\serial.c" />
+    <ClCompile Include="src\serversocket.cpp" />
+    <ClCompile Include="src\setup.cpp" />
+    <ClCompile Include="src\socket.cpp" />
+    <ClCompile Include="src\socketdlg.cpp" />
+    <ClCompile Include="src\sound.c" />
+    <ClCompile Include="src\strcase.c" />
+    <ClCompile Include="src\tdock.cpp" />
+    <ClCompile Include="src\tdockvid.cpp" />
+    <ClCompile Include="src\tpddclient.cpp" />
+    <ClCompile Include="src\tpddserver.cpp" />
+    <ClCompile Include="src\tpddserverlog.cpp" />
+    <ClCompile Include="src\tsdosimages.c" />
+    <ClCompile Include="src\vtobj.cpp" />
+    <ClCompile Include="src\vtpaper.cpp" />
+    <ClCompile Include="src\watchtable.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="VirtualT.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="src\a85parse.h" />
+    <ClInclude Include="src\assemble.h" />
+    <ClInclude Include="src\autofile.h" />
+    <ClInclude Include="src\chargen.h" />
+    <ClInclude Include="src\clock.h" />
+    <ClInclude Include="src\colors.h" />
+    <ClInclude Include="src\cpu.h" />
+    <ClInclude Include="src\cpuregs.h" />
+    <ClInclude Include="src\disassemble.h" />
+    <ClInclude Include="src\display.h" />
+    <ClInclude Include="src\doins.h" />
+    <ClInclude Include="src\do_instruct.h" />
+    <ClInclude Include="src\elf.h" />
+    <ClInclude Include="src\file.h" />
+    <ClInclude Include="src\fileprint.h" />
+    <ClInclude Include="src\fileview.h" />
+    <ClInclude Include="src\FLU\FluSimpleString.h" />
+    <ClInclude Include="src\FLU\Flu_Button.h" />
+    <ClInclude Include="src\FLU\Flu_Combo_Box.h" />
+    <ClInclude Include="src\FLU\Flu_Combo_List.h" />
+    <ClInclude Include="src\FLU\Flu_Combo_Tree.h" />
+    <ClInclude Include="src\FLU\Flu_DND.h" />
+    <ClInclude Include="src\FLU\Flu_Enumerations.h" />
+    <ClInclude Include="src\FLU\flu_export.h" />
+    <ClInclude Include="src\FLU\Flu_File_Chooser.h" />
+    <ClInclude Include="src\FLU\Flu_Label.h" />
+    <ClInclude Include="src\FLU\flu_pixmaps.h" />
+    <ClInclude Include="src\FLU\Flu_Return_Button.h" />
+    <ClInclude Include="src\FLU\Flu_Separator.h" />
+    <ClInclude Include="src\FLU\Flu_Tree_Browser.h" />
+    <ClInclude Include="src\FLU\Flu_Wrap_Group.h" />
+    <ClInclude Include="src\fl_action_icon.h" />
+    <ClInclude Include="src\fl_usage_box.h" />
+    <ClInclude Include="src\fx80print.h" />
+    <ClInclude Include="src\genwrap.h" />
+    <ClInclude Include="src\gen_defs.h" />
+    <ClInclude Include="src\hostprint.h" />
+    <ClInclude Include="src\ide.h" />
+    <ClInclude Include="src\idetabs.h" />
+    <ClInclude Include="src\inet_pton.h" />
+    <ClInclude Include="src\intelhex.h" />
+    <ClInclude Include="src\io.h" />
+    <ClInclude Include="src\linker.h" />
+    <ClInclude Include="src\lpt.h" />
+    <ClInclude Include="src\m100emu.h" />
+    <ClInclude Include="src\memedit.h" />
+    <ClInclude Include="src\memory.h" />
+    <ClInclude Include="src\MString.h" />
+    <ClInclude Include="src\MStringArray.h" />
+    <ClInclude Include="src\multieditwin.h" />
+    <ClInclude Include="src\multiwin.h" />
+    <ClInclude Include="src\multiwin_icons.h" />
+    <ClInclude Include="src\My_Text_Display.h" />
+    <ClInclude Include="src\My_Text_Editor.h" />
+    <ClInclude Include="src\periph.h" />
+    <ClInclude Include="src\printer.h" />
+    <ClInclude Include="src\project.h" />
+    <ClInclude Include="src\rememcfg.h" />
+    <ClInclude Include="src\remote.h" />
+    <ClInclude Include="src\roms.h" />
+    <ClInclude Include="src\romstrings.h" />
+    <ClInclude Include="src\rpn_eqn.h" />
+    <ClInclude Include="src\serial.h" />
+    <ClInclude Include="src\serversocket.h" />
+    <ClInclude Include="src\setup.h" />
+    <ClInclude Include="src\sound.h" />
+    <ClInclude Include="src\tdock.h" />
+    <ClInclude Include="src\tdockvid.h" />
+    <ClInclude Include="src\tpddclient.h" />
+    <ClInclude Include="src\tpddserver.h" />
+    <ClInclude Include="src\tpddserverlog.h" />
+    <ClInclude Include="src\VirtualT.h" />
+    <ClInclude Include="src\vtobj.h" />
+    <ClInclude Include="src\vtpaper.h" />
+    <ClInclude Include="src\watchtable.h" />
+    <ClInclude Include="src\wrapdll.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
