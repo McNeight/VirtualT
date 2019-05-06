@@ -1200,7 +1200,7 @@ void cb_about (Fl_Widget* w, void*)
       o->labelfont(8);
       o->labelsize(18);
     }
-    { Fl_Box* o = new Fl_Box(95, 265, 195, 25, "V "VERSION);
+    { Fl_Box* o = new Fl_Box(95, 265, 195, 25, "V " VERSION);
       o->labelfont(8);
       o->labelsize(18);
     }
